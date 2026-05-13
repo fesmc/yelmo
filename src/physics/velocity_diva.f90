@@ -1035,6 +1035,9 @@ end if
         else 
             ! Calculate basal velocity normally 
 
+            ! Set boundary condition code
+            BC = boundary_code(boundaries)
+
             !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,F2_ac)
             do j = 1, ny 
             do i = 1, nx 
