@@ -794,6 +794,14 @@ end if
         ! the cmb loop), matching the palma-ice #34 placement; "snap" runs
         ! after the cmb loop below, matching the pre-#34 ordering where
         ! the neighbour-snap was interleaved with cmb.
+        !
+        ! For "redist": lsf is in normalized ±1 units (LSFupdate saturates
+        ! it to that range), so we redistance in grid-cell units (dx=dy=1)
+        ! so that the PDE drives |grad lsf| -> 1 per cell near the zero
+        ! level set, producing lsf ≈ ±1 at adjacent cells. Passing physical
+        ! dx (e.g. 25000 m) would make the smoothed sign function
+        ! ≈ ±lsf/dx ≈ 0 several cells out from the front, freezing the
+        ! front in place (see issue #34). Matches Yelmo.jl.
         select case(trim(tpo%par%lsf_method))
             case("redist")
                 if (tpo%par%lsf_redist_n_iter .le. 0) then
@@ -802,7 +810,7 @@ end if
                         &got lsf_redist_n_iter = ", tpo%par%lsf_redist_n_iter
                     stop
                 end if
-                call LSFredistance(tpo%now%lsf,tpo%par%dx,tpo%par%dy, &
+                call LSFredistance(tpo%now%lsf,1.0_wp,1.0_wp, &
                                    tpo%par%lsf_redist_n_iter,tpo%par%boundaries)
             case("snap")
                 ! Handled after cmb loop below.
