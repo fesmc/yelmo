@@ -790,10 +790,15 @@ end if
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
                        tpo%now%mask_adv,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,tpo%par%boundaries)
 
-        ! Choose LSF discipline: "redist" runs here (before z_bed reset and
-        ! the cmb loop), matching the palma-ice #34 placement; "snap" runs
-        ! after the cmb loop below, matching the pre-#34 ordering where
-        ! the neighbour-snap was interleaved with cmb.
+        ! LSF should not affect points above sea level. Pin BEFORE the
+        ! LSF discipline so that phi0 carries the right (land = -1) value
+        ! into the Sussman/Osher iteration — Yelmo.jl uses this order. The
+        ! snap pass after the cmb loop also benefits from a pre-pinned lsf.
+        where(bnd%z_bed .gt. bnd%z_sl) tpo%now%lsf = -1.0_wp
+
+        ! Choose LSF discipline: "redist" runs here (palma-ice #34 placement);
+        ! "snap" runs after the cmb loop below, matching the pre-#34 ordering
+        ! where the neighbour-snap was interleaved with cmb.
         !
         ! For "redist": lsf is in normalized ±1 units (LSFupdate saturates
         ! it to that range), so we redistance in grid-cell units (dx=dy=1)
@@ -820,9 +825,6 @@ end if
                     &Expected 'snap' or 'redist'."
                 stop
         end select
-
-        ! LSF should not affect points above sea level
-        where(bnd%z_bed .gt. bnd%z_sl) tpo%now%lsf = -1.0_wp
 
         ! === Calving ===
         ! Apply calving as a melt rate equal to ice thickness where lsf is positive
