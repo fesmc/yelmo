@@ -1,0 +1,2 @@
+- Production code of Yelmo ice-sheet model. Be very careful about what is modified in here.
+- Initialized from tagged version v1.15 from github.com/palma-ice/yelmo repository. New repository here is designed to support development towards new version v2.0.
