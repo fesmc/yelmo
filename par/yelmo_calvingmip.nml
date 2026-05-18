@@ -6,8 +6,8 @@
     ! Timing parameters 
     time_init    = 0.0                  ! [yr] Starting time 
     time_end     = 10000.0              ! [yr] Ending time 
-    dtt          = 1000.0               ! [yr] Main loop timestep 
-    dt2D_out     = 1000.0               ! [yr] Frequency of writing 2D output files 
+    dtt          = 1.0                  ! [yr] Main loop timestep 
+    dt2D_out     = 200.0                ! [yr] Frequency of writing 2D output files 
 /
 
 &yelmo
