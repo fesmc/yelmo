@@ -1,2 +1,15 @@
 - Production code of Yelmo ice-sheet model. Be very careful about what is modified in here.
 - Initialized from tagged version v1.15 from github.com/palma-ice/yelmo repository. New repository here is designed to support development towards new version v2.0.
+
+## New worktree setup
+
+A fresh worktree has no `Makefile`, no `.runme_config`, and no data symlinks. Before building or running anything, set these up from inside the worktree:
+
+```bash
+ln -s /Users/alrobi001/models/ice_data ice_data
+ln -s /Users/alrobi001/models/fesm-utils fesm-utils
+cp .runme/runme_config .runme_config
+python config.py config/macbook_gfortran   # or whichever host config applies
+```
+
+After that, `make <target>` and `./runme ...` work the same as in the main tree.
