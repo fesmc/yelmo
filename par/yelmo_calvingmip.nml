@@ -3,11 +3,14 @@
     exp         = "exp1"                 ! "exp1", "exp2", "exp3", "exp4", "exp5"
     dx          = 25.0                   ! [km] Grid resolution
 
-    ! Timing parameters 
-    time_init    = 0.0                  ! [yr] Starting time 
-    time_end     = 10000.0              ! [yr] Ending time 
+    ! Timing parameters
+    time_init    = 0.0                  ! [yr] Starting time
+    time_end     = 10000.0              ! [yr] Ending time
     dtt          = 5.0                  ! [yr] Main loop timestep
-    dt2D_out     = 200.0                ! [yr] Frequency of writing 2D output files 
+    dt2D_out     = 200.0                ! [yr] Frequency of writing 2D output files
+
+    ! CalvingMIP output (additional NetCDF file with wiki-spec variables, Time1/Time100 dims)
+    calvingmip_out = True                ! Write CalvingMIP_EXP{N}_YELMO_AWI.nc?
 /
 
 &yelmo

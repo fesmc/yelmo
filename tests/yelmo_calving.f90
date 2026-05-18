@@ -14,17 +14,20 @@ program yelmo_calving
     type(yelmo_class) :: yelmo1
     type(yelmo_class) :: yelmo_ref
 
-    type control_type    
+    type control_type
         character(len=256) :: outfldr
         character(len=256) :: file2D, file1D
         character(len=256) :: file_restart
-        character(len=512) :: path_par 
+        character(len=256) :: file_cmip
+        character(len=512) :: path_par
         character(len=56)  :: exp
 
         real(wp) :: time_init, time_end, time, dtt
         real(wp) :: dt2D_out, dt1D_out
 
         real(wp) :: dx
+
+        logical  :: calvingmip_out
 
         ! Internal parameters
         character(len=56)  :: domain
@@ -50,22 +53,30 @@ program yelmo_calving
     call yelmo_load_command_line_args(ctl%path_par)
     !path_par   = trim(outfldr)//"yelmo_calving.nml" 
 
-    ! Define input and output locations 
+    ! Define input and output locations
     ctl%file1D       = trim(ctl%outfldr)//"yelmo1D.nc"
     ctl%file2D       = trim(ctl%outfldr)//"yelmo2D.nc"
     ctl%file_restart = trim(ctl%outfldr)//"yelmo_restart.nc"
 
-    
+
     ! Define the domain, grid and experiment from parameter file
     call nml_read(ctl%path_par,"ctl","exp",         ctl%exp)            ! "exp1", "exp2", "exp3", "exp4", "exp5"
-    call nml_read(ctl%path_par,"ctl","dx",          ctl%dx)             ! [km] Grid resolution 
+    call nml_read(ctl%path_par,"ctl","dx",          ctl%dx)             ! [km] Grid resolution
 
-    ! Timing parameters 
+    ! Timing parameters
     call nml_read(ctl%path_par,"ctl","time_init",   ctl%time_init)      ! [yr] Starting time
     call nml_read(ctl%path_par,"ctl","time_end",    ctl%time_end)       ! [yr] Ending time
-    call nml_read(ctl%path_par,"ctl","dtt",         ctl%dtt)            ! [yr] Main loop time step 
-    call nml_read(ctl%path_par,"ctl","dt2D_out",    ctl%dt2D_out)       ! [yr] Frequency of 2D output 
-    ctl%dt1D_out = ctl%dtt  ! Set 1D output to frequency of main loop timestep 
+    call nml_read(ctl%path_par,"ctl","dtt",         ctl%dtt)            ! [yr] Main loop time step
+    call nml_read(ctl%path_par,"ctl","dt2D_out",    ctl%dt2D_out)       ! [yr] Frequency of 2D output
+    ctl%dt1D_out = ctl%dtt  ! Set 1D output to frequency of main loop timestep
+
+    ! CalvingMIP output flag (only present in calvingmip nml; default off if not found)
+    ctl%calvingmip_out = .FALSE.
+    call nml_read(ctl%path_par,"ctl","calvingmip_out",ctl%calvingmip_out)
+
+    ! Build CalvingMIP output filename: CalvingMIP_EXP{N}_YELMO_AWI.nc
+    ! ctl%exp is expected to be "exp1", "exp2", ..., so uppercase by extracting digit.
+    ctl%file_cmip = trim(ctl%outfldr)//"CalvingMIP_EXP"//trim(ctl%exp(4:))//"_YELMO_AWI.nc"
 
     ! Now set internal parameters ===
 
@@ -144,23 +155,21 @@ program yelmo_calving
     call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="robin")
 
     ! == Write initial state ==
- 
-    ! 2D file 
+
+    ! Standard yelmo 2D output
     call yelmo_write_init(yelmo1,ctl%file2D,time_init=ctl%time_init,units="years")
-    if (.FALSE.) then
-        call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
-    else
-        ! CalvingMIP variables
-        call write_2D_calvingmip(yelmo1,ctl%file2D,time=ctl%time_init)   
-    end if 
-    
-    ! 1D file 
+    call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
+
+    ! Standard yelmo 1D regional output
     call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years",mask=(yelmo1%bnd%mask_ice /= -1))
-    if (.FALSE.) then
-        call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init) 
-    else
-        ! CalvingMIP variables
-        call write_1D_calvingmip(yelmo1,ctl%file1D,time=ctl%time_init)
+    call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init)
+
+    ! Optional CalvingMIP output (wiki-spec file with Time1 / Time100 dims)
+    if (ctl%calvingmip_out) then
+        call calvingmip_init(yelmo1,ctl)
+        ! Initial state at t=time_init. The dispatcher decides per-exp whether
+        ! this triggers a Time1 entry, a Time100 entry, both, or neither.
+        call calvingmip_write_step(yelmo1,ctl,ctl%time_init)
     end if
 
     ! Store default parameters
@@ -187,23 +196,21 @@ program yelmo_calving
         call yelmo_update(yelmo1,time)
         
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(time*100),nint(ctl%dt2D_out*100))==0) then 
-            if (.FALSE.) then
-                call yelmo_write_step(yelmo1,ctl%file2D,time=time)
-            else
-                ! CalvingMIP variables
-                call write_2D_calvingmip(yelmo1,ctl%file2D,time=time)   
-            end if
-        end if 
 
-        if (mod(nint(time*100),nint(ctl%dt1D_out*100))==0) then 
-            if (.FALSE.) then
-                call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time) 
-            else
-                ! CalvingMIP variables
-                call write_1D_calvingmip(yelmo1,ctl%file1D,time=time)
-            end if
-        end if 
+        ! Standard yelmo 2D output at user-specified frequency
+        if (mod(nint(time*100),nint(ctl%dt2D_out*100))==0) then
+            call yelmo_write_step(yelmo1,ctl%file2D,time=time)
+        end if
+
+        ! Standard yelmo 1D regional output at main-loop timestep
+        if (mod(nint(time*100),nint(ctl%dt1D_out*100))==0) then
+            call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time)
+        end if
+
+        ! CalvingMIP output (hardcoded frequencies per wiki experiment spec)
+        if (ctl%calvingmip_out) then
+            call calvingmip_write_step(yelmo1,ctl,time)
+        end if
 
     end do
 
@@ -249,330 +256,275 @@ contains
     
     end subroutine CircularDomain
 
-    subroutine write_1D_calvingmip(dom,filename,time)
+    ! ============================================================================
+    ! CalvingMIP output: separate file with wiki-spec variables, dims Time1/Time100
+    ! File name: CalvingMIP_EXP{N}_YELMO_AWI.nc
+    ! Spec: https://github.com/JRowanJordan/CalvingMIP/wiki
+    ! ============================================================================
+
+    subroutine calvingmip_init(ylmo,ctl)
+        ! Create the CalvingMIP output file and define dimensions:
+        !   X, Y    — native model grid in metres
+        !   Time1   — unlimited, annual scalars/profiles (grown by nc_time_index)
+        !   Time100 — fixed-size, 100-yearly snapshots; pre-populated time values
+        !             matching the per-exp schedule so nc_time_index can match.
+        ! Note: NetCDF3 (the default for ncio nc_create) allows only one
+        ! unlimited dim per file, so Time100 is fixed-size.
 
         implicit none
-    
-        type(yelmo_class), intent(IN) :: dom
-        character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
-    
-        ! Local variables
-        type(yregions_class) :: reg
-            
-        integer  :: ncid, n, i, j
-        real(wp) :: rho_ice
-        real(wp) :: density_corr
-        real(wp) :: m3yr_to_kgs
-        real(wp) :: ismip6_correction
-        real(wp) :: yr_to_sec
-            
-        real(wp) :: m3_km3
-        real(wp) :: m2_km2 
-    
-        integer  :: npts_tot
-        integer  :: npts_grnd
-        integer  :: npts_flt
-        integer  :: npts_grl
-        integer  :: npts_frnt 
-    
-        real(wp) :: dx
-        real(wp) :: dy 
-        real(wp) :: smb_tot 
-        real(wp) :: bmb_tot 
-        real(wp) :: bmb_shlf_t 
-    
-        real(wp) :: A_ice_grl 
-        real(wp) :: flux_grl 
-        real(wp) :: A_ice_frnt 
-        real(wp) :: calv_flt 
-        real(wp) :: flux_frnt 
 
-        real(wp) :: iareatotalNW
-        real(wp) :: iareatotalNE
-        real(wp) :: iareatotalSW
-        real(wp) :: iareatotalSE
-        
-        logical, allocatable :: mask_tot(:,:) 
-        logical, allocatable :: mask_grnd(:,:)
-        logical, allocatable :: mask_flt(:,:) 
-        logical, allocatable :: mask_grl(:,:) 
-        logical, allocatable :: mask_frnt(:,:)
-        logical, allocatable :: mask_NW(:,:)
-        logical, allocatable :: mask_NE(:,:)
-        logical, allocatable :: mask_SW(:,:)
-        logical, allocatable :: mask_SE(:,:) 
+        type(yelmo_class),  intent(IN) :: ylmo
+        type(control_type), intent(IN) :: ctl
 
-        ! profile variables (1D)
+        integer  :: i, n_time100
+        real(wp), allocatable :: t100(:)
 
-        dx = dom%grd%dx 
-        dy = dom%grd%dy 
-    
-        ! Allocate variables
-        allocate(mask_tot(dom%grd%nx,dom%grd%ny))
-        allocate(mask_grnd(dom%grd%nx,dom%grd%ny))
-        allocate(mask_flt(dom%grd%nx,dom%grd%ny))
-        allocate(mask_grl(dom%grd%nx,dom%grd%ny))
-        allocate(mask_frnt(dom%grd%nx,dom%grd%ny))
-        allocate(mask_NW(dom%grd%nx,dom%grd%ny))
-        allocate(mask_NE(dom%grd%nx,dom%grd%ny))
-        allocate(mask_SW(dom%grd%nx,dom%grd%ny))
-        allocate(mask_SE(dom%grd%nx,dom%grd%ny))
+        ! Build the Time100 coordinate values based on experiment schedule.
+        ! Include t=time_init for non-exp1 cases so the initial state has a slot
+        ! (matches wiki exp3 schedule "Time0, Time100, Time200, ...").
+        select case(trim(ctl%exp))
+            case("exp1")
+                ! Single final snapshot
+                n_time100 = 1
+                allocate(t100(n_time100))
+                t100(1) = ctl%time_end
+            case default
+                n_time100 = max(1, int((ctl%time_end - ctl%time_init) / 100.0_wp) + 1)
+                allocate(t100(n_time100))
+                do i = 1, n_time100
+                    t100(i) = ctl%time_init + (i-1)*100.0_wp
+                end do
+        end select
 
-        ! === Data conversion factors ========================================
-    
-        rho_ice             = 917.0             ! ice density kg/m3
-        m3yr_to_kgs         = 3.2e-5            ! m3/yr of pure water to kg/s
-        density_corr        = rho_ice/1028.0    ! ice density correction with pure water
-        ismip6_correction   = m3yr_to_kgs*density_corr
-        yr_to_sec           = 31556926.0
-            
-        m3_km3              = 1e-9 
-        m2_km2              = 1e-6 
-            
-        ! 1. Determine regional values of variables 
-    
-        ! Take the global regional data object that 
-        ! is calculated over the whole domain at each timestep 
-        reg = dom%reg
-    
-        ! Assign masks of interest
-        mask_tot  = (dom%tpo%now%H_ice .gt. 0.0) 
-        mask_grnd = (dom%tpo%now%H_ice .gt. 0.0 .and. dom%tpo%now%f_grnd .gt. 0.0)
-        mask_flt  = (dom%tpo%now%H_ice .gt. 0.0 .and. dom%tpo%now%f_grnd .eq. 0.0)
-        mask_grl  = (dom%tpo%now%H_ice .gt. 0.0 .and. dom%tpo%now%f_grnd .gt. 0.0 .and. dom%tpo%now%mask_grz .eq. 0.0)         
-        mask_frnt = (dom%tpo%now%H_ice .gt. 0.0 .and. dom%tpo%now%f_grnd .eq. 0.0 .and. dom%tpo%now%mask_frnt .eq. 1.0) 
-        mask_NW   = .FALSE.
-        mask_NE   = .FALSE.
-        mask_SW   = .FALSE.
-        mask_SE   = .FALSE.
-            
-        do i=1,dom%grd%nx
-        do j=1,dom%grd%ny
-            ! NW mask
-            if ((i .le. 1+0.5*(dom%grd%nx-1)) .and. (j .ge. 1+0.5*(dom%grd%ny-1))) then
-                mask_NW(i,j) = .TRUE.
-            end if
-            ! NE mask
-            if ((i .ge. 1+0.5*(dom%grd%nx-1)) .and. (j .ge. 1+0.5*(dom%grd%ny-1))) then
-                mask_NE(i,j) = .TRUE.
-            end if
-            ! SW mask
-            if ((i .ge. 1+0.5*(dom%grd%nx-1)) .and. (j .le. 1+0.5*(dom%grd%ny-1))) then
-                mask_SW(i,j) = .TRUE.
-            end if
-            ! SE mask
-            if ((i .le. 1+0.5*(dom%grd%nx-1)) .and. (j .le. 1+0.5*(dom%grd%ny-1))) then
-                mask_SE(i,j) = .TRUE.
-            end if
-        end do
-        end do
+        call nc_create(ctl%file_cmip, overwrite=.TRUE., institution="AWI", &
+                       description="CalvingMIP output from YELMO ice-sheet model")
 
-        ! Determine number of points at grl and frnt
-        npts_tot  = count(mask_tot)
-        npts_grnd = count(mask_grnd)
-        npts_flt  = count(mask_flt)
-        npts_grl  = count(mask_grl)      
-        npts_frnt = count(mask_frnt) 
-    
-        ! Calculate additional variables of interest for CalvingMIP
-        if (npts_grl .gt. 0) then
-    
-            A_ice_grl = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_grl)*dx*dy*m2_km2 ! [km^2]
-            !flux_grl  = sum(dom%tpo%now%H_ice,mask=mask_grl)*(dx*dy)                 ! m^3/yr: flux
-            flux_grl  = sum(dom%dyn%now%uxy_bar*dom%tpo%now%H_ice*rho_ice,mask=mask_grl)*dx   ! kg/yr: flux
-        
-        else
-    
-            A_ice_grl = 0.0_wp
-            flux_grl  = 0.0_wp
-    
-        end if
-     
-        ! ===== Frontal ice-shelves variables =====
-    
-        if (npts_frnt .gt. 0) then
-    
-            A_ice_frnt = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_frnt)*dx*dy*m2_km2         ! [km^2]
-            !calv_flt   = sum(dom%tpo%now%cmb_flt*dom%tpo%now%H_ice*rho_ice)*dx          ! m^3/yr: flux [m-1 yr-1]
-            calv_flt   = sum(dom%dyn%now%uxy_bar*dom%tpo%now%H_ice*rho_ice,mask=mask_frnt)*dx !kg/yr
-        else
-    
-            A_ice_frnt = 0.0_wp
-            calv_flt   = 0.0_wp 
-    
-        end if
-    
-        ! 2. Begin writing step 
-    
-        ! Open the file for writing
-        call nc_open(filename,ncid,writable=.TRUE.)
-    
-        ! Determine current writing time step 
-        n = nc_time_index(filename,"time",time,ncid)
-    
-        ! Update the time step
-        call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
-    
-        ! CalvMIP outputs
-        call nc_write(filename,"iareafl",reg%A_ice_f*1e6,units="m^2",long_name="Floating ice area", &
-                standard_name="floating_ice_shelf_area",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"iareagr",reg%A_ice_g*1e6,units="m^2",long_name="Grounded ice area", &
-                standard_name="grounded_ice_sheet_area",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"lim",reg%V_ice*rho_ice*1e9,units="kg",long_name="Total ice mass", &
-                standard_name="land_ice_mass",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"limnsw",reg%V_sl*rho_ice*1e9,units="kg",long_name="Mass above flotation", &
-                standard_name="land_ice_mass_not_displacing_sea_water",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"tendlicalvf",calv_flt,units="kg a-1",long_name="Total calving flux", &
-                standard_name="tendency_of_land_ice_mass_due_to_calving",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"tendligroundf",flux_grl,units="kg a-1",long_name="Total grounding line flux", &
-                standard_name="tendency_of_grounded_ice_mass",dim1="time",start=[n],ncid=ncid)
-                
-        ! Total area by sectors
-        iareatotalNW = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_NW)*dx*dy
-        iareatotalNE = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_NE)*dx*dy
-        iareatotalSW = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_SW)*dx*dy
-        iareatotalSE = count(dom%tpo%now%H_ice .gt. 0.0 .and. mask_SE)*dx*dy
+        call nc_write_dim(ctl%file_cmip,"X",     x=ylmo%grd%xc, units="m", &
+                          long_name="X coordinate (model native grid)", axis="X")
+        call nc_write_dim(ctl%file_cmip,"Y",     x=ylmo%grd%yc, units="m", &
+                          long_name="Y coordinate (model native grid)", axis="Y")
+        call nc_write_dim(ctl%file_cmip,"Time1", x=0.0_wp, dx=1.0_wp, nx=1, &
+                          units="years", unlimited=.TRUE.)
+        call nc_write_dim(ctl%file_cmip,"Time100", x=t100, units="years")
 
-        call nc_write(filename,"iareatotalNW",iareatotalNW,units="m^2",long_name="Total ice area NorthWest", &
-                standard_name="total_ice_area_NorthWest",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"iareatotalNE",iareatotalNE,units="m^2",long_name="Total ice area NorthEast", &
-                standard_name="total_ice_area_NorthEast",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"iareatotalSW",iareatotalSW,units="m^2",long_name="Total ice area SouthWest", &
-                standard_name="total_ice_area_SouthWest",dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"iareatotalSE",iareatotalSE,units="m^2",long_name="Total ice area SouthEast", &
-                standard_name="total_ice_area_SouthEast",dim1="time",start=[n],ncid=ncid)
-                        
-        ! Close the netcdf file
-        call nc_close(ncid)
-    
         return
-    
-    end subroutine write_1D_calvingmip
 
-    subroutine write_2D_calvingmip(ylmo,filename,time)
+    end subroutine calvingmip_init
+
+    subroutine calvingmip_write_step(ylmo,ctl,time)
+        ! Hardcoded per-experiment schedule. See wiki:
+        !   exp1: single final snapshot (scalars + 2D + profiles) on Time100
+        !   exp2: yearly scalars on Time1, 100-yearly 2D on Time100
+        !   exp3: 100-yearly scalars + 2D on Time100 (profiles yearly on Time1 — commit 2)
+        !   exp4, exp5: yearly scalars on Time1, 100-yearly 2D on Time100
 
         implicit none
-    
+
+        type(yelmo_class),  intent(IN) :: ylmo
+        type(control_type), intent(IN) :: ctl
+        real(wp),           intent(IN) :: time
+
+        integer :: hundredths
+
+        hundredths = nint(time*100)
+
+        select case(trim(ctl%exp))
+
+            case("exp1")
+                ! Single snapshot at final time (Time100, n=1)
+                if (abs(time - ctl%time_end) < 0.5_wp*ctl%dtt) then
+                    call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time100")
+                    call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
+                end if
+
+            case("exp3")
+                ! Every 100 yrs: scalars + 2D on Time100
+                if (mod(hundredths, 10000) == 0) then
+                    call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time100")
+                    call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
+                end if
+
+            case("exp2","exp4","exp5")
+                ! Yearly scalars on Time1
+                if (mod(hundredths, 100) == 0) then
+                    call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time1")
+                end if
+                ! 100-yearly 2D on Time100
+                if (mod(hundredths, 10000) == 0) then
+                    call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
+                end if
+
+        end select
+
+        return
+
+    end subroutine calvingmip_write_step
+
+    subroutine calvingmip_write_scalars(ylmo,filename,time,timedim)
+        ! Write domain-aggregate scalars on the requested time dimension
+        ! (either "Time1" or "Time100"). Variables follow CalvingMIP wiki names:
+        ! iareafl, iareagr, lim, limnsw, tendlicalvf, tendligroundf,
+        ! iareatotal{NW,NE,SW,SE}.
+
+        implicit none
+
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
         real(wp),          intent(IN) :: time
-    
-        ! Local variables
-        integer :: ncid, n, i, j
-        character(len=32), allocatable :: dims(:)
-            
-        ! CalvingMIP variables
-        integer,  allocatable :: mask_clvmip(:,:)
-        real(wp), allocatable :: ux_bar_aa(:,:)
-        real(wp), allocatable :: uy_bar_aa(:,:)
-        real(wp), allocatable :: H_clvmip(:,:)
-        real(wp), allocatable :: H_frnt(:,:)
-        real(wp), allocatable :: calverate(:,:)
-        real(wp), allocatable :: fice_subgrid(:,:)
-        real(wp), allocatable :: tau_rate(:,:)
+        character(len=*),  intent(IN) :: timedim    ! "Time1" or "Time100"
 
-        ! Profile A variables
-        !real(wp), allocatable :: lithkA(:,:),sA(:,:),xvelmeanA(:,:),yvelmeanA(:,:),maskA(:,:)
+        ! Local
+        type(yregions_class) :: reg
+        integer  :: ncid, n, i, j
+        real(wp) :: rho_ice
+        real(wp) :: dx, dy
+        real(wp) :: flux_grl, calv_flt
+        real(wp) :: iareatotalNW, iareatotalNE, iareatotalSW, iareatotalSE
+        logical, allocatable :: mask_grl(:,:), mask_frnt(:,:)
+        logical, allocatable :: mask_NW(:,:), mask_NE(:,:), mask_SW(:,:), mask_SE(:,:)
 
-        ! Allocate and initialize local arrays
-        allocate(mask_clvmip(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(H_clvmip(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(ux_bar_aa(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(uy_bar_aa(ylmo%grd%nx,ylmo%grd%ny)) 
-        allocate(calverate(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(fice_subgrid(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(tau_rate(ylmo%grd%nx,ylmo%grd%ny))
+        rho_ice = 917.0_wp
+        dx = ylmo%grd%dx
+        dy = ylmo%grd%dy
 
-        ! Profile A
-        !allocate(lithkA(1,1+INT(0.5*(ylmo%grd%ny+1))))
-        !allocate(sA(1,1+INT(0.5*(ylmo%grd%ny+1))))
-        !allocate(xvelmeanA(1,1+INT(0.5*(ylmo%grd%ny+1))))    
-        !allocate(yvelmeanA(1,1+INT(0.5*(ylmo%grd%ny+1))))
-        !allocate(maskA(1,1+INT(0.5*(ylmo%grd%ny+1))))
+        allocate(mask_grl(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_frnt(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_NW(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_NE(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_SW(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_SE(ylmo%grd%nx,ylmo%grd%ny))
 
-        ! Allocate local representation of dims to be able to add "time" as last dimension
-        allocate(dims(3))
-        dims(1) = "xc"
-        dims(2) = "yc"
-        dims(3) = "time"
+        reg = ylmo%reg
 
-        ! Initialize variables
-        mask_clvmip = 0
-        ux_bar_aa   = 0.0_wp
-        uy_bar_aa   = 0.0_wp
-        H_clvmip    = ylmo%tpo%now%H_ice
-        H_frnt      = ylmo%tpo%now%H_ice
-        calverate   = ylmo%tpo%now%cmb_flt
-    
-        ! Open the file for writing
-        call nc_open(filename,ncid,writable=.TRUE.)
-    
-        ! Determine current writing time step 
-        n = nc_time_index(filename,"time",time,ncid)
-    
-        ! Update the time step
-        call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
-
-        ! Compute mask
-        where(ylmo%tpo%now%H_ice .eq. 0.0_wp) mask_clvmip = 3
-        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_clvmip = 2
-        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_clvmip = 1
-
-        ! Use the model's actual subgrid ice fraction (tpo%now%f_ice) — the
-        ! prior `fice_subgrid` local was allocated but never assigned, so it
-        ! was uninitialised stack noise.
-        fice_subgrid = ylmo%tpo%now%f_ice
-
-        ! convert velocities into aa-nodes
-        do i=2, ylmo%grd%nx-1
-        do j=2, ylmo%grd%ny-1
-            ux_bar_aa(i,j) = 0.5*(ylmo%dyn%now%ux_bar(i,j)+ylmo%dyn%now%ux_bar(i-1,j))
-            uy_bar_aa(i,j) = 0.5*(ylmo%dyn%now%uy_bar(i,j)+ylmo%dyn%now%uy_bar(i,j-1))
-            H_frnt(i,j)    = ylmo%tpo%now%H_ice(i,j)/(MAX(fice_subgrid(i,j),1e-8))
+        mask_grl  = (ylmo%tpo%now%H_ice .gt. 0.0 .and. ylmo%tpo%now%f_grnd .gt. 0.0 &
+                                                    .and. ylmo%tpo%now%mask_grz .eq. 0.0)
+        mask_frnt = (ylmo%tpo%now%H_ice .gt. 0.0 .and. ylmo%tpo%now%f_grnd .eq. 0.0 &
+                                                    .and. ylmo%tpo%now%mask_frnt .eq. 1.0)
+        mask_NW = .FALSE.; mask_NE = .FALSE.; mask_SW = .FALSE.; mask_SE = .FALSE.
+        do j = 1, ylmo%grd%ny
+        do i = 1, ylmo%grd%nx
+            if (ylmo%grd%xc(i) <= 0.0_wp .and. ylmo%grd%yc(j) >= 0.0_wp) mask_NW(i,j) = .TRUE.
+            if (ylmo%grd%xc(i) >= 0.0_wp .and. ylmo%grd%yc(j) >= 0.0_wp) mask_NE(i,j) = .TRUE.
+            if (ylmo%grd%xc(i) <= 0.0_wp .and. ylmo%grd%yc(j) <= 0.0_wp) mask_SW(i,j) = .TRUE.
+            if (ylmo%grd%xc(i) >= 0.0_wp .and. ylmo%grd%yc(j) <= 0.0_wp) mask_SE(i,j) = .TRUE.
         end do
         end do
 
-        ! Write CalvingMIP variables variables
-        call nc_write(filename,"xvelmean",ux_bar_aa,start=[1,1,n],units="m a-1",long_name="X velocity", &
-                    standard_name="land_ice_vertical_mean_x_velocity", dims=dims,ncid=ncid)
-        call nc_write(filename,"yvelmean",uy_bar_aa,start=[1,1,n],units="m a-1",long_name="Y velocity", &
-                    standard_name="land_ice_vertical_mean_y_velocity", dims=dims,ncid=ncid)
-        call nc_write(filename,"lithk",H_clvmip,start=[1,1,n],units="m",long_name="Ice thickness", &
-                    standard_name="land_ice_thickness", dims=dims,ncid=ncid)
-        call nc_write(filename,"mask",mask_clvmip,start=[1,1,n],units="",long_name="Ice mask", &
-                    standard_name=" ",dims=dims,ncid=ncid)
-        call nc_write(filename,"topg",ylmo%bnd%z_bed,start=[1,1,n],units="m",long_name="Bedrock height", &
-                    standard_name="bedrock_altimetry",dims=dims,ncid=ncid)
-        call nc_write(filename,"calverate",calverate,start=[1,1,n],units="m a-1",long_name="Calving rate", &
-                    standard_name="calving_rate", dims=dims,ncid=ncid)            
-        if (.TRUE.) then
-            call nc_write(filename,"lsf",ylmo%tpo%now%lsf,start=[1,1,n],units=" ",long_name="LSF mask", &
-                    standard_name="level_set_function", dims=dims,ncid=ncid)
-            call nc_write(filename,"H_frnt",H_frnt,start=[1,1,n],units=" ",long_name="Ice front thickness", &
-                    standard_name="Ice_front_thickness", dims=dims,ncid=ncid)
-            call nc_write(filename,"f_ice",fice_subgrid,start=[1,1,n],units=" ",long_name="Ice fraction", &
-                    standard_name="Ice_fraction", dims=dims,ncid=ncid)
-            call nc_write(filename,"xvelmean_ac",ylmo%dyn%now%ux_bar,start=[1,1,n],units="m a-1",long_name="X velocity", &
-                    standard_name="land_ice_vertical_mean_x_velocity_ac", dims=dims,ncid=ncid)
-            call nc_write(filename,"yvelmean_ac",ylmo%dyn%now%uy_bar,start=[1,1,n],units="m a-1",long_name="Y velocity", &
-                    standard_name="land_ice_vertical_mean_y_velocity_ac", dims=dims,ncid=ncid)
-            tau_rate = ylmo%mat%now%strs2D%tau_eig_1/ylmo%tpo%par%tau_ice
-            call nc_write(filename,"tau_rate",tau_rate,start=[1,1,n],units="Pa",long_name="1st ppal stress", &
-                    standard_name="1sr_ppal_stress", dims=dims,ncid=ncid)
-            call nc_write(filename,"tau_1",ylmo%mat%now%strs2D%tau_eig_1,start=[1,1,n],units="Pa",long_name="1st ppal stress", &
-                    standard_name="1sr_ppal_stress", dims=dims,ncid=ncid)        
-            call nc_write(filename,"cr_acx",ylmo%tpo%now%cr_acx,start=[1,1,n],units="m a-1",long_name="X velocity LSF", &
-                    standard_name="land_ice_vertical_mean_x_velocity_ac", dims=dims,ncid=ncid)
-            call nc_write(filename,"cr_acy",ylmo%tpo%now%cr_acy,start=[1,1,n],units="m a-1",long_name="Y velocity LSF", &
-                    standard_name="land_ice_vertical_mean_y_velocity_ac", dims=dims,ncid=ncid)      
+        if (count(mask_grl) > 0) then
+            flux_grl = sum(ylmo%dyn%now%uxy_bar*ylmo%tpo%now%H_ice*rho_ice, mask=mask_grl)*dx
+        else
+            flux_grl = 0.0_wp
         end if
 
-        ! Close the netcdf file
+        if (count(mask_frnt) > 0) then
+            calv_flt = sum(ylmo%dyn%now%uxy_bar*ylmo%tpo%now%H_ice*rho_ice, mask=mask_frnt)*dx
+        else
+            calv_flt = 0.0_wp
+        end if
+
+        iareatotalNW = count(ylmo%tpo%now%H_ice .gt. 0.0 .and. mask_NW)*dx*dy
+        iareatotalNE = count(ylmo%tpo%now%H_ice .gt. 0.0 .and. mask_NE)*dx*dy
+        iareatotalSW = count(ylmo%tpo%now%H_ice .gt. 0.0 .and. mask_SW)*dx*dy
+        iareatotalSE = count(ylmo%tpo%now%H_ice .gt. 0.0 .and. mask_SE)*dx*dy
+
+        call nc_open(filename,ncid,writable=.TRUE.)
+        n = nc_time_index(filename,timedim,time,ncid)
+        call nc_write(filename,timedim,time,dim1=timedim,start=[n],count=[1],ncid=ncid)
+
+        call nc_write(filename,"iareafl",reg%A_ice_f*1e6_wp,units="m^2", &
+                long_name="Floating ice area", &
+                standard_name="floating_ice_shelf_area",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"iareagr",reg%A_ice_g*1e6_wp,units="m^2", &
+                long_name="Grounded ice area", &
+                standard_name="grounded_ice_sheet_area",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"lim",reg%V_ice*rho_ice*1e9_wp,units="kg", &
+                long_name="Total ice mass", &
+                standard_name="land_ice_mass",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"limnsw",reg%V_sl*rho_ice*1e9_wp,units="kg", &
+                long_name="Mass above flotation", &
+                standard_name="land_ice_mass_not_displacing_sea_water",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"tendlicalvf",calv_flt,units="kg a-1", &
+                long_name="Total calving flux", &
+                standard_name="tendency_of_land_ice_mass_due_to_calving",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"tendligroundf",flux_grl,units="kg a-1", &
+                long_name="Total grounding line flux", &
+                standard_name="tendency_of_grounded_ice_mass",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"iareatotalNW",iareatotalNW,units="m^2", &
+                long_name="Total ice area NorthWest",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"iareatotalNE",iareatotalNE,units="m^2", &
+                long_name="Total ice area NorthEast",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"iareatotalSW",iareatotalSW,units="m^2", &
+                long_name="Total ice area SouthWest",dim1=timedim,start=[n],ncid=ncid)
+        call nc_write(filename,"iareatotalSE",iareatotalSE,units="m^2", &
+                long_name="Total ice area SouthEast",dim1=timedim,start=[n],ncid=ncid)
+
         call nc_close(ncid)
-    
+
         return
-    
-    end subroutine write_2D_calvingmip
+
+    end subroutine calvingmip_write_scalars
+
+    subroutine calvingmip_write_2D(ylmo,filename,time)
+        ! Write 2D snapshot fields on the Time100 dimension: lithk, xvelmean,
+        ! yvelmean, mask, topg. Velocities are staggered onto aa-nodes.
+        ! Mask convention (CalvingMIP wiki): grounded=1, floating=2, ocean=3.
+
+        implicit none
+
+        type(yelmo_class), intent(IN) :: ylmo
+        character(len=*),  intent(IN) :: filename
+        real(wp),          intent(IN) :: time
+
+        integer :: ncid, n, i, j
+        character(len=32) :: dims(3)
+        integer,  allocatable :: mask_cmip(:,:)
+        real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:)
+
+        allocate(mask_cmip(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(ux_aa(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(uy_aa(ylmo%grd%nx,ylmo%grd%ny))
+
+        dims(1) = "X"
+        dims(2) = "Y"
+        dims(3) = "Time100"
+
+        mask_cmip = 3   ! ocean by default
+        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
+        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
+
+        ux_aa = 0.0_wp
+        uy_aa = 0.0_wp
+        do j = 2, ylmo%grd%ny-1
+        do i = 2, ylmo%grd%nx-1
+            ux_aa(i,j) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,j) + ylmo%dyn%now%ux_bar(i-1,j))
+            uy_aa(i,j) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,j) + ylmo%dyn%now%uy_bar(i,j-1))
+        end do
+        end do
+
+        call nc_open(filename,ncid,writable=.TRUE.)
+        n = nc_time_index(filename,"Time100",time,ncid)
+        call nc_write(filename,"Time100",time,dim1="Time100",start=[n],count=[1],ncid=ncid)
+
+        call nc_write(filename,"lithk",ylmo%tpo%now%H_ice,start=[1,1,n],units="m", &
+                long_name="Ice thickness", &
+                standard_name="land_ice_thickness",dims=dims,ncid=ncid)
+        call nc_write(filename,"xvelmean",ux_aa,start=[1,1,n],units="m a-1", &
+                long_name="Vertical-mean X velocity", &
+                standard_name="land_ice_vertical_mean_x_velocity",dims=dims,ncid=ncid)
+        call nc_write(filename,"yvelmean",uy_aa,start=[1,1,n],units="m a-1", &
+                long_name="Vertical-mean Y velocity", &
+                standard_name="land_ice_vertical_mean_y_velocity",dims=dims,ncid=ncid)
+        call nc_write(filename,"mask",mask_cmip,start=[1,1,n],units="1", &
+                long_name="Ice mask (1=grounded, 2=floating, 3=ocean)", &
+                dims=dims,ncid=ncid)
+        call nc_write(filename,"topg",ylmo%bnd%z_bed,start=[1,1,n],units="m", &
+                long_name="Bedrock elevation", &
+                standard_name="bedrock_altimetry",dims=dims,ncid=ncid)
+
+        call nc_close(ncid)
+
+        return
+
+    end subroutine calvingmip_write_2D
 
 end program yelmo_calving
