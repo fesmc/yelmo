@@ -309,6 +309,24 @@ contains
                 end do
         end select
 
+        ! Warn if the timestep won't honour the wiki cadence. Yearly Time1
+        ! writes need dtt=1; 100-yearly Time100 writes need dtt to divide 100.
+        select case(trim(ctl%exp))
+            case("exp2","exp3","exp4","exp5")
+                if (ctl%dtt > 1.0_wp + 1e-6_wp) then
+                    write(*,"(a,f6.2,a)") &
+                        " calvingmip_init:: WARNING: ctl.dtt = ", ctl%dtt, &
+                        " > 1; wiki Time1 cadence is annual but"
+                    write(*,"(a)") &
+                        "                   output will only land at multiples of dtt."
+                end if
+                if (abs(100.0_wp - nint(100.0_wp/ctl%dtt)*ctl%dtt) > 1e-6_wp) then
+                    write(*,"(a,f6.2,a)") &
+                        " calvingmip_init:: WARNING: ctl.dtt = ", ctl%dtt, &
+                        " does not divide 100; some Time100 slots will be skipped."
+                end if
+        end select
+
         call nc_create(ctl%file_cmip, overwrite=.TRUE., institution="AWI", &
                        description="CalvingMIP output from YELMO ice-sheet model")
 
