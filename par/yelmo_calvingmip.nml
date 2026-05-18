@@ -91,7 +91,7 @@
     use_lsf             = True              ! use level-set method
     lsf_method          = "snap"            ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
     dt_lsf              = -1                ! [yr] periodic LSF reflag interval; <= 0 disables. snap mode only.
-    lsf_redist_n_iter   = 0                 ! Sussman/Osher LSF redistancing iterations. redist mode only.
+    lsf_redist_n_iter   = 5                 ! Sussman/Osher LSF redistancing iterations. redist mode only.
     calv_flt_method     = "exp1"            ! "zero", "simple", "flux", "vm-l19", "vm-m16", "kill"
     calv_grnd_method    = "zero"            ! "zero", "stress-b12", "vm-m16"
     
