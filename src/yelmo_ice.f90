@@ -1227,8 +1227,10 @@ contains
         !call yelmo_restart_write(dom,"./yelmo_check_z_bed.nc",time=0.0_wp,init=.TRUE.)
         !stop 
 
-        ! Finally lets initialize the LSF mask
-        call LSFinit(dom%tpo%now%lsf,dom%tpo%now%H_ice,dom%bnd%z_bed,dom%bnd%z_sl,dom%tpo%par%dx)
+        ! Finally lets initialize the LSF mask, if not restarting
+        if (.not. dom%par%use_restart) then
+            call LSFinit(dom%tpo%now%lsf,dom%tpo%now%H_ice,dom%bnd%z_bed,dom%bnd%z_sl,dom%tpo%par%dx)
+        end if
 
         return 
 
