@@ -125,8 +125,9 @@
 
 &ycalv
     use_lsf             = False
-    dt_lsf              = -1                ! Deprecated (no effect); kept for backwards compatibility
-    lsf_redist_n_iter   = 5                 ! Sussman/Osher LSF redistancing iterations (0 = off)
+    lsf_method          = "snap"            ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
+    dt_lsf              = -1                ! [yr] periodic LSF reflag interval; <= 0 disables. snap mode only.
+    lsf_redist_n_iter   = 5                 ! Sussman/Osher LSF redistancing iterations. redist mode only.
     calv_flt_method     = "zero"
     calv_grnd_method    = "zero"
 

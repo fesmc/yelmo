@@ -30,6 +30,7 @@ module lsf_module
     public :: LSFinit
     public :: LSFupdate
     public :: LSFredistance
+    public :: LSFsnap
 
     ! === Ocean extrapolation routines ===
     public :: extrapolate_ocn_acx
@@ -215,6 +216,61 @@ contains
         return
 
     end subroutine LSFredistance
+
+    subroutine LSFsnap(lsf,time_now,dt_lsf,boundaries)
+        ! Legacy LSF discipline (alternative to LSFredistance).
+        !
+        !   - Neighbour-snap: at each cell, if all four neighbours share
+        !     sign with phi, snap phi to +-1. Gauss-Seidel pass in (i,j)
+        !     order; in-place updates.
+        !
+        !   - Periodic full-field reflag: every dt_lsf years, reset phi to
+        !     exact +-1 by sign. Disabled when dt_lsf <= 0.
+        !
+        ! This is the pre-#34 front-cleanup scheme. Kept selectable via
+        ! ytopo_par%lsf_method = "snap" for runs that need the old
+        ! behaviour or want to compare algorithms.
+
+        implicit none
+
+        real(wp),         intent(INOUT) :: lsf(:,:)
+        real(wp),         intent(IN)    :: time_now      ! [yr] current model time
+        real(wp),         intent(IN)    :: dt_lsf        ! [yr] reflag interval (<= 0 disables)
+        character(len=*), intent(IN)    :: boundaries
+
+        integer :: i, j, nx, ny, im1, ip1, jm1, jp1, BC
+
+        nx = size(lsf,1)
+        ny = size(lsf,2)
+        BC = boundary_code(boundaries)
+
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            if (lsf(i,j) .gt. 0.0_wp) then
+                if ((lsf(im1,j) .gt. 0.0_wp) .and. (lsf(ip1,j) .gt. 0.0_wp) .and. &
+                    (lsf(i,jm1) .gt. 0.0_wp) .and. (lsf(i,jp1) .gt. 0.0_wp)) then
+                    lsf(i,j) =  1.0_wp
+                end if
+            else
+                if ((lsf(im1,j) .le. 0.0_wp) .and. (lsf(ip1,j) .le. 0.0_wp) .and. &
+                    (lsf(i,jm1) .le. 0.0_wp) .and. (lsf(i,jp1) .le. 0.0_wp)) then
+                    lsf(i,j) = -1.0_wp
+                end if
+            end if
+        end do
+        end do
+
+        if (dt_lsf .gt. 0.0_wp) then
+            if (mod(nint(time_now*100),nint(dt_lsf*100)) == 0) then
+                where(lsf .gt. 0.0_wp) lsf =  1.0_wp
+                where(lsf .le. 0.0_wp) lsf = -1.0_wp
+            end if
+        end if
+
+        return
+
+    end subroutine LSFsnap
 
     ! ===================================================================
     !

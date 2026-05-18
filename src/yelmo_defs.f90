@@ -139,8 +139,9 @@ module yelmo_defs
         real(wp)           :: dmb_m_d 
         real(wp)           :: dmb_m_r
         logical            :: use_lsf
-        real(wp)           :: dt_lsf            ! Deprecated: kept for namelist backwards-compatibility, no longer used
-        integer            :: lsf_redist_n_iter ! Sussman/Osher redistancing iterations (0 = off)
+        character(len=56)  :: lsf_method        ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
+        real(wp)           :: dt_lsf            ! [yr] periodic LSF reflag interval (<= 0 disables); only used in "snap" mode
+        integer            :: lsf_redist_n_iter ! Sussman/Osher redistancing iterations; only used in "redist" mode
         real(wp)           :: tau_ice
 
         ! Internal parameters 

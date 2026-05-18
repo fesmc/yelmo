@@ -790,13 +790,28 @@ end if
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
                        tpo%now%mask_adv,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,tpo%par%boundaries)
 
-        ! Restore |grad lsf| ~= 1 near the front via Sussman/Osher
-        ! Hamilton-Jacobi redistancing. Replaces the old ad-hoc
-        ! neighbour-snap and periodic ±1 re-flag.
-        if (tpo%par%lsf_redist_n_iter .gt. 0) then
-            call LSFredistance(tpo%now%lsf,tpo%par%dx,tpo%par%dy, &
-                               tpo%par%lsf_redist_n_iter,tpo%par%boundaries)
-        end if
+        ! Choose LSF discipline: "redist" runs here (before z_bed reset and
+        ! the cmb loop), matching the palma-ice #34 placement; "snap" runs
+        ! after the cmb loop below, matching the pre-#34 ordering where
+        ! the neighbour-snap was interleaved with cmb.
+        select case(trim(tpo%par%lsf_method))
+            case("redist")
+                if (tpo%par%lsf_redist_n_iter .le. 0) then
+                    write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
+                        &lsf_method = 'redist' requires lsf_redist_n_iter > 0; &
+                        &got lsf_redist_n_iter = ", tpo%par%lsf_redist_n_iter
+                    stop
+                end if
+                call LSFredistance(tpo%now%lsf,tpo%par%dx,tpo%par%dy, &
+                                   tpo%par%lsf_redist_n_iter,tpo%par%boundaries)
+            case("snap")
+                ! Handled after cmb loop below.
+            case default
+                write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
+                    &unknown lsf_method = '"//trim(tpo%par%lsf_method)//"'. &
+                    &Expected 'snap' or 'redist'."
+                stop
+        end select
 
         ! LSF should not affect points above sea level
         where(bnd%z_bed .gt. bnd%z_sl) tpo%now%lsf = -1.0_wp
@@ -817,6 +832,14 @@ end if
             end if
         end do
         end do
+
+        ! Legacy snap-mode LSF discipline runs after the cmb loop so that
+        ! cmb sees the same pre-snap lsf(i,j) as in the pre-#34 interleaved
+        ! loop. cmb does not read neighbour lsf, so splitting the passes is
+        ! bitwise-equivalent to the inline version.
+        if (trim(tpo%par%lsf_method) .eq. "snap") then
+            call LSFsnap(tpo%now%lsf,time_now,tpo%par%dt_lsf,tpo%par%boundaries)
+        end if
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,tpo%now%cmb,dt,"calving_lsf",adjust_mb=.TRUE.)
@@ -1234,6 +1257,7 @@ end if
 
         ! === read calving routine ===
         call nml_read(filename,group_ycalv,"use_lsf",           par%use_lsf,            init=init_pars)
+        call nml_read(filename,group_ycalv,"lsf_method",        par%lsf_method,         init=init_pars)
         call nml_read(filename,group_ycalv,"dt_lsf",            par%dt_lsf,             init=init_pars)
         call nml_read(filename,group_ycalv,"lsf_redist_n_iter", par%lsf_redist_n_iter,  init=init_pars)
         call nml_read(filename,group_ycalv,"calv_flt_method",   par%calv_flt_method,    init=init_pars)
