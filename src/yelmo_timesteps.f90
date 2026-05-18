@@ -313,6 +313,7 @@ else
 
             do i = 1, nx
             do j = 1, ny
+                if (.not. mask(i,j)) cycle
                 s_now = a_tol + r_tol*H_ice(i,j)
                 eta = eta + (tau(i,j) / s_now)**2
             end do
