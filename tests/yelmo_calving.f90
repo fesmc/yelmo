@@ -38,8 +38,21 @@ program yelmo_calving
     end type
 
     type(control_type) :: ctl
-    real(wp) :: time 
-    integer  :: n 
+
+    ! CalvingMIP profile geometry (radial A-H for circular; CapA-D, HalA-D for Thule).
+    ! Sample spacing is set to the native model dx so the profiles trace the
+    ! resolved fields rather than introducing a coarser interpolation grid.
+    type profile_t
+        character(len=8)      :: name      ! e.g. "A", "CapA"
+        integer               :: n         ! number of sample points along the line
+        real(wp), allocatable :: s(:)      ! arc-length distance from start [m]
+        real(wp), allocatable :: x(:)      ! sample x coords [m]
+        real(wp), allocatable :: y(:)      ! sample y coords [m]
+    end type
+    type(profile_t), allocatable :: profiles(:)
+
+    real(wp) :: time
+    integer  :: n
     
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
     
@@ -307,6 +320,14 @@ contains
                           units="years", unlimited=.TRUE.)
         call nc_write_dim(ctl%file_cmip,"Time100", x=t100, units="years")
 
+        ! Set up profile geometry and write each profile's s{name} dim.
+        call profiles_setup(profiles, ctl%exp, ylmo%grd%dx)
+        do i = 1, size(profiles)
+            call nc_write_dim(ctl%file_cmip,"s"//trim(profiles(i)%name), &
+                              x=profiles(i)%s, units="m", &
+                              long_name="Distance along profile "//trim(profiles(i)%name))
+        end do
+
         return
 
     end subroutine calvingmip_init
@@ -331,23 +352,29 @@ contains
         select case(trim(ctl%exp))
 
             case("exp1")
-                ! Single snapshot at final time (Time100, n=1)
+                ! Single snapshot at final time (Time100, n=1) — scalars, 2D, profiles
                 if (abs(time - ctl%time_end) < 0.5_wp*ctl%dtt) then
                     call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time100")
                     call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
+                    call calvingmip_write_profiles(ylmo,ctl%file_cmip,time,"Time100")
                 end if
 
             case("exp3")
-                ! Every 100 yrs: scalars + 2D on Time100
+                ! 100-yearly scalars + 2D on Time100
                 if (mod(hundredths, 10000) == 0) then
                     call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time100")
                     call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
                 end if
+                ! Yearly profiles on Time1
+                if (mod(hundredths, 100) == 0) then
+                    call calvingmip_write_profiles(ylmo,ctl%file_cmip,time,"Time1")
+                end if
 
             case("exp2","exp4","exp5")
-                ! Yearly scalars on Time1
+                ! Yearly scalars + profiles on Time1
                 if (mod(hundredths, 100) == 0) then
                     call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time1")
+                    call calvingmip_write_profiles(ylmo,ctl%file_cmip,time,"Time1")
                 end if
                 ! 100-yearly 2D on Time100
                 if (mod(hundredths, 10000) == 0) then
@@ -526,5 +553,301 @@ contains
         return
 
     end subroutine calvingmip_write_2D
+
+    subroutine profiles_setup(profs, exp_name, ds)
+        ! Build CalvingMIP profile geometry: 8 radial profiles A-H from (0,0)
+        ! for the circular domain, or 8 named profiles (Caprona A-D + Halbrane A-D)
+        ! for the Thule domain. Sample spacing ds [m] matches the native dx.
+        ! Bearings (circular) per wiki: A=0°(N), B=45°(NE), C=90°(E), D=135°(SE),
+        ! E=180°(S), F=225°(SW), G=270°(W), H=315°(NW). Compass convention:
+        ! x = r*sin(bearing), y = r*cos(bearing).
+
+        implicit none
+
+        type(profile_t), allocatable, intent(out) :: profs(:)
+        character(len=*), intent(IN) :: exp_name
+        real(wp),         intent(IN) :: ds
+
+        integer  :: ip
+        real(wp) :: r_max
+        real(wp) :: bearing(8)
+        character(len=4), parameter :: circ_names(8) = &
+            [character(len=4) :: "A","B","C","D","E","F","G","H"]
+        character(len=4), parameter :: thule_names(8) = &
+            [character(len=4) :: "CapA","CapB","CapC","CapD", &
+                                 "HalA","HalB","HalC","HalD"]
+        real(wp) :: thule_endpts(8,4)   ! [x0, y0, x1, y1] in metres
+        real(wp) :: b
+
+        allocate(profs(8))
+
+        select case(trim(exp_name))
+
+            case("exp1","exp2","advection")
+                ! Circular domain — radial profiles from (0,0) out to r_max.
+                r_max = 800.0e3_wp
+                bearing = [0.0_wp, 45.0_wp, 90.0_wp, 135.0_wp, &
+                           180.0_wp, 225.0_wp, 270.0_wp, 315.0_wp]
+                do ip = 1, 8
+                    profs(ip)%name = trim(circ_names(ip))
+                    b = bearing(ip) * degrees_to_radians
+                    call build_profile_line(profs(ip), 0.0_wp, 0.0_wp, &
+                                            r_max*sin(b), r_max*cos(b), ds)
+                end do
+
+            case("exp3","exp4","exp5")
+                ! Thule domain — Caprona and Halbrane profiles per wiki coords.
+                thule_endpts(1,:) = [-390.0e3_wp,    0.0_wp, -590.0e3_wp,  450.0e3_wp]  ! CapA
+                thule_endpts(2,:) = [ 390.0e3_wp,    0.0_wp,  590.0e3_wp,  450.0e3_wp]  ! CapB
+                thule_endpts(3,:) = [-390.0e3_wp,    0.0_wp, -590.0e3_wp, -450.0e3_wp]  ! CapC
+                thule_endpts(4,:) = [ 390.0e3_wp,    0.0_wp,  590.0e3_wp, -450.0e3_wp]  ! CapD
+                thule_endpts(5,:) = [-150.0e3_wp,    0.0_wp, -150.0e3_wp,  740.0e3_wp]  ! HalA
+                thule_endpts(6,:) = [ 150.0e3_wp,    0.0_wp,  150.0e3_wp,  740.0e3_wp]  ! HalB
+                thule_endpts(7,:) = [-150.0e3_wp,    0.0_wp, -150.0e3_wp, -740.0e3_wp]  ! HalC
+                thule_endpts(8,:) = [ 150.0e3_wp,    0.0_wp,  150.0e3_wp, -740.0e3_wp]  ! HalD
+                do ip = 1, 8
+                    profs(ip)%name = trim(thule_names(ip))
+                    call build_profile_line(profs(ip), &
+                            thule_endpts(ip,1), thule_endpts(ip,2), &
+                            thule_endpts(ip,3), thule_endpts(ip,4), ds)
+                end do
+
+        end select
+
+        return
+
+    end subroutine profiles_setup
+
+    subroutine build_profile_line(prof, x0, y0, x1, y1, ds)
+        ! Fill a profile_t with sample points along the line from (x0,y0) to
+        ! (x1,y1) at approximate spacing ds. The first sample is the start and
+        ! the last sample is the end, so the actual spacing may be slightly
+        ! less than ds (ceil division).
+
+        implicit none
+
+        type(profile_t), intent(INOUT) :: prof
+        real(wp),        intent(IN)    :: x0, y0, x1, y1, ds
+
+        integer  :: i
+        real(wp) :: L, ux, uy
+
+        L = sqrt((x1-x0)**2 + (y1-y0)**2)
+        prof%n = max(2, ceiling(L/ds) + 1)
+
+        if (allocated(prof%s)) deallocate(prof%s)
+        if (allocated(prof%x)) deallocate(prof%x)
+        if (allocated(prof%y)) deallocate(prof%y)
+        allocate(prof%s(prof%n), prof%x(prof%n), prof%y(prof%n))
+
+        if (L > 0.0_wp) then
+            ux = (x1-x0)/L; uy = (y1-y0)/L
+        else
+            ux = 0.0_wp;    uy = 0.0_wp
+        end if
+
+        do i = 1, prof%n
+            prof%s(i) = (i-1) * L / (prof%n - 1)
+            prof%x(i) = x0 + prof%s(i)*ux
+            prof%y(i) = y0 + prof%s(i)*uy
+        end do
+
+        return
+
+    end subroutine build_profile_line
+
+    function bilinear_sample(field, xc, yc, x, y) result(val)
+        ! Bilinear interpolation of a real field at (x,y). Returns 0 if (x,y)
+        ! falls outside the grid bounds.
+
+        implicit none
+
+        real(wp), intent(IN) :: field(:,:)
+        real(wp), intent(IN) :: xc(:), yc(:)
+        real(wp), intent(IN) :: x, y
+        real(wp) :: val
+
+        integer  :: i, j, nx, ny
+        real(wp) :: tx, ty, dx, dy
+
+        nx = size(xc); ny = size(yc)
+        val = 0.0_wp
+
+        if (x < xc(1) .or. x > xc(nx) .or. y < yc(1) .or. y > yc(ny)) return
+
+        dx = xc(2) - xc(1)
+        dy = yc(2) - yc(1)
+        i = min(nx-1, max(1, int((x - xc(1))/dx) + 1))
+        j = min(ny-1, max(1, int((y - yc(1))/dy) + 1))
+
+        tx = (x - xc(i))/dx
+        ty = (y - yc(j))/dy
+
+        val = (1.0_wp-tx)*(1.0_wp-ty)*field(i,j)   + tx*(1.0_wp-ty)*field(i+1,j) + &
+              (1.0_wp-tx)*ty*field(i,j+1)         + tx*ty*field(i+1,j+1)
+
+        return
+
+    end function bilinear_sample
+
+    function nearest_sample_int(field, xc, yc, x, y, default_val) result(val)
+        ! Nearest-neighbour sampling of an integer field at (x,y). Returns
+        ! default_val if (x,y) falls outside the grid bounds.
+
+        implicit none
+
+        integer,  intent(IN) :: field(:,:)
+        real(wp), intent(IN) :: xc(:), yc(:)
+        real(wp), intent(IN) :: x, y
+        integer,  intent(IN) :: default_val
+        integer :: val
+
+        integer  :: i, j, nx, ny
+        real(wp) :: dx, dy
+
+        nx = size(xc); ny = size(yc)
+        val = default_val
+
+        if (x < xc(1) .or. x > xc(nx) .or. y < yc(1) .or. y > yc(ny)) return
+
+        dx = xc(2) - xc(1)
+        dy = yc(2) - yc(1)
+        i = min(nx, max(1, nint((x - xc(1))/dx) + 1))
+        j = min(ny, max(1, nint((y - yc(1))/dy) + 1))
+
+        val = field(i,j)
+
+        return
+
+    end function nearest_sample_int
+
+    subroutine calvingmip_write_profiles(ylmo,filename,time,timedim)
+        ! Sample fields along every profile and write the per-profile variables
+        ! to the CalvingMIP file. Variable names follow the wiki:
+        !   lithk{P}, xvelmean{P}, yvelmean{P}, mask{P}    on (s{P}, timedim)
+        !   xcf{P}, ycf{P}, lithkcf{P}, xvelmeancf{P}, yvelmeancf{P}  on (timedim)
+        ! Calving front is detected as the last ice sample (mask in {1,2}) before
+        ! the first ocean sample (mask=3) walking outward from s=0.
+
+        implicit none
+
+        type(yelmo_class), intent(IN) :: ylmo
+        character(len=*),  intent(IN) :: filename
+        real(wp),          intent(IN) :: time
+        character(len=*),  intent(IN) :: timedim
+
+        ! Local
+        integer  :: ncid, nt, ip, i, k, i_cf
+        integer,  allocatable :: mask_cmip(:,:)
+        real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:)
+        real(wp), allocatable :: lithk_p(:), xvel_p(:), yvel_p(:)
+        integer,  allocatable :: mask_p(:)
+        real(wp) :: xcf, ycf, lithkcf, xvelmeancf, yvelmeancf
+        character(len=32) :: sdim, dim2(2)
+        character(len=8)  :: pname
+
+        ! Build 2D mask and aa-staggered velocity arrays once (shared across profiles).
+        allocate(mask_cmip(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(ux_aa(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(uy_aa(ylmo%grd%nx,ylmo%grd%ny))
+
+        mask_cmip = 3
+        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
+        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
+
+        ux_aa = 0.0_wp; uy_aa = 0.0_wp
+        do k = 2, ylmo%grd%ny-1
+        do i = 2, ylmo%grd%nx-1
+            ux_aa(i,k) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,k) + ylmo%dyn%now%ux_bar(i-1,k))
+            uy_aa(i,k) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,k) + ylmo%dyn%now%uy_bar(i,k-1))
+        end do
+        end do
+
+        call nc_open(filename,ncid,writable=.TRUE.)
+        nt = nc_time_index(filename,timedim,time,ncid)
+        call nc_write(filename,timedim,time,dim1=timedim,start=[nt],count=[1],ncid=ncid)
+
+        do ip = 1, size(profiles)
+
+            pname = profiles(ip)%name
+            sdim  = "s"//trim(pname)
+            dim2(1) = trim(sdim)
+            dim2(2) = trim(timedim)
+
+            allocate(lithk_p(profiles(ip)%n))
+            allocate(xvel_p(profiles(ip)%n))
+            allocate(yvel_p(profiles(ip)%n))
+            allocate(mask_p(profiles(ip)%n))
+
+            do i = 1, profiles(ip)%n
+                lithk_p(i) = bilinear_sample(ylmo%tpo%now%H_ice, ylmo%grd%xc, ylmo%grd%yc, &
+                                             profiles(ip)%x(i), profiles(ip)%y(i))
+                xvel_p(i)  = bilinear_sample(ux_aa, ylmo%grd%xc, ylmo%grd%yc, &
+                                             profiles(ip)%x(i), profiles(ip)%y(i))
+                yvel_p(i)  = bilinear_sample(uy_aa, ylmo%grd%xc, ylmo%grd%yc, &
+                                             profiles(ip)%x(i), profiles(ip)%y(i))
+                mask_p(i)  = nearest_sample_int(mask_cmip, ylmo%grd%xc, ylmo%grd%yc, &
+                                                profiles(ip)%x(i), profiles(ip)%y(i), 3)
+            end do
+
+            ! Calving front: last ice point (mask in {1,2}) before first ocean
+            ! point (mask=3) walking outward from s=0.
+            i_cf = -1
+            do i = 1, profiles(ip)%n
+                if (mask_p(i) /= 3) i_cf = i
+                if (mask_p(i) == 3) exit
+            end do
+            if (i_cf > 0) then
+                xcf        = profiles(ip)%x(i_cf)
+                ycf        = profiles(ip)%y(i_cf)
+                lithkcf    = lithk_p(i_cf)
+                xvelmeancf = xvel_p(i_cf)
+                yvelmeancf = yvel_p(i_cf)
+            else
+                xcf        = 0.0_wp
+                ycf        = 0.0_wp
+                lithkcf    = 0.0_wp
+                xvelmeancf = 0.0_wp
+                yvelmeancf = 0.0_wp
+            end if
+
+            call nc_write(filename,"lithk"//trim(pname), lithk_p, &
+                          dim1=sdim,dim2=timedim,start=[1,nt],units="m", &
+                          long_name="Ice thickness along profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"xvelmean"//trim(pname), xvel_p, &
+                          dim1=sdim,dim2=timedim,start=[1,nt],units="m a-1", &
+                          long_name="X velocity along profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"yvelmean"//trim(pname), yvel_p, &
+                          dim1=sdim,dim2=timedim,start=[1,nt],units="m a-1", &
+                          long_name="Y velocity along profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"mask"//trim(pname), mask_p, &
+                          dim1=sdim,dim2=timedim,start=[1,nt],units="1", &
+                          long_name="Ice mask along profile "//trim(pname),ncid=ncid)
+
+            call nc_write(filename,"xcf"//trim(pname), xcf, &
+                          dim1=timedim,start=[nt],units="m", &
+                          long_name="Calving front x position, profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"ycf"//trim(pname), ycf, &
+                          dim1=timedim,start=[nt],units="m", &
+                          long_name="Calving front y position, profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"lithkcf"//trim(pname), lithkcf, &
+                          dim1=timedim,start=[nt],units="m", &
+                          long_name="Calving front ice thickness, profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"xvelmeancf"//trim(pname), xvelmeancf, &
+                          dim1=timedim,start=[nt],units="m a-1", &
+                          long_name="Calving front x velocity, profile "//trim(pname),ncid=ncid)
+            call nc_write(filename,"yvelmeancf"//trim(pname), yvelmeancf, &
+                          dim1=timedim,start=[nt],units="m a-1", &
+                          long_name="Calving front y velocity, profile "//trim(pname),ncid=ncid)
+
+            deallocate(lithk_p, xvel_p, yvel_p, mask_p)
+
+        end do
+
+        call nc_close(ncid)
+
+        return
+
+    end subroutine calvingmip_write_profiles
 
 end program yelmo_calving
