@@ -83,7 +83,7 @@ program yelmo_calving
     call nml_read(ctl%path_par,"ctl","dt2D_out",    ctl%dt2D_out)       ! [yr] Frequency of 2D output
     ctl%dt1D_out = ctl%dtt  ! Set 1D output to frequency of main loop timestep
 
-    ! CalvingMIP output flag (only present in calvingmip nml; default off if not found)
+    ! CalvingMIP output flag (default off if not found)
     ctl%calvingmip_out = .FALSE.
     call nml_read(ctl%path_par,"ctl","calvingmip_out",ctl%calvingmip_out)
 
@@ -199,12 +199,6 @@ program yelmo_calving
         ! Get current time 
         time = ctl%time_init + n*ctl%dtt
         
-        ! if (time .lt. 10e3) then
-        !     yelmo1%dyn%par%solver = "sia"
-        ! else
-        !     yelmo1%dyn%par%solver = yelmo_ref%dyn%par%solver
-        ! end if
-
         ! == Yelmo ice sheet ===================================================
         call yelmo_update(yelmo1,time)
         
@@ -594,7 +588,7 @@ contains
         character(len=4), parameter :: thule_names(8) = &
             [character(len=4) :: "CapA","CapB","CapC","CapD", &
                                  "HalA","HalB","HalC","HalD"]
-        real(wp) :: thule_endpts(8,4)   ! [x0, y0, x1, y1] in metres
+        real(wp) :: thule_endpts(8,4)   ! [x0, y0, x1, y1] in meters
         real(wp) :: b
 
         allocate(profs(8))
@@ -755,9 +749,9 @@ contains
         character(len=*),  intent(IN) :: timedim
 
         ! Local
-        integer  :: ncid, nt, ip, i, k, i_cf
+        integer  :: ncid, nt, ip, i, j, i_cf
         integer,  allocatable :: mask_cmip(:,:)
-        real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:)
+        real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:), H_eff(:,:)
         real(wp), allocatable :: lithk_p(:), xvel_p(:), yvel_p(:)
         integer,  allocatable :: mask_p(:)
         real(wp) :: xcf, ycf, lithkcf, xvelmeancf, yvelmeancf
@@ -768,16 +762,20 @@ contains
         allocate(mask_cmip(ylmo%grd%nx,ylmo%grd%ny))
         allocate(ux_aa(ylmo%grd%nx,ylmo%grd%ny))
         allocate(uy_aa(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(H_eff(ylmo%grd%nx,ylmo%grd%ny))
 
         mask_cmip = 3
         where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
         where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
 
-        ux_aa = 0.0_wp; uy_aa = 0.0_wp
-        do k = 2, ylmo%grd%ny-1
+        ux_aa = 0.0_wp; uy_aa = 0.0_wp; H_eff = 0.0_wp
+        do j = 2, ylmo%grd%ny-1
         do i = 2, ylmo%grd%nx-1
-            ux_aa(i,k) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,k) + ylmo%dyn%now%ux_bar(i-1,k))
-            uy_aa(i,k) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,k) + ylmo%dyn%now%uy_bar(i,k-1))
+            if (ylmo%tpo%now%f_ice(i,j) .gt. 0.0) then
+                ux_aa(i,j) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,j) + ylmo%dyn%now%ux_bar(i-1,j))
+                uy_aa(i,j) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,j) + ylmo%dyn%now%uy_bar(i,j-1))
+                H_eff(i,j) = ylmo%tpo%now%H_ice(i,j)/ylmo%tpo%now%f_ice(i,j)
+            end if
         end do
         end do
 
@@ -798,7 +796,7 @@ contains
             allocate(mask_p(profiles(ip)%n))
 
             do i = 1, profiles(ip)%n
-                lithk_p(i) = bilinear_sample(ylmo%tpo%now%H_ice, ylmo%grd%xc, ylmo%grd%yc, &
+                lithk_p(i) = bilinear_sample(H_eff, ylmo%grd%xc, ylmo%grd%yc, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
                 xvel_p(i)  = bilinear_sample(ux_aa, ylmo%grd%xc, ylmo%grd%yc, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
