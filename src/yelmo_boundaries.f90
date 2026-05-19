@@ -267,12 +267,12 @@ contains
             case DEFAULT
                 ! Unknown domain: active interior, forced-zero borders
                 ! (mask_ice can always be modified later)
-
+                
                 bnd%mask_ice       = 1
-                bnd%mask_ice(1,:)  = -1
-                bnd%mask_ice(nx,:) = -1
-                bnd%mask_ice(:,1)  = -1
-                bnd%mask_ice(:,ny) = -1
+                bnd%mask_ice(1,:)  = 0
+                bnd%mask_ice(nx,:) = 0
+                bnd%mask_ice(:,1)  = 0
+                bnd%mask_ice(:,ny) = 0
 
         end select
 
