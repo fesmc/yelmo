@@ -99,8 +99,9 @@ module yelmo_defs
         integer            :: fmb_method  
         integer            :: dmb_method
         integer            :: surf_gl_method 
-        logical            :: margin2nd 
-        logical            :: margin_flt_subgrid 
+        logical            :: margin2nd
+        logical            :: margin_flt_subgrid
+        character(len=56)  :: f_ice_method      ! "upstream" (H_ice/H_neighb) or "lsf" (geometric LSF area fraction)
         logical            :: use_bmb  
         logical            :: topo_fixed
         integer            :: topo_rel

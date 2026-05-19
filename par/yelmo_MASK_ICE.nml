@@ -98,6 +98,7 @@
     dHdt_dyn_lim        = 100.0
     margin2nd           = False
     margin_flt_subgrid  = False
+    f_ice_method        = "upstream"
     use_bmb             = False
     topo_fixed          = False
     topo_rel            = 0

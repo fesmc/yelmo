@@ -106,8 +106,7 @@ contains
                     tpo%now%lsf_n       = tpo%now%lsf
 
                     ! Get ice-fraction mask for current ice thickness  
-                    call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                            bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+                    call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
@@ -135,8 +134,7 @@ end if
                     tpo%now%lsf   = tpo%now%pred%lsf
 
                     ! Get ice-fraction mask for predicted ice thickness  
-                    call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                            bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+                    call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
@@ -246,8 +244,7 @@ end if
                     end if
 
                     ! Get ice-fraction mask for ice thickness  
-                    call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                            bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+                    call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
                     ! If desired, finally relax solution to reference state
                     if (tpo%par%topo_rel .ne. 0) then 
@@ -293,8 +290,7 @@ end if
                         tpo%now%mb_net = tpo%now%mb_net + tpo%now%mb_relax
 
                         ! Get ice-fraction mask for ice thickness  
-                        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                                bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+                        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
                     end if
 
@@ -311,8 +307,7 @@ end if
                     tpo%now%mb_net = tpo%now%mb_net + tpo%now%mb_resid
 
                     ! Get ice-fraction mask for ice thickness  
-                    call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                            bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+                    call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
                     
 
             end select 
@@ -459,8 +454,7 @@ end if
 
 
         ! Make sure current ice mask is correct
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                    bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! === CALVING ===
 
@@ -607,8 +601,7 @@ end if
         tpo%now%cmb = tpo%now%cmb_flt + tpo%now%cmb_grnd 
 
         ! Update ice fraction mask 
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
 
         ! Treat fractional points that are not connected to full ice-covered points
@@ -620,8 +613,7 @@ end if
         ! Add this rate to calving tendency
         tpo%now%cmb = tpo%now%cmb + mbal_now
 
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         return
 
@@ -867,8 +859,7 @@ end if
         call apply_tendency(tpo%now%H_ice,tpo%now%cmb,dt,"calving_lsf",adjust_mb=.TRUE.)
 
         ! Update ice fraction mask 
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-            bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! Treat fractional points that are not connected to full ice-covered points
         call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt)
@@ -881,8 +872,7 @@ end if
         ! Add this rate to calving tendency
         tpo%now%cmb = tpo%now%cmb + mbal_now
 
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                        bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! if there is no ice (for example due to oceanic melt) ensure that point is now ocean in the lsf mask
         select case(trim(tpo%par%calv_flt_method))
@@ -912,8 +902,7 @@ end if
         character(len=256) :: bcx, bcy 
 
         ! Final update of ice fraction mask (or define it now for fixed topography)
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                bnd%c%rho_sw,tpo%par%boundaries,tpo%par%margin_flt_subgrid)
+        call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! Calculate grounding overburden ice thickness 
         call calc_H_grnd(tpo%now%H_grnd,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
@@ -1066,8 +1055,7 @@ end if
                 where (tpo%now%f_ice .lt. 1.0) tpo%now%H_ice_dyn = 1.0_wp
                 
                 ! Calculate the ice fraction mask for use with the dynamics solver
-                call calc_ice_fraction(tpo%now%f_ice_dyn,tpo%now%H_ice_dyn,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                bnd%c%rho_sw,tpo%par%boundaries,flt_subgrid=.FALSE.)
+                call update_ice_fraction(tpo,bnd,tpo%now%f_ice_dyn,tpo%now%H_ice_dyn,flt_subgrid=.FALSE.)
 
             case("slab-ext")
                 ! Calculate extended ice thickness fields n_ext points
@@ -1080,8 +1068,7 @@ end if
                 call extend_floating_slab(tpo%now%H_ice_dyn,tpo%now%f_grnd,H_slab=1.0_wp,n_ext=4)
 
                 ! Calculate the ice fraction mask for use with the dynamics solver
-                call calc_ice_fraction(tpo%now%f_ice_dyn,tpo%now%H_ice_dyn,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
-                                bnd%c%rho_sw,tpo%par%boundaries,flt_subgrid=.FALSE.)
+                call update_ice_fraction(tpo,bnd,tpo%now%f_ice_dyn,tpo%now%H_ice_dyn,flt_subgrid=.FALSE.)
 
             case DEFAULT 
                 ! No modification of ice thickness for dynamics solver 
@@ -1253,6 +1240,7 @@ end if
         call nml_read(filename,group_ytopo,"dHdt_dyn_lim",      par%dHdt_dyn_lim,     init=init_pars) 
         call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars)
         call nml_read(filename,group_ytopo,"margin_flt_subgrid",par%margin_flt_subgrid,init=init_pars)
+        call nml_read(filename,group_ytopo,"f_ice_method",      par%f_ice_method,     init=init_pars)
         call nml_read(filename,group_ytopo,"use_bmb",           par%use_bmb,          init=init_pars)
         call nml_read(filename,group_ytopo,"topo_fixed",        par%topo_fixed,       init=init_pars)
         call nml_read(filename,group_ytopo,"topo_rel",          par%topo_rel,         init=init_pars)
@@ -1725,5 +1713,48 @@ end if
         return
 
     end subroutine ytopo_pc_dealloc
+
+    subroutine update_ice_fraction(tpo,bnd,f_ice,H_ice,flt_subgrid)
+        ! Dispatch the ice-fraction calculation according to the configured
+        ! method. "upstream" uses the H_ice/H_neighbour formulation in
+        ! calc_ice_fraction; "lsf" derives the floating-cell area fraction
+        ! geometrically from the level-set function via
+        ! calc_ice_fraction_lsf. Both methods return a binary mask when
+        ! flt_subgrid is .FALSE., so the dynamics-only f_ice_dyn callers
+        ! that pass .FALSE. get the same shape from either method.
+        !
+        ! Defaults to tpo%par%margin_flt_subgrid when flt_subgrid is not
+        ! supplied, matching the historical pattern of the main calls.
+
+        implicit none
+
+        type(ytopo_class),  intent(INOUT) :: tpo
+        type(ybound_class), intent(IN)    :: bnd
+        real(wp),           intent(INOUT) :: f_ice(:,:)
+        real(wp),           intent(IN)    :: H_ice(:,:)
+        logical,            intent(IN), optional :: flt_subgrid
+
+        logical :: subgrid
+
+        subgrid = tpo%par%margin_flt_subgrid
+        if (present(flt_subgrid)) subgrid = flt_subgrid
+
+        select case(trim(tpo%par%f_ice_method))
+            case("upstream")
+                call calc_ice_fraction(f_ice,H_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice, &
+                                       bnd%c%rho_sw,tpo%par%boundaries,subgrid)
+            case("lsf")
+                call calc_ice_fraction_lsf(f_ice,H_ice,tpo%now%lsf, &
+                                           bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw, &
+                                           tpo%par%boundaries,subgrid)
+            case default
+                write(io_unit_err,*) "update_ice_fraction:: ERROR: unknown f_ice_method = '"// &
+                                     trim(tpo%par%f_ice_method)//"'. Use 'upstream' or 'lsf'."
+                stop "update_ice_fraction"
+        end select
+
+        return
+
+    end subroutine update_ice_fraction
 
 end module yelmo_topography

@@ -22,6 +22,7 @@ module topography
 
     public :: calc_ice_fraction
     public :: calc_ice_fraction_new
+    public :: calc_ice_fraction_lsf
     public :: calc_ice_front
 
     public :: calc_z_srf
@@ -529,7 +530,195 @@ contains
         return 
 
     end subroutine calc_ice_fraction
-    
+
+    subroutine calc_ice_fraction_lsf(f_ice,H_ice,lsf,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
+        ! Alternative to calc_ice_fraction: derive the floating-ice area
+        ! fraction of each cell geometrically from the level-set function.
+        ! Corner LSF values are obtained by averaging the four surrounding
+        ! aa-node lsf values, then the negative-LSF area inside each unit
+        ! cell is computed via marching-squares (linear edge interpolation).
+        !
+        ! Behaviour matches calc_ice_fraction in the binary cases:
+        !   - flt_subgrid == .FALSE. : f_ice is binary everywhere (1 where
+        !     H_ice > 0, 0 elsewhere). The LSF geometry is unused.
+        !   - Grounded ice (H_grnd > 0): f_ice = 1 always.
+        ! Only floating, ice-bearing cells receive a fractional value drawn
+        ! from the LSF zero-crossing geometry. Cells with H_ice == 0 are
+        ! forced to f_ice = 0 so H_eff = H_ice/f_ice stays well-defined.
+
+        implicit none
+
+        real(wp), intent(OUT) :: f_ice(:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: lsf(:,:)
+        real(wp), intent(IN)  :: z_bed(:,:)
+        real(wp), intent(IN)  :: z_sl(:,:)
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: boundaries
+        logical,  intent(IN), optional :: flt_subgrid
+
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1
+        real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
+        real(wp) :: f_geom
+        logical  :: get_fractional_cover
+        real(wp), allocatable :: H_grnd(:,:)
+
+        nx = size(lsf,1)
+        ny = size(lsf,2)
+        BC = boundary_code(boundaries)
+
+        get_fractional_cover = .TRUE.
+        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid
+
+        ! Initialise as a binary mask, same as calc_ice_fraction.
+        where(H_ice .gt. 0.0_wp)
+            f_ice = 1.0_wp
+        elsewhere
+            f_ice = 0.0_wp
+        end where
+
+        if (.not. get_fractional_cover) return
+
+        ! Compute H_grnd to identify floating cells.
+        allocate(H_grnd(nx,ny))
+        call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_BL,phi_BR,phi_TR,phi_TL,f_geom)
+        do j = 1, ny
+        do i = 1, nx
+
+            ! Only revise floating, ice-bearing cells; everything else keeps
+            ! the binary value set above.
+            if (H_ice(i,j) .le. 0.0_wp) cycle
+            if (H_grnd(i,j) .gt. 0.0_wp) cycle
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Corner LSF values via averaging the four adjacent aa-node values.
+            phi_BL = 0.25_wp*(lsf(im1,jm1) + lsf(i,jm1) + lsf(im1,j) + lsf(i,j))
+            phi_BR = 0.25_wp*(lsf(i,jm1)   + lsf(ip1,jm1) + lsf(i,j)   + lsf(ip1,j))
+            phi_TR = 0.25_wp*(lsf(i,j)     + lsf(ip1,j)   + lsf(i,jp1) + lsf(ip1,jp1))
+            phi_TL = 0.25_wp*(lsf(im1,j)   + lsf(i,j)     + lsf(im1,jp1) + lsf(i,jp1))
+
+            f_geom = lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL)
+
+            ! Keep mass-bearing cells nonzero so H_eff stays finite even if
+            ! the LSF and H_ice fields disagree about coverage transiently.
+            if (f_geom .lt. TOL) f_geom = TOL
+
+            f_ice(i,j) = f_geom
+
+        end do
+        end do
+        !$omp end parallel do
+
+        deallocate(H_grnd)
+
+        return
+
+    end subroutine calc_ice_fraction_lsf
+
+    function lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL) result(f)
+        ! Compute the area fraction of a unit square where a bilinear
+        ! interpolant of the four corner phi values is negative. Uses the
+        ! standard marching-squares topology with linear zero-crossing
+        ! locations along each edge; the saddle case is split into two
+        ! disjoint triangles (a centre-value test would give a sharper
+        ! resolution but is unnecessary for the smooth LSF expected here).
+
+        implicit none
+
+        real(wp), intent(IN) :: phi_BL, phi_BR, phi_TR, phi_TL
+        real(wp) :: f
+
+        integer  :: mask
+        real(wp) :: a, b, c, d
+
+        ! Encode sign pattern: bit i set when corner phi > 0.
+        mask = 0
+        if (phi_BL .gt. 0.0_wp) mask = mask + 1
+        if (phi_BR .gt. 0.0_wp) mask = mask + 2
+        if (phi_TR .gt. 0.0_wp) mask = mask + 4
+        if (phi_TL .gt. 0.0_wp) mask = mask + 8
+
+        select case(mask)
+        case(0)
+            f = 1.0_wp
+        case(15)
+            f = 0.0_wp
+        case(1)      ! BL positive (corner cut from ice)
+            a = phi_BL/(phi_BL - phi_BR)
+            b = phi_BL/(phi_BL - phi_TL)
+            f = 1.0_wp - 0.5_wp*a*b
+        case(2)      ! BR positive
+            a = phi_BR/(phi_BR - phi_BL)
+            b = phi_BR/(phi_BR - phi_TR)
+            f = 1.0_wp - 0.5_wp*a*b
+        case(4)      ! TR positive
+            a = phi_TR/(phi_TR - phi_BR)
+            b = phi_TR/(phi_TR - phi_TL)
+            f = 1.0_wp - 0.5_wp*a*b
+        case(8)      ! TL positive
+            a = phi_TL/(phi_TL - phi_BL)
+            b = phi_TL/(phi_TL - phi_TR)
+            f = 1.0_wp - 0.5_wp*a*b
+        case(14)     ! BL negative only (triangle of ice)
+            a = phi_BL/(phi_BL - phi_BR)
+            b = phi_BL/(phi_BL - phi_TL)
+            f = 0.5_wp*a*b
+        case(13)     ! BR negative only
+            a = phi_BR/(phi_BR - phi_BL)
+            b = phi_BR/(phi_BR - phi_TR)
+            f = 0.5_wp*a*b
+        case(11)     ! TR negative only
+            a = phi_TR/(phi_TR - phi_BR)
+            b = phi_TR/(phi_TR - phi_TL)
+            f = 0.5_wp*a*b
+        case(7)      ! TL negative only
+            a = phi_TL/(phi_TL - phi_BL)
+            b = phi_TL/(phi_TL - phi_TR)
+            f = 0.5_wp*a*b
+        case(3)      ! bottom positive, top negative (trapezoid on top)
+            a = phi_TL/(phi_TL - phi_BL)
+            b = phi_TR/(phi_TR - phi_BR)
+            f = 0.5_wp*(a + b)
+        case(12)     ! top positive, bottom negative
+            a = phi_BL/(phi_BL - phi_TL)
+            b = phi_BR/(phi_BR - phi_TR)
+            f = 0.5_wp*(a + b)
+        case(6)      ! right positive, left negative
+            a = phi_BL/(phi_BL - phi_BR)
+            b = phi_TL/(phi_TL - phi_TR)
+            f = 0.5_wp*(a + b)
+        case(9)      ! left positive, right negative
+            a = phi_BR/(phi_BR - phi_BL)
+            b = phi_TR/(phi_TR - phi_TL)
+            f = 0.5_wp*(a + b)
+        case(5)      ! saddle: BL+, BR-, TR+, TL-  (negative in BR and TL)
+            a = phi_BR/(phi_BR - phi_BL)
+            b = phi_BR/(phi_BR - phi_TR)
+            c = phi_TL/(phi_TL - phi_TR)
+            d = phi_TL/(phi_TL - phi_BL)
+            f = 0.5_wp*a*b + 0.5_wp*c*d
+        case(10)     ! saddle: BL-, BR+, TR-, TL+  (negative in BL and TR)
+            a = phi_BL/(phi_BL - phi_BR)
+            b = phi_BL/(phi_BL - phi_TL)
+            c = phi_TR/(phi_TR - phi_TL)
+            d = phi_TR/(phi_TR - phi_BR)
+            f = 0.5_wp*a*b + 0.5_wp*c*d
+        case default
+            f = 0.0_wp
+        end select
+
+        if (f .lt. 0.0_wp) f = 0.0_wp
+        if (f .gt. 1.0_wp) f = 1.0_wp
+
+        return
+
+    end function lsf_negative_area_fraction
+
     subroutine calc_ice_front(mask_frnt,f_ice,f_grnd,z_bed,z_sl,boundaries)
         ! Calculate a mask of ice front points that 
         ! demarcates both the ice front (last ice-covered point)
