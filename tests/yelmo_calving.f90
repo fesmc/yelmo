@@ -749,12 +749,13 @@ contains
         character(len=*),  intent(IN) :: timedim
 
         ! Local
-        integer  :: ncid, nt, ip, i, j, i_cf
+        integer  :: ncid, nt, ip, i, j, i_lsf, i_inland
         integer,  allocatable :: mask_cmip(:,:)
         real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:), H_eff(:,:)
-        real(wp), allocatable :: lithk_p(:), xvel_p(:), yvel_p(:)
+        real(wp), allocatable :: lithk_p(:), xvel_p(:), yvel_p(:), lsf_p(:)
         integer,  allocatable :: mask_p(:)
         real(wp) :: xcf, ycf, lithkcf, xvelmeancf, yvelmeancf
+        real(wp) :: lsf_a, lsf_b, frac
         character(len=32) :: sdim, dim2(2)
         character(len=8)  :: pname
 
@@ -765,8 +766,8 @@ contains
         allocate(H_eff(ylmo%grd%nx,ylmo%grd%ny))
 
         mask_cmip = 3
-        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
-        where(ylmo%tpo%now%H_ice .gt. 0.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
+        where(ylmo%tpo%now%f_ice .eq. 1.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
+        where(ylmo%tpo%now%f_ice .eq. 1.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
 
         ux_aa = 0.0_wp; uy_aa = 0.0_wp; H_eff = 0.0_wp
         do j = 2, ylmo%grd%ny-1
@@ -793,6 +794,7 @@ contains
             allocate(lithk_p(profiles(ip)%n))
             allocate(xvel_p(profiles(ip)%n))
             allocate(yvel_p(profiles(ip)%n))
+            allocate(lsf_p(profiles(ip)%n))
             allocate(mask_p(profiles(ip)%n))
 
             do i = 1, profiles(ip)%n
@@ -802,24 +804,48 @@ contains
                                              profiles(ip)%x(i), profiles(ip)%y(i))
                 yvel_p(i)  = bilinear_sample(uy_aa, ylmo%grd%xc, ylmo%grd%yc, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
+                lsf_p(i)   = bilinear_sample(ylmo%tpo%now%lsf, ylmo%grd%xc, ylmo%grd%yc, &
+                                             profiles(ip)%x(i), profiles(ip)%y(i))
                 mask_p(i)  = nearest_sample_int(mask_cmip, ylmo%grd%xc, ylmo%grd%yc, &
                                                 profiles(ip)%x(i), profiles(ip)%y(i), 3)
             end do
 
-            ! Calving front: last ice point (mask in {1,2}) before first ocean
-            ! point (mask=3) walking outward from s=0.
-            i_cf = -1
+            ! Calving front via LSF zero crossing along the profile: locate
+            ! the first sample with lsf > 0 (ocean side) so the preceding
+            ! sample sits at lsf <= 0 (ice side). xcf/ycf are linearly
+            ! interpolated to the zero crossing for subgrid front position.
+            ! lithkcf and velocities are taken one sample further inland
+            ! (i_lsf-2) to skip the transition cell, where calving has
+            ! pulled H_ice down before calc_ice_fraction has re-flagged the
+            ! cell as fractional, producing a misleading thickness dip.
+            i_lsf = 0
             do i = 1, profiles(ip)%n
-                if (mask_p(i) /= 3) i_cf = i
-                if (mask_p(i) == 3) exit
+                if (lsf_p(i) > 0.0_wp) then
+                    i_lsf = i
+                    exit
+                end if
             end do
-            if (i_cf > 0) then
-                xcf        = profiles(ip)%x(i_cf)
-                ycf        = profiles(ip)%y(i_cf)
-                lithkcf    = lithk_p(i_cf)
-                xvelmeancf = xvel_p(i_cf)
-                yvelmeancf = yvel_p(i_cf)
+            if (i_lsf >= 2) then
+                lsf_a      = lsf_p(i_lsf-1)
+                lsf_b      = lsf_p(i_lsf)
+                frac       = -lsf_a / (lsf_b - lsf_a)
+                xcf        = profiles(ip)%x(i_lsf-1) + frac*(profiles(ip)%x(i_lsf) - profiles(ip)%x(i_lsf-1))
+                ycf        = profiles(ip)%y(i_lsf-1) + frac*(profiles(ip)%y(i_lsf) - profiles(ip)%y(i_lsf-1))
+                i_inland   = max(1, i_lsf - 2)
+                lithkcf    = lithk_p(i_inland)
+                xvelmeancf = xvel_p(i_inland)
+                yvelmeancf = yvel_p(i_inland)
+            else if (i_lsf == 0) then
+                ! Front lies beyond the profile end — fall back to the last
+                ! profile sample for position and one inland for thickness.
+                xcf        = profiles(ip)%x(profiles(ip)%n)
+                ycf        = profiles(ip)%y(profiles(ip)%n)
+                i_inland   = max(1, profiles(ip)%n - 1)
+                lithkcf    = lithk_p(i_inland)
+                xvelmeancf = xvel_p(i_inland)
+                yvelmeancf = yvel_p(i_inland)
             else
+                ! i_lsf == 1: profile starts on the ocean side, no ice.
                 xcf        = 0.0_wp
                 ycf        = 0.0_wp
                 lithkcf    = 0.0_wp
@@ -856,7 +882,7 @@ contains
                           dim1=timedim,start=[nt],units="m a-1", &
                           long_name="Calving front y velocity, profile "//trim(pname),ncid=ncid)
 
-            deallocate(lithk_p, xvel_p, yvel_p, mask_p)
+            deallocate(lithk_p, xvel_p, yvel_p, lsf_p, mask_p)
 
         end do
 
