@@ -11,7 +11,7 @@
 # Usage:
 #     julia --project=@. scripts/plot_calvingmip.jl [<output-folder>]
 #
-# Default <output-folder> is tmp/yelmo-calvingmip-2026-05-18.
+# Default <output-folder> is tmp/yelmo-calvingmip-2026-05-19.
 
 using CairoMakie
 using NCDatasets
@@ -42,7 +42,17 @@ function load_front_series(ds, prof)
     return (; t, dist, speed, thk = lithk)
 end
 
-function plot_experiment(ncpath, profiles, outpath; suptitle = "")
+# CalvingMIP exp2/exp4 forcing imposes a front-normal velocity anomaly
+#     wv(t) = -300 sin(2π t / 1000)   [m yr⁻¹]
+# on top of the steady-state front (cf. calvmip_exp2 in calving_ac.f90).
+# Time-integrating wv from t=0 gives a closed-form front displacement,
+# returned here in km. r0 anchors the curve at the simulated t=0 front.
+function exp2_front_analytical(t, r0_km)
+    return r0_km .+ (150.0 / π) .* (cos.(2π .* t ./ 1000.0) .- 1.0)
+end
+
+function plot_experiment(ncpath, profiles, outpath;
+                        suptitle = "", with_analytical = false)
     isfile(ncpath) || error("CalvingMIP file not found: $ncpath")
 
     NCDataset(ncpath, "r") do ds
@@ -64,8 +74,27 @@ function plot_experiment(ncpath, profiles, outpath; suptitle = "")
                     xlabel = row == length(fields) ? "Time [yr]" : "",
                     ylabel = col == 1 ? ylabel : "",
                     title  = row == 1 ? "Profile $prof" : "")
-                lines!(ax, s.t, getfield(s, field))
+
+                if row == 1 && with_analytical
+                    r_an = exp2_front_analytical(s.t, first(s.dist))
+                    band!(ax, s.t, r_an .- 5.0, r_an .+ 5.0;
+                          color = (:tomato, 0.25), label = "Analytical ±5 km")
+                    lines!(ax, s.t, r_an;
+                           color = :tomato, linestyle = :dash,
+                           label = "Analytical")
+                    lines!(ax, s.t, s.dist;
+                           color = :black, label = "Yelmo")
+                    axislegend(ax; position = :rb, framevisible = false,
+                               labelsize = 10, padding = (4, 4, 4, 4))
+                else
+                    lines!(ax, s.t, getfield(s, field); color = :black)
+                end
             end
+        end
+
+        # Force equal column widths regardless of axis-decoration size.
+        for col in 1:length(profiles)
+            colsize!(fig.layout, col, Relative(1.0 / length(profiles)))
         end
 
         save(outpath, fig)
@@ -75,18 +104,19 @@ function plot_experiment(ncpath, profiles, outpath; suptitle = "")
 end
 
 function main()
-    fldr = length(ARGS) >= 1 ? ARGS[1] : "tmp/yelmo-calvingmip-2026-05-18"
+    fldr = length(ARGS) >= 1 ? ARGS[1] : "tmp/yelmo-calvingmip-2026-05-19"
 
     plot_experiment(
         joinpath(fldr, "exp2", "CalvingMIP_EXP2_YELMO_AWI.nc"),
         ["A", "B"],
         joinpath(fldr, "exp2", "calvingmip_front_exp2.pdf");
         suptitle = "CalvingMIP EXP2 — front diagnostics",
+        with_analytical = true,
     )
 
     plot_experiment(
         joinpath(fldr, "exp4", "CalvingMIP_EXP4_YELMO_AWI.nc"),
-        ["CapA", "CapB"],
+        ["CapA", "HalA"],
         joinpath(fldr, "exp4", "calvingmip_front_exp4.pdf");
         suptitle = "CalvingMIP EXP4 — front diagnostics",
     )
