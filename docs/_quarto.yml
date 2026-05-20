@@ -1,0 +1,76 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "*.md"
+    - "physics/**/*.md"
+    - "!README.md"
+
+website:
+  title: "Yelmo"
+  description: "Documentation for the Yelmo ice-sheet model"
+  repo-url: https://github.com/fesmc/yelmo
+  repo-actions: [edit, issue]
+  page-navigation: true
+  navbar:
+    background: primary
+    search: true
+    left:
+      - href: index.md
+        text: Home
+      - href: getting-started.md
+        text: Getting started
+      - href: physics/index.md
+        text: Physics
+      - href: yelmo-variables.md
+        text: Variables
+  sidebar:
+    style: docked
+    collapse-level: 2
+    contents:
+      - text: Home
+        href: index.md
+      - section: "Getting started"
+        contents:
+          - getting-started.md
+          - dependencies.md
+          - parameters.md
+      - section: "Physics"
+        contents:
+          - physics/index.md
+          - section: "Momentum balance"
+            contents:
+              - physics/momentum/diva.md
+              - physics/momentum/ssa.md
+              - physics/momentum/sia.md
+              - physics/momentum/solvers.md
+          - section: "Mass conservation"
+            contents:
+              - physics/mass_conservation/index.md
+              - physics/mass_conservation/solvers.md
+      - section: "Variables"
+        contents:
+          - yelmo-variables.md
+          - yelmo-variables-ybound.md
+          - yelmo-variables-ytopo.md
+          - yelmo-variables-ydyn.md
+          - yelmo-variables-ymat.md
+          - yelmo-variables-ytherm.md
+          - yelmo-variables-ydata.md
+      - section: "Reference"
+        contents:
+          - yelmo-io.md
+          - example-programs.md
+          - remapping.md
+          - optimization.md
+          - notes.md
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-overflow: wrap
+    html-math-method: katex
+    link-external-newwindow: true
