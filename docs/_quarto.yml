@@ -19,22 +19,25 @@ website:
       - href: index.md
         text: Home
       - href: getting-started.md
-        text: Getting started
+        text: Installation
       - href: physics/index.md
         text: Physics
       - href: yelmo-variables.md
         text: Variables
+      - href: benchmarks.md
+        text: Benchmarks
   sidebar:
     style: docked
     collapse-level: 2
     contents:
       - text: Home
         href: index.md
-      - section: "Getting started"
+      - section: "Installation"
         contents:
           - getting-started.md
           - dependencies.md
-          - parameters.md
+          - hpc-notes.md
+      - parameters.md
       - section: "Physics"
         contents:
           - physics/index.md
@@ -57,10 +60,10 @@ website:
           - yelmo-variables-ymat.md
           - yelmo-variables-ytherm.md
           - yelmo-variables-ydata.md
+      - benchmarks.md
       - section: "Reference"
         contents:
           - yelmo-io.md
-          - example-programs.md
           - remapping.md
           - optimization.md
           - notes.md
