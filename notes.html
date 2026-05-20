@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>notes – Yelmo</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./optimization.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">Yelmo</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./getting-started.html"> 
+<span class="menu-text">Getting started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./physics/index.html"> 
+<span class="menu-text">Physics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./yelmo-variables.html"> 
+<span class="menu-text">Variables</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-io.html">Reference</a></li><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Home</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./getting-started.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting started</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dependencies.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dependencies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parameters</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Physics</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Physics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Momentum balance</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Mass conservation</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mass conservation — continuity equation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical solution of the continuity equation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Variables</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Yelmo variable tables</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ybound</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytopo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ydyn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ymat</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytherm</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ydata</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
+ <span class="menu-text">Reference</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-io.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Yelmo IO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./example-programs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Example programs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./remapping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Remapping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./notes.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Notes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#notes" id="toc-notes" class="nav-link active" data-scroll-target="#notes">Notes</a>
+  <ul class="collapse">
+  <li><a href="#timeout-module" id="toc-timeout-module" class="nav-link" data-scroll-target="#timeout-module"><code>timeout</code> module</a></li>
+  <li><a href="#timing-module" id="toc-timing-module" class="nav-link" data-scroll-target="#timing-module"><code>timing</code> module</a></li>
+  <li><a href="#master-to-main" id="toc-master-to-main" class="nav-link" data-scroll-target="#master-to-main"><code>master</code> to <code>main</code></a></li>
+  <li><a href="#thermodynamics-equations" id="toc-thermodynamics-equations" class="nav-link" data-scroll-target="#thermodynamics-equations">Thermodynamics equations</a>
+  <ul class="collapse">
+  <li><a href="#ice-column" id="toc-ice-column" class="nav-link" data-scroll-target="#ice-column">Ice column</a></li>
+  <li><a href="#bedrock-column" id="toc-bedrock-column" class="nav-link" data-scroll-target="#bedrock-column">Bedrock column</a></li>
+  </ul></li>
+  <li><a href="#equilibrium-bedrock" id="toc-equilibrium-bedrock" class="nav-link" data-scroll-target="#equilibrium-bedrock">Equilibrium bedrock</a></li>
+  <li><a href="#active-bedrock" id="toc-active-bedrock" class="nav-link" data-scroll-target="#active-bedrock">Active bedrock</a>
+  <ul class="collapse">
+  <li><a href="#density-of-the-upper-lithosphere" id="toc-density-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#density-of-the-upper-lithosphere">Density of the upper lithosphere</a></li>
+  <li><a href="#heat-capacity-of-the-upper-lithosphere" id="toc-heat-capacity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</a></li>
+  <li><a href="#heat-conductivity-of-the-upper-lithosphere" id="toc-heat-conductivity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</a></li>
+  </ul></li>
+  <li><a href="#how-to-read-yelmo_check_kill-output" id="toc-how-to-read-yelmo_check_kill-output" class="nav-link" data-scroll-target="#how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</a></li>
+  <li><a href="#margin-front-mass-balance" id="toc-margin-front-mass-balance" class="nav-link" data-scroll-target="#margin-front-mass-balance">Margin-front mass balance</a></li>
+  <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link" data-scroll-target="#calving-schemes">Calving schemes</a>
+  <ul class="collapse">
+  <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
+  </ul></li>
+  <li><a href="#vertical-velocity" id="toc-vertical-velocity" class="nav-link" data-scroll-target="#vertical-velocity">Vertical velocity</a></li>
+  <li><a href="#ice-margin-calving-rates-mass-conservation" id="toc-ice-margin-calving-rates-mass-conservation" class="nav-link" data-scroll-target="#ice-margin-calving-rates-mass-conservation">Ice margin, calving rates, mass conservation</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/notes.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-io.html">Reference</a></li><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li></ol></nav></header>
+
+
+
+
+<section id="notes" class="level1">
+<h1>Notes</h1>
+<section id="timeout-module" class="level2">
+<h2 class="anchored" data-anchor-id="timeout-module"><code>timeout</code> module</h2>
+<p>Example parameters for using the <code>timeout</code> module. The name of the section should be specified when calling <code>timeout_init</code>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&amp;</span>tm_1D</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    method          <span class="kw">=</span> <span class="st">"file"</span>            <span class="co">! "const", "file", "times"</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    dt              <span class="kw">=</span> <span class="fl">1.0</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    file            <span class="kw">=</span> <span class="st">"input/timeout_ramp_100kyr.txt"</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    times           <span class="kw">=</span> <span class="kw">-</span><span class="dv">10</span>, <span class="kw">-</span><span class="dv">5</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">25</span>, <span class="dv">30</span>, <span class="dv">35</span>,<span class="co"> 40, 45, 50, 55</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">/</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">! Get output times</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">call timeout_init(tm_1D,path_par,"tm_1D","small", time_init,time_end)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>If we are loading the desired output times from a file, the format is one time per line, or a range of times using the format <code>t0:dt:t1</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">0:10:200</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">200:20:300</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">300:50:500</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">500:100:1000</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">1000:200:5000</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">5000:500:10000</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10e3:1e3:20e3</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">20e3:2e3:200e3</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ex">200e3:5e3:1e6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Duplicate times will be removed, as well as times outside of the range of <code>time_init</code> and <code>time_end</code>. In this way, once <code>timeout_init</code> is called, we know how many timesteps of output will be generated. This can help confirm that we designed the experiment well, and how much data to expect.</p>
+<p>Then during the timeloop, simply use the function <code>timeout_check</code> to determine if the current time should be written to output:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (timeout_check(tm_1D,time)) <span class="kw">then</span>  </span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">!call write_step_1D_combined(yelmo1,hyst1,file1D_hyst,time=time)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">end if</span> </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="timing-module" class="level2">
+<h2 class="anchored" data-anchor-id="timing-module"><code>timing</code> module</h2>
+<p>All calls to the intrinsic routine <code>cpu_time()</code> have been replaced by timing calculations performed in the new <code>timing</code> module. This has the benefit of ensuring timing will work properly for parallel and serial programs, and allows us to keep track of multiple timing objectives with one simple object and subroutine.</p>
+<p>The control of a timing object is handled via <code>timer_step</code>:</p>
+<p>First, initialize and reset the <code>timer</code> object:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">call timer_step(tmrs,comp=-1)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Then, e.g., within the timeloop, get the timing for isostasy calls and for Yelmo calls:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">call timer_step(tmrs,comp=0) </span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co">! == ISOSTASY ==========================================================</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co">call isos_update(isos1,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_sl,time,yelmo1%bnd%dzbdt_corr) </span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_bed <span class="kw">=</span> isos1<span class="op">%</span>now<span class="op">%</span>z_bed</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">call timer_step(tmrs,comp=1,time_mod=[time-dtt_now,time]*1e-3,label="isostasy") </span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co">! Update ice sheet to current time </span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">call yelmo_update(yelmo1,time)</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">call timer_step(tmrs,comp=2,time_mod=[time-dtt_now,time]*1e-3,label="yelmo")      </span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The option <code>comp</code> tells us which component the timing is being calculated for, and we can additionally provide a label to associate with this component. This is useful for printing a table later.</p>
+<p>After all components have been calculated, we can print to a summary file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (<span class="bu">mod</span>(time_elapsed,<span class="fl">10.0</span>)<span class="op">==</span><span class="dv">0</span>) <span class="kw">then</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Print timestep timing info and write log table</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> timer_write_table(tmrs,<span class="kw">[</span>time,dtt_now<span class="kw">]*</span><span class="fl">1e-3</span>,<span class="st">"m"</span>,tmr_file,init<span class="kw">=</span>time_elapsed <span class="op">.eq.</span> <span class="fl">0.0</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">end if</span> </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The resulting file will look something like this, here for 4 components measured during during the time loop:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>     <span class="bu">time</span>      dt    yelmo isostasy  climate       io    total     rate  </span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.000</span>   0.010    0.000    0.000    0.016    0.051    0.067    6.694</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.010</span>   0.010    0.000    0.000    0.025    0.000    0.025    2.533</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.020</span>   0.010    0.000    0.000    0.024    0.000    0.025    2.458</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Based on the options supplied, the time units are in <code>[m]</code> and the model time in <code>[kyr]</code>. The rate is then calculated as <code>[m/kyr]</code> - this is the inverse of what we used to measure <code>[kyr/hr]</code>. The rate as defined now is easier to manage in terms of summing the contribution of different components, and so is preferred moving forward. To recover <code>[kyr/hr]</code>, simply take 60/rate.</p>
+</section>
+<section id="master-to-main" class="level2">
+<h2 class="anchored" data-anchor-id="master-to-main"><code>master</code> to <code>main</code></h2>
+<p>Following updated conventions, the default branch is now called <code>main</code> and the branch <code>master</code> has been deleted.</p>
+<p>To update a working copy locally that already contains a <code>master</code> branch and therefore points to it as the default branch, the following steps should be applied:</p>
+<ol type="1">
+<li>Get the branch <code>main</code>.</li>
+<li>Delete the local branch <code>master</code>.</li>
+<li>Make sure your local repository sees <code>main</code> as the default branch.</li>
+</ol>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get all branch information from the origin (github):</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> fetch <span class="at">--all</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get onto the new default branch:</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout main </span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Delete the branch master:</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> branch <span class="at">-d</span> master</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Clean up any branches that no longer exist at origin:</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> fetch <span class="at">--prune</span> origin</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Set the local 'head' to whatever is specified at the origin (which will be main):</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> remote set-head origin <span class="at">-a</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Done! Now your local copy should work like normal, with <code>main</code> instead of <code>master</code>.</p>
+</section>
+<section id="thermodynamics-equations" class="level2">
+<h2 class="anchored" data-anchor-id="thermodynamics-equations">Thermodynamics equations</h2>
+<section id="ice-column" class="level3">
+<h3 class="anchored" data-anchor-id="ice-column">Ice column</h3>
+<p>Prognostic equation:</p>
+<p><span class="math display">
+\frac{\partial T}{\partial t} = \frac{k}{\rho c} \frac{\partial^2 T}{\partial z^2} - u \frac{\partial T}{\partial x} - v \frac{\partial T}{\partial y} - w \frac{\partial T}{\partial z} + \frac{\Phi}{\rho c}
+</span></p>
+<p>Ice surface boundary condition:</p>
+<p><span class="math display">
+T(z=z_{\rm srf}) = {\rm min}(T_{\rm 2m},T_0)
+</span></p>
+<p>Ice base (temperate) boundary condition:</p>
+<p><span class="math display">
+T(z=z_{\rm bed}) = T_{\rm pmp}
+</span></p>
+<p>Ice base (frozen) boundary condition:</p>
+<p><span class="math display">
+k \frac{\partial T}{\partial z} = k_r \frac{\partial T_r}{\partial z}
+</span></p>
+<p>Note, the following internal Yelmo variables are defined for convenience:</p>
+<p><span class="math display">
+Q_{\rm ice,b} = -k \frac{\partial T}{\partial z}; \quad
+Q_{\rm rock} = -k_r \frac{\partial T_r}{\partial z}
+</span></p>
+</section>
+<section id="bedrock-column" class="level3">
+<h3 class="anchored" data-anchor-id="bedrock-column">Bedrock column</h3>
+<p>Prognostic equation:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial t} = \frac{k_r}{\rho_r c_r} \frac{\partial^2 T_r}{\partial z^2}
+</span></p>
+<p>Bedrock surface boundary condition:</p>
+<p><span class="math display">
+T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
+</span></p>
+<p>Bedrock base boundary condition:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+</span></p>
+</section>
+</section>
+<section id="equilibrium-bedrock" class="level2">
+<h2 class="anchored" data-anchor-id="equilibrium-bedrock">Equilibrium bedrock</h2>
+<p>In this case, the bedrock temperature profile is prescribed to the equilibrium linear temperature profile. The slope follows:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+</span></p>
+<p>and the bedrock surface temperature is given by the ice temperature at its base:</p>
+<p><span class="math display">
+T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
+</span></p>
+</section>
+<section id="active-bedrock" class="level2">
+<h2 class="anchored" data-anchor-id="active-bedrock">Active bedrock</h2>
+<p>Yelmo calculates the temperature in the lithosphere along with the ice temperature. This can be achieved by assuming equilibrium conditions in the bedrock, i.e., that the temperature profile in the bedrock is always linear with <code>T_lith_s = T_ice_b</code> and the slope equal to <code>dT/dz = -Q_geo / k_lith</code>. Or, the temperature equation can be solved in the lithosphere together with the temperature in the ice column.</p>
+<p>The parameter block <code>ytherm_lith</code> controls how the lithosphere is calculated with <code>ytherm_lith.method=['equil','active']</code> deciding the two cases above.</p>
+<section id="density-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="density-of-the-upper-lithosphere">Density of the upper lithosphere</h3>
+</section>
+<section id="heat-capacity-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</h3>
+<p>In both SICOPOLIS and GRISLI, a value of <code>cp = 1000.0 [J kg-1 K-1]</code> is used (referenced in Rogozhina et al., 2012; Greve, 2005; Greve, 1997). This value is adopted in Yelmo as well.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">cp = 1000.0    ! [J kg-1 K-1] </span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="heat-conductivity-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</h3>
+<p>Note, Yelmo expects input parameter values in units of <code>[J a-1 m-1 K-1]</code>, while much literature uses <code>[W m-1 K-1]</code>. Given the number of seconds in a year <code>sec_year = 31536000.0</code>, <code>kt [W m-1 K-1] * sec_year = kt [J a-1 m-1 K-1]</code>.</p>
+<p>Rogozhina et al.&nbsp;(2012) use <code>kt = 2 [W m-1 K-1]</code> for Greenland:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">6.3e7</span>     <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This value is supported by Lösing et al.&nbsp;(2020), who perform a Bayesian inversion for GHF in Antarctica. Assuming exponentially decreasing heat production with depth, lower values of <code>kt</code> are supported (see Fig. 7b). In a study on the global thermal characteristics of the lithosphere, Cammarano and Guerri (2017) adopt an upper crust thermal conductivity of <code>kt = 2.5 [W m-1 K-1]</code>.</p>
+<p>To do: This study is also potentially relevant: <a href="https://link.springer.com/article/10.1186/s40517-020-0159-y">https://link.springer.com/article/10.1186/s40517-020-0159-y</a>. They show ranges of on the order of <code>kt = 2-3 [W m-1 K-1]</code> for the Canadian shield.</p>
+<p>The above value of <code>kt = 2 [W m-1 K-1] = 6.3e7 [J a-1 m-1 K-1]</code> is adopted as the default thermal conductivity of the upper crust in Yelmo. For historical context, see other estimates below.</p>
+<p>From Greve (1997) and Greve (2005):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">9.46e7</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>which is equivalent to <code>kt = 3 [W m-1 K-1]</code>. The source of this value is not known.</p>
+<p>From GRISLI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">1.04e8</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>which is equivalent to <code>kt = 3.3 [W m-1 K-1]</code>. The source of this value is not known.</p>
+</section>
+</section>
+<section id="how-to-read-yelmo_check_kill-output" class="level2">
+<h2 class="anchored" data-anchor-id="how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</h2>
+<p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
+<p>Note that <code>pc_eps</code> is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution. At each time step, the diagnosed model error <code>pc_eta</code> is compared with <code>pc_eps</code>. If <code>pc_eta &gt;&gt; pc_eps</code>, this is interpreted as instability and the model is stopped.</p>
+</section>
+<section id="margin-front-mass-balance" class="level2">
+<h2 class="anchored" data-anchor-id="margin-front-mass-balance">Margin-front mass balance</h2>
+<p>Following Pollard and DeConto (2012,2016), an ice-margin front melting scheme has been implemented that accounts for the melt rate along the vertical face of ice submerged by seawater.</p>
+<p>The frontal mass balance (<span class="math inline">\dot{f}</span>, m yr<span class="math inline">^{-1}</span>) is calculated as:</p>
+<p><span class="math display">
+\dot{f} = \dot{b}_{\rm eff} \frac{A_f}{A_{\rm tot}} \theta_f
+</span></p>
+<p>where <span class="math inline">\dot{b}_{\rm eff}</span> is the effective basal mass balance (the mean of the basal mass balance calculated for the ice-free neighbors), <span class="math inline">A_{\rm tot}=\Delta x \Delta x</span> is the horizontal grid area and <span class="math inline">A_f</span> is the area of the submerged faces (i.e., the sum of the depth of submerged ice for each face of the grid cell adjacent to an ice-free cell – potentially four faces in total). <span class="math inline">\theta_f=10</span> is a scaling coefficient that implies the face mass balance should be ~10 times higher than the basal mass balance (Pollard and DeConto, 2016, appendix).</p>
+</section>
+<section id="calving-schemes" class="level2">
+<h2 class="anchored" data-anchor-id="calving-schemes">Calving schemes</h2>
+<p>Here is a summary of calving schemes.</p>
+<section id="lipscomb-et-al.-2019" class="level3">
+<h3 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h3>
+<p><span class="math display">
+c = k_\tau \tau_{\rm ec}
+</span></p>
+<p>where <span class="math inline">k_\tau</span> (m yr<span class="math inline">^{-1}</span> Pa<span class="math inline">^{-1}</span>) is an empirical constant and <span class="math inline">\tau_{\rm ec}</span> (Pa) is the effective calving stress, which is defined by:</p>
+<p><span class="math display">
+\tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
+</span></p>
+<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
+<p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
+<p><span class="math display">
+a \lambda^2 + b \lambda + c = 0
+</span></p>
+<p>where</p>
+<p><span class="math display">
+a = 1.0 \\
+b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
+c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
+</span></p>
+<p>glissade_velo_higher.F90:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="vertical-velocity" class="level2">
+<h2 class="anchored" data-anchor-id="vertical-velocity">Vertical velocity</h2>
+<p><span class="math display">
+w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int_b^z \left( \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} \right) dz'
+</span></p>
+</section>
+<section id="ice-margin-calving-rates-mass-conservation" class="level2">
+<h2 class="anchored" data-anchor-id="ice-margin-calving-rates-mass-conservation">Ice margin, calving rates, mass conservation</h2>
+<p>ajr, 2021-06-22</p>
+<p>Through <code>v1.42</code>, ice margins were not fully consistently treated in Yelmo. This has been thoroughly revised. Now the following should be true:</p>
+<ol type="1">
+<li>The variable <code>f_ice</code> contains information of the ice area fraction of a grid cell. If <code>f_ice=0</code>, no ice is present, if <code>f_ice=1</code>, the cell is fully ice covered, and for a fractional value, this cell is designated an ice margin point with partial ice cover. To determine <code>f_ice</code>, we need to calculate the “effective ice thickness” of a grid point. For floating cells at the margin, the effective ice thickness is equivalent to either the ice thickness or the minimum ice thickness of the neighboring cell, whichever is larger. For grounded cells, the effective ice thickness must at least be that of 1/2 of the minimum ice thickness of a neighboring cell. With effective ice thickness known, <code>f_ice = H_ice / H_eff</code>.</li>
+<li>Any grid cell with fractional ice cover <code>0&lt;f_ice&lt;1</code> is designated dynamically inactive on its outer borders (borders with ice-free points). Thus before a new cell can be populated with ice, first the fractional cell must be filled to reach <code>f_ice=1</code>.</li>
+<li>Velocity and the ssa solver now explicitly only treat cells with <code>f_ice=1</code>. The dynamic-inactive borders are also enforced explicitly in the mass_conservation routine for safety.</li>
+<li>The calving rate is diagnosed as a lateral flux assuming a thickness of <code>H_eff</code>, but then is converted to a horizontal mass balance component applied to the whole cell.</li>
+<li>Additionally, it is possible to ensure ‘residual calving’ is applied to the upstream grid point of a margin cell, if the calving rate is large enough. This is done via the new routine <code>calc_calving_residual</code>. In the case of the <code>simple</code> and <code>flux</code> methods, applying full residual calving rates causes far too much calving. Rather a small amount of residual calving is applied to conservatively diminish the dynamic status of the upstream cell. The latter was implemented following CISM.</li>
+</ol>
+<p>Other important changes</p>
+<ol type="1">
+<li>Major bug fix with thermodynamics and vertical velocity. The vertical velocity correction that was being applied to account for the sigma coordinates was incorrect. A correction must be applied to get the vertical velocity itself. Then another correction must be applied when calculating the vertical advection in the thermodynamics routine. Now this is hopefully done correctly. EISMINT EXPA and EXPF appear to work well. This may hopefully prove crucial for Javi’s advance/retreat issues in Antarctica.</li>
+<li>Modified staggering of 3D viscosity to be done on horizontal ab-nodes, then averaged to the center. This follows a ‘quadrature’ approach and appears to be more rigorously close to actually integrating over the area. It’s not clear how this might affect stability of ice streams (i.e., Daniel’s results).</li>
+<li>Two-step mass balance with updates to <code>f_ice</code> in between, with more explicit tracking of all mass changes. Now a new variable <code>mb_resid</code> holds any threshold changes applied at the end of the mass balance update. I haven’t checked in detail, but I hope all mass changes are now accounted for explicitly in the model.</li>
+</ol>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/fesmc\.github\.io\/yelmo\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="./optimization.html" class="pagination-link" aria-label="Basal friction optimization">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+  </div>
+</nav>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/notes.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
