@@ -474,21 +474,27 @@ contains
                 else if (H_ice(i,j) .gt. 0.0_wp .and. n_ice(i,j) .lt. 4) then
                     ! This point is ice-covered, but is at the ice margin 
 
-                    ! Get neighbor ice thicknesses and border-ice counts
+                    ! Get neighbor ice thicknesses
                     H_neighb = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                    n_neighb = [n_ice(im1,j),n_ice(ip1,j),n_ice(i,jm1),n_ice(i,jp1)]
-                    
-                    ! Get mask indicating neighbors that both have ice and are surrounded by ice
-                    mask     = H_neighb .gt. 0.0_wp .and. n_neighb .eq. 4
+
+                    ! Use all ice-bearing neighbors as upstream references.
+                    ! Dropping the (n_neighb == 4) "fully interior" filter
+                    ! removes a discrete neighbor-classification switch that
+                    ! seeds asymmetries on symmetric problems.
+                    mask     = H_neighb .gt. 0.0_wp
                     n_now    = count(mask)
 
                     if (H_grnd(i,j) .le. 0.0) then
-                        ! Floating point 
+                        ! Floating point
 
-                        if (n_now .gt. 0) then 
-                            ! Get minimum value of upstream neighbors
-                            H_eff = minval(H_neighb,mask=mask)
-                        else 
+                        if (n_now .gt. 0) then
+                            ! Get mean value of upstream neighbors.
+                            ! Using mean (instead of minval) makes H_eff a
+                            ! continuous function of neighbor thicknesses,
+                            ! removing the discrete switch that otherwise
+                            ! seeds asymmetries on symmetric problems.
+                            H_eff = sum(H_neighb,mask=mask) / real(n_now,wp)
+                        else
                             ! No upstream neighbors available, compare
                             ! ice thickness against minimum allowed
                             ! 'full' ice thickness value H_lim.
