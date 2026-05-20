@@ -2,94 +2,98 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables.html</loc>
-    <lastmod>2026-05-20T17:01:34.057Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.702Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ytherm.html</loc>
-    <lastmod>2026-05-20T17:01:34.059Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.702Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ydyn.html</loc>
-    <lastmod>2026-05-20T17:01:34.058Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ybound.html</loc>
-    <lastmod>2026-05-20T17:01:34.058Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/remapping.html</loc>
-    <lastmod>2026-05-20T17:01:34.063Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/momentum/solvers.html</loc>
-    <lastmod>2026-05-20T17:01:34.069Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.700Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/momentum/diva.html</loc>
-    <lastmod>2026-05-20T17:01:34.068Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.700Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/mass_conservation/index.html</loc>
-    <lastmod>2026-05-20T17:01:34.071Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.699Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/parameters.html</loc>
-    <lastmod>2026-05-20T17:01:34.054Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.699Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/notes.html</loc>
-    <lastmod>2026-05-20T17:01:34.063Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.698Z</lastmod>
   </url>
   <url>
-    <loc>https://fesmc.github.io/yelmo/getting-started.html</loc>
-    <lastmod>2026-05-20T17:01:34.053Z</lastmod>
+    <loc>https://fesmc.github.io/yelmo/hpc-notes.html</loc>
+    <lastmod>2026-05-20T18:03:36.604Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/dependencies.html</loc>
-    <lastmod>2026-05-20T17:01:34.053Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.694Z</lastmod>
   </url>
   <url>
-    <loc>https://fesmc.github.io/yelmo/example-programs.html</loc>
-    <lastmod>2026-05-20T17:01:34.062Z</lastmod>
+    <loc>https://fesmc.github.io/yelmo/benchmarks.html</loc>
+    <lastmod>2026-05-20T18:18:11.126Z</lastmod>
+  </url>
+  <url>
+    <loc>https://fesmc.github.io/yelmo/getting-started.html</loc>
+    <lastmod>2026-05-20T17:44:35.694Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/index.html</loc>
-    <lastmod>2026-05-20T17:01:34.052Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.698Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/optimization.html</loc>
-    <lastmod>2026-05-20T17:01:34.063Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.699Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/index.html</loc>
-    <lastmod>2026-05-20T17:01:34.066Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.699Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/mass_conservation/solvers.html</loc>
-    <lastmod>2026-05-20T17:01:34.072Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.699Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/momentum/sia.html</loc>
-    <lastmod>2026-05-20T17:01:34.069Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.700Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/physics/momentum/ssa.html</loc>
-    <lastmod>2026-05-20T17:01:34.069Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.700Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-io.html</loc>
-    <lastmod>2026-05-20T17:01:34.062Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ydata.html</loc>
-    <lastmod>2026-05-20T17:01:34.058Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ymat.html</loc>
-    <lastmod>2026-05-20T17:01:34.059Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.701Z</lastmod>
   </url>
   <url>
     <loc>https://fesmc.github.io/yelmo/yelmo-variables-ytopo.html</loc>
-    <lastmod>2026-05-20T17:01:34.059Z</lastmod>
+    <lastmod>2026-05-20T17:44:35.702Z</lastmod>
   </url>
 </urlset>

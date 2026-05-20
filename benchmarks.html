@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>yelmo-variables-ytopo – Yelmo</title>
+<title>benchmarks – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -23,6 +23,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -33,8 +68,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./yelmo-variables-ydyn.html" rel="next">
-<link href="./yelmo-variables-ybound.html" rel="prev">
+<link href="./yelmo-io.html" rel="next">
+<link href="./yelmo-variables-ydata.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -124,7 +159,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ytopo.html">ytopo</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./benchmarks.html">Benchmarks</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -275,7 +310,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link active">
+  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytopo</span></a>
   </div>
 </li>
@@ -307,7 +342,7 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
+  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Benchmarks</span></a>
   </div>
 </li>
@@ -356,509 +391,160 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#ytopo" id="toc-ytopo" class="nav-link active" data-scroll-target="#ytopo">ytopo</a></li>
+  <li><a href="#benchmarks" id="toc-benchmarks" class="nav-link active" data-scroll-target="#benchmarks">Benchmarks</a>
+  <ul class="collapse">
+  <li><a href="#general-workflow" id="toc-general-workflow" class="nav-link" data-scroll-target="#general-workflow">General workflow</a></li>
+  <li><a href="#eismint1-moving" id="toc-eismint1-moving" class="nav-link" data-scroll-target="#eismint1-moving">EISMINT1-moving</a></li>
+  <li><a href="#eismint2-expa" id="toc-eismint2-expa" class="nav-link" data-scroll-target="#eismint2-expa">EISMINT2-expa</a></li>
+  <li><a href="#mismip3d" id="toc-mismip3d" class="nav-link" data-scroll-target="#mismip3d">MISMIP3D</a>
+  <ul class="collapse">
+  <li><a href="#resolution-ensembles" id="toc-resolution-ensembles" class="nav-link" data-scroll-target="#resolution-ensembles">Resolution ensembles</a></li>
+  </ul></li>
+  <li><a href="#slab" id="toc-slab" class="nav-link" data-scroll-target="#slab">slab</a></li>
+  <li><a href="#trough-f17" id="toc-trough-f17" class="nav-link" data-scroll-target="#trough-f17">trough-f17</a>
+  <ul class="collapse">
+  <li><a href="#variants-and-ensembles" id="toc-variants-and-ensembles" class="nav-link" data-scroll-target="#variants-and-ensembles">Variants and ensembles</a></li>
+  </ul></li>
+  <li><a href="#initmip-grl" id="toc-initmip-grl" class="nav-link" data-scroll-target="#initmip-grl">initmip-grl</a></li>
+  <li><a href="#initmip-ant" id="toc-initmip-ant" class="nav-link" data-scroll-target="#initmip-ant">initmip-ant</a></li>
+  </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ytopo.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/benchmarks.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ytopo.html">ytopo</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
 
 
 
 
-<section id="ytopo" class="level1">
-<h1>ytopo</h1>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 3%">
-<col style="width: 18%">
-<col style="width: 12%">
-<col style="width: 12%">
-<col style="width: 51%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>id</th>
-<th>variable</th>
-<th>dimensions</th>
-<th>units</th>
-<th>long_name</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>1</td>
-<td>H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Ice thickness</td>
-</tr>
-<tr class="even">
-<td>2</td>
-<td>dHidt</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Ice thickness rate of change</td>
-</tr>
-<tr class="odd">
-<td>3</td>
-<td>dHidt_dyn</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Ice thickness change due to dynamics</td>
-</tr>
-<tr class="even">
-<td>4</td>
-<td>mb_net</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Actual mass balance applied</td>
-</tr>
-<tr class="odd">
-<td>5</td>
-<td>mb_relax</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Change in mass balance due to relaxation</td>
-</tr>
-<tr class="even">
-<td>6</td>
-<td>mb_resid</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Residual mass balance</td>
-</tr>
-<tr class="odd">
-<td>7</td>
-<td>mb_err</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Residual error in mass balance accounting</td>
-</tr>
-<tr class="even">
-<td>8</td>
-<td>smb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Surface mass balance</td>
-</tr>
-<tr class="odd">
-<td>9</td>
-<td>bmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Combined basal mass balance</td>
-</tr>
-<tr class="even">
-<td>10</td>
-<td>fmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Combined frontal mass balance</td>
-</tr>
-<tr class="odd">
-<td>11</td>
-<td>dmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Subgrid discharge mass balance</td>
-</tr>
-<tr class="even">
-<td>12</td>
-<td>cmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Calving mass balance</td>
-</tr>
-<tr class="odd">
-<td>13</td>
-<td>bmb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Reference basal mass balance</td>
-</tr>
-<tr class="even">
-<td>14</td>
-<td>fmb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Reference frontal mass balance</td>
-</tr>
-<tr class="odd">
-<td>15</td>
-<td>dmb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Reference subgrid discharge mass balance</td>
-</tr>
-<tr class="even">
-<td>16</td>
-<td>cmb_flt</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Floating calving rate</td>
-</tr>
-<tr class="odd">
-<td>17</td>
-<td>cmb_grnd</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Grounded calving rate</td>
-</tr>
-<tr class="even">
-<td>18</td>
-<td>z_srf</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Surface elevation</td>
-</tr>
-<tr class="odd">
-<td>19</td>
-<td>dzsdt</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Surface elevation rate of change</td>
-</tr>
-<tr class="even">
-<td>20</td>
-<td>mask_adv</td>
-<td>xc, yc</td>
-<td></td>
-<td>Advection mask</td>
-</tr>
-<tr class="odd">
-<td>21</td>
-<td>eps_eff</td>
-<td>xc, yc</td>
-<td>1/yr</td>
-<td>Effective strain rate</td>
-</tr>
-<tr class="even">
-<td>22</td>
-<td>tau_eff</td>
-<td>xc, yc</td>
-<td>Pa</td>
-<td>Effective stress</td>
-</tr>
-<tr class="odd">
-<td>23</td>
-<td>z_base</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Ice-base elevation</td>
-</tr>
-<tr class="even">
-<td>24</td>
-<td>dzsdx</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Surface elevation slope, acx nodes</td>
-</tr>
-<tr class="odd">
-<td>25</td>
-<td>dzsdy</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Surface elevation slope, acy nodes</td>
-</tr>
-<tr class="even">
-<td>26</td>
-<td>dHidx</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Ice thickness gradient, acx nodes</td>
-</tr>
-<tr class="odd">
-<td>27</td>
-<td>dHidy</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Ice thickness gradient, acy nodes</td>
-</tr>
-<tr class="even">
-<td>28</td>
-<td>dzbdx</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Bedrock slope, acx nodes</td>
-</tr>
-<tr class="odd">
-<td>29</td>
-<td>dzbdy</td>
-<td>xc, yc</td>
-<td>m/m</td>
-<td>Bedrock slope, acy nodes</td>
-</tr>
-<tr class="even">
-<td>30</td>
-<td>H_eff</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Effective ice thickness (margin-corrected)</td>
-</tr>
-<tr class="odd">
-<td>31</td>
-<td>H_grnd</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Grounded ice thickness</td>
-</tr>
-<tr class="even">
-<td>32</td>
-<td>H_calv</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Calving parameter field, ice thickness limit</td>
-</tr>
-<tr class="odd">
-<td>33</td>
-<td>kt_calv</td>
-<td>xc, yc</td>
-<td></td>
-<td>Calving parameter field, vm-l19</td>
-</tr>
-<tr class="even">
-<td>34</td>
-<td>z_bed_filt</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Filtered bedrock elevation</td>
-</tr>
-<tr class="odd">
-<td>35</td>
-<td>f_grnd</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction</td>
-</tr>
-<tr class="even">
-<td>36</td>
-<td>f_grnd_acx</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction (acx nodes)</td>
-</tr>
-<tr class="odd">
-<td>37</td>
-<td>f_grnd_acy</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction (acy nodes)</td>
-</tr>
-<tr class="even">
-<td>38</td>
-<td>f_grnd_ab</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction (ab nodes)</td>
-</tr>
-<tr class="odd">
-<td>39</td>
-<td>f_ice</td>
-<td>xc, yc</td>
-<td></td>
-<td>Ice-covered fraction</td>
-</tr>
-<tr class="even">
-<td>40</td>
-<td>f_grnd_bmb</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction for basal mass balance</td>
-</tr>
-<tr class="odd">
-<td>41</td>
-<td>f_grnd_pin</td>
-<td>xc, yc</td>
-<td></td>
-<td>Grounded fraction from subgrid pinning points</td>
-</tr>
-<tr class="even">
-<td>42</td>
-<td>dist_margin</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Distance to nearest margin point</td>
-</tr>
-<tr class="odd">
-<td>43</td>
-<td>dist_grline</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Distance to nearest grounding-line point</td>
-</tr>
-<tr class="even">
-<td>44</td>
-<td>mask_bed</td>
-<td>xc, yc</td>
-<td></td>
-<td>Multi-valued bed mask</td>
-</tr>
-<tr class="odd">
-<td>45</td>
-<td>mask_grz</td>
-<td>xc, yc</td>
-<td></td>
-<td>Multi-valued grounding-line zone mask</td>
-</tr>
-<tr class="even">
-<td>46</td>
-<td>mask_frnt</td>
-<td>xc, yc</td>
-<td></td>
-<td>Multi-valued ice front mask</td>
-</tr>
-<tr class="odd">
-<td>47</td>
-<td>dHidt_dyn_n</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Ice thickness change due to advection (previous)</td>
-</tr>
-<tr class="even">
-<td>48</td>
-<td>H_ice_n</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Ice thickness from previous timestep</td>
-</tr>
-<tr class="odd">
-<td>49</td>
-<td>z_srf_n</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Surface elevation from previous timestep</td>
-</tr>
-<tr class="even">
-<td>50</td>
-<td>H_ice_dyn</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Dynamic ice thickness</td>
-</tr>
-<tr class="odd">
-<td>51</td>
-<td>f_ice_dyn</td>
-<td>xc, yc</td>
-<td></td>
-<td>Dynamic ice-covered fraction</td>
-</tr>
-<tr class="even">
-<td>52</td>
-<td>pc_pred_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Predicted ice thickness</td>
-</tr>
-<tr class="odd">
-<td>53</td>
-<td>pc_pred_dHidt_dyn</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted dynamic ice thickness rate of change</td>
-</tr>
-<tr class="even">
-<td>54</td>
-<td>pc_pred_mb_net</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted net mass balance</td>
-</tr>
-<tr class="odd">
-<td>55</td>
-<td>pc_pred_smb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted surface mass balance</td>
-</tr>
-<tr class="even">
-<td>56</td>
-<td>pc_pred_bmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted basal mass balance</td>
-</tr>
-<tr class="odd">
-<td>57</td>
-<td>pc_pred_fmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted frontal mass balance</td>
-</tr>
-<tr class="even">
-<td>58</td>
-<td>pc_pred_dmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted discharge mass balance</td>
-</tr>
-<tr class="odd">
-<td>59</td>
-<td>pc_pred_cmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Predicted calving mass balance</td>
-</tr>
-<tr class="even">
-<td>60</td>
-<td>pc_corr_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>Corrected ice thickness</td>
-</tr>
-<tr class="odd">
-<td>61</td>
-<td>pc_corr_dHidt_dyn</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected dynamic ice thickness rate of change</td>
-</tr>
-<tr class="even">
-<td>62</td>
-<td>pc_corr_mb_net</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected net mass balance</td>
-</tr>
-<tr class="odd">
-<td>63</td>
-<td>pc_corr_smb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected surface mass balance</td>
-</tr>
-<tr class="even">
-<td>64</td>
-<td>pc_corr_bmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected basal mass balance</td>
-</tr>
-<tr class="odd">
-<td>65</td>
-<td>pc_corr_fmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected frontal mass balance</td>
-</tr>
-<tr class="even">
-<td>66</td>
-<td>pc_corr_dmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected discharge mass balance</td>
-</tr>
-<tr class="odd">
-<td>67</td>
-<td>pc_corr_cmb</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>Corrected calving mass balance</td>
-</tr>
-</tbody>
-</table>
+<section id="benchmarks" class="level1">
+<h1>Benchmarks</h1>
+<p>Yelmo ships with a suite of standard ice-sheet benchmark experiments used for verification and regression testing. They span analytic and idealized cases (EISMINT, slab, trough) as well as community intercomparison protocols (MISMIP3D, initMIP). Each benchmark has a dedicated test program under <a href="https://github.com/fesmc/yelmo/tree/main/tests"><code>tests/</code></a> and a parameter file under <code>par-gmd/</code> or <code>par/</code>.</p>
+<section id="general-workflow" class="level2">
+<h2 class="anchored" data-anchor-id="general-workflow">General workflow</h2>
+<ol type="1">
+<li><p><strong>Build</strong> the test program: <code>make &lt;target&gt;</code>.</p></li>
+<li><p><strong>Run</strong> it via <code>runme</code>, choosing the executable alias, namelist, and output directory:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> <span class="op">&lt;</span>alias<span class="op">&gt;</span> -n <span class="op">&lt;</span>namelist<span class="op">&gt;</span> -o <span class="op">&lt;</span>output-dir<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><strong>Override</strong> namelist values inline as needed with <code>-p group.key=value</code>.</p></li>
+</ol>
+<p>For ensemble runs (one execution per parameter combination), use <a href="https://github.com/alex-robinson/runner"><code>jobrun</code></a> from the <code>runner</code> Python module — see <code>README_BATCH.md</code> for installation. Comma-separated values in <code>-p</code> are interpreted by <code>jobrun</code> as ensemble dimensions:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> <span class="op">&lt;</span>alias<span class="op">&gt;</span> -n <span class="op">&lt;</span>namelist<span class="op">&gt;</span> -o <span class="op">&lt;</span>ens-dir<span class="op">&gt;</span> -p key=val1,val2,val3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The sections below cover each benchmark in the current Yelmo test suite. For additional variants (alternative solvers, basal-friction sweeps, OpenMP scaling tests, and benchmarks not yet documented here such as HALFAR, ISMIPHOM, MISMIP+, and CalvingMIP), see <a href="https://github.com/fesmc/yelmo/blob/main/run_batch_gmd.sh"><code>run_batch_gmd.sh</code></a> in the repository root.</p>
+</section>
+<section id="eismint1-moving" class="level2">
+<h2 class="anchored" data-anchor-id="eismint1-moving">EISMINT1-moving</h2>
+<p>EISMINT Phase 1 moving-margin experiment (<a href="https://doi.org/10.3189/S0260305500013197">Huybrechts and Payne, 1996</a>). Idealized circular dome on a flat bed with a prescribed surface mass-balance field that drives transient margin advance and retreat toward a quasi steady state. Exercises the SIA flow law, mass conservation, and basic margin handling.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-n</span> par-gmd/yelmo_EISMINT_moving.nml <span class="at">-o</span> output/benchmarks/eismint-moving</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="eismint2-expa" class="level2">
+<h2 class="anchored" data-anchor-id="eismint2-expa">EISMINT2-expa</h2>
+<p>EISMINT Phase 2 Experiment A (<a href="https://doi.org/10.3189/172756500781832891">Payne et al., 2000</a>). Steady-state thermomechanical experiment with a fixed margin on a flat bed, designed to test the coupling between ice dynamics and internal thermodynamics — in particular the formation of cold-ice cores and basal-temperate regions.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-n</span> par-gmd/yelmo_EISMINT_expa.nml <span class="at">-o</span> output/benchmarks/eismint-expa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="mismip3d" class="level2">
+<h2 class="anchored" data-anchor-id="mismip3d">MISMIP3D</h2>
+<p>Marine Ice Sheet Model Intercomparison Project, 3D version (<a href="https://doi.org/10.3189/2013JoG12J129">Pattyn et al., 2013</a>). Tests grounding-line dynamics on a marine bed with retrograde slope, using a SSA or DIVA momentum balance. Two experiments are defined in the namelist via the <code>ctrl.experiment</code> field: <code>Stnd</code> (standard, advance to steady state) and <code>RF</code> (reverse forcing, to test reversibility).</p>
+<p>Standard experiment:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-stnd <span class="at">-p</span> ctrl.experiment=Stnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Reverse-forcing experiment:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-rf <span class="at">-p</span> ctrl.experiment=RF</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="resolution-ensembles" class="level3">
+<h3 class="anchored" data-anchor-id="resolution-ensembles">Resolution ensembles</h3>
+<p>To probe grid resolution and the treatment of the grounding line, run ensembles over <code>ctrl.dx</code> with different basal-stress scaling / staggering options at the grounding line:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Default grounding-line treatment</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-default <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Subgrid grounding-line interpolation (beta_gl_stag=3)</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-subgrid <span class="dt">\</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Subgrid + basal-stress scaling (beta_gl_scale=2)</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-scaling <span class="dt">\</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_gl_scale=2 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="slab" class="level2">
+<h2 class="anchored" data-anchor-id="slab">slab</h2>
+<p>1D ice-slab benchmark on a tilted bed (<a href="https://doi.org/10.1017/S0022112006002977">Schoof, 2006</a>), used to test SSA / DIVA solver behaviour, basal-friction parameterizations, and numerical convergence on a configuration with an analytic reference. The domain is dispatched inside the <code>yelmo_trough</code> program based on the <code>ctrl.domain</code> field of the namelist (<code>SLAB-S06</code>), so the <code>trough</code> build target and executable alias are used here.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> trough</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_SLAB-S06.nml <span class="at">-o</span> output/benchmarks/slab</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Note: the <code>make slab</code> target builds a separate slab program (<code>yelmo_slab.x</code>, used in Robinson, 2022) and is <strong>not</strong> the SLAB-S06 benchmark.</p>
+</section>
+<section id="trough-f17" class="level2">
+<h2 class="anchored" data-anchor-id="trough-f17">trough-f17</h2>
+<p>Idealized trough geometry (<a href="https://doi.org/10.5194/tc-11-1745-2017">Feldmann and Levermann, 2017</a>) designed to test buttressing and grounding-line behaviour in a confined, narrowing channel. Used to probe stability and lateral-stress representation in marine outlet glaciers.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> trough</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="variants-and-ensembles" class="level3">
+<h3 class="anchored" data-anchor-id="variants-and-ensembles">Variants and ensembles</h3>
+<p>Alternative solver, resolution, and basal-friction settings used to probe sensitivity:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># SSA solver instead of the default</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17-ssa <span class="at">-p</span> ydyn.solver=ssa</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Higher resolution (1 km and 2 km)</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17-dx1 <span class="at">-p</span> ctrl.dx=1.0</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17-dx2 <span class="at">-p</span> ctrl.dx=2.0</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co"># cf_ref ensemble (3 values) with adjusted beta_u0</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17-cf <span class="dt">\</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_u0=100 ytill.cf_ref=5.0,10.0,20.0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="initmip-grl" class="level2">
+<h2 class="anchored" data-anchor-id="initmip-grl">initmip-grl</h2>
+<p>Greenland initialization benchmark following the initMIP-Greenland protocol (<a href="https://doi.org/10.5194/tc-12-1433-2018">Goelzer et al., 2018</a>). Spins the ice sheet up toward a present-day steady state using the optimization-based initialization scheme (<code>equil_method = "opt"</code>) with present-day boundary conditions. Default settings: 5-yr outer timestep, 1000-yr simulation, steady-state forcing.</p>
+<p>Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid by uncommenting the desired line:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="va">grid</span><span class="op">=</span>GRL-32KM</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=GRL-16KM</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=GRL-8KM</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=GRL-4KM</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-<span class="va">$grid</span> <span class="dt">\</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Greenland yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To run all four resolutions as an ensemble:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-ens <span class="dt">\</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Greenland <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="initmip-ant" class="level2">
+<h2 class="anchored" data-anchor-id="initmip-ant">initmip-ant</h2>
+<p>Antarctica initialization benchmark following the initMIP-Antarctica protocol (<a href="https://doi.org/10.5194/tc-13-1441-2019">Seroussi et al., 2019</a>). Same optimization-based spin-up as initmip-grl, but on the Antarctic domain with <code>set_nm = "set_ant_pd"</code>.</p>
+<p>Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km configuration is not yet available.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="va">grid</span><span class="op">=</span>ANT-32KM</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=ANT-16KM</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=ANT-8KM</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-<span class="va">$grid</span> <span class="dt">\</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Antarctica yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To run all three resolutions as an ensemble:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">jobrun</span> ./runme <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-ens <span class="dt">\</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Antarctica <span class="dt">\</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -1269,13 +955,13 @@ ul.task-list li input[type="checkbox"] {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./yelmo-variables-ybound.html" class="pagination-link" aria-label="ybound">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ybound</span>
+      <a href="./yelmo-variables-ydata.html" class="pagination-link" aria-label="ydata">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ydata</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./yelmo-variables-ydyn.html" class="pagination-link" aria-label="ydyn">
-        <span class="nav-page-text">ydyn</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./yelmo-io.html" class="pagination-link" aria-label="Yelmo IO">
+        <span class="nav-page-text">Yelmo IO</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1284,4 +970,4 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ytopo.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/benchmarks.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
