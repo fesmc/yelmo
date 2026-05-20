@@ -210,9 +210,20 @@ contains
         end select 
 
         ! Determine grid resolution [m]
-        grd%dx = grd%xc(2) - grd%xc(1) 
-        grd%dy = grd%yc(2) - grd%yc(1)  
+        grd%dx = abs(grd%xc(2) - grd%xc(1))
+        grd%dy = abs(grd%yc(2) - grd%yc(1))
         
+        ! Round to three decimal places
+        grd%dx = nint(grd%dx*1e3)*1e-3
+        grd%dy = nint(grd%dy*1e3)*1e-3
+        
+        ! Safety check for dx and dy
+        if (abs(grd%dx - grd%dy) .gt. 1e-3) then
+            write(*,*) "Error: only square grid cells are supported (ie, dx==dy): ", &
+                grd%dx, " vs ", grd%dy, " m"
+            stop
+        end if
+
         ! Populate x and y 2D arrays from axis values 
         do j = 1, grd%ny 
             grd%x(:,j) = grd%xc 
