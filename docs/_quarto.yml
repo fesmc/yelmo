@@ -35,8 +35,8 @@ website:
       - benchmarks.md
       - parameters.md
       - section: "Physics"
+        href: physics/index.md
         contents:
-          - physics/index.md
           - section: "Momentum balance"
             contents:
               - physics/momentum/diva.md
@@ -47,21 +47,22 @@ website:
             contents:
               - physics/mass_conservation/index.md
               - physics/mass_conservation/solvers.md
+          - physics/thermodynamics.md
       - section: "Variables"
+        href: yelmo-variables.md
         contents:
-          - yelmo-variables.md
           - yelmo-variables-ybound.md
           - yelmo-variables-ytopo.md
           - yelmo-variables-ydyn.md
           - yelmo-variables-ymat.md
           - yelmo-variables-ytherm.md
           - yelmo-variables-ydata.md
-      - section: "Reference"
+      - section: "Notes"
+        href: notes.md
         contents:
           - yelmo-io.md
           - remapping.md
           - optimization.md
-          - notes.md
 
 format:
   html:

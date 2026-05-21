@@ -37,6 +37,13 @@ solvers currently supported: the **residual** assembler inherited from
 Yelmo v1, and the **energy** assembler that minimises a discrete energy
 functional.
 
+The vertical velocity $w$ is diagnosed from incompressibility once $u, v$ are
+known:
+
+$$
+w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int_b^z \left( \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} \right) dz'
+$$
+
 ## Mass conservation
 
 The [continuity equation](mass_conservation/index.md) evolves the ice
@@ -46,6 +53,13 @@ Yelmo offers several discretisations of the resulting hyperbolic transport
 problem; the two recommended choices — an explicit donor-cell upwind scheme
 and an implicit upwind scheme solved with LIS — are documented in
 [Numerical solution](mass_conservation/solvers.md).
+
+## Thermodynamics
+
+The [thermodynamics module](thermodynamics.md) advects and diffuses temperature
+in the ice column coupled to a 1D bedrock column, with surface, basal, and
+lithospheric boundary conditions. The resulting temperature feeds back into
+the momentum balance through the Glen rate factor $A(T')$.
 
 ## Notation used throughout
 
