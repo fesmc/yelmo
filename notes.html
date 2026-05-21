@@ -68,7 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./optimization.html" rel="prev">
+<link href="./yelmo-io.html" rel="next">
+<link href="./yelmo-variables-ydata.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -197,7 +198,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-io.html">Reference</a></li><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -240,19 +241,13 @@ window.Quarto = {
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+            <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Physics</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Physics</span></a>
-  </div>
-</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
@@ -311,23 +306,23 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Thermodynamics</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Yelmo variable tables</span></a>
-  </div>
-</li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
@@ -368,8 +363,8 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
- <span class="menu-text">Reference</span></a>
+            <a href="./notes.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Notes</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -393,12 +388,6 @@ window.Quarto = {
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./notes.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Notes</span></a>
-  </div>
-</li>
       </ul>
   </li>
     </ul>
@@ -415,33 +404,18 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#timeout-module" id="toc-timeout-module" class="nav-link" data-scroll-target="#timeout-module"><code>timeout</code> module</a></li>
   <li><a href="#timing-module" id="toc-timing-module" class="nav-link" data-scroll-target="#timing-module"><code>timing</code> module</a></li>
-  <li><a href="#master-to-main" id="toc-master-to-main" class="nav-link" data-scroll-target="#master-to-main"><code>master</code> to <code>main</code></a></li>
-  <li><a href="#thermodynamics-equations" id="toc-thermodynamics-equations" class="nav-link" data-scroll-target="#thermodynamics-equations">Thermodynamics equations</a>
-  <ul class="collapse">
-  <li><a href="#ice-column" id="toc-ice-column" class="nav-link" data-scroll-target="#ice-column">Ice column</a></li>
-  <li><a href="#bedrock-column" id="toc-bedrock-column" class="nav-link" data-scroll-target="#bedrock-column">Bedrock column</a></li>
-  </ul></li>
-  <li><a href="#equilibrium-bedrock" id="toc-equilibrium-bedrock" class="nav-link" data-scroll-target="#equilibrium-bedrock">Equilibrium bedrock</a></li>
-  <li><a href="#active-bedrock" id="toc-active-bedrock" class="nav-link" data-scroll-target="#active-bedrock">Active bedrock</a>
-  <ul class="collapse">
-  <li><a href="#density-of-the-upper-lithosphere" id="toc-density-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#density-of-the-upper-lithosphere">Density of the upper lithosphere</a></li>
-  <li><a href="#heat-capacity-of-the-upper-lithosphere" id="toc-heat-capacity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</a></li>
-  <li><a href="#heat-conductivity-of-the-upper-lithosphere" id="toc-heat-conductivity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</a></li>
-  </ul></li>
   <li><a href="#how-to-read-yelmo_check_kill-output" id="toc-how-to-read-yelmo_check_kill-output" class="nav-link" data-scroll-target="#how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</a></li>
   <li><a href="#margin-front-mass-balance" id="toc-margin-front-mass-balance" class="nav-link" data-scroll-target="#margin-front-mass-balance">Margin-front mass balance</a></li>
   <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link" data-scroll-target="#calving-schemes">Calving schemes</a>
   <ul class="collapse">
   <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
   </ul></li>
-  <li><a href="#vertical-velocity" id="toc-vertical-velocity" class="nav-link" data-scroll-target="#vertical-velocity">Vertical velocity</a></li>
-  <li><a href="#ice-margin-calving-rates-mass-conservation" id="toc-ice-margin-calving-rates-mass-conservation" class="nav-link" data-scroll-target="#ice-margin-calving-rates-mass-conservation">Ice margin, calving rates, mass conservation</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/notes.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-io.html">Reference</a></li><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
 
 
 
@@ -507,112 +481,6 @@ window.Quarto = {
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.020</span>   0.010    0.000    0.000    0.024    0.000    0.025    2.458</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Based on the options supplied, the time units are in <code>[m]</code> and the model time in <code>[kyr]</code>. The rate is then calculated as <code>[m/kyr]</code> - this is the inverse of what we used to measure <code>[kyr/hr]</code>. The rate as defined now is easier to manage in terms of summing the contribution of different components, and so is preferred moving forward. To recover <code>[kyr/hr]</code>, simply take 60/rate.</p>
 </section>
-<section id="master-to-main" class="level2">
-<h2 class="anchored" data-anchor-id="master-to-main"><code>master</code> to <code>main</code></h2>
-<p>Following updated conventions, the default branch is now called <code>main</code> and the branch <code>master</code> has been deleted.</p>
-<p>To update a working copy locally that already contains a <code>master</code> branch and therefore points to it as the default branch, the following steps should be applied:</p>
-<ol type="1">
-<li>Get the branch <code>main</code>.</li>
-<li>Delete the local branch <code>master</code>.</li>
-<li>Make sure your local repository sees <code>main</code> as the default branch.</li>
-</ol>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get all branch information from the origin (github):</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> fetch <span class="at">--all</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get onto the new default branch:</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout main </span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Delete the branch master:</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> branch <span class="at">-d</span> master</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Clean up any branches that no longer exist at origin:</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> fetch <span class="at">--prune</span> origin</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Set the local 'head' to whatever is specified at the origin (which will be main):</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> remote set-head origin <span class="at">-a</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Done! Now your local copy should work like normal, with <code>main</code> instead of <code>master</code>.</p>
-</section>
-<section id="thermodynamics-equations" class="level2">
-<h2 class="anchored" data-anchor-id="thermodynamics-equations">Thermodynamics equations</h2>
-<section id="ice-column" class="level3">
-<h3 class="anchored" data-anchor-id="ice-column">Ice column</h3>
-<p>Prognostic equation:</p>
-<p><span class="math display">
-\frac{\partial T}{\partial t} = \frac{k}{\rho c} \frac{\partial^2 T}{\partial z^2} - u \frac{\partial T}{\partial x} - v \frac{\partial T}{\partial y} - w \frac{\partial T}{\partial z} + \frac{\Phi}{\rho c}
-</span></p>
-<p>Ice surface boundary condition:</p>
-<p><span class="math display">
-T(z=z_{\rm srf}) = {\rm min}(T_{\rm 2m},T_0)
-</span></p>
-<p>Ice base (temperate) boundary condition:</p>
-<p><span class="math display">
-T(z=z_{\rm bed}) = T_{\rm pmp}
-</span></p>
-<p>Ice base (frozen) boundary condition:</p>
-<p><span class="math display">
-k \frac{\partial T}{\partial z} = k_r \frac{\partial T_r}{\partial z}
-</span></p>
-<p>Note, the following internal Yelmo variables are defined for convenience:</p>
-<p><span class="math display">
-Q_{\rm ice,b} = -k \frac{\partial T}{\partial z}; \quad
-Q_{\rm rock} = -k_r \frac{\partial T_r}{\partial z}
-</span></p>
-</section>
-<section id="bedrock-column" class="level3">
-<h3 class="anchored" data-anchor-id="bedrock-column">Bedrock column</h3>
-<p>Prognostic equation:</p>
-<p><span class="math display">
-\frac{\partial T_r}{\partial t} = \frac{k_r}{\rho_r c_r} \frac{\partial^2 T_r}{\partial z^2}
-</span></p>
-<p>Bedrock surface boundary condition:</p>
-<p><span class="math display">
-T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
-</span></p>
-<p>Bedrock base boundary condition:</p>
-<p><span class="math display">
-\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
-</span></p>
-</section>
-</section>
-<section id="equilibrium-bedrock" class="level2">
-<h2 class="anchored" data-anchor-id="equilibrium-bedrock">Equilibrium bedrock</h2>
-<p>In this case, the bedrock temperature profile is prescribed to the equilibrium linear temperature profile. The slope follows:</p>
-<p><span class="math display">
-\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
-</span></p>
-<p>and the bedrock surface temperature is given by the ice temperature at its base:</p>
-<p><span class="math display">
-T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
-</span></p>
-</section>
-<section id="active-bedrock" class="level2">
-<h2 class="anchored" data-anchor-id="active-bedrock">Active bedrock</h2>
-<p>Yelmo calculates the temperature in the lithosphere along with the ice temperature. This can be achieved by assuming equilibrium conditions in the bedrock, i.e., that the temperature profile in the bedrock is always linear with <code>T_lith_s = T_ice_b</code> and the slope equal to <code>dT/dz = -Q_geo / k_lith</code>. Or, the temperature equation can be solved in the lithosphere together with the temperature in the ice column.</p>
-<p>The parameter block <code>ytherm_lith</code> controls how the lithosphere is calculated with <code>ytherm_lith.method=['equil','active']</code> deciding the two cases above.</p>
-<section id="density-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="density-of-the-upper-lithosphere">Density of the upper lithosphere</h3>
-</section>
-<section id="heat-capacity-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</h3>
-<p>In both SICOPOLIS and GRISLI, a value of <code>cp = 1000.0 [J kg-1 K-1]</code> is used (referenced in Rogozhina et al., 2012; Greve, 2005; Greve, 1997). This value is adopted in Yelmo as well.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">cp = 1000.0    ! [J kg-1 K-1] </span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="heat-conductivity-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</h3>
-<p>Note, Yelmo expects input parameter values in units of <code>[J a-1 m-1 K-1]</code>, while much literature uses <code>[W m-1 K-1]</code>. Given the number of seconds in a year <code>sec_year = 31536000.0</code>, <code>kt [W m-1 K-1] * sec_year = kt [J a-1 m-1 K-1]</code>.</p>
-<p>Rogozhina et al.&nbsp;(2012) use <code>kt = 2 [W m-1 K-1]</code> for Greenland:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">6.3e7</span>     <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This value is supported by Lösing et al.&nbsp;(2020), who perform a Bayesian inversion for GHF in Antarctica. Assuming exponentially decreasing heat production with depth, lower values of <code>kt</code> are supported (see Fig. 7b). In a study on the global thermal characteristics of the lithosphere, Cammarano and Guerri (2017) adopt an upper crust thermal conductivity of <code>kt = 2.5 [W m-1 K-1]</code>.</p>
-<p>To do: This study is also potentially relevant: <a href="https://link.springer.com/article/10.1186/s40517-020-0159-y">https://link.springer.com/article/10.1186/s40517-020-0159-y</a>. They show ranges of on the order of <code>kt = 2-3 [W m-1 K-1]</code> for the Canadian shield.</p>
-<p>The above value of <code>kt = 2 [W m-1 K-1] = 6.3e7 [J a-1 m-1 K-1]</code> is adopted as the default thermal conductivity of the upper crust in Yelmo. For historical context, see other estimates below.</p>
-<p>From Greve (1997) and Greve (2005):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">9.46e7</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>which is equivalent to <code>kt = 3 [W m-1 K-1]</code>. The source of this value is not known.</p>
-<p>From GRISLI:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">1.04e8</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>which is equivalent to <code>kt = 3.3 [W m-1 K-1]</code>. The source of this value is not known.</p>
-</section>
-</section>
 <section id="how-to-read-yelmo_check_kill-output" class="level2">
 <h2 class="anchored" data-anchor-id="how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</h2>
 <p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
@@ -651,38 +519,14 @@ b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
 c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
 </span></p>
 <p>glissade_velo_higher.F90:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-</section>
-<section id="vertical-velocity" class="level2">
-<h2 class="anchored" data-anchor-id="vertical-velocity">Vertical velocity</h2>
-<p><span class="math display">
-w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int_b^z \left( \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} \right) dz'
-</span></p>
-</section>
-<section id="ice-margin-calving-rates-mass-conservation" class="level2">
-<h2 class="anchored" data-anchor-id="ice-margin-calving-rates-mass-conservation">Ice margin, calving rates, mass conservation</h2>
-<p>ajr, 2021-06-22</p>
-<p>Through <code>v1.42</code>, ice margins were not fully consistently treated in Yelmo. This has been thoroughly revised. Now the following should be true:</p>
-<ol type="1">
-<li>The variable <code>f_ice</code> contains information of the ice area fraction of a grid cell. If <code>f_ice=0</code>, no ice is present, if <code>f_ice=1</code>, the cell is fully ice covered, and for a fractional value, this cell is designated an ice margin point with partial ice cover. To determine <code>f_ice</code>, we need to calculate the “effective ice thickness” of a grid point. For floating cells at the margin, the effective ice thickness is equivalent to either the ice thickness or the minimum ice thickness of the neighboring cell, whichever is larger. For grounded cells, the effective ice thickness must at least be that of 1/2 of the minimum ice thickness of a neighboring cell. With effective ice thickness known, <code>f_ice = H_ice / H_eff</code>.</li>
-<li>Any grid cell with fractional ice cover <code>0&lt;f_ice&lt;1</code> is designated dynamically inactive on its outer borders (borders with ice-free points). Thus before a new cell can be populated with ice, first the fractional cell must be filled to reach <code>f_ice=1</code>.</li>
-<li>Velocity and the ssa solver now explicitly only treat cells with <code>f_ice=1</code>. The dynamic-inactive borders are also enforced explicitly in the mass_conservation routine for safety.</li>
-<li>The calving rate is diagnosed as a lateral flux assuming a thickness of <code>H_eff</code>, but then is converted to a horizontal mass balance component applied to the whole cell.</li>
-<li>Additionally, it is possible to ensure ‘residual calving’ is applied to the upstream grid point of a margin cell, if the calving rate is large enough. This is done via the new routine <code>calc_calving_residual</code>. In the case of the <code>simple</code> and <code>flux</code> methods, applying full residual calving rates causes far too much calving. Rather a small amount of residual calving is applied to conservatively diminish the dynamic status of the upstream cell. The latter was implemented following CISM.</li>
-</ol>
-<p>Other important changes</p>
-<ol type="1">
-<li>Major bug fix with thermodynamics and vertical velocity. The vertical velocity correction that was being applied to account for the sigma coordinates was incorrect. A correction must be applied to get the vertical velocity itself. Then another correction must be applied when calculating the vertical advection in the thermodynamics routine. Now this is hopefully done correctly. EISMINT EXPA and EXPF appear to work well. This may hopefully prove crucial for Javi’s advance/retreat issues in Antarctica.</li>
-<li>Modified staggering of 3D viscosity to be done on horizontal ab-nodes, then averaged to the center. This follows a ‘quadrature’ approach and appears to be more rigorously close to actually integrating over the area. It’s not clear how this might affect stability of ice streams (i.e., Daniel’s results).</li>
-<li>Two-step mass balance with updates to <code>f_ice</code> in between, with more explicit tracking of all mass changes. Now a new variable <code>mb_resid</code> holds any threshold changes applied at the end of the mass balance update. I haven’t checked in detail, but I hope all mass changes are now accounted for explicitly in the model.</li>
-</ol>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
+</section>
 </section>
 </section>
 
@@ -1094,11 +938,14 @@ w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./optimization.html" class="pagination-link" aria-label="Basal friction optimization">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
+      <a href="./yelmo-variables-ydata.html" class="pagination-link" aria-label="ydata">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ydata</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
+      <a href="./yelmo-io.html" class="pagination-link" aria-label="Yelmo IO">
+        <span class="nav-page-text">Yelmo IO</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
   </div>
 </nav>
 </div> <!-- /content -->

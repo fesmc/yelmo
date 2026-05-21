@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Yelmo</title>
+<title>thermodynamics – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -61,23 +61,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<script src="site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../yelmo-variables.html" rel="next">
+<link href="../physics/mass_conservation/solvers.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -106,6 +108,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   }
 }</script>
 
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -116,7 +161,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="./index.html">
+    <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Yelmo</span>
     </a>
   </div>
@@ -127,19 +172,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./getting-started.html" aria-current="page"> 
+    <a class="nav-link active" href="../getting-started.html" aria-current="page"> 
 <span class="menu-text">Installation</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./physics/index.html"> 
+    <a class="nav-link" href="../physics/index.html"> 
 <span class="menu-text">Physics</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./yelmo-variables.html"> 
+    <a class="nav-link" href="../yelmo-variables.html"> 
 <span class="menu-text">Variables</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./benchmarks.html"> 
+    <a class="nav-link" href="../benchmarks.html"> 
 <span class="menu-text">Benchmarks</span></a>
   </li>  
 </ul>
@@ -153,7 +198,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/thermodynamics.html">Thermodynamics</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -167,7 +212,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./getting-started.html" class="sidebar-item-text sidebar-link">
+            <a href="../getting-started.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -176,7 +221,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
+  <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
 </li>
@@ -184,19 +229,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
+  <a href="../benchmarks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Benchmarks</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./parameters.html" class="sidebar-item-text sidebar-link">
+  <a href="../parameters.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parameters</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
+            <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Physics</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -214,25 +259,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
   </div>
 </li>
@@ -249,13 +294,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Mass conservation — continuity equation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of the continuity equation</span></a>
   </div>
 </li>
@@ -263,7 +308,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
@@ -271,7 +316,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
+            <a href="../yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -280,37 +325,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ybound</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytopo</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydyn</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ymat</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydata</span></a>
   </div>
 </li>
@@ -318,7 +363,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./notes.html" class="sidebar-item-text sidebar-link">
+            <a href="../notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Notes</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -327,19 +372,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-io.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-io.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Yelmo IO</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./remapping.html" class="sidebar-item-text sidebar-link">
+  <a href="../remapping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Remapping</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
@@ -355,130 +400,111 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#yelmo" id="toc-yelmo" class="nav-link active" data-scroll-target="#yelmo">Yelmo</a>
+  <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link active" data-scroll-target="#thermodynamics">Thermodynamics</a>
   <ul class="collapse">
-  <li><a href="#general-model-structure---classes-and-usage" id="toc-general-model-structure---classes-and-usage" class="nav-link" data-scroll-target="#general-model-structure---classes-and-usage">General model structure - classes and usage</a>
+  <li><a href="#equations" id="toc-equations" class="nav-link" data-scroll-target="#equations">Equations</a>
   <ul class="collapse">
-  <li><a href="#yelmo_class" id="toc-yelmo_class" class="nav-link" data-scroll-target="#yelmo_class">yelmo_class</a></li>
-  <li><a href="#example-model-domain-intialization" id="toc-example-model-domain-intialization" class="nav-link" data-scroll-target="#example-model-domain-intialization">Example model domain intialization</a></li>
+  <li><a href="#ice-column" id="toc-ice-column" class="nav-link" data-scroll-target="#ice-column">Ice column</a></li>
+  <li><a href="#bedrock-column" id="toc-bedrock-column" class="nav-link" data-scroll-target="#bedrock-column">Bedrock column</a></li>
+  </ul></li>
+  <li><a href="#equilibrium-bedrock" id="toc-equilibrium-bedrock" class="nav-link" data-scroll-target="#equilibrium-bedrock">Equilibrium bedrock</a></li>
+  <li><a href="#active-bedrock" id="toc-active-bedrock" class="nav-link" data-scroll-target="#active-bedrock">Active bedrock</a>
+  <ul class="collapse">
+  <li><a href="#density-of-the-upper-lithosphere" id="toc-density-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#density-of-the-upper-lithosphere">Density of the upper lithosphere</a></li>
+  <li><a href="#heat-capacity-of-the-upper-lithosphere" id="toc-heat-capacity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</a></li>
+  <li><a href="#heat-conductivity-of-the-upper-lithosphere" id="toc-heat-conductivity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</a></li>
   </ul></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/index.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/thermodynamics.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/thermodynamics.html">Thermodynamics</a></li></ol></nav></header>
 
 
 
 
-<section id="yelmo" class="level1">
-<h1>Yelmo</h1>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="img/yelmo.jpg" class="img-fluid figure-img"></p>
-<figcaption>Yelmo, Gaudarrama Mountains</figcaption>
-</figure>
-</div>
-<p>Welcome to <strong>Yelmo</strong>, an easy to use continental ice sheet model. <strong>Yelmo</strong> is a 3D ice-sheet-shelf model solving for the coupled dynamics and thermodynamics of the ice sheet system. Yelmo can be used for idealized simulations, stand-alone ice sheet simulations and fully coupled ice-sheet and climate simulations.</p>
-<p><strong>Yelmo</strong> has been designed to operate as a stand-alone model or to be easily plugged in as a module in another program. The key to its flexibility is that no variables are defined globally and parameters are defined according to the domain being modeled. In this way, all variables and calculations are store in an object that entirely represents the model domain.</p>
-<p>The physics and design of <strong>Yelmo</strong> are described in the following article:</p>
-<blockquote class="blockquote">
-<p>Robinson, A., Alvarez-Solas, J., Montoya, M., Goelzer, H., Greve, R., and Ritz, C.: Description and validation of the ice-sheet model Yelmo (version 1.0), Geosci. Model Dev., 13, 2805–2823, <a href="https://doi.org/10.5194/gmd-13-2805-2020">https://doi.org/10.5194/gmd-13-2805-2020</a>, 2020.</p>
-</blockquote>
-<p>The Yelmo code repository can be found here: <a href="https://github.com/fesmc/yelmo">https://github.com/fesmc/yelmo</a></p>
-<section id="general-model-structure---classes-and-usage" class="level2">
-<h2 class="anchored" data-anchor-id="general-model-structure---classes-and-usage">General model structure - classes and usage</h2>
-<section id="yelmo_class" class="level3">
-<h3 class="anchored" data-anchor-id="yelmo_class">yelmo_class</h3>
-<p>The Yelmo class defines all data related to a model domain, such as Greenland or Antarctica. As seen below in the yelmo_class defintion, the ‘class’ is simply a user-defined Fortran type that contains additional types representing various parameters, variables or sets of module variables.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type</span> yelmo_class</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yelmo_param_class)</span> <span class="dt">::</span> par      <span class="co">! General domain parameters</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ygrid_class)</span>       <span class="dt">::</span> grd      <span class="co">! Grid definition</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_class)</span>       <span class="dt">::</span> tpo      <span class="co">! Topography variables</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydyn_class)</span>        <span class="dt">::</span> dyn      <span class="co">! Dynamics variables</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ymat_class)</span>        <span class="dt">::</span> mat      <span class="co">! Material variables</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytherm_class)</span>      <span class="dt">::</span> thrm     <span class="co">! Thermodynamics variables</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ybound_class)</span>      <span class="dt">::</span> bnd      <span class="co">! Boundary variables to drive model</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydata_class)</span>       <span class="dt">::</span> dta      <span class="co">! Data variables for comparison</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yregions_class)</span>    <span class="dt">::</span> reg      <span class="co">! Regionally aggregated variables</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Likewise the module variables are defined in a similar way, e.g.&nbsp;ytopo_class that defines variables and parameters associated with the topography:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type</span> ytopo_class</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_param_class)</span> <span class="dt">::</span> par        <span class="co">! Parameters</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_state_class)</span> <span class="dt">::</span> now        <span class="co">! Variables</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Submodules such as ytopo_class include parameter definitions relevant to topography calculations, as well as all variables that define the state of the domain being modeled.</p>
+<section id="thermodynamics" class="level1">
+<h1>Thermodynamics</h1>
+<section id="equations" class="level2">
+<h2 class="anchored" data-anchor-id="equations">Equations</h2>
+<section id="ice-column" class="level3">
+<h3 class="anchored" data-anchor-id="ice-column">Ice column</h3>
+<p>Prognostic equation:</p>
+<p><span class="math display">
+\frac{\partial T}{\partial t} = \frac{k}{\rho c} \frac{\partial^2 T}{\partial z^2} - u \frac{\partial T}{\partial x} - v \frac{\partial T}{\partial y} - w \frac{\partial T}{\partial z} + \frac{\Phi}{\rho c}
+</span></p>
+<p>Ice surface boundary condition:</p>
+<p><span class="math display">
+T(z=z_{\rm srf}) = {\rm min}(T_{\rm 2m},T_0)
+</span></p>
+<p>Ice base (temperate) boundary condition:</p>
+<p><span class="math display">
+T(z=z_{\rm bed}) = T_{\rm pmp}
+</span></p>
+<p>Ice base (frozen) boundary condition:</p>
+<p><span class="math display">
+k \frac{\partial T}{\partial z} = k_r \frac{\partial T_r}{\partial z}
+</span></p>
+<p>Note, the following internal Yelmo variables are defined for convenience:</p>
+<p><span class="math display">
+Q_{\rm ice,b} = -k \frac{\partial T}{\partial z}; \quad
+Q_{\rm rock} = -k_r \frac{\partial T_r}{\partial z}
+</span></p>
 </section>
-<section id="example-model-domain-intialization" class="level3">
-<h3 class="anchored" data-anchor-id="example-model-domain-intialization">Example model domain intialization</h3>
-<p>The below code snippet shows an example of how to initialize an instance of Yelmo inside of a program, run the model forward in time and then terminate the instance.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="co">! === Initialize ice sheet model =====</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Initialize Yelmo objects (multiple yelmo objects can be initialized if needed)</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">! In this case `yelmo1` is the Yelmo object to initialize and `path_par` is the</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">! path to the parameter file to load for the configuration information. This</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">! command will also initialize the domain grid and load initial topographic</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">! variables.</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init(yelmo1,filename<span class="kw">=</span>path_par,grid_def<span class="kw">=</span><span class="st">"file"</span>,time<span class="kw">=</span>time_init)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">! === Load initial boundary conditions for current time and yelmo state =====</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">! These variables can be loaded from a file, or passed from another</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">! component being simulated. Yelmo does not care about the source,</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">! it only needs all variables in the `bnd` class to be populated.</span></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">! ybound: z_bed, z_sl, H_sed, H_w, smb, T_srf, bmb_shlf, T_shlf, Q_geo</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_bed    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_sl     <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>H_sed    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>H_w      <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>smb      <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>T_srf    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>bmb_shlf <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>T_shlf   <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>Q_geo    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Print summary of initial boundary conditions  </span></span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_print_bound(yelmo1<span class="op">%</span>bnd)</span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Next, initialize the state variables (dyn,therm,mat)</span></span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (in this case, initialize temps with robin method)</span></span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init_state(yelmo1,time<span class="kw">=</span>time_init,thrm_method<span class="kw">=</span><span class="st">"robin"</span>)</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Run yelmo for eg 100.0 years with constant boundary conditions and topo</span></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="co">! to equilibrate thermodynamics and dynamics</span></span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (impose a constant, small dt=1yr to reduce possibility for instabilities)</span></span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_update_equil(yelmo1,time,time_tot<span class="kw">=</span><span class="fl">100.0</span>,topo_fixed<span class="kw">=</span><span class="cn">.FALSE.</span>,dt<span class="kw">=</span><span class="fl">1.0</span>)</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == YELMO INITIALIZATION COMPLETE ==</span></span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Note: the above routines `yelmo_init_state` and `yelmo_update_equil`</span></span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    <span class="co">! are optional, if the user prefers another way to initialize the state variables.</span></span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Start time looping and run the model ==</span></span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Advance timesteps</span></span>
-<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>    <span class="kw">do</span> n <span class="kw">=</span> <span class="dv">1</span>, ntot</span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Get current time</span></span>
-<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        time <span class="kw">=</span> time_init <span class="kw">+</span> n<span class="kw">*</span>dt</span>
-<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Update the Yelmo ice sheet</span></span>
-<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> yelmo_update(yelmo1,time)</span>
-<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Here you may be updating `yelmo1%bnd` variables to drive the model transiently.</span></span>
-<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end do</span></span>
-<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Finalize Yelmo instance ==</span></span>
-<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_<span class="kw">end</span>(yelmo1,time<span class="kw">=</span>time)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>That’s it!</p>
-<p>See <a href="./getting-started.html">Getting started</a> to see how to get the code, compile a test program and run simulations.</p>
+<section id="bedrock-column" class="level3">
+<h3 class="anchored" data-anchor-id="bedrock-column">Bedrock column</h3>
+<p>Prognostic equation:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial t} = \frac{k_r}{\rho_r c_r} \frac{\partial^2 T_r}{\partial z^2}
+</span></p>
+<p>Bedrock surface boundary condition:</p>
+<p><span class="math display">
+T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
+</span></p>
+<p>Bedrock base boundary condition:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+</span></p>
+</section>
+</section>
+<section id="equilibrium-bedrock" class="level2">
+<h2 class="anchored" data-anchor-id="equilibrium-bedrock">Equilibrium bedrock</h2>
+<p>In this case, the bedrock temperature profile is prescribed to the equilibrium linear temperature profile. The slope follows:</p>
+<p><span class="math display">
+\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+</span></p>
+<p>and the bedrock surface temperature is given by the ice temperature at its base:</p>
+<p><span class="math display">
+T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
+</span></p>
+</section>
+<section id="active-bedrock" class="level2">
+<h2 class="anchored" data-anchor-id="active-bedrock">Active bedrock</h2>
+<p>Yelmo calculates the temperature in the lithosphere along with the ice temperature. This can be achieved by assuming equilibrium conditions in the bedrock, i.e., that the temperature profile in the bedrock is always linear with <code>T_lith_s = T_ice_b</code> and the slope equal to <code>dT/dz = -Q_geo / k_lith</code>. Or, the temperature equation can be solved in the lithosphere together with the temperature in the ice column.</p>
+<p>The parameter block <code>ytherm_lith</code> controls how the lithosphere is calculated with <code>ytherm_lith.method=['equil','active']</code> deciding the two cases above.</p>
+<section id="density-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="density-of-the-upper-lithosphere">Density of the upper lithosphere</h3>
+</section>
+<section id="heat-capacity-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</h3>
+<p>In both SICOPOLIS and GRISLI, a value of <code>cp = 1000.0 [J kg-1 K-1]</code> is used (referenced in Rogozhina et al., 2012; Greve, 2005; Greve, 1997). This value is adopted in Yelmo as well.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">cp = 1000.0    ! [J kg-1 K-1] </span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="heat-conductivity-of-the-upper-lithosphere" class="level3">
+<h3 class="anchored" data-anchor-id="heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</h3>
+<p>Note, Yelmo expects input parameter values in units of <code>[J a-1 m-1 K-1]</code>, while much literature uses <code>[W m-1 K-1]</code>. Given the number of seconds in a year <code>sec_year = 31536000.0</code>, <code>kt [W m-1 K-1] * sec_year = kt [J a-1 m-1 K-1]</code>.</p>
+<p>Rogozhina et al.&nbsp;(2012) use <code>kt = 2 [W m-1 K-1]</code> for Greenland:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">6.3e7</span>     <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This value is supported by Lösing et al.&nbsp;(2020), who perform a Bayesian inversion for GHF in Antarctica. Assuming exponentially decreasing heat production with depth, lower values of <code>kt</code> are supported (see Fig. 7b). In a study on the global thermal characteristics of the lithosphere, Cammarano and Guerri (2017) adopt an upper crust thermal conductivity of <code>kt = 2.5 [W m-1 K-1]</code>.</p>
+<p>To do: This study is also potentially relevant: <a href="https://link.springer.com/article/10.1186/s40517-020-0159-y">https://link.springer.com/article/10.1186/s40517-020-0159-y</a>. They show ranges of on the order of <code>kt = 2-3 [W m-1 K-1]</code> for the Canadian shield.</p>
+<p>The above value of <code>kt = 2 [W m-1 K-1] = 6.3e7 [J a-1 m-1 K-1]</code> is adopted as the default thermal conductivity of the upper crust in Yelmo. For historical context, see other estimates below.</p>
+<p>From Greve (1997) and Greve (2005):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">9.46e7</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>which is equivalent to <code>kt = 3 [W m-1 K-1]</code>. The source of this value is not known.</p>
+<p>From GRISLI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">1.04e8</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>which is equivalent to <code>kt = 3.3 [W m-1 K-1]</code>. The source of this value is not known.</p>
 
 
 </section>
@@ -891,9 +917,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     }
   });
   </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../physics/mass_conservation/solvers.html" class="pagination-link" aria-label="Numerical solution of the continuity equation">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Numerical solution of the continuity equation</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../yelmo-variables.html" class="pagination-link" aria-label="Variables">
+        <span class="nav-page-text">Variables</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
 </div> <!-- /content -->
 
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/index.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/thermodynamics.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
