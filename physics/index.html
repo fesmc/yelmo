@@ -277,6 +277,12 @@ window.Quarto = {
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving schemes</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -370,6 +376,7 @@ window.Quarto = {
   <li><a href="#momentum-balance" id="toc-momentum-balance" class="nav-link" data-scroll-target="#momentum-balance">Momentum balance</a></li>
   <li><a href="#mass-conservation" id="toc-mass-conservation" class="nav-link" data-scroll-target="#mass-conservation">Mass conservation</a></li>
   <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link" data-scroll-target="#thermodynamics">Thermodynamics</a></li>
+  <li><a href="#calving" id="toc-calving" class="nav-link" data-scroll-target="#calving">Calving</a></li>
   <li><a href="#notation-used-throughout" id="toc-notation-used-throughout" class="nav-link" data-scroll-target="#notation-used-throughout">Notation used throughout</a></li>
   </ul></li>
   </ul>
@@ -431,6 +438,10 @@ w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int
 <section id="thermodynamics" class="level2">
 <h2 class="anchored" data-anchor-id="thermodynamics">Thermodynamics</h2>
 <p>The <a href="../physics/thermodynamics.html">thermodynamics module</a> advects and diffuses temperature in the ice column coupled to a 1D bedrock column, with surface, basal, and lithospheric boundary conditions. The resulting temperature feeds back into the momentum balance through the Glen rate factor <span class="math inline">A(T')</span>.</p>
+</section>
+<section id="calving" class="level2">
+<h2 class="anchored" data-anchor-id="calving">Calving</h2>
+<p>The <a href="../physics/calving.html">calving schemes</a> provide the calving rate <span class="math inline">\dot c</span> that enters the continuity equation as a mass-loss term. Yelmo supports a small family of stress- and geometry-based laws; the Lipscomb et al.&nbsp;(2019) effective-stress law is the recommended default.</p>
 </section>
 <section id="notation-used-throughout" class="level2">
 <h2 class="anchored" data-anchor-id="notation-used-throughout">Notation used throughout</h2>

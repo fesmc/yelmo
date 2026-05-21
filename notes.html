@@ -108,49 +108,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   }
 }</script>
 
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
-  <script>document.addEventListener("DOMContentLoaded", function () {
- var mathElements = document.getElementsByClassName("math");
- var macros = [];
- for (var i = 0; i < mathElements.length; i++) {
-  var texText = mathElements[i].firstChild;
-  if (mathElements[i].tagName == "SPAN") {
-   katex.render(texText.data, mathElements[i], {
-    displayMode: mathElements[i].classList.contains('display'),
-    throwOnError: false,
-    macros: macros,
-    fleqn: false
-   });
-}}});
-  </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
-
-<script type="text/javascript">
-const typesetMath = (el) => {
-  if (window.MathJax) {
-    // MathJax Typeset
-    window.MathJax.typeset([el]);
-  } else if (window.katex) {
-    // KaTeX Render
-    var mathElements = el.getElementsByClassName("math");
-    var macros = [];
-    for (var i = 0; i < mathElements.length; i++) {
-      var texText = mathElements[i].firstChild;
-      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
-        window.katex.render(texText.data, mathElements[i], {
-          displayMode: mathElements[i].classList.contains('display'),
-          throwOnError: false,
-          macros: macros,
-          fleqn: false
-        });
-      }
-    }
-  }
-}
-window.Quarto = {
-  typesetMath
-};
-</script>
 
 </head>
 
@@ -312,6 +269,12 @@ window.Quarto = {
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving schemes</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -405,11 +368,6 @@ window.Quarto = {
   <li><a href="#timeout-module" id="toc-timeout-module" class="nav-link" data-scroll-target="#timeout-module"><code>timeout</code> module</a></li>
   <li><a href="#timing-module" id="toc-timing-module" class="nav-link" data-scroll-target="#timing-module"><code>timing</code> module</a></li>
   <li><a href="#how-to-read-yelmo_check_kill-output" id="toc-how-to-read-yelmo_check_kill-output" class="nav-link" data-scroll-target="#how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</a></li>
-  <li><a href="#margin-front-mass-balance" id="toc-margin-front-mass-balance" class="nav-link" data-scroll-target="#margin-front-mass-balance">Margin-front mass balance</a></li>
-  <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link" data-scroll-target="#calving-schemes">Calving schemes</a>
-  <ul class="collapse">
-  <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
-  </ul></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/notes.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -485,48 +443,8 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</h2>
 <p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
 <p>Note that <code>pc_eps</code> is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution. At each time step, the diagnosed model error <code>pc_eta</code> is compared with <code>pc_eps</code>. If <code>pc_eta &gt;&gt; pc_eps</code>, this is interpreted as instability and the model is stopped.</p>
-</section>
-<section id="margin-front-mass-balance" class="level2">
-<h2 class="anchored" data-anchor-id="margin-front-mass-balance">Margin-front mass balance</h2>
-<p>Following Pollard and DeConto (2012,2016), an ice-margin front melting scheme has been implemented that accounts for the melt rate along the vertical face of ice submerged by seawater.</p>
-<p>The frontal mass balance (<span class="math inline">\dot{f}</span>, m yr<span class="math inline">^{-1}</span>) is calculated as:</p>
-<p><span class="math display">
-\dot{f} = \dot{b}_{\rm eff} \frac{A_f}{A_{\rm tot}} \theta_f
-</span></p>
-<p>where <span class="math inline">\dot{b}_{\rm eff}</span> is the effective basal mass balance (the mean of the basal mass balance calculated for the ice-free neighbors), <span class="math inline">A_{\rm tot}=\Delta x \Delta x</span> is the horizontal grid area and <span class="math inline">A_f</span> is the area of the submerged faces (i.e., the sum of the depth of submerged ice for each face of the grid cell adjacent to an ice-free cell – potentially four faces in total). <span class="math inline">\theta_f=10</span> is a scaling coefficient that implies the face mass balance should be ~10 times higher than the basal mass balance (Pollard and DeConto, 2016, appendix).</p>
-</section>
-<section id="calving-schemes" class="level2">
-<h2 class="anchored" data-anchor-id="calving-schemes">Calving schemes</h2>
-<p>Here is a summary of calving schemes.</p>
-<section id="lipscomb-et-al.-2019" class="level3">
-<h3 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h3>
-<p><span class="math display">
-c = k_\tau \tau_{\rm ec}
-</span></p>
-<p>where <span class="math inline">k_\tau</span> (m yr<span class="math inline">^{-1}</span> Pa<span class="math inline">^{-1}</span>) is an empirical constant and <span class="math inline">\tau_{\rm ec}</span> (Pa) is the effective calving stress, which is defined by:</p>
-<p><span class="math display">
-\tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
-</span></p>
-<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
-<p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
-<p><span class="math display">
-a \lambda^2 + b \lambda + c = 0
-</span></p>
-<p>where</p>
-<p><span class="math display">
-a = 1.0 \\
-b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
-c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
-</span></p>
-<p>glissade_velo_higher.F90:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
-</section>
 </section>
 </section>
 

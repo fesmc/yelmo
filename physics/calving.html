@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>yelmo-variables-ydata – Yelmo</title>
+<title>calving – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -23,28 +23,63 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<link href="./notes.html" rel="next">
-<link href="./yelmo-variables-ytherm.html" rel="prev">
-<script src="site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../yelmo-variables.html" rel="next">
+<link href="../physics/thermodynamics.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -73,6 +108,49 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -83,7 +161,7 @@ ul.task-list li input[type="checkbox"] {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="./index.html">
+    <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Yelmo</span>
     </a>
   </div>
@@ -94,19 +172,19 @@ ul.task-list li input[type="checkbox"] {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./getting-started.html" aria-current="page"> 
+    <a class="nav-link active" href="../getting-started.html" aria-current="page"> 
 <span class="menu-text">Installation</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./physics/index.html"> 
+    <a class="nav-link" href="../physics/index.html"> 
 <span class="menu-text">Physics</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./yelmo-variables.html"> 
+    <a class="nav-link" href="../yelmo-variables.html"> 
 <span class="menu-text">Variables</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./benchmarks.html"> 
+    <a class="nav-link" href="../benchmarks.html"> 
 <span class="menu-text">Benchmarks</span></a>
   </li>  
 </ul>
@@ -120,7 +198,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ydata.html">ydata</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -134,7 +212,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./getting-started.html" class="sidebar-item-text sidebar-link">
+            <a href="../getting-started.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -143,7 +221,7 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
+  <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
 </li>
@@ -151,19 +229,19 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
+  <a href="../benchmarks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Benchmarks</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./parameters.html" class="sidebar-item-text sidebar-link">
+  <a href="../parameters.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parameters</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
+            <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Physics</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -181,25 +259,25 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
   </div>
 </li>
@@ -216,13 +294,13 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Mass conservation — continuity equation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of the continuity equation</span></a>
   </div>
 </li>
@@ -230,13 +308,13 @@ ul.task-list li input[type="checkbox"] {
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Calving schemes</span></a>
   </div>
 </li>
@@ -244,7 +322,7 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
+            <a href="../yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -253,37 +331,37 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ybound</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytopo</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydyn</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ymat</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link active">
+  <a href="../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydata</span></a>
   </div>
 </li>
@@ -291,7 +369,7 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./notes.html" class="sidebar-item-text sidebar-link">
+            <a href="../notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Notes</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -300,19 +378,19 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-io.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-io.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Yelmo IO</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./remapping.html" class="sidebar-item-text sidebar-link">
+  <a href="../remapping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Remapping</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
@@ -328,159 +406,51 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#ydata" id="toc-ydata" class="nav-link active" data-scroll-target="#ydata">ydata</a></li>
+  <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link active" data-scroll-target="#calving-schemes">Calving schemes</a>
+  <ul class="collapse">
+  <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
+  </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ydata.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ydata.html">ydata</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav></header>
 
 
 
 
-<section id="ydata" class="level1">
-<h1>ydata</h1>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 3%">
-<col style="width: 18%">
-<col style="width: 20%">
-<col style="width: 12%">
-<col style="width: 45%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>id</th>
-<th>variable</th>
-<th>dimensions</th>
-<th>units</th>
-<th>long_name</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>1</td>
-<td>pd_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD ice thickness</td>
-</tr>
-<tr class="even">
-<td>2</td>
-<td>pd_z_srf</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD surface elevation</td>
-</tr>
-<tr class="odd">
-<td>3</td>
-<td>pd_z_bed</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD bedrock elevation</td>
-</tr>
-<tr class="even">
-<td>4</td>
-<td>pd_H_grnd</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD overburden ice thickness</td>
-</tr>
-<tr class="odd">
-<td>5</td>
-<td>pd_mask_bed</td>
-<td>xc, yc</td>
-<td>-</td>
-<td>PD mask</td>
-</tr>
-<tr class="even">
-<td>6</td>
-<td>pd_ux_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity in the x-direction</td>
-</tr>
-<tr class="odd">
-<td>7</td>
-<td>pd_uy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity in the y-direction</td>
-</tr>
-<tr class="even">
-<td>8</td>
-<td>pd_uxy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity magnitude</td>
-</tr>
-<tr class="odd">
-<td>9</td>
-<td>pd_T_srf</td>
-<td>xc, yc</td>
-<td>K</td>
-<td>PD surface temperature</td>
-</tr>
-<tr class="even">
-<td>10</td>
-<td>pd_smb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface mass balance</td>
-</tr>
-<tr class="odd">
-<td>11</td>
-<td>pd_depth_iso</td>
-<td>xc, yc, pd_age_iso</td>
-<td>m</td>
-<td>PD depth of specific isochrones</td>
-</tr>
-<tr class="even">
-<td>12</td>
-<td>pd_err_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in ice thickness</td>
-</tr>
-<tr class="odd">
-<td>13</td>
-<td>pd_err_z_srf</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in surface elevation</td>
-</tr>
-<tr class="even">
-<td>14</td>
-<td>pd_err_z_bed</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in bedrock elevation</td>
-</tr>
-<tr class="odd">
-<td>15</td>
-<td>pd_err_smb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD error in surface mass balance</td>
-</tr>
-<tr class="even">
-<td>16</td>
-<td>pd_err_uxy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD error in surface velocity magnitude</td>
-</tr>
-<tr class="odd">
-<td>17</td>
-<td>pd_err_depth_iso</td>
-<td>xc, yc, pd_age_iso</td>
-<td>m</td>
-<td>PD error in isochrone depth</td>
-</tr>
-</tbody>
-</table>
+<section id="calving-schemes" class="level1">
+<h1>Calving schemes</h1>
+<p>Here is a summary of calving schemes.</p>
+<section id="lipscomb-et-al.-2019" class="level2">
+<h2 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h2>
+<p><span class="math display">
+c = k_\tau \tau_{\rm ec}
+</span></p>
+<p>where <span class="math inline">k_\tau</span> (m yr<span class="math inline">^{-1}</span> Pa<span class="math inline">^{-1}</span>) is an empirical constant and <span class="math inline">\tau_{\rm ec}</span> (Pa) is the effective calving stress, which is defined by:</p>
+<p><span class="math display">
+\tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
+</span></p>
+<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
+<p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
+<p><span class="math display">
+a \lambda^2 + b \lambda + c = 0
+</span></p>
+<p>where</p>
+<p><span class="math display">
+a = 1.0 \\
+b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
+c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
+</span></p>
+<p>glissade_velo_higher.F90:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -891,13 +861,13 @@ ul.task-list li input[type="checkbox"] {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./yelmo-variables-ytherm.html" class="pagination-link" aria-label="ytherm">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ytherm</span>
+      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Thermodynamics</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./notes.html" class="pagination-link" aria-label="Notes">
-        <span class="nav-page-text">Notes</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../yelmo-variables.html" class="pagination-link" aria-label="Variables">
+        <span class="nav-page-text">Variables</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -906,4 +876,4 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ydata.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
