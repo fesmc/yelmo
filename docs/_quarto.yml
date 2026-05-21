@@ -48,6 +48,7 @@ website:
               - physics/mass_conservation/index.md
               - physics/mass_conservation/solvers.md
           - physics/thermodynamics.md
+          - physics/calving.md
       - section: "Variables"
         href: yelmo-variables.md
         contents:

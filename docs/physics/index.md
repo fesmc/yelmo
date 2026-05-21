@@ -61,6 +61,13 @@ in the ice column coupled to a 1D bedrock column, with surface, basal, and
 lithospheric boundary conditions. The resulting temperature feeds back into
 the momentum balance through the Glen rate factor $A(T')$.
 
+## Calving
+
+The [calving schemes](calving.md) provide the calving rate $\dot c$ that
+enters the continuity equation as a mass-loss term. Yelmo supports a small
+family of stress- and geometry-based laws; the Lipscomb et al. (2019)
+effective-stress law is the recommended default.
+
 ## Notation used throughout
 
 - $u, v$: horizontal velocity components $[\mathrm{m\,a^{-1}}]$.

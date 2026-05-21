@@ -84,3 +84,15 @@ the namelist parameter `ytopo.solver`; the two recommended choices —
 an explicit donor-cell upwind scheme (`expl-upwind`) and an implicit
 upwind scheme solved with LIS (`impl-lis`) — are described in
 [Numerical solution](solvers.md).
+
+## Margin-front mass balance
+
+Following Pollard and DeConto (2012,2016), an ice-margin front melting scheme has been implemented that accounts for the melt rate along the vertical face of ice submerged by seawater.
+
+The frontal mass balance ($\dot{f}$, m yr$^{-1}$) is calculated as:
+
+$$
+\dot{f} = \dot{b}_{\rm eff} \frac{A_f}{A_{\rm tot}} \theta_f
+$$
+
+where $\dot{b}_{\rm eff}$ is the effective basal mass balance (the mean of the basal mass balance calculated for the ice-free neighbors), $A_{\rm tot}=\Delta x \Delta x$ is the horizontal grid area and $A_f$ is the area of the submerged faces (i.e., the sum of the depth of submerged ice for each face of the grid cell adjacent to an ice-free cell -- potentially four faces in total). $\theta_f=10$ is a scaling coefficient that implies the face mass balance should be ~10 times higher than the basal mass balance (Pollard and DeConto, 2016, appendix).
