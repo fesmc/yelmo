@@ -1,14 +1,54 @@
-# Getting started
+# Installation
 
 Here you can find the basic information and steps needed to get **Yelmo** running.
 
 ## Dependencies
 
-- Yelmo dependencies: LIS
-- YelmoX dependencies: FFTW (for FastIsostasy), FastIsostasy, REMBO1
-- Job submission: Python3.x, runner
+Yelmo is dependent on the following libraries:
 
-See: [Dependencies](dependencies.md) for more details.
+- [NetCDF](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
+- [Library of Iterative Solvers for Linear Systems](http://www.ssisc.org/lis/)
+- ['runner' Python library (fesmc version)](https://github.com/fesmc/runner)
+
+YelmoX is additionally dependent on the following library:
+
+- FFTW (ver. 3.9+)
+
+Installation tips for each dependency can be found below.
+
+### Installing NetCDF (preferably version 4.0 or higher)
+
+The NetCDF library is typically available with different distributions (Linux, Mac, etc).
+Along with installing `libnetcdf`, it will be necessary to install the package `libnetcdf-dev`.
+Installing the NetCDF viewing program `ncview` is also recommended.
+
+If you want to install NetCDF from source, then you must install both the
+`netcdf-c` and subsequently `netcdf-fortran` libraries. The source code and
+installation instructions are available from the Unidata website:
+
+[https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
+
+### Install LIS, FFTW and utils
+
+These packages could be installed individually and linked into the main directories of Yelmox and Yelmo. However, to ensure the right versions are used, etc., we have now made a separate repository for managing the installation of LIS and FFTW from the versions available in that repository, as well as some custom modules. This repository is managed as part of the Fast Earth System Model Community (FESMC).
+
+Please download the code from this repository and see the README for installation instructions:
+[https://github.com/fesmc/fesm-utils](https://github.com/fesmc/fesm-utils)
+
+### Installing runner
+
+Install `runner` to your system's Python installation via `pip`, along with dependency `tabulate`.
+
+```bash
+pip install https://github.com/fesmc/runner/archive/refs/heads/master.zip
+```
+
+That's it! Now check that system command `job` is available by running `job -h`. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:
+
+```bash
+PATH=${PATH}:${HOME}/.local/bin
+export PATH
+```
 
 ## Directory structure
 
@@ -95,9 +135,7 @@ Finally, if you have not already, make sure to install the Python `runner` modul
 pip install https://github.com/fesmc/runner/archive/refs/heads/master.zip
 ```
 
-See [Dependencies](dependencies.md) for more details if you have trouble.
-
-### 3. Link to external libraries
+### 4. Link to external libraries
 
 The external libraries held in the `fesm-utils` repository need to be linked here for use with Yelmo:
 
@@ -107,7 +145,7 @@ ln -s $FESMUSRC ./
 
 Note that `$FESMUSRC` should be the root directory where `fesm-utils` was downloaded, and it should be an absolute path.
 
-### 4. Compile the code
+### 5. Compile the code
 
 Now you are ready to compile Yelmo as a static library:
 
@@ -141,7 +179,7 @@ make initmip       # compiles the program `libyelmo/bin/yelmo_initmip.x`
 
 The Makefile additionally allows you to specify debugging compiler flags with the option `debug=1`, in case you need to debug the code (e.g., `make benchmarks debug=1`). Using this option, the code will run much slower, so this option is not recommended unless necessary.
 
-### 5. Run the model
+### 6. Run the model
 
 Once an executable has been created, you can run the model. This can be
 achieved via the included Python job submission script `runme`. The following steps
@@ -176,86 +214,3 @@ It is also possible to modify parameters inline via the option `-p KEY=VAL [KEY=
 ```
 
 See `runme -h` for more details on the run script.
-
-## Test cases
-
-The published model description includes several test simulations for validation
-of the model's performance. The following section describes how to perform these
-tests using the same model version documented in the article. From this point,
-it is assumed that the user has already configured the model for their system
-(see [https://palma-ice.github.io/yelmo-docs](https://palma-ice.github.io/yelmo-docs)) and is ready to compile the mode.
-
-### 1. EISMINT1 moving margin experiment
-
-To perform the moving margin experiment, compile the benchmarks
-executable and call it with the EISMINT parameter file:
-
-```bash
-make benchmarks
-./runme -r -e benchmarks -o output/eismint-moving -n par-gmd/yelmo_EISMINT_moving.nml
-```
-
-### 2. EISMINT2 EXPA
-
-To perform Experiment A from the EISMINT2 benchmarks, compile the benchmarks
-executable and call it with the EXPA parameter file:
-
-```bash
-make benchmarks
-./runme -r -e benchmarks -o output/eismint-expa -n par-gmd/yelmo_EISMINT_expa.nml
-```
-
-### 3. EISMINT2 EXPF
-
-To perform Experiment F from the EISMINT2 benchmarks, compile the benchmarks
-executable and call it with the EXPF parameter file:
-
-```bash
-make benchmarks
-./runme -r -e benchmarks -o output/eismint-expf -n par-gmd/yelmo_EISMINT_expf.nml
-```
-
-### 4. MISMIP RF
-
-To perform the MISMIP rate factor experiment, compile the mismip executable
-and call it with the MISMIP parameter file the three parameter permutations of interest (default, subgrid and subgrid+gl-scaling):
-
-```bash
-make mismip
-./runme -r -e mismip -o output/mismip-rf-0 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0
-./runme -r -e mismip -o output/mismip-rf-1 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=0
-./runme -r -e mismip -o output/mismip-rf-2 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=2
-```
-
-To additionally change the resolution of the simulations change the parameter `mismip.dx`, e.g. for the default simulation with 10km resolution , call:
-
-```bash
-./runme -r -e mismip -o output/mismip-rf-0-10km -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0 mismip.dx=10
-```
-
-### 5. Age profile experiments
-
-To perform the age profile experiments, compile the Fortran program `tests/test_icetemp.f90`
-and run it:
-
-```bash
-make icetemp
-./libyelmo/bin/test_icetemp.x
-```
-
-To perform the different permutations, it is necessary to recompile for
-single or double precision after changing the precision parameter `prec` in the file
-`src/yelmo_defs.f90`. The number of vertical grid points can be specified in the main
-program file, as well as the output filename.
-
-### 6. Antarctica present-day and glacial simulations
-
-To perform the Antarctica simulations as presented in the paper, it is necessary
-to compile the `initmip` executable and run with the present-day (pd) and
-glacial (lgm) parameter values:
-
-```bash
-make initmip
-./runme -r -e initmip -o output/ant-pd -n par-gmd/yelmo_Antarctica.nml -p ctrl.clim_nm="clim_pd"
-./runme -r -e initmip -o output/ant-lgm -n par-gmd/yelmo_Antarctica.nml -p ctrl.clim_nm="clim_lgm"
-```

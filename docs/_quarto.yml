@@ -16,8 +16,6 @@ website:
     background: primary
     search: true
     left:
-      - href: index.md
-        text: Home
       - href: getting-started.md
         text: Installation
       - href: physics/index.md
@@ -30,13 +28,11 @@ website:
     style: docked
     collapse-level: 2
     contents:
-      - text: Home
-        href: index.md
       - section: "Installation"
+        href: getting-started.md
         contents:
-          - getting-started.md
-          - dependencies.md
           - hpc-notes.md
+      - benchmarks.md
       - parameters.md
       - section: "Physics"
         contents:
@@ -60,7 +56,6 @@ website:
           - yelmo-variables-ymat.md
           - yelmo-variables-ytherm.md
           - yelmo-variables-ydata.md
-      - benchmarks.md
       - section: "Reference"
         contents:
           - yelmo-io.md
