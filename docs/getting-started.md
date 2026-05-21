@@ -2,6 +2,23 @@
 
 Here you can find the basic information and steps needed to get **Yelmo** running.
 
+## How to get Yelmo
+
+The Yelmo code repository is here: [https://github.com/fesmc/yelmo](https://github.com/fesmc/yelmo). To get a local copy:
+
+```bash
+git clone git@github.com:fesmc/yelmo.git
+cd yelmo
+```
+
+## Super quick start
+
+Assuming you have cloned the YelmoX repository as above, just run the install script. You will be prompted on the way for some relevant choices. It will automatically clone relevant dependent repositories and configure them, so that you can make a yelmo program.
+
+```bash
+./install.py
+```
+
 ## Dependencies
 
 Yelmo is dependent on the following libraries:
