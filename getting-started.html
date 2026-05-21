@@ -68,8 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./dependencies.html" rel="next">
-<link href="./index.html" rel="prev">
+<link href="./hpc-notes.html" rel="next">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -129,11 +128,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./index.html" aria-current="page"> 
-<span class="menu-text">Home</span></a>
-  </li>  
-  <li class="nav-item">
-    <a class="nav-link" href="./getting-started.html"> 
+    <a class="nav-link active" href="./getting-started.html" aria-current="page"> 
 <span class="menu-text">Installation</span></a>
   </li>  
   <li class="nav-item">
@@ -159,7 +154,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./getting-started.html">Installation</a></li><li class="breadcrumb-item"><a href="./getting-started.html">Getting started</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./getting-started.html">Installation</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -171,15 +166,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Home</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+            <a href="./getting-started.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -188,24 +177,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./getting-started.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Getting started</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./dependencies.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Dependencies</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
 </li>
       </ul>
   </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Benchmarks</span></a>
+  </div>
+</li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./parameters.html" class="sidebar-item-text sidebar-link">
@@ -340,12 +323,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
       </ul>
   </li>
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Benchmarks</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
@@ -391,69 +368,89 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#getting-started" id="toc-getting-started" class="nav-link active" data-scroll-target="#getting-started">Getting started</a>
+  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a>
   <ul class="collapse">
-  <li><a href="#dependencies" id="toc-dependencies" class="nav-link" data-scroll-target="#dependencies">Dependencies</a></li>
+  <li><a href="#dependencies" id="toc-dependencies" class="nav-link" data-scroll-target="#dependencies">Dependencies</a>
+  <ul class="collapse">
+  <li><a href="#installing-netcdf-preferably-version-4.0-or-higher" id="toc-installing-netcdf-preferably-version-4.0-or-higher" class="nav-link" data-scroll-target="#installing-netcdf-preferably-version-4.0-or-higher">Installing NetCDF (preferably version 4.0 or higher)</a></li>
+  <li><a href="#install-lis-fftw-and-utils" id="toc-install-lis-fftw-and-utils" class="nav-link" data-scroll-target="#install-lis-fftw-and-utils">Install LIS, FFTW and utils</a></li>
+  <li><a href="#installing-runner" id="toc-installing-runner" class="nav-link" data-scroll-target="#installing-runner">Installing runner</a></li>
+  </ul></li>
   <li><a href="#directory-structure" id="toc-directory-structure" class="nav-link" data-scroll-target="#directory-structure">Directory structure</a></li>
   <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
   <ul class="collapse">
   <li><a href="#get-the-code" id="toc-get-the-code" class="nav-link" data-scroll-target="#get-the-code">1. Get the code</a></li>
   <li><a href="#create-the-system-specific-makefile" id="toc-create-the-system-specific-makefile" class="nav-link" data-scroll-target="#create-the-system-specific-makefile">2. Create the system-specific Makefile</a></li>
   <li><a href="#prepare-system-specific-.runme_config-file" id="toc-prepare-system-specific-.runme_config-file" class="nav-link" data-scroll-target="#prepare-system-specific-.runme_config-file">3. Prepare system-specific .runme_config file</a></li>
-  <li><a href="#link-to-external-libraries" id="toc-link-to-external-libraries" class="nav-link" data-scroll-target="#link-to-external-libraries">3. Link to external libraries</a></li>
-  <li><a href="#compile-the-code" id="toc-compile-the-code" class="nav-link" data-scroll-target="#compile-the-code">4. Compile the code</a></li>
-  <li><a href="#run-the-model" id="toc-run-the-model" class="nav-link" data-scroll-target="#run-the-model">5. Run the model</a></li>
-  </ul></li>
-  <li><a href="#test-cases" id="toc-test-cases" class="nav-link" data-scroll-target="#test-cases">Test cases</a>
-  <ul class="collapse">
-  <li><a href="#eismint1-moving-margin-experiment" id="toc-eismint1-moving-margin-experiment" class="nav-link" data-scroll-target="#eismint1-moving-margin-experiment">1. EISMINT1 moving margin experiment</a></li>
-  <li><a href="#eismint2-expa" id="toc-eismint2-expa" class="nav-link" data-scroll-target="#eismint2-expa">2. EISMINT2 EXPA</a></li>
-  <li><a href="#eismint2-expf" id="toc-eismint2-expf" class="nav-link" data-scroll-target="#eismint2-expf">3. EISMINT2 EXPF</a></li>
-  <li><a href="#mismip-rf" id="toc-mismip-rf" class="nav-link" data-scroll-target="#mismip-rf">4. MISMIP RF</a></li>
-  <li><a href="#age-profile-experiments" id="toc-age-profile-experiments" class="nav-link" data-scroll-target="#age-profile-experiments">5. Age profile experiments</a></li>
-  <li><a href="#antarctica-present-day-and-glacial-simulations" id="toc-antarctica-present-day-and-glacial-simulations" class="nav-link" data-scroll-target="#antarctica-present-day-and-glacial-simulations">6. Antarctica present-day and glacial simulations</a></li>
+  <li><a href="#link-to-external-libraries" id="toc-link-to-external-libraries" class="nav-link" data-scroll-target="#link-to-external-libraries">4. Link to external libraries</a></li>
+  <li><a href="#compile-the-code" id="toc-compile-the-code" class="nav-link" data-scroll-target="#compile-the-code">5. Compile the code</a></li>
+  <li><a href="#run-the-model" id="toc-run-the-model" class="nav-link" data-scroll-target="#run-the-model">6. Run the model</a></li>
   </ul></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/getting-started.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./getting-started.html">Installation</a></li><li class="breadcrumb-item"><a href="./getting-started.html">Getting started</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
 
 
 
 
-<section id="getting-started" class="level1">
-<h1>Getting started</h1>
+<section id="installation" class="level1">
+<h1>Installation</h1>
 <p>Here you can find the basic information and steps needed to get <strong>Yelmo</strong> running.</p>
 <section id="dependencies" class="level2">
 <h2 class="anchored" data-anchor-id="dependencies">Dependencies</h2>
+<p>Yelmo is dependent on the following libraries:</p>
 <ul>
-<li>Yelmo dependencies: LIS</li>
-<li>YelmoX dependencies: FFTW (for FastIsostasy), FastIsostasy, REMBO1</li>
-<li>Job submission: Python3.x, runner</li>
+<li><a href="https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html">NetCDF</a></li>
+<li><a href="http://www.ssisc.org/lis/">Library of Iterative Solvers for Linear Systems</a></li>
+<li><a href="https://github.com/fesmc/runner">‘runner’ Python library (fesmc version)</a></li>
 </ul>
-<p>See: <a href="./dependencies.html">Dependencies</a> for more details.</p>
+<p>YelmoX is additionally dependent on the following library:</p>
+<ul>
+<li>FFTW (ver. 3.9+)</li>
+</ul>
+<p>Installation tips for each dependency can be found below.</p>
+<section id="installing-netcdf-preferably-version-4.0-or-higher" class="level3">
+<h3 class="anchored" data-anchor-id="installing-netcdf-preferably-version-4.0-or-higher">Installing NetCDF (preferably version 4.0 or higher)</h3>
+<p>The NetCDF library is typically available with different distributions (Linux, Mac, etc). Along with installing <code>libnetcdf</code>, it will be necessary to install the package <code>libnetcdf-dev</code>. Installing the NetCDF viewing program <code>ncview</code> is also recommended.</p>
+<p>If you want to install NetCDF from source, then you must install both the <code>netcdf-c</code> and subsequently <code>netcdf-fortran</code> libraries. The source code and installation instructions are available from the Unidata website:</p>
+<p><a href="https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html">https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html</a></p>
+</section>
+<section id="install-lis-fftw-and-utils" class="level3">
+<h3 class="anchored" data-anchor-id="install-lis-fftw-and-utils">Install LIS, FFTW and utils</h3>
+<p>These packages could be installed individually and linked into the main directories of Yelmox and Yelmo. However, to ensure the right versions are used, etc., we have now made a separate repository for managing the installation of LIS and FFTW from the versions available in that repository, as well as some custom modules. This repository is managed as part of the Fast Earth System Model Community (FESMC).</p>
+<p>Please download the code from this repository and see the README for installation instructions: <a href="https://github.com/fesmc/fesm-utils">https://github.com/fesmc/fesm-utils</a></p>
+</section>
+<section id="installing-runner" class="level3">
+<h3 class="anchored" data-anchor-id="installing-runner">Installing runner</h3>
+<p>Install <code>runner</code> to your system’s Python installation via <code>pip</code>, along with dependency <code>tabulate</code>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install https://github.com/fesmc/runner/archive/refs/heads/master.zip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>That’s it! Now check that system command <code>job</code> is available by running <code>job -h</code>. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="va">PATH</span><span class="op">=</span><span class="va">${PATH}</span>:<span class="va">${HOME}</span>/.local/bin</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
 </section>
 <section id="directory-structure" class="level2">
 <h2 class="anchored" data-anchor-id="directory-structure">Directory structure</h2>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>    config<span class="kw">/</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>        Configuration files <span class="kw">for</span> compilation on different systems.</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    input<span class="kw">/</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        Location of <span class="fu">any</span> input data needed by the model.</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    libs<span class="kw">/</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        Auxiliary libraries nesecessary <span class="kw">for</span> running the model.</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    libyelmo<span class="kw">/</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        Folder containing <span class="fu">all</span> compiled files in a standard way with</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        lib<span class="kw">/</span>, <span class="kw">include/</span> and bin<span class="kw">/</span> folders.</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    output<span class="kw">/</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        Default location <span class="kw">for</span> model output.</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    par<span class="kw">/</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        Default <span class="dt">parameter</span> files that manage the model configuration.</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    src<span class="kw">/</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        Source code <span class="kw">for</span> Yelmo.</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    tests<span class="kw">/</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        Source code and analysis scripts <span class="kw">for</span> specific model benchmarks and tests.</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    config<span class="kw">/</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>        Configuration files <span class="kw">for</span> compilation on different systems.</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    input<span class="kw">/</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        Location of <span class="fu">any</span> input data needed by the model.</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    libs<span class="kw">/</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        Auxiliary libraries nesecessary <span class="kw">for</span> running the model.</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    libyelmo<span class="kw">/</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        Folder containing <span class="fu">all</span> compiled files in a standard way with</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        lib<span class="kw">/</span>, <span class="kw">include/</span> and bin<span class="kw">/</span> folders.</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    output<span class="kw">/</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        Default location <span class="kw">for</span> model output.</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    par<span class="kw">/</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        Default <span class="dt">parameter</span> files that manage the model configuration.</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    src<span class="kw">/</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        Source code <span class="kw">for</span> Yelmo.</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    tests<span class="kw">/</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        Source code and analysis scripts <span class="kw">for</span> specific model benchmarks and tests.</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="usage" class="level2">
 <h2 class="anchored" data-anchor-id="usage">Usage</h2>
@@ -461,59 +458,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="get-the-code" class="level3">
 <h3 class="anchored" data-anchor-id="get-the-code">1. Get the code</h3>
 <p>Clone the repository from <a href="https://github.com/fesmc/yelmo">https://github.com/fesmc/yelmo</a>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone repository</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/fesmc/yelmo.git <span class="va">$YELMOROOT</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git  <span class="va">$YELMOROOT</span> <span class="co"># via ssh</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="va">$YELMOROOT</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone repository</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/fesmc/yelmo.git <span class="va">$YELMOROOT</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git  <span class="va">$YELMOROOT</span> <span class="co"># via ssh</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="va">$YELMOROOT</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>where <code>$YELMOROOT</code> is the installation directory.</p>
 <p>If you plan to make changes to the code, it is wise to check out a new branch:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-b</span> user-dev</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout <span class="at">-b</span> user-dev</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You should now be working on the branch <code>user-dev</code>.</p>
 </section>
 <section id="create-the-system-specific-makefile" class="level3">
 <h3 class="anchored" data-anchor-id="create-the-system-specific-makefile">2. Create the system-specific Makefile</h3>
 <p>To compile Yelmo, you need to generate a Makefile that is appropriate for your system. In the folder <code>config</code>, you need to specify a configuration file that defines the compiler and flags, including definition of the paths to the <code>NetCDF</code> and <code>LIS</code> libraries. You can use another file in the config folder as a template, e.g.,</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> config</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> pik_ifort myhost_mycompiler</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> config</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> pik_ifort myhost_mycompiler</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>then modify the file <code>myhost_mycompiler</code> to match your paths. Back in <code>$YELMOROOT</code>, you can then generate your Makefile with the provided python configuration script:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="va">$YELMOROOT</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> config.py config/myhost_mycompiler</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="va">$YELMOROOT</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> config.py config/myhost_mycompiler</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The result should be a Makefile in <code>$YELMOROOT</code> that is ready for use.</p>
 </section>
 <section id="prepare-system-specific-.runme_config-file" class="level3">
 <h3 class="anchored" data-anchor-id="prepare-system-specific-.runme_config-file">3. Prepare system-specific .runme_config file</h3>
 <p>To use the <code>runme</code> script for submitting jobs, first you need to configure a few options to match the system you are using (so the script knows which queues are available, etc.).</p>
 <p>To do so, first copy the template config file to your directory:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .runme/runme_config .runme_config</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .runme/runme_config .runme_config</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Next, edit the file. If you are running on an HPC with a job submission system via SLURM, then specify the right HPC. So far the available HPCs are defined in the file <code>.runme/queues_info.json</code>. If you have a new HPC, you should add the information here and inform the <code>runme</code> developers to add it to the main repository. You should also specify the account associated with your jobs on the HPC (which usually indicates the resources available to you on the system).</p>
 <p>Finally, if you have not already, make sure to install the Python <code>runner</code> module via:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install https://github.com/fesmc/runner/archive/refs/heads/master.zip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>See <a href="./dependencies.html">Dependencies</a> for more details if you have trouble.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install https://github.com/fesmc/runner/archive/refs/heads/master.zip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="link-to-external-libraries" class="level3">
-<h3 class="anchored" data-anchor-id="link-to-external-libraries">3. Link to external libraries</h3>
+<h3 class="anchored" data-anchor-id="link-to-external-libraries">4. Link to external libraries</h3>
 <p>The external libraries held in the <code>fesm-utils</code> repository need to be linked here for use with Yelmo:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> <span class="va">$FESMUSRC</span> ./</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> <span class="va">$FESMUSRC</span> ./</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that <code>$FESMUSRC</code> should be the root directory where <code>fesm-utils</code> was downloaded, and it should be an absolute path.</p>
 </section>
 <section id="compile-the-code" class="level3">
-<h3 class="anchored" data-anchor-id="compile-the-code">4. Compile the code</h3>
+<h3 class="anchored" data-anchor-id="compile-the-code">5. Compile the code</h3>
 <p>Now you are ready to compile Yelmo as a static library:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean    <span class="co"># This step is very important to avoid errors!!</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> yelmo-static <span class="pp">[</span><span class="ss">debug=1</span><span class="pp">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean    <span class="co"># This step is very important to avoid errors!!</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> yelmo-static <span class="pp">[</span><span class="ss">debug=1</span><span class="pp">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This will compile all of the Yelmo modules and libraries (as defined in <code>config/Makefile_yelmo.mk</code>), and link them in a static library. All compiled files can be found in the folder <code>libyelmo/</code>.</p>
 <p>Once the static library has been compiled, it can be used inside of external Fortran programs and modules via the statement <code>use yelmo</code>. To include/link yelmo-static during compilation of another program, its location must be defined:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">INC_YELMO</span> = <span class="at">-I</span><span class="va">${YELMOROOT}</span>/include</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">LIB_YELMO</span> = <span class="at">-L</span><span class="va">${YELMOROOT}</span>/include <span class="at">-lyelmo</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">INC_YELMO</span> = <span class="at">-I</span><span class="va">${YELMOROOT}</span>/include</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">LIB_YELMO</span> = <span class="at">-L</span><span class="va">${YELMOROOT}</span>/include <span class="at">-lyelmo</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Alternatively, several test programs exist in the folder <code>tests/</code> to run Yelmo as a stand-alone ice sheet. For example, it’s possible to run different EISMINT benchmarks, MISMIP benchmarks and the ISIMIP6 INITMIP simulation for Greenland, respectively:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks    <span class="co"># compiles the program `libyelmo/bin/yelmo_benchmarks.x`</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip        <span class="co"># compiles the program `libyelmo/bin/yelmo_mismip.x`</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip       <span class="co"># compiles the program `libyelmo/bin/yelmo_initmip.x`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks    <span class="co"># compiles the program `libyelmo/bin/yelmo_benchmarks.x`</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip        <span class="co"># compiles the program `libyelmo/bin/yelmo_mismip.x`</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip       <span class="co"># compiles the program `libyelmo/bin/yelmo_initmip.x`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The Makefile additionally allows you to specify debugging compiler flags with the option <code>debug=1</code>, in case you need to debug the code (e.g., <code>make benchmarks debug=1</code>). Using this option, the code will run much slower, so this option is not recommended unless necessary.</p>
 </section>
 <section id="run-the-model" class="level3">
-<h3 class="anchored" data-anchor-id="run-the-model">5. Run the model</h3>
+<h3 class="anchored" data-anchor-id="run-the-model">6. Run the model</h3>
 <p>Once an executable has been created, you can run the model. This can be achieved via the included Python job submission script <code>runme</code>. The following steps are carried out via the script:</p>
 <ol type="1">
 <li>The output directory is created.</li>
@@ -523,61 +519,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>The executable is run from the output directory, either as a background process or it is submitted to the queue via <code>sbatch</code> (the SLURM workload manager).</li>
 </ol>
 <p>To run a benchmark simulation, for example, use the following command:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>where the option <code>-r</code> implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while <code>-s</code> instead will submit the simulation to cluster queue system instead of running in the background. The option <code>-e</code> lets you specify the executable. For some standard cases, shortcuts have been created:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">benchmarks</span> = libyelmo/bin/yelmo_benchmarks.x</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yemo_mismip.x</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">benchmarks</span> = libyelmo/bin/yelmo_benchmarks.x</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yemo_mismip.x</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The last two mandatory arguments <code>-o OUTDIR</code> and <code>-n PAR_PATH</code> are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as <code>output/test</code>, where all model parameters (loaded from the file <code>par/yelmo_EISMINT.nml</code>) and model output can be found.</p>
 <p>It is also possible to modify parameters inline via the option <code>-p KEY=VAL [KEY=VAL ...]</code>. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>See <code>runme -h</code> for more details on the run script.</p>
-</section>
-</section>
-<section id="test-cases" class="level2">
-<h2 class="anchored" data-anchor-id="test-cases">Test cases</h2>
-<p>The published model description includes several test simulations for validation of the model’s performance. The following section describes how to perform these tests using the same model version documented in the article. From this point, it is assumed that the user has already configured the model for their system (see <a href="https://palma-ice.github.io/yelmo-docs">https://palma-ice.github.io/yelmo-docs</a>) and is ready to compile the mode.</p>
-<section id="eismint1-moving-margin-experiment" class="level3">
-<h3 class="anchored" data-anchor-id="eismint1-moving-margin-experiment">1. EISMINT1 moving margin experiment</h3>
-<p>To perform the moving margin experiment, compile the benchmarks executable and call it with the EISMINT parameter file:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/eismint-moving <span class="at">-n</span> par-gmd/yelmo_EISMINT_moving.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="eismint2-expa" class="level3">
-<h3 class="anchored" data-anchor-id="eismint2-expa">2. EISMINT2 EXPA</h3>
-<p>To perform Experiment A from the EISMINT2 benchmarks, compile the benchmarks executable and call it with the EXPA parameter file:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/eismint-expa <span class="at">-n</span> par-gmd/yelmo_EISMINT_expa.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="eismint2-expf" class="level3">
-<h3 class="anchored" data-anchor-id="eismint2-expf">3. EISMINT2 EXPF</h3>
-<p>To perform Experiment F from the EISMINT2 benchmarks, compile the benchmarks executable and call it with the EXPF parameter file:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/eismint-expf <span class="at">-n</span> par-gmd/yelmo_EISMINT_expf.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="mismip-rf" class="level3">
-<h3 class="anchored" data-anchor-id="mismip-rf">4. MISMIP RF</h3>
-<p>To perform the MISMIP rate factor experiment, compile the mismip executable and call it with the MISMIP parameter file the three parameter permutations of interest (default, subgrid and subgrid+gl-scaling):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-o</span> output/mismip-rf-0 <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-p</span> ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-o</span> output/mismip-rf-1 <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-p</span> ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=0</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-o</span> output/mismip-rf-2 <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-p</span> ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>To additionally change the resolution of the simulations change the parameter <code>mismip.dx</code>, e.g.&nbsp;for the default simulation with 10km resolution , call:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-o</span> output/mismip-rf-0-10km <span class="at">-n</span> par-gmd/yelmo_MISMIP3D.nml <span class="at">-p</span> ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0 mismip.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="age-profile-experiments" class="level3">
-<h3 class="anchored" data-anchor-id="age-profile-experiments">5. Age profile experiments</h3>
-<p>To perform the age profile experiments, compile the Fortran program <code>tests/test_icetemp.f90</code> and run it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> icetemp</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./libyelmo/bin/test_icetemp.x</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>To perform the different permutations, it is necessary to recompile for single or double precision after changing the precision parameter <code>prec</code> in the file <code>src/yelmo_defs.f90</code>. The number of vertical grid points can be specified in the main program file, as well as the output filename.</p>
-</section>
-<section id="antarctica-present-day-and-glacial-simulations" class="level3">
-<h3 class="anchored" data-anchor-id="antarctica-present-day-and-glacial-simulations">6. Antarctica present-day and glacial simulations</h3>
-<p>To perform the Antarctica simulations as presented in the paper, it is necessary to compile the <code>initmip</code> executable and run with the present-day (pd) and glacial (lgm) parameter values:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-o</span> output/ant-pd <span class="at">-n</span> par-gmd/yelmo_Antarctica.nml <span class="at">-p</span> ctrl.clim_nm=<span class="st">"clim_pd"</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-o</span> output/ant-lgm <span class="at">-n</span> par-gmd/yelmo_Antarctica.nml <span class="at">-p</span> ctrl.clim_nm=<span class="st">"clim_lgm"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>
@@ -992,13 +942,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./index.html" class="pagination-link" aria-label="Home">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Home</span>
-      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./dependencies.html" class="pagination-link" aria-label="Dependencies">
-        <span class="nav-page-text">Dependencies</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./hpc-notes.html" class="pagination-link" aria-label="HPC Notes">
+        <span class="nav-page-text">HPC Notes</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
