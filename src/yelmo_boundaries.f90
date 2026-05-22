@@ -258,7 +258,7 @@ contains
                 bnd%mask_ice(:,1)  = -1
                 bnd%mask_ice(:,ny) = -1
 
-            case ("MISMIP")
+            case ("MISMIP","MISMIP+","TROUGH","TROUGH-F17")
 
                 ! Ice can grow everywhere, except farthest x-border
                 bnd%mask_ice       = 1
