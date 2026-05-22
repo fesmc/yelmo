@@ -791,11 +791,16 @@ end if
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
                        tpo%now%mask_adv,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
 
-        ! LSF should not affect points above sea level. Pin BEFORE the
-        ! LSF discipline so that phi0 carries the right (land = -1) value
-        ! into the Sussman/Osher iteration — Yelmo.jl uses this order. The
-        ! snap pass after the cmb loop also benefits from a pre-pinned lsf.
-        where(bnd%z_bed .gt. bnd%z_sl) tpo%now%lsf = -1.0_wp
+        ! LSF should not affect grounded land points, i.e. points whose bed
+        ! is at or above sea level. The comparison is inclusive (.ge.) so that
+        ! a flat bed sitting exactly at sea level (e.g. the EISMINT/HALFAR
+        ! benchmarks, z_bed = z_sl = 0) is treated as land and not calved;
+        ! a strict .gt. left such domains flagged as ocean (lsf = 1) and the
+        ! cmb loop below deleted all ice every step. Pin BEFORE the LSF
+        ! discipline so that phi0 carries the right (land = -1) value into the
+        ! Sussman/Osher iteration — Yelmo.jl uses this order. The snap pass
+        ! after the cmb loop also benefits from a pre-pinned lsf.
+        where(bnd%z_bed .ge. bnd%z_sl) tpo%now%lsf = -1.0_wp
 
         ! Choose LSF discipline: "redist" runs here (palma-ice #34 placement);
         ! "snap" runs after the cmb loop below, matching the pre-#34 ordering
