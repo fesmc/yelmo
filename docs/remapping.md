@@ -149,13 +149,13 @@ cdo remapcon,${grid_tgt} -setgrid,${grid_src} yelmo_restart.nc yelmo_restart_16k
 Let's do a test. First, run a short 32km Greenland simulation and generate a restart file:
 
 ```bash
-./runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
 ```
 
 That simulation should have produced a nice restart file. Let's test a normal 32km simulation that continues from this restart file.
 
 ```bash
-./runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim1-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim1-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
 ```
 
 Ok, now generate scrip map file to interpolate from 32km down to 16km.
@@ -173,7 +173,7 @@ cdo gencon,grid_${grid_name_tgt}.txt -setgrid,grid_${grid_name_src}.txt ${nc_src
 Now let's try to run a simulation at 16km, loading the restart file from 32km
 
 ```bash
-./runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim2-16km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim2-16km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
 ```
 
 The simulation is successful! (as of branch `alex-dev-2`, revision `1d9783fb`).

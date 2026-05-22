@@ -10,7 +10,7 @@ To compile: `make opt`
 To run:
 
 ```bash
-./runme -rs -e opt -o output/test -n par/yelmo_Antarctica_opt.nml
+runme -rs -e opt -o output/test -n par/yelmo_Antarctica_opt.nml
 ```
 
 The program consists of the following steps:

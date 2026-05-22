@@ -13,18 +13,19 @@ file under `par-gmd/` or `par/`.
 2. **Run** it via `runme`, choosing the executable alias, namelist, and output
    directory:
    ```bash
-   ./runme -r -e <alias> -n <namelist> -o <output-dir>
+   runme -r -e <alias> -n <namelist> -o <output-dir>
    ```
 3. **Override** namelist values inline as needed with `-p group.key=value`.
 
-For ensemble runs (one execution per parameter combination), use
-[`jobrun`](https://github.com/alex-robinson/runner) from the `runner` Python
-module — see `README_BATCH.md` for installation. Comma-separated values in
-`-p` are interpreted by `jobrun` as ensemble dimensions:
+For ensemble runs (one execution per parameter combination), pass
+comma-separated values to `-p`. `runme` interprets these as ensemble
+dimensions and creates one run directory per combination under `-o`:
 
 ```bash
-jobrun ./runme -r -e <alias> -n <namelist> -o <ens-dir> -p key=val1,val2,val3
+runme -r -e <alias> -n <namelist> -o <ens-dir> -p key=val1,val2,val3
 ```
+
+This is built into `runme` — no separate package or `jobrun` wrapper is needed.
 
 The sections below cover each benchmark in the current Yelmo test suite.
 For additional variants (alternative solvers, basal-friction sweeps, OpenMP
@@ -44,7 +45,7 @@ margin handling.
 ```bash
 make clean
 make benchmarks
-./runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
+runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
 ```
 
 ## EISMINT2-expa
@@ -57,7 +58,7 @@ designed to test the coupling between ice dynamics and internal thermodynamics
 ```bash
 make clean
 make benchmarks
-./runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
+runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
 ```
 
 ## MISMIP3D
@@ -74,13 +75,13 @@ Standard experiment:
 ```bash
 make clean
 make mismip
-./runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
+runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
 ```
 
 Reverse-forcing experiment:
 
 ```bash
-./runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
+runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
 ```
 
 ### Resolution ensembles
@@ -91,15 +92,15 @@ staggering options at the grounding line:
 
 ```bash
 # Default grounding-line treatment
-jobrun ./runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
+runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid grounding-line interpolation (beta_gl_stag=3)
-jobrun ./runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
+runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid + basal-stress scaling (beta_gl_scale=2)
-jobrun ./runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
+runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
     -p ydyn.beta_gl_scale=2 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 ```
 
@@ -115,7 +116,7 @@ target and executable alias are used here.
 ```bash
 make clean
 make trough
-./runme -r -e trough -n par/yelmo_SLAB-S06.nml -o output/benchmarks/slab
+runme -r -e trough -n par/yelmo_SLAB-S06.nml -o output/benchmarks/slab
 ```
 
 Note: the `make slab` target builds a separate slab program
@@ -132,7 +133,7 @@ representation in marine outlet glaciers.
 ```bash
 make clean
 make trough
-./runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17
+runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17
 ```
 
 ### Variants and ensembles
@@ -142,14 +143,14 @@ probe sensitivity:
 
 ```bash
 # SSA solver instead of the default
-./runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-ssa -p ydyn.solver=ssa
+runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-ssa -p ydyn.solver=ssa
 
 # Higher resolution (1 km and 2 km)
-./runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-dx1 -p ctrl.dx=1.0
-./runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-dx2 -p ctrl.dx=2.0
+runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-dx1 -p ctrl.dx=1.0
+runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-dx2 -p ctrl.dx=2.0
 
 # cf_ref ensemble (3 values) with adjusted beta_u0
-jobrun ./runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-cf \
+runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-cf \
     -p ydyn.beta_u0=100 ytill.cf_ref=5.0,10.0,20.0
 ```
 
@@ -173,7 +174,7 @@ grid=GRL-32KM
 
 make clean
 make initmip
-./runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-$grid \
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-$grid \
     -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
        ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
        ydyn.solver=diva yelmo.domain=Greenland yelmo.grid_name=$grid
@@ -182,7 +183,7 @@ make initmip
 To run all four resolutions as an ensemble:
 
 ```bash
-jobrun ./runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
     -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
        ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
        ydyn.solver=diva yelmo.domain=Greenland \
@@ -206,7 +207,7 @@ grid=ANT-32KM
 
 make clean
 make initmip
-./runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-$grid \
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-$grid \
     -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
        ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
        ydyn.solver=diva yelmo.domain=Antarctica yelmo.grid_name=$grid
@@ -215,7 +216,7 @@ make initmip
 To run all three resolutions as an ensemble:
 
 ```bash
-jobrun ./runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
     -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
        ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
        ydyn.solver=diva yelmo.domain=Antarctica \

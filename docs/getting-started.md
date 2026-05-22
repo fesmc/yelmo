@@ -25,7 +25,7 @@ Yelmo is dependent on the following libraries:
 
 - [NetCDF](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
 - [Library of Iterative Solvers for Linear Systems](http://www.ssisc.org/lis/)
-- ['runner' Python library (fesmc version)](https://github.com/fesmc/runner)
+- ['runme' Python package (fesmc)](https://github.com/fesmc/runme)
 
 YelmoX is additionally dependent on the following library:
 
@@ -52,15 +52,15 @@ These packages could be installed individually and linked into the main director
 Please download the code from this repository and see the README for installation instructions:
 [https://github.com/fesmc/fesm-utils](https://github.com/fesmc/fesm-utils)
 
-### Installing runner
+### Installing runme
 
-Install `runner` to your system's Python installation via `pip`, along with dependency `tabulate`.
+`runme` prepares and runs Yelmo simulations (single runs and ensembles). Install it to your system's Python installation via `pip`:
 
 ```bash
-pip install https://github.com/fesmc/runner/archive/refs/heads/master.zip
+pip install git+https://github.com/fesmc/runme
 ```
 
-That's it! Now check that system command `job` is available by running `job -h`. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:
+That's it! Ensemble support is built in, so no separate `runner` package is needed. Now check that the system command `runme` is available by running `runme -h`. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:
 
 ```bash
 PATH=${PATH}:${HOME}/.local/bin
@@ -136,21 +136,19 @@ The result should be a Makefile in `$YELMOROOT` that is ready for use.
 
 ### 3. Prepare system-specific .runme_config file
 
-To use the `runme` script for submitting jobs, first you need to configure a few options to match the system you are using (so the script knows which queues are available, etc.).
+To use `runme` for submitting jobs, first you need to configure a few options to match the system you are using (so it knows which queues are available, etc.).
 
-To do so, first copy the template config file to your directory:
-
-```bash
-cp .runme/runme_config .runme_config
-```
-
-Next, edit the file. If you are running on an HPC with a job submission system via SLURM, then specify the right HPC. So far the available HPCs are defined in the file `.runme/queues_info.json`. If you have a new HPC, you should add the information here and inform the `runme` developers to add it to the main repository. You should also specify the account associated with your jobs on the HPC (which usually indicates the resources available to you on the system).
-
-Finally, if you have not already, make sure to install the Python `runner` module via:
+When you first clone Yelmo there is no local `.runme_config` yet. Create one from the template with:
 
 ```bash
-pip install https://github.com/fesmc/runner/archive/refs/heads/master.zip
+runme --config
 ```
+
+This copies `.runme/runme_config` to `.runme_config` and prints the current settings.
+
+Next, edit `.runme_config`. If you are running on an HPC with a job submission system via SLURM, then specify the right HPC. The available HPCs are defined in the file `.runme/queues.json` (run `runme --list` to see them). If you have a new HPC, you should add the information here and inform the `runme` developers to add it to the main repository. You should also specify the account associated with your jobs on the HPC (which usually indicates the resources available to you on the system).
+
+If you have not already installed `runme`, see [Installing runme](#installing-runme) above.
 
 ### 4. Link to external libraries
 
@@ -199,8 +197,8 @@ The Makefile additionally allows you to specify debugging compiler flags with th
 ### 6. Run the model
 
 Once an executable has been created, you can run the model. This can be
-achieved via the included Python job submission script `runme`. The following steps
-are carried out via the script:
+achieved via the `runme` command (installed via `pip`, see [Installing runme](#installing-runme)). The following steps
+are carried out by `runme`:
 
 1. The output directory is created.
 2. The executable is copied to the output directory
@@ -211,7 +209,7 @@ are carried out via the script:
 To run a benchmark simulation, for example, use the following command:
 
 ```bash
-./runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml
 ```
 
 where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead will submit the simulation to cluster queue system instead of running in the background. The option `-e` lets you specify the executable. For some standard cases, shortcuts have been created:
@@ -227,7 +225,7 @@ The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/ru
 It is also possible to modify parameters inline via the option `-p KEY=VAL [KEY=VAL ...]`. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:
 
 ```bash
-./runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml -p ctrl.dx=10
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml -p ctrl.dx=10
 ```
 
-See `runme -h` for more details on the run script.
+For ensembles, pass comma-separated values to `-p` (e.g. `-p ctrl.dx=10,20,40`); `runme` creates one run directory per combination under `-o`. See `runme -h` for more details, or the [runme README](https://github.com/fesmc/runme).

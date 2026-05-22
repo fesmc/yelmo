@@ -8,8 +8,9 @@ A fresh worktree has no `Makefile`, no `.runme_config`, and no data symlinks. Be
 ```bash
 ln -s /Users/alrobi001/models/ice_data ice_data
 ln -s /Users/alrobi001/models/fesm-utils fesm-utils
-cp .runme/runme_config .runme_config
+runme --config                              # creates .runme_config from .runme/runme_config
 python config.py config/macbook_gfortran   # or whichever host config applies
 ```
 
-After that, `make <target>` and `./runme ...` work the same as in the main tree.
+After that, `make <target>` and `runme ...` work the same as in the main tree.
+`runme` is installed system-wide via pip (`pip install git+https://github.com/fesmc/runme`), not a local script.

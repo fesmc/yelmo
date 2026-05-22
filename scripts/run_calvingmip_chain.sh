@@ -10,7 +10,7 @@
 #     scripts/run_calvingmip_chain.sh tmp/yelmo-calvingmip-2026-05-18 exp3 exp4 10
 #
 # Notes:
-#   - Run from the yelmo repository root (where ./runme lives).
+#   - Run from the yelmo repository root (so par/ and .runme_config resolve).
 #   - Requires libyelmo/bin/yelmo_calving.x (`make calving`).
 #   - Each experiment's stdout is written to <output-folder>/<exp>/run.log.
 #   - <output-folder> may be relative; an absolute form is used for
@@ -40,7 +40,7 @@ case "$OUTFLDR" in
 esac
 
 # --- Steady-state experiment (exp1 or exp3) ---------------------------------
-./runme -e calving -o "$OUTFLDR/$SS_EXP" -n par/yelmo_calvingmip.nml \
+runme -e calving -o "$OUTFLDR/$SS_EXP" -n par/yelmo_calvingmip.nml \
         -p ctl.exp="$SS_EXP" ycalv.calv_flt_method="exp1" "${DX_ARG[@]}"
 
 (
@@ -51,7 +51,7 @@ esac
 # --- Perturbation experiment (exp2 or exp4) restarting from steady state ---
 RESTART="$ABS_OUTFLDR/$SS_EXP/yelmo_restart.nc"
 
-./runme -e calving -o "$OUTFLDR/$PERT_EXP" -n par/yelmo_calvingmip.nml \
+runme -e calving -o "$OUTFLDR/$PERT_EXP" -n par/yelmo_calvingmip.nml \
         -p ctl.exp="$PERT_EXP" ctl.time_end=1000 ctl.dtt=1 ctl.dt2D_out=100 \
            yelmo.restart="$RESTART" yelmo.restart_z_bed=True yelmo.restart_H_ice=True \
            ycalv.calv_flt_method="exp2" "${DX_ARG[@]}"
