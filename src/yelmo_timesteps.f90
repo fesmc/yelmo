@@ -537,8 +537,13 @@ end if
 
         ! Step 4: Modify timestep to fit within prescribed limits 
 
-        ! Calculate CFL advection limit too, and limit maximum allowed timestep
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=1.0_wp) ) 
+        ! Calculate CFL advection limit too, and limit maximum allowed timestep.
+        ! The pc-error controller is the primary timestep limiter here; this CFL
+        ! cap is only a hard backstop. Courant number 1.0 (the marginal stability
+        ! edge for explicit advection) proved unstable at the nonlinear SIA moving
+        ! margin (grid-axis 2dx oscillations breaking dome symmetry), so use 0.5
+        ! as a safety factor without being as restrictive as the diagnostic cfl_max.
+        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp) )
         dtmax_now = min(dtmax,dt_adv) 
 
         ! Finally, ensure timestep is within prescribed limits
