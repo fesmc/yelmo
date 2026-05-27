@@ -2,7 +2,7 @@ program yelmo_mask_ice
     ! Synthetic stability test for bnd%mask_ice border treatment.
     ! Sets up a small box domain with sinusoidal + noisy bedrock and
     ! a slab of ice with noise, then forces all four border rings to a
-    ! single mask_ice value (mask_bnd = -1, 0, or +1) read from the
+    ! single mask_ice value (mask_bnd = 0, 1, or 2) read from the
     ! namelist, after yelmo_init has run. Drives the model forward
     ! and writes 2D/1D output for inspection.
 
@@ -143,7 +143,7 @@ program yelmo_mask_ice
     ! Surface elevation
     yelmo1%tpo%now%z_srf = yelmo1%bnd%z_bed + yelmo1%tpo%now%H_ice
 
-    ! Reference ice thickness (used when mask_ice == 0)
+    ! Reference ice thickness (used when mask_ice == MASK_ICE_FIXED)
     yelmo1%bnd%H_ice_ref = yelmo1%tpo%now%H_ice
 
     ! === Boundary fields ===
@@ -156,8 +156,8 @@ program yelmo_mask_ice
     yelmo1%bnd%Q_geo    = Q_geo_const
 
     ! === Set mask_ice on the four border rings ===
-    ! Interior is left as initialized by ybound_define_mask_ice (= 1 for
-    ! the MASK_ICE experiment, which routes through the DEFAULT case).
+    ! Interior is left as initialized by ybound_define_mask_ice (= MASK_ICE_DYNAMIC
+    ! for the MASK_ICE experiment, which routes through the DEFAULT case).
     yelmo1%bnd%mask_ice(1,:)  = mask_bnd_w      ! west  (x = -lx/2)
     yelmo1%bnd%mask_ice(nx,:) = mask_bnd_e      ! east  (x = +lx/2)
     yelmo1%bnd%mask_ice(:,1)  = mask_bnd_s      ! south (y = -ly/2)
@@ -185,7 +185,7 @@ program yelmo_mask_ice
     call write_step_2D(yelmo1,file2D,time=ts%time)
 
     call yelmo_write_reg_init(yelmo1,file1D,time_init=ts%time,units="years", &
-                              mask=(yelmo1%bnd%mask_ice /= -1))
+                              mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
     call yelmo_write_reg_step(yelmo1,file1D,time=ts%time)
 
     ! === Advance timesteps ===
@@ -227,8 +227,8 @@ contains
     subroutine check_mask_bnd(val,name)
         integer,          intent(IN) :: val
         character(len=*), intent(IN) :: name
-        if (val .lt. -1 .or. val .gt. 1) then
-            write(*,*) "yelmo_mask_ice:: Error: "//trim(name)//" must be -1, 0, or 1. Got: ", val
+        if (val .lt. MASK_ICE_NONE .or. val .gt. MASK_ICE_DYNAMIC) then
+            write(*,*) "yelmo_mask_ice:: Error: "//trim(name)//" must be 0, 1, or 2. Got: ", val
             stop
         end if
     end subroutine check_mask_bnd
@@ -288,7 +288,7 @@ contains
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
         ! Boundary fields
-        call nc_write(filename,"mask_ice",ylmo%bnd%mask_ice,units="",long_name="Boundary ice mask (-1,0,1)", &
+        call nc_write(filename,"mask_ice",ylmo%bnd%mask_ice,units="",long_name="Boundary ice mask (0=none,1=fixed,2=dynamic)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"H_ice_ref",ylmo%bnd%H_ice_ref,units="m",long_name="Reference ice thickness", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

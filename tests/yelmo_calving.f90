@@ -174,7 +174,7 @@ program yelmo_calving
     call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
 
     ! Standard yelmo 1D regional output
-    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years",mask=(yelmo1%bnd%mask_ice /= -1))
+    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
     call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init)
 
     ! Optional CalvingMIP output (wiki-spec file with Time1 / Time100 dims)

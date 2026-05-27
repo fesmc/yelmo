@@ -502,7 +502,7 @@ contains
         !         call yelmo_write_init(yelmo_r,file2D_r,time_init=time_r,units="years")  
                 
         !         ! 1D file 
-        !         call yelmo_write_reg_init(yelmo_r,file1D_r,time_init=time_r,units="years",mask=(yelmo_r%bnd%mask_ice /= -1))
+        !         call yelmo_write_reg_init(yelmo_r,file1D_r,time_init=time_r,units="years",mask=(yelmo_r%bnd%mask_ice /= MASK_ICE_NONE))
                 
         !         call write_step_2D(yelmo_r,file2D_r,time=time_r)
         !         call yelmo_write_reg_step(yelmo_r,file1D_r,time=time_r)  
