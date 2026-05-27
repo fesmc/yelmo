@@ -44,6 +44,11 @@ module yelmo_defs
     real(wp), parameter :: TOL           = real(1e-5,wp)
     real(wp), parameter :: TOL_UNDERFLOW = real(1e-15,wp)
 
+    ! Values for bnd%mask_ice (ice domain mask)
+    integer,  parameter :: MASK_ICE_NONE    = 0     ! No ice; ice thickness must be zero (aligns with H_ice=0)
+    integer,  parameter :: MASK_ICE_FIXED   = 1     ! Ice thickness is prescribed (= H_ice_ref)
+    integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
+
     ! Mathematical constants
     real(wp), parameter :: pi  = real(2._dp*acos(0.0_dp),wp)
     real(wp), parameter :: degrees_to_radians = real(pi / 180._dp,wp)  ! Conversion factor between radians and degrees
@@ -787,14 +792,15 @@ module yelmo_defs
         real(wp), allocatable :: z_bed_ref(:,:)         ! Reference bedrock elevation, may be used for relaxation routines
 
         ! Mask to define numerical regions within domain
-        ! (-1: ice thickness must be zero, 0: ice thickness is prescribed, 1: ice thickness is calculated)
+        ! (MASK_ICE_NONE=0: ice thickness must be zero, MASK_ICE_FIXED=1: ice thickness is prescribed,
+        !  MASK_ICE_DYNAMIC=2: ice thickness is calculated)
         integer, allocatable :: mask_ice(:,:)
 
         ! Field to define relaxation timescales (spatially variable), when relaxation is used.
-        ! Only valid within area of mask_ice==1.
+        ! Only valid within area of mask_ice==MASK_ICE_DYNAMIC.
         ! tau_relax <= 0: no relaxation
         ! tau_relax >  0: relaxation timescale used => H_ice_ref
-        ! Note: to impose ice thickness directly, use mask_ice == 0 (not tau_relax == 0).
+        ! Note: to impose ice thickness directly, use mask_ice == MASK_ICE_FIXED (not tau_relax == 0).
         real(wp), allocatable :: tau_relax(:,:)
 
         ! Other external variables that can be useful, ie maybe with tracers
