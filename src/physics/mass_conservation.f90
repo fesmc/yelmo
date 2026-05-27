@@ -1,6 +1,7 @@
 module mass_conservation
 
-    use yelmo_defs, only : sp, dp, wp, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err, is_equal
+    use yelmo_defs, only : sp, dp, wp, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err, is_equal, &
+                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
                             fill_borders_2D, set_boundaries_2D_aa, minmax
 
@@ -616,7 +617,7 @@ contains
         real(wp),           intent(IN)      :: f_ice(:,:)               ! [--] Fraction of ice cover
         real(wp),           intent(IN)      :: f_grnd(:,:)              ! [--] Grounded ice fraction
         real(wp),           intent(IN)      :: uxy_b(:,:)               ! [m/a] Basal sliding speed, aa-nodes
-        integer,            intent(IN)      :: mask_ice(:,:)            ! Mask: -1 forced zero, 0 imposed (=H_ice_ref), 1 active
+        integer,            intent(IN)      :: mask_ice(:,:)            ! Mask: MASK_ICE_NONE forced zero, MASK_ICE_FIXED imposed (=H_ice_ref), MASK_ICE_DYNAMIC active
         character(len=*),   intent(IN)      :: boundaries               ! Boundary condition choice
         real(wp),           intent(IN)      :: H_ice_ref(:,:)           ! [m]  Reference ice thickness to fill with for boundaries=="fixed"
         real(wp),           intent(IN)      :: H_min_flt                ! [m] Minimum allowed floating ice thickness 
@@ -801,27 +802,27 @@ contains
             case("mask")
                 ! Defer border treatment entirely to bnd%mask_ice.
 
-                where (mask_ice .eq. -1) H_ice_new = 0.0_wp
+                where (mask_ice .eq. MASK_ICE_NONE) H_ice_new = 0.0_wp
 
             case DEFAULT    ! e.g., None/none
                 ! Apply forced-zero mask from bnd%mask_ice
 
-                where (mask_ice .eq. -1) H_ice_new = 0.0_wp
+                where (mask_ice .eq. MASK_ICE_NONE) H_ice_new = 0.0_wp
 
         end select
 
-        ! Impose reference ice thickness where bnd%mask_ice == 0
+        ! Impose reference ice thickness where bnd%mask_ice == MASK_ICE_FIXED
         ! (applied universally, independent of the boundary BC choice above)
-        where (mask_ice .eq. 0) H_ice_new = H_ice_ref
+        where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 
         ! Determine rate of mass balance related to changes applied here.
-        ! For mask_ice == 0 (imposed) cells use no overshoot, so apply_tendency
+        ! For MASK_ICE_FIXED (imposed) cells use no overshoot, so apply_tendency
         ! lands exactly on H_ice_ref each step (no drift from a persistent
         ! dyn inflow/outflow imbalance). For other cells keep the 10% safety
-        ! margin so the apply_tendency clip-to-zero handles the mask_ice == -1
+        ! margin so the apply_tendency clip-to-zero handles the MASK_ICE_NONE
         ! path robustly.
         if (dt .ne. 0.0) then
-            where (mask_ice .eq. 0)
+            where (mask_ice .eq. MASK_ICE_FIXED)
                 mb_resid = (H_ice_new - H_ice) / dt
             elsewhere
                 mb_resid = 1.1_wp * (H_ice_new - H_ice) / dt
@@ -837,7 +838,7 @@ contains
     subroutine set_tau_relax(tau_relax,H_ice,f_grnd,mask_grz,H_ref,topo_rel,tau,boundaries)
         ! Build a per-cell relaxation timescale field from a topo_rel mask choice and
         ! a uniform tau. Only tau > 0 produces actual relaxation; to impose an ice
-        ! thickness directly, set bnd%mask_ice == 0 instead.
+        ! thickness directly, set bnd%mask_ice == MASK_ICE_FIXED instead.
 
         implicit none 
 
@@ -934,7 +935,7 @@ contains
     subroutine calc_G_relaxation(dHdt,H_ice,H_ref,tau_relax,dt)
         ! Relax ice toward a reference state with a finite timescale tau_relax > 0.
         ! Note: imposing the ice thickness directly is handled separately via
-        ! mask_ice == 0 in calc_G_boundaries (no longer via tau_relax == 0).
+        ! mask_ice == MASK_ICE_FIXED in calc_G_boundaries (no longer via tau_relax == 0).
 
         implicit none
 

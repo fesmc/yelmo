@@ -193,7 +193,8 @@ contains
     end subroutine ybound_load_masks
 
     subroutine ybound_define_mask_ice(bnd,domain)
-        ! Update mask defining where ice is solved (1), imposed (0), or forced to zero (-1).
+        ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
+        ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
 
         implicit none
 
@@ -206,8 +207,8 @@ contains
         nx = size(bnd%mask_ice,1)
         ny = size(bnd%mask_ice,2)
 
-        ! Initially mark all points as active (ice is solved)
-        bnd%mask_ice = 1
+        ! Initially mark all points as dynamic (ice is solved)
+        bnd%mask_ice = MASK_ICE_DYNAMIC
 
         ! Also set calv_mask false everywhere (no imposed calving front)
         bnd%calv_mask   = .FALSE.
@@ -218,61 +219,61 @@ contains
             case ("North")
                 ! Allow ice everywhere except the open ocean
 
-                where (bnd%regions .eq. 1.0) bnd%mask_ice = -1
-                bnd%mask_ice(1,:)  = -1
-                bnd%mask_ice(nx,:) = -1
-                bnd%mask_ice(:,1)  = -1
-                bnd%mask_ice(:,ny) = -1
+                where (bnd%regions .eq. 1.0) bnd%mask_ice = MASK_ICE_NONE
+                bnd%mask_ice(1,:)  = MASK_ICE_NONE
+                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                bnd%mask_ice(:,1)  = MASK_ICE_NONE
+                bnd%mask_ice(:,ny) = MASK_ICE_NONE
 
             case ("Eurasia")
                 ! Allow ice only in the Eurasia domain (1.2*)
 
-                where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = -1
-                bnd%mask_ice(1,:)  = -1
-                bnd%mask_ice(nx,:) = -1
-                bnd%mask_ice(:,1)  = -1
-                bnd%mask_ice(:,ny) = -1
+                where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = MASK_ICE_NONE
+                bnd%mask_ice(1,:)  = MASK_ICE_NONE
+                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                bnd%mask_ice(:,1)  = MASK_ICE_NONE
+                bnd%mask_ice(:,ny) = MASK_ICE_NONE
 
             case ("Greenland")
 
-                bnd%mask_ice = -1
-                where (bnd%regions .eq. 1.3)  bnd%mask_ice = 1      ! Main Greenland region
-                where (bnd%regions .eq. 1.11) bnd%mask_ice = 1      ! Ellesmere Island
-                where (bnd%regions .eq. 1.0)  bnd%mask_ice = 1      ! Open ocean (included some connections between 1.3 and 1.11)
+                bnd%mask_ice = MASK_ICE_NONE
+                where (bnd%regions .eq. 1.3)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Main Greenland region
+                where (bnd%regions .eq. 1.11) bnd%mask_ice = MASK_ICE_DYNAMIC   ! Ellesmere Island
+                where (bnd%regions .eq. 1.0)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
 
             case ("Antarctica")
 
-                where (bnd%regions .eq. 2.0) bnd%mask_ice = -1
-                bnd%mask_ice(1,:)  = -1
-                bnd%mask_ice(nx,:) = -1
-                bnd%mask_ice(:,1)  = -1
-                bnd%mask_ice(:,ny) = -1
+                where (bnd%regions .eq. 2.0) bnd%mask_ice = MASK_ICE_NONE
+                bnd%mask_ice(1,:)  = MASK_ICE_NONE
+                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                bnd%mask_ice(:,1)  = MASK_ICE_NONE
+                bnd%mask_ice(:,ny) = MASK_ICE_NONE
 
 
             case ("EISMINT")
 
                 ! Ice can grow everywhere, except borders
-                bnd%mask_ice       = 1
-                bnd%mask_ice(1,:)  = -1
-                bnd%mask_ice(nx,:) = -1
-                bnd%mask_ice(:,1)  = -1
-                bnd%mask_ice(:,ny) = -1
+                bnd%mask_ice       = MASK_ICE_DYNAMIC
+                bnd%mask_ice(1,:)  = MASK_ICE_NONE
+                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                bnd%mask_ice(:,1)  = MASK_ICE_NONE
+                bnd%mask_ice(:,ny) = MASK_ICE_NONE
 
             case ("MISMIP","MISMIP+","TROUGH","TROUGH-F17")
 
                 ! Ice can grow everywhere, except farthest x-border
-                bnd%mask_ice       = 1
-                bnd%mask_ice(nx,:) = -1
+                bnd%mask_ice       = MASK_ICE_DYNAMIC
+                bnd%mask_ice(nx,:) = MASK_ICE_NONE
 
             case DEFAULT
-                ! Unknown domain: active interior, forced-zero borders
+                ! Unknown domain: dynamic interior, prescribed borders
                 ! (mask_ice can always be modified later)
-                
-                bnd%mask_ice       = 1
-                bnd%mask_ice(1,:)  = 0
-                bnd%mask_ice(nx,:) = 0
-                bnd%mask_ice(:,1)  = 0
-                bnd%mask_ice(:,ny) = 0
+
+                bnd%mask_ice       = MASK_ICE_DYNAMIC
+                bnd%mask_ice(1,:)  = MASK_ICE_FIXED
+                bnd%mask_ice(nx,:) = MASK_ICE_FIXED
+                bnd%mask_ice(:,1)  = MASK_ICE_FIXED
+                bnd%mask_ice(:,ny) = MASK_ICE_FIXED
 
         end select
 
@@ -341,7 +342,7 @@ contains
         now%H_ice_ref   = 0.0_wp 
         now%z_bed_ref   = 0.0_wp
 
-        now%mask_ice    = 1         ! By default, ice is solved everywhere
+        now%mask_ice    = MASK_ICE_DYNAMIC   ! By default, ice is solved everywhere
         now%tau_relax   = -1.0_wp   ! By default, no relaxation anywhere
 
         now%z_bed_corr  = 0.0_wp

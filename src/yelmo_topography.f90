@@ -259,7 +259,7 @@ end if
                         end if
 
                         ! Relaxation is only meaningful where ice is actively solved
-                        where (bnd%mask_ice .ne. 1) tpo%now%tau_relax = -1.0_wp
+                        where (bnd%mask_ice .ne. MASK_ICE_DYNAMIC) tpo%now%tau_relax = -1.0_wp
 
                         select case(trim(tpo%par%topo_rel_field))
 

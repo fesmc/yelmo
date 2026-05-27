@@ -131,7 +131,7 @@ contains
         ! First calculate the global region
 
         ! Update global region mask in case mask_ice is changing
-        ylmo%reg%mask = (ylmo%bnd%mask_ice /= -1)
+        ylmo%reg%mask = (ylmo%bnd%mask_ice /= MASK_ICE_NONE)
 
         call yelmo_calc_region(ylmo%reg,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd) 
 

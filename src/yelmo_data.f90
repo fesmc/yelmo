@@ -259,7 +259,7 @@ contains
             call adjust_topography_gradients(dta%pd%z_bed,dta%pd%H_ice,grad_lim_zb,dx,boundaries)
 
             ! Artificially delete ice from locations that are not allowed
-            where (bnd%mask_ice .eq. -1)
+            where (bnd%mask_ice .eq. MASK_ICE_NONE)
                 dta%pd%H_ice = 0.0
                 dta%pd%z_srf = max(dta%pd%z_bed,0.0)
             end where

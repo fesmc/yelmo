@@ -894,7 +894,7 @@ contains
         ! Initialize region: global domain
         ! Writing to file will only take place if user-program calls yelmo_regions_write(),
         ! which uses the flag specified below. Note currently this assumes outfldr="./" too.
-        call yelmo_region_init(dom%reg,"global",mask=(dom%bnd%mask_ice /= -1),write_to_file=.TRUE.)
+        call yelmo_region_init(dom%reg,"global",mask=(dom%bnd%mask_ice /= MASK_ICE_NONE),write_to_file=.TRUE.)
 
         ! Initialize regional averaging domains too (global region + zero subdomains for now)
         ! If regional subdomains are desired, this call will be made explicitly outside the program
