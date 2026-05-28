@@ -1,0 +1,1056 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   width="425.1969"
+   height="283.4646"
+   id="svg401"
+   viewBox="0 0 425.1969 283.4646"
+   sodipodi:docname="Greve_Blatter_Fig_5_01.svg"
+   inkscape:version="1.0.1 (c497b03c, 2020-09-10)">
+  <metadata
+     id="metadata405">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1309"
+     inkscape:window-height="799"
+     id="namedview403"
+     showgrid="false"
+     inkscape:zoom="1.9033873"
+     inkscape:cx="212.59845"
+     inkscape:cy="141.7323"
+     inkscape:window-x="0"
+     inkscape:window-y="25"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg401" />
+  <path
+     d="m 411.2365,162.4071 0.2426,78.7694 c -15.8346,0.3761 -44.3304,-2.7386 -55.5576,-5.7374 -21.4302,-5.7237 -34.5872,-13.2202 -51.5282,-38.7975 19.0721,-13.0181 34.3619,-19.7855 55.8264,-21.791 l 0.2455,-12.3523 z"
+     style="fill:#c5c7c8;fill-rule:evenodd"
+     id="path10" />
+  <path
+     d="m 411.3694,241.4066 c -15.7249,0.146 -44.2204,-2.9687 -55.4479,-5.9675 -21.4302,-5.724 -33.1223,-11.5721 -50.0496,-37.0201 -16.9274,-25.4481 -45.9459,-45.241 -65.2916,-45.241 -19.3458,0 -43.5285,11.3103 -74.965,8.4827 C 134.1788,158.8331 95.4873,127.73 30.8336,147.642 l -0.0947,98.7128 h 380.4474 z"
+     style="fill:#d9dadb;fill-rule:evenodd"
+     id="path12" />
+  <path
+     d="m 76.1777,141.0951 c 13.847,-27.6977 40.9961,-78.8826 97.903,-80.3444 25.7853,-0.6624 56.7354,20.0838 73.1424,44.1088 8.3123,12.1722 21.2609,28.0579 33.5029,34.9719 7.2386,4.0878 21.5773,10.2741 37.5052,13.8929 13.4133,3.0472 27.5757,3.8239 41.8343,4.2689 l 0.1542,16.8574 c -21.4645,2.0055 -36.7543,8.7729 -55.6438,22.0651 -16.731,-25.0443 -44.6499,-43.7377 -63.9956,-43.7377 -19.3456,0 -43.5288,11.31 -74.965,8.4827 -23.3314,-2.0982 -50.2931,-19.7728 -89.4376,-20.5656 z"
+     style="fill:#eceded;fill-rule:evenodd"
+     id="path14" />
+  <path
+     d="m 175.9748,140.4303 v 21.9949"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path16" />
+  <defs
+     id="defs21">
+    <marker
+       id="endMarker1"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline18" />
+    </marker>
+  </defs>
+  <path
+     d="m 175.9748,110.2003 v 30.23"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker1)"
+     id="path23" />
+  <defs
+     id="defs28">
+    <marker
+       id="endMarker2"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline25" />
+    </marker>
+  </defs>
+  <path
+     d="m 175.9748,61.1246 v 49.0757"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker2)"
+     id="path30" />
+  <path
+     d="m 117.2826,136.9664 c -11.0738,-1.7632 -24.9341,-3.4767 -38.1631,-2.0336"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path32" />
+  <defs
+     id="defs37">
+    <marker
+       id="endMarker3"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline34" />
+    </marker>
+  </defs>
+  <path
+     d="m 160.1739,107.7126 c -2.4729,11.2538 -5.1392,20.3941 -7.3839,23.9215 -5.131,8.0635 -9.8961,9.163 -20.8917,7.697 -3.7797,-0.5038 -8.8152,-1.4409 -14.6157,-2.3647"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker3)"
+     id="path39" />
+  <defs
+     id="defs44">
+    <marker
+       id="endMarker4"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline41" />
+    </marker>
+  </defs>
+  <path
+     d="m 167.4507,61.2624 c -1.2367,14.0193 -4.0974,31.9819 -7.2768,46.4502"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker4)"
+     id="path46" />
+  <path
+     d="m 113.5987,119.776 c -8.1558,-0.0468 -16.8749,-1.3136 -24.9497,-0.97"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path48" />
+  <defs
+     id="defs53">
+    <marker
+       id="endMarker5"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline50" />
+    </marker>
+  </defs>
+  <path
+     d="m 142.7678,103.3719 c -1.4845,2.626 -3.2414,5.1945 -5.3717,7.7371 -6.0361,7.2043 -14.5547,8.7194 -23.7974,8.667"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker5)"
+     id="path55" />
+  <defs
+     id="defs60">
+    <marker
+       id="endMarker6"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline57" />
+    </marker>
+  </defs>
+  <path
+     d="m 154.9891,63.4615 c -4.4669,16.0809 -5.7884,28.533 -12.2213,39.9104"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker6)"
+     id="path62" />
+  <path
+     d="m 124.1053,93.0997 c -4.7472,4.441 -11.6784,7.0826 -23.3611,8.1133"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path64" />
+  <defs
+     id="defs69">
+    <marker
+       id="endMarker7"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline66" />
+    </marker>
+  </defs>
+  <path
+     d="m 135.5635,70.7919 c -3.5047,9.9303 -6.0786,17.2746 -11.4582,22.3078"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker7)"
+     id="path71" />
+  <path
+     d="m 308.6612,166.9893 c 19.8499,2.4749 40.3888,2.0298 51.2124,2.0298"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path73" />
+  <defs
+     id="defs78">
+    <marker
+       id="endMarker8"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline75" />
+    </marker>
+  </defs>
+  <path
+     d="m 232.583,144.9584 c 6.4253,0.5119 14.5865,2.1158 28.3303,8.3004 9.9643,4.4836 30.0248,11.5206 47.7479,13.7305"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker8)"
+     id="path80" />
+  <defs
+     id="defs85">
+    <marker
+       id="endMarker9"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline82" />
+    </marker>
+  </defs>
+  <path
+     d="m 191.9594,107.481 c 1.514,8.3242 3.1637,15.5404 4.8129,20.4879 4.398,13.1948 16.1269,15.7604 25.2899,16.4934 3.4358,0.2747 6.6662,0.1888 10.5208,0.4961"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker9)"
+     id="path87" />
+  <defs
+     id="defs92">
+    <marker
+       id="endMarker10"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline89" />
+    </marker>
+  </defs>
+  <path
+     d="m 186.1432,61.9954 c 1.1452,14.6608 3.2928,31.6125 5.8162,45.4856"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker10)"
+     id="path94" />
+  <path
+     d="m 307.0023,158.2041 c 16.397,2.6473 37.7524,5.0879 52.8713,4.5842"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path96" />
+  <defs
+     id="defs101">
+    <marker
+       id="endMarker11"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline98" />
+    </marker>
+  </defs>
+  <path
+     d="m 239.6551,137.1319 c 8.0635,2.5657 35.1859,14.2943 49.1137,17.593 4.3523,1.0307 10.7807,2.2762 18.2335,3.4792"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker11)"
+     id="path103" />
+  <defs
+     id="defs108">
+    <marker
+       id="endMarker12"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline105" />
+    </marker>
+  </defs>
+  <path
+     d="m 210.1008,104.5695 c 1.9219,5.7492 4.1729,10.9381 7.1966,16.4356 8.0632,14.6608 14.2943,13.5612 22.3577,16.1268"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker12)"
+     id="path110" />
+  <defs
+     id="defs115">
+    <marker
+       id="endMarker13"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline112" />
+    </marker>
+  </defs>
+  <path
+     d="m 201.1706,67.1267 c 3.4358,16.7224 5.7268,27.8614 8.9302,37.4428"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker13)"
+     id="path117" />
+  <path
+     d="m 241.3959,122.0587 c 9.8047,11.3165 24.099,19.105 46.6398,21.6706"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path119" />
+  <defs
+     id="defs124">
+    <marker
+       id="endMarker14"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline121" />
+    </marker>
+  </defs>
+  <path
+     d="m 221.6957,79.2218 c 4.5813,16.6765 9.896,31.5207 19.7002,42.8369"
+     style="fill:none;stroke:#1b1918;stroke-width:0.4997;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker14)"
+     id="path126" />
+  <defs
+     id="defs131">
+    <marker
+       id="endMarker15"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline128" />
+    </marker>
+  </defs>
+  <path
+     d="M 88.2825,102.6791 C 78.753,120.272 72.8887,129.8015 43.5671,134.1998"
+     style="fill:none;stroke:#868789;stroke-width:1.9998;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker15)"
+     id="path133" />
+  <defs
+     id="defs138">
+    <marker
+       id="endMarker16"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline135" />
+    </marker>
+  </defs>
+  <path
+     d="m 263.7164,112.9229 c 22.7262,23.1361 39.4725,30.8546 77.9721,35.6701"
+     style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker16)"
+     id="path140" />
+  <g
+     id="Layer1000">
+    <path
+       d="m 91.8422,74.9931 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path142" />
+    <path
+       d="M 100.3462,79.9029 94.6769,70.0834"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path144" />
+    <path
+       d="m 100.3462,70.0834 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path146" />
+  </g>
+  <g
+     id="Layer1001">
+    <path
+       d="m 92.8208,43.2269 h 11.3385"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path149" />
+    <path
+       d="M 101.3247,48.1367 95.6554,38.3172"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path151" />
+    <path
+       d="m 101.3247,38.3172 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path153" />
+  </g>
+  <g
+     id="Layer1002">
+    <path
+       d="m 118.7226,48.8458 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path156" />
+    <path
+       d="M 127.2266,53.7555 121.5573,43.936"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path158" />
+    <path
+       d="m 127.2266,43.936 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path160" />
+  </g>
+  <g
+     id="Layer1003">
+    <path
+       d="m 112.3707,26.6091 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path163" />
+    <path
+       d="m 120.8747,31.5189 -5.6693,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path165" />
+    <path
+       d="m 120.8747,21.6994 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path167" />
+  </g>
+  <g
+     id="Layer1004">
+    <path
+       d="M 171.2594,43.9566 H 182.598"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path170" />
+    <path
+       d="M 179.7633,48.8663 174.094,39.0468"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path172" />
+    <path
+       d="m 179.7633,39.0468 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path174" />
+  </g>
+  <g
+     id="Layer1005">
+    <path
+       d="m 201.926,52.5076 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path177" />
+    <path
+       d="m 210.4299,57.4173 -5.6693,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path179" />
+    <path
+       d="m 210.4299,47.5978 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path181" />
+  </g>
+  <g
+     id="Layer1006">
+    <path
+       d="m 236.3502,53.57 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path184" />
+    <path
+       d="m 244.8541,58.4797 -5.6692,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path186" />
+    <path
+       d="m 244.8541,48.6602 -5.6692,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path188" />
+  </g>
+  <g
+     id="Layer1007">
+    <path
+       d="M 173.7074,18.0513 H 185.046"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path191" />
+    <path
+       d="M 182.2113,22.9611 176.542,13.1416"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path193" />
+    <path
+       d="m 182.2113,13.1416 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path195" />
+  </g>
+  <g
+     id="Layer1008">
+    <path
+       d="m 194.2325,34.1782 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path198" />
+    <path
+       d="m 202.7364,39.0879 -5.6693,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path200" />
+    <path
+       d="m 202.7364,29.2684 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path202" />
+  </g>
+  <g
+     id="Layer1009">
+    <path
+       d="m 245.306,76.1134 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path205" />
+    <path
+       d="m 253.8099,81.0231 -5.6693,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path207" />
+    <path
+       d="m 253.8099,71.2036 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path209" />
+  </g>
+  <g
+     id="Layer1010">
+    <path
+       d="m 221.8425,24.8941 h 11.3386"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path212" />
+    <path
+       d="m 230.3464,29.8039 -5.6693,-9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path214" />
+    <path
+       d="m 230.3464,19.9844 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path216" />
+  </g>
+  <g
+     id="Layer1011">
+    <path
+       d="M 145.6064,30.7585 H 156.945"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path219" />
+    <path
+       d="M 154.1103,35.6682 148.441,25.8487"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path221" />
+    <path
+       d="m 154.1103,25.8487 -5.6693,9.8195"
+       style="fill:none;stroke:#868789;stroke-width:2.0013;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+       id="path223" />
+  </g>
+  <defs
+     id="defs229">
+    <marker
+       id="endMarker17"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline226" />
+    </marker>
+  </defs>
+  <path
+     d="M 88.1008,168.0945 V 145.4173"
+     style="fill:#c5c7c8;fill-rule:evenodd;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker17)"
+     id="path231" />
+  <defs
+     id="defs236">
+    <marker
+       id="endMarker18"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline233" />
+    </marker>
+  </defs>
+  <path
+     d="M 122.1165,176.5984 V 153.9213"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker18)"
+     id="path238" />
+  <defs
+     id="defs243">
+    <marker
+       id="endMarker19"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline240" />
+    </marker>
+  </defs>
+  <path
+     d="M 156.1323,187.3015 V 164.6243"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker19)"
+     id="path245" />
+  <defs
+     id="defs250">
+    <marker
+       id="endMarker20"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline247" />
+    </marker>
+  </defs>
+  <path
+     d="M 190.148,187.937 V 165.2598"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker20)"
+     id="path252" />
+  <defs
+     id="defs257">
+    <marker
+       id="endMarker21"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline254" />
+    </marker>
+  </defs>
+  <path
+     d="M 224.1638,181.6322 V 158.955"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker21)"
+     id="path259" />
+  <defs
+     id="defs264">
+    <marker
+       id="endMarker22"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline261" />
+    </marker>
+  </defs>
+  <path
+     d="M 258.1795,184.8334 V 162.1562"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker22)"
+     id="path266" />
+  <defs
+     id="defs271">
+    <marker
+       id="endMarker23"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline268" />
+    </marker>
+  </defs>
+  <path
+     d="M 292.1953,202.5309 V 186.5684"
+     style="fill:none;stroke:#868789;stroke-width:1.0006;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker23)"
+     id="path273" />
+  <path
+     d="m 19.8425,263.622 c 3.1227,0 5.6693,-2.5466 5.6693,-5.6692 0,-3.1227 -2.5466,-5.6693 -5.6693,-5.6693 -3.1226,0 -5.6693,2.5466 -5.6693,5.6693 0,3.1226 2.5467,5.6692 5.6693,5.6692 z"
+     style="fill:none;stroke:#1b1918;stroke-width:1.0001;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path275" />
+  <path
+     d="m 30.1952,147.5229 c 65.2921,-19.7929 103.9836,11.3102 135.4201,14.1378 31.4365,2.8276 55.6192,-8.4827 74.965,-8.4827 19.3457,0 48.3642,19.7929 65.2916,45.241 16.9273,25.448 28.6194,31.2961 50.0496,37.0201 11.2275,2.9988 39.723,6.1135 55.6314,5.7844"
+     style="fill:none;stroke:#1b1918;stroke-width:1.9998;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path277" />
+  <path
+     d="m 75.9005,141.1835 c 13.7576,-27.7861 41.2733,-78.9707 98.1802,-80.4328 25.7856,-0.6624 56.7354,20.0838 73.1424,44.1088 8.3123,12.1722 21.2609,28.0579 33.5029,34.9719 7.2386,4.0878 21.5773,10.2741 37.5052,13.8929 13.4133,3.0472 27.5757,3.8239 41.8343,4.2689 l 0.1542,16.8574 c -21.4645,2.0055 -36.7543,8.7729 -55.8403,21.6618"
+     style="fill:none;stroke:#1b1918;stroke-width:1.9998;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path279" />
+  <path
+     d="m 360.4989,162.4252 h 50.7515"
+     style="fill:none;stroke:#1b1918;stroke-width:0.9998;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path281" />
+  <path
+     d="m 387.7234,172.1336 c 2.4225,0 4.2559,-2.4081 5.8487,-3.337 1.5931,-0.9292 4.2296,-1.8462 4.2296,-3.2592 0,-1.7663 -1.8434,-1.9783 -4.2506,-3.8866 -1.7058,-1.3527 -3.3358,-1.8709 -6.1939,-1.611 -1.8088,0.1647 -4.3875,0.0618 -5.8278,0.5123 -2.7105,0.8478 -4.6525,3.7624 -4.4337,6.084 0.1327,1.4057 3.3693,1.781 4.9621,2.7099 1.5925,0.9286 3.2431,2.7876 5.6656,2.7876 z"
+     style="fill:#eceded;fill-rule:evenodd;stroke:#1b1918;stroke-width:1.9998;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+     id="path283" />
+  <g
+     id="Layer1012">
+    <defs
+       id="defs288">
+      <marker
+         id="endMarker24"
+         markerUnits="strokeWidth"
+         orient="auto"
+         markerWidth="8"
+         markerHeight="6"
+         viewBox="0 0 10 10"
+         refX="1"
+         refY="5">
+        <polyline
+           points="0,0 10,5 0,10 1,5"
+           fill="solid"
+           id="polyline285" />
+      </marker>
+    </defs>
+    <path
+       d="M 19.8425,257.9528 H 76.5354"
+       style="fill:none;stroke:#1b1918;stroke-width:1.0001;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker24)"
+       id="path290" />
+    <defs
+       id="defs295">
+      <marker
+         id="endMarker25"
+         markerUnits="strokeWidth"
+         orient="auto"
+         markerWidth="8"
+         markerHeight="6"
+         viewBox="0 0 10 10"
+         refX="1"
+         refY="5">
+        <polyline
+           points="0,0 10,5 0,10 1,5"
+           fill="solid"
+           id="polyline292" />
+      </marker>
+    </defs>
+    <path
+       d="m 19.8431,257.9528 v -56.693"
+       style="fill:none;stroke:#1b1918;stroke-width:1.0001;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker25)"
+       id="path297" />
+    <g
+       id="Layer1013">
+      <path
+         d="m 15.8337,261.9616 8.0176,-8.0176"
+         style="fill:none;stroke:#1b1918;stroke-width:1.0001;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+         id="path299" />
+      <path
+         d="m 15.8337,253.944 8.0176,8.0176"
+         style="fill:none;stroke:#1b1918;stroke-width:1.0001;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none"
+         id="path301" />
+    </g>
+  </g>
+  <text
+     x="104.7759"
+     y="220.3934"
+     id="text307"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan305">Lithosphere</tspan></text>
+  <text
+     x="350.34409"
+     y="210.28169"
+     id="text311"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan309">Ocean</tspan></text>
+  <path
+     d="M 103.3398,129.426 H 162.686 V 116.7908 H 103.3398 Z"
+     style="fill:#eceded;fill-rule:evenodd"
+     id="path313" />
+  <text
+     x="109.1914"
+     y="127.2526"
+     id="text317"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan315">Ice sheet</tspan></text>
+  <text
+     x="293.93011"
+     y="58.321098"
+     id="text321"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan319">Atmosphere</tspan></text>
+  <path
+     d="m 298.2631,175.2732 h 48.7778 v -11.7453 h -48.7778 z"
+     style="fill:#eceded;fill-rule:evenodd"
+     id="path323" />
+  <text
+     x="302.66589"
+     y="174.15581"
+     id="text327"><tspan
+       font-family="'Times New Roman'"
+       font-size="12px"
+       fill="#1b1918"
+       id="tspan325">Ice shelf</tspan></text>
+  <text
+     x="81.128403"
+     y="261.59979"
+     id="text331"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan329">x</tspan></text>
+  <text
+     x="17.474199"
+     y="196.9767"
+     id="text335"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan333">z</tspan></text>
+  <text
+     x="283.67569"
+     y="97.185799"
+     id="text339"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan337">z = h(x, y, t)</tspan></text>
+  <text
+     x="208.44431"
+     y="226.3606"
+     id="text343"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan341">z = b(x, y, t)</tspan></text>
+  <text
+     x="26.4186"
+     y="273.9827"
+     id="text347"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan345">y</tspan></text>
+  <defs
+     id="defs352">
+    <marker
+       id="endMarker26"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline349" />
+    </marker>
+  </defs>
+  <path
+     d="m 265.4099,210.0189 13.2925,-35.2346"
+     style="fill:none;stroke:#1b1918;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker26)"
+     id="path354" />
+  <defs
+     id="defs359">
+    <marker
+       id="endMarker27"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline356" />
+    </marker>
+  </defs>
+  <path
+     d="m 310.1789,231.1597 9.0225,-10.4029"
+     style="fill:none;stroke:#1b1918;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker27)"
+     id="path361" />
+  <defs
+     id="defs366">
+    <marker
+       id="endMarker28"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline363" />
+    </marker>
+  </defs>
+  <path
+     d="m 278.3906,93.7134 -27.4394,9.3543"
+     style="fill:none;stroke:#1b1918;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker28)"
+     id="path368" />
+  <defs
+     id="defs373">
+    <marker
+       id="endMarker29"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline370" />
+    </marker>
+  </defs>
+  <path
+     d="m 373.0433,129.2548 -3.5743,27.8038"
+     style="fill:none;stroke:#1b1918;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker29)"
+     id="path375" />
+  <g
+     id="Layer1014">
+    <text
+       x="350.1777"
+       y="126.7245"
+       id="text379"><tspan
+         font-family="'Times New Roman'"
+         font-size="14px"
+         fill="#1b1918"
+         id="tspan377">z = z (t)</tspan></text>
+    <text
+       x="379.27621"
+       y="126.3353"
+       id="text383"><tspan
+         font-family="'Times New Roman'"
+         font-size="10px"
+         fill="#1b1918"
+         id="tspan381">sl</tspan></text>
+  </g>
+  <text
+     x="260.26639"
+     y="244.3195"
+     id="text388"><tspan
+       font-family="'Times New Roman'"
+       font-size="14px"
+       fill="#1b1918"
+       id="tspan386">z = z (x, y, t)</tspan></text>
+  <text
+     x="289.3649"
+     y="243.76559"
+     id="text392"><tspan
+       font-family="'Times New Roman'"
+       font-size="10px"
+       fill="#1b1918"
+       id="tspan390">l</tspan></text>
+  <defs
+     id="defs397">
+    <marker
+       id="endMarker30"
+       markerUnits="strokeWidth"
+       orient="auto"
+       markerWidth="8"
+       markerHeight="6"
+       viewBox="0 0 10 10"
+       refX="1"
+       refY="5">
+      <polyline
+         points="0,0 10,5 0,10 1,5"
+         fill="solid"
+         id="polyline394" />
+    </marker>
+  </defs>
+  <path
+     d="m 267.4213,210.3871 53.5082,-9.2505 4.9088,-13.4946"
+     style="fill:none;stroke:#1b1918;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;marker-end:url(#endMarker30)"
+     id="path399" />
+</svg>
