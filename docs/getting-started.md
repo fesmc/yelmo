@@ -11,27 +11,56 @@ git clone git@github.com:fesmc/yelmo.git
 cd yelmo
 ```
 
-## Super quick start
+## Install configme (one time)
 
-Assuming you have cloned the YelmoX repository as above, just run the install script. You will be prompted on the way for some relevant choices. It will automatically clone relevant dependent repositories and configure them, so that you can make a yelmo program.
+Yelmo is configured and built with [`configme`](https://github.com/fesmc/configme), a small Python tool that detects your netCDF installation, configures every package in the stack for your machine and compiler, and clones/links/builds the whole thing with one command. It is installed once, globally, and provides the `configme` command on your `PATH`:
 
 ```bash
-./install.py
+pip install git+https://github.com/fesmc/configme
 ```
+
+To upgrade it later, add `--upgrade` to the same command. If the `configme` command is not found afterwards, your Python user bin directory is probably not on your `PATH`; add it in your `~/.bashrc` / `~/.zshrc`:
+
+```bash
+export PATH="${PATH}:${HOME}/.local/bin"
+```
+
+The only system dependency you must install yourself is **netCDF** (see [Dependencies](#dependencies)). Everything else — LIS, FFTW, the `fesm-utils` libraries, and `runme` — is managed by `configme`.
+
+## Quick start
+
+With `configme` installed, build Yelmo and the packages it needs with a single command from the directory where you want the checkout to live:
+
+```bash
+configme install yelmo
+```
+
+This clones Yelmo together with `fesm-utils`, configures each for your machine and compiler, links them, and builds `fesm-utils` (LIS + FFTW + utils, which can take 10-30 min). If `configme` can detect your machine from the hostname it does so, otherwise it prompts you.
+
+Common options:
+
+```bash
+configme install yelmo -m dkrz_levante -c ifx   # pick the machine + compiler explicitly
+configme install yelmo -d https                 # clone over HTTPS (no GitHub SSH key needed)
+configme install yelmo --dir ~/models/yelmo     # put the checkout here instead of ./yelmo
+configme install yelmo --overwrite              # re-clone over an existing checkout
+configme install yelmo --build-deps             # rebuild dependency packages without prompting
+```
+
+Run `configme list` for the supported machines and compilers, and `configme --help` for the full command surface. The exact clone/configure/link/build commands `configme install yelmo` runs for you are recorded in a `.install.sh` script in the checkout, and are also shown for context on the [configme install details](configme-install-details.md) page — these are shown for reference only; `configme install` is the recommended path and you do not need to run them by hand.
+
+Once the install finishes you are ready to compile and run; see [Usage](#usage) below.
 
 ## Dependencies
 
-Yelmo is dependent on the following libraries:
+The Yelmo stack depends on the following libraries:
 
 - [NetCDF](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
 - [Library of Iterative Solvers for Linear Systems](http://www.ssisc.org/lis/)
+- FFTW (ver. 3.9+)
 - ['runme' Python package (fesmc)](https://github.com/fesmc/runme)
 
-YelmoX is additionally dependent on the following library:
-
-- FFTW (ver. 3.9+)
-
-Installation tips for each dependency can be found below.
+Of these, only **NetCDF** must be installed on your system beforehand. LIS, FFTW (built via `fesm-utils`) and `runme` are all managed for you by `configme`. Installation tips for netCDF and `runme` can be found below.
 
 ### Installing NetCDF (preferably version 4.0 or higher)
 
@@ -45,16 +74,9 @@ installation instructions are available from the Unidata website:
 
 [https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
 
-### Install LIS, FFTW and utils
-
-These packages could be installed individually and linked into the main directories of Yelmox and Yelmo. However, to ensure the right versions are used, etc., we have now made a separate repository for managing the installation of LIS and FFTW from the versions available in that repository, as well as some custom modules. This repository is managed as part of the Fast Earth System Model Community (FESMC).
-
-Please download the code from this repository and see the README for installation instructions:
-[https://github.com/fesmc/fesm-utils](https://github.com/fesmc/fesm-utils)
-
 ### Installing runme
 
-`runme` prepares and runs Yelmo simulations (single runs and ensembles). Install it to your system's Python installation via `pip`:
+`runme` prepares and runs Yelmo simulations (single runs and ensembles). `configme install` installs it for you if it is missing, so you normally do not need to install it by hand. To install it manually into your system's Python installation via `pip`:
 
 ```bash
 pip install git+https://github.com/fesmc/runme
@@ -91,76 +113,9 @@ export PATH
 
 ## Usage
 
-Follow the steps below to (1) obtain the code, (2) configure the Makefile for your system,
-(3) compile the Yelmo static library and an executable program and (4) run a test simulation.
+After `configme install yelmo` (see [Quick start](#quick-start)) you have a configured Yelmo checkout with its `Makefile`, linked libraries and `.runme_config` already in place. The steps below cover (1) compiling the code and (2) running a simulation.
 
-### 1. Get the code
-
-Clone the repository from [https://github.com/fesmc/yelmo](https://github.com/fesmc/yelmo):
-
-```bash
-# Clone repository
-git clone https://github.com/fesmc/yelmo.git $YELMOROOT
-git clone git@github.com:fesmc/yelmo.git  $YELMOROOT # via ssh
-
-cd $YELMOROOT
-```
-
-where `$YELMOROOT` is the installation directory.
-
-If you plan to make changes to the code, it is wise to check out a new branch:
-
-```bash
-git checkout -b user-dev
-```
-
-You should now be working on the branch `user-dev`.
-
-### 2. Create the system-specific Makefile
-
-To compile Yelmo, you need to generate a Makefile that is appropriate for your system. In the folder `config`, you need to specify a configuration file that defines the compiler and flags, including definition of the paths to the `NetCDF` and `LIS` libraries. You can use another file in the config folder as a template, e.g.,
-
-```bash
-cd config
-cp pik_ifort myhost_mycompiler
-```
-
-then modify the file `myhost_mycompiler` to match your paths. Back in `$YELMOROOT`, you can then generate your Makefile with the provided python configuration script:
-
-```bash
-cd $YELMOROOT
-python3 config.py config/myhost_mycompiler
-```
-
-The result should be a Makefile in `$YELMOROOT` that is ready for use.
-
-### 3. Prepare system-specific .runme_config file
-
-To use `runme` for submitting jobs, first you need to configure a few options to match the system you are using (so it knows which queues are available, etc.).
-
-When you first clone Yelmo there is no local `.runme_config` yet. Create one from the template with:
-
-```bash
-runme --config
-```
-
-This copies `.runme/runme_config` to `.runme_config` and prints the current settings.
-
-Next, edit `.runme_config`. If you are running on an HPC with a job submission system via SLURM, then specify the right HPC. The available HPCs are defined in the file `.runme/queues.json` (run `runme --list` to see them). If you have a new HPC, you should add the information here and inform the `runme` developers to add it to the main repository. You should also specify the account associated with your jobs on the HPC (which usually indicates the resources available to you on the system).
-
-If you have not already installed `runme`, see [Installing runme](#installing-runme) above.
-
-### 4. Link to external libraries
-
-The external libraries held in the `fesm-utils` repository need to be linked here for use with Yelmo:
-
-```bash
-ln -s $FESMUSRC ./
-```
-
-Note that `$FESMUSRC` should be the root directory where `fesm-utils` was downloaded, and it should be an absolute path.
-
-### 5. Compile the code
+### 1. Compile the code
 
 Now you are ready to compile Yelmo as a static library:
 
@@ -194,7 +149,7 @@ make initmip       # compiles the program `libyelmo/bin/yelmo_initmip.x`
 
 The Makefile additionally allows you to specify debugging compiler flags with the option `debug=1`, in case you need to debug the code (e.g., `make benchmarks debug=1`). Using this option, the code will run much slower, so this option is not recommended unless necessary.
 
-### 6. Run the model
+### 2. Run the model
 
 Once an executable has been created, you can run the model. This can be
 achieved via the `runme` command (installed via `pip`, see [Installing runme](#installing-runme)). The following steps
