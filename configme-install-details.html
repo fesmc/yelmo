@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>getting-started – Yelmo</title>
+<title>configme-install-details – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,7 +68,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./hpc-notes.html" rel="next">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -154,7 +153,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./getting-started.html">Installation</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -168,7 +167,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./getting-started.html" class="sidebar-item-text sidebar-link active">
+            <a href="./getting-started.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -362,25 +361,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a>
-  <ul class="collapse">
-  <li><a href="#how-to-get-yelmo" id="toc-how-to-get-yelmo" class="nav-link" data-scroll-target="#how-to-get-yelmo">How to get Yelmo</a></li>
-  <li><a href="#install-configme-one-time" id="toc-install-configme-one-time" class="nav-link" data-scroll-target="#install-configme-one-time">Install configme (one time)</a></li>
-  <li><a href="#quick-start" id="toc-quick-start" class="nav-link" data-scroll-target="#quick-start">Quick start</a></li>
-  <li><a href="#dependencies" id="toc-dependencies" class="nav-link" data-scroll-target="#dependencies">Dependencies</a>
-  <ul class="collapse">
-  <li><a href="#installing-netcdf-preferably-version-4.0-or-higher" id="toc-installing-netcdf-preferably-version-4.0-or-higher" class="nav-link" data-scroll-target="#installing-netcdf-preferably-version-4.0-or-higher">Installing NetCDF (preferably version 4.0 or higher)</a></li>
-  <li><a href="#installing-runme" id="toc-installing-runme" class="nav-link" data-scroll-target="#installing-runme">Installing runme</a></li>
-  </ul></li>
-  <li><a href="#directory-structure" id="toc-directory-structure" class="nav-link" data-scroll-target="#directory-structure">Directory structure</a></li>
-  <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
-  <ul class="collapse">
-  <li><a href="#compile-the-code" id="toc-compile-the-code" class="nav-link" data-scroll-target="#compile-the-code">1. Compile the code</a></li>
-  <li><a href="#run-the-model" id="toc-run-the-model" class="nav-link" data-scroll-target="#run-the-model">2. Run the model</a></li>
-  </ul></li>
-  </ul></li>
+  <li><a href="#what-configme-install-yelmo-does" id="toc-what-configme-install-yelmo-does" class="nav-link active" data-scroll-target="#what-configme-install-yelmo-does">What <code>configme install yelmo</code> does</a></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/getting-started.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/configme-install-details.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
@@ -388,124 +371,40 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 
-<section id="installation" class="level1">
-<h1>Installation</h1>
-<p>Here you can find the basic information and steps needed to get <strong>Yelmo</strong> running.</p>
-<section id="how-to-get-yelmo" class="level2">
-<h2 class="anchored" data-anchor-id="how-to-get-yelmo">How to get Yelmo</h2>
-<p>The Yelmo code repository is here: <a href="https://github.com/fesmc/yelmo">https://github.com/fesmc/yelmo</a>. To get a local copy:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> yelmo</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="install-configme-one-time" class="level2">
-<h2 class="anchored" data-anchor-id="install-configme-one-time">Install configme (one time)</h2>
-<p>Yelmo is configured and built with <a href="https://github.com/fesmc/configme"><code>configme</code></a>, a small Python tool that detects your netCDF installation, configures every package in the stack for your machine and compiler, and clones/links/builds the whole thing with one command. It is installed once, globally, and provides the <code>configme</code> command on your <code>PATH</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/fesmc/configme</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>To upgrade it later, add <code>--upgrade</code> to the same command. If the <code>configme</code> command is not found afterwards, your Python user bin directory is probably not on your <code>PATH</code>; add it in your <code>~/.bashrc</code> / <code>~/.zshrc</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span><span class="op">=</span><span class="st">"</span><span class="va">${PATH}</span><span class="st">:</span><span class="va">${HOME}</span><span class="st">/.local/bin"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The only system dependency you must install yourself is <strong>netCDF</strong> (see <a href="#dependencies">Dependencies</a>). Everything else — LIS, FFTW, the <code>fesm-utils</code> libraries, and <code>runme</code> — is managed by <code>configme</code>.</p>
-</section>
-<section id="quick-start" class="level2">
-<h2 class="anchored" data-anchor-id="quick-start">Quick start</h2>
-<p>With <code>configme</code> installed, build Yelmo and the packages it needs with a single command from the directory where you want the checkout to live:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This clones Yelmo together with <code>fesm-utils</code>, configures each for your machine and compiler, links them, and builds <code>fesm-utils</code> (LIS + FFTW + utils, which can take 10-30 min). If <code>configme</code> can detect your machine from the hostname it does so, otherwise it prompts you.</p>
-<p>Common options:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx   <span class="co"># pick the machine + compiler explicitly</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">-d</span> https                 <span class="co"># clone over HTTPS (no GitHub SSH key needed)</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--dir</span> ~/models/yelmo     <span class="co"># put the checkout here instead of ./yelmo</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--overwrite</span>              <span class="co"># re-clone over an existing checkout</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--build-deps</span>             <span class="co"># rebuild dependency packages without prompting</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Run <code>configme list</code> for the supported machines and compilers, and <code>configme --help</code> for the full command surface. The exact clone/configure/link/build commands <code>configme install yelmo</code> runs for you are recorded in a <code>.install.sh</code> script in the checkout, and are also shown for context on the <a href="./configme-install-details.html">configme install details</a> page — these are shown for reference only; <code>configme install</code> is the recommended path and you do not need to run them by hand.</p>
-<p>Once the install finishes you are ready to compile and run; see <a href="#usage">Usage</a> below.</p>
-</section>
-<section id="dependencies" class="level2">
-<h2 class="anchored" data-anchor-id="dependencies">Dependencies</h2>
-<p>The Yelmo stack depends on the following libraries:</p>
-<ul>
-<li><a href="https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html">NetCDF</a></li>
-<li><a href="http://www.ssisc.org/lis/">Library of Iterative Solvers for Linear Systems</a></li>
-<li>FFTW (ver. 3.9+)</li>
-<li><a href="https://github.com/fesmc/runme">‘runme’ Python package (fesmc)</a></li>
-</ul>
-<p>Of these, only <strong>NetCDF</strong> must be installed on your system beforehand. LIS, FFTW (built via <code>fesm-utils</code>) and <code>runme</code> are all managed for you by <code>configme</code>. Installation tips for netCDF and <code>runme</code> can be found below.</p>
-<section id="installing-netcdf-preferably-version-4.0-or-higher" class="level3">
-<h3 class="anchored" data-anchor-id="installing-netcdf-preferably-version-4.0-or-higher">Installing NetCDF (preferably version 4.0 or higher)</h3>
-<p>The NetCDF library is typically available with different distributions (Linux, Mac, etc). Along with installing <code>libnetcdf</code>, it will be necessary to install the package <code>libnetcdf-dev</code>. Installing the NetCDF viewing program <code>ncview</code> is also recommended.</p>
-<p>If you want to install NetCDF from source, then you must install both the <code>netcdf-c</code> and subsequently <code>netcdf-fortran</code> libraries. The source code and installation instructions are available from the Unidata website:</p>
-<p><a href="https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html">https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html</a></p>
-</section>
-<section id="installing-runme" class="level3">
-<h3 class="anchored" data-anchor-id="installing-runme">Installing runme</h3>
-<p><code>runme</code> prepares and runs Yelmo simulations (single runs and ensembles). <code>configme install</code> installs it for you if it is missing, so you normally do not need to install it by hand. To install it manually into your system’s Python installation via <code>pip</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/fesmc/runme</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>That’s it! Ensemble support is built in, so no separate <code>runner</code> package is needed. Now check that the system command <code>runme</code> is available by running <code>runme -h</code>. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">PATH</span><span class="op">=</span><span class="va">${PATH}</span>:<span class="va">${HOME}</span>/.local/bin</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-</section>
-<section id="directory-structure" class="level2">
-<h2 class="anchored" data-anchor-id="directory-structure">Directory structure</h2>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>    config<span class="kw">/</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>        Configuration files <span class="kw">for</span> compilation on different systems.</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    input<span class="kw">/</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        Location of <span class="fu">any</span> input data needed by the model.</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    libs<span class="kw">/</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        Auxiliary libraries nesecessary <span class="kw">for</span> running the model.</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    libyelmo<span class="kw">/</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        Folder containing <span class="fu">all</span> compiled files in a standard way with</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        lib<span class="kw">/</span>, <span class="kw">include/</span> and bin<span class="kw">/</span> folders.</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    output<span class="kw">/</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        Default location <span class="kw">for</span> model output.</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    par<span class="kw">/</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        Default <span class="dt">parameter</span> files that manage the model configuration.</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    src<span class="kw">/</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        Source code <span class="kw">for</span> Yelmo.</span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    tests<span class="kw">/</span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        Source code and analysis scripts <span class="kw">for</span> specific model benchmarks and tests.</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="usage" class="level2">
-<h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>After <code>configme install yelmo</code> (see <a href="#quick-start">Quick start</a>) you have a configured Yelmo checkout with its <code>Makefile</code>, linked libraries and <code>.runme_config</code> already in place. The steps below cover (1) compiling the code and (2) running a simulation.</p>
-<section id="compile-the-code" class="level3">
-<h3 class="anchored" data-anchor-id="compile-the-code">1. Compile the code</h3>
-<p>Now you are ready to compile Yelmo as a static library:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean    <span class="co"># This step is very important to avoid errors!!</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> yelmo-static <span class="pp">[</span><span class="ss">debug=1</span><span class="pp">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This will compile all of the Yelmo modules and libraries (as defined in <code>config/Makefile_yelmo.mk</code>), and link them in a static library. All compiled files can be found in the folder <code>libyelmo/</code>.</p>
-<p>Once the static library has been compiled, it can be used inside of external Fortran programs and modules via the statement <code>use yelmo</code>. To include/link yelmo-static during compilation of another program, its location must be defined:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">INC_YELMO</span> = <span class="at">-I</span><span class="va">${YELMOROOT}</span>/include</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">LIB_YELMO</span> = <span class="at">-L</span><span class="va">${YELMOROOT}</span>/include <span class="at">-lyelmo</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Alternatively, several test programs exist in the folder <code>tests/</code> to run Yelmo as a stand-alone ice sheet. For example, it’s possible to run different EISMINT benchmarks, MISMIP benchmarks and the ISIMIP6 INITMIP simulation for Greenland, respectively:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks    <span class="co"># compiles the program `libyelmo/bin/yelmo_benchmarks.x`</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip        <span class="co"># compiles the program `libyelmo/bin/yelmo_mismip.x`</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip       <span class="co"># compiles the program `libyelmo/bin/yelmo_initmip.x`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The Makefile additionally allows you to specify debugging compiler flags with the option <code>debug=1</code>, in case you need to debug the code (e.g., <code>make benchmarks debug=1</code>). Using this option, the code will run much slower, so this option is not recommended unless necessary.</p>
-</section>
-<section id="run-the-model" class="level3">
-<h3 class="anchored" data-anchor-id="run-the-model">2. Run the model</h3>
-<p>Once an executable has been created, you can run the model. This can be achieved via the <code>runme</code> command (installed via <code>pip</code>, see <a href="#installing-runme">Installing runme</a>). The following steps are carried out by <code>runme</code>:</p>
+<section id="what-configme-install-yelmo-does" class="level1">
+<h1>What <code>configme install yelmo</code> does</h1>
+<p>This page is for context only. The recommended way to install Yelmo is to run <code>configme install yelmo</code> (see the <a href="./getting-started.html#quick-start">Quick start</a>); you do <strong>not</strong> need to run any of the commands below by hand. They are reproduced here so you can see exactly what <code>configme</code> clones, configures, links, and builds on your behalf.</p>
+<p><code>configme install</code> performs the following phases:</p>
 <ol type="1">
-<li>The output directory is created.</li>
-<li>The executable is copied to the output directory</li>
-<li>The relevant parameter files are copied to the output directory.</li>
-<li>Links to the input data paths (<code>input</code> and <code>ice_data</code>) are created in the output directory. Note that many simulations, such as benchmark experiments, do not depend on these external data sources, but the links are made anyway.</li>
-<li>The executable is run from the output directory, either as a background process or it is submitted to the queue via <code>sbatch</code> (the SLURM workload manager).</li>
+<li><strong>Clone</strong> the Yelmo checkout together with the <code>fesm-utils</code> repository it needs.</li>
+<li><strong>Manifest</strong> — write <code>.configme/manifest.toml</code> so the checkout is self-describing regardless of its directory name.</li>
+<li><strong>Configure</strong> — generate a system-specific <code>Makefile</code> for each package from shared machine/compiler fragments, with the netCDF paths detected automatically.</li>
+<li><strong>Build</strong> <code>fesm-utils</code> (LIS + FFTW + utils). This is the slow step (~10-30 min), which is why it is folded into the install rather than run separately.</li>
 </ol>
-<p>To run a benchmark simulation, for example, use the following command:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>where the option <code>-r</code> implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while <code>-s</code> instead will submit the simulation to cluster queue system instead of running in the background. The option <code>-e</code> lets you specify the executable. For some standard cases, shortcuts have been created:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">benchmarks</span> = libyelmo/bin/yelmo_benchmarks.x</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yemo_mismip.x</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The last two mandatory arguments <code>-o OUTDIR</code> and <code>-n PAR_PATH</code> are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as <code>output/test</code>, where all model parameters (loaded from the file <code>par/yelmo_EISMINT.nml</code>) and model output can be found.</p>
-<p>It is also possible to modify parameters inline via the option <code>-p KEY=VAL [KEY=VAL ...]</code>. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>For ensembles, pass comma-separated values to <code>-p</code> (e.g.&nbsp;<code>-p ctrl.dx=10,20,40</code>); <code>runme</code> creates one run directory per combination under <code>-o</code>. See <code>runme -h</code> for more details, or the <a href="https://github.com/fesmc/runme">runme README</a>.</p>
+<p>Each run also writes the exact commands it executed to a <code>.install.sh</code> script in the checkout, so any install is reproducible. The script below is the equivalent for the <code>dkrz_levante</code> machine with the <code>ifx</code> compiler; substitute your own machine and compiler, and note that the netCDF paths (<code>NC_FROOT</code> / <code>NC_CROOT</code>) and the install root are filled in automatically for your system.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Generated by `configme install` — reproduces this install.</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-euo</span> pipefail</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># target=yelmo  machine=dkrz_levante  compiler=ifx</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># --- clone ---</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git <span class="va">$YELMOROOT</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/fesm-utils.git <span class="va">$YELMOROOT</span>/fesm-utils</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils/utils: component of fesm-utils (not cloned)</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># --- manifest ---</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="va">$YELMOROOT</span>/.configme  <span class="co"># write .configme/manifest.toml</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># --- configure (per package) ---</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils: build with autotools (slow, ~10-30 min):</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils <span class="kw">&amp;&amp;</span> <span class="va">NC_FROOT</span><span class="op">=&lt;</span>auto-detected<span class="op">&gt;</span> NC_CROOT=<span class="op">&lt;</span>auto-detected<span class="op">&gt;</span> ./build.py <span class="ex">--variant</span> both <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config fesm-utils/utils <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils/utils: build (serial, omp):</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=0 fesmutils-static<span class="kw">)</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=1 fesmutils-static<span class="kw">)</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/yelmo <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config yelmo <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
-</section>
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -914,18 +813,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     }
   });
   </script>
-<nav class="page-navigation">
-  <div class="nav-page nav-page-previous">
-  </div>
-  <div class="nav-page nav-page-next">
-      <a href="./hpc-notes.html" class="pagination-link" aria-label="HPC Notes">
-        <span class="nav-page-text">HPC Notes</span> <i class="bi bi-arrow-right-short"></i>
-      </a>
-  </div>
-</nav>
 </div> <!-- /content -->
 
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/getting-started.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/configme-install-details.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
