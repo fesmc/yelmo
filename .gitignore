@@ -20,6 +20,7 @@ check_sim.x
 git_yelmo.txt
 .claude/worktrees
 .install.sh
+.upgrade.sh
 
 # Quarto build output
 docs/_site/
