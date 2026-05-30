@@ -13,7 +13,7 @@ tests/.DS_Store
 *.vscode
 *.mypy_cache
 *.pytest_cache
-.runme_config
+.runme/config.toml
 tmp
 maps/scrip*.nc
 check_sim.x
