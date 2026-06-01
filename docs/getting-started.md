@@ -2,34 +2,17 @@
 
 Here you can find the basic information and steps needed to get **Yelmo** running.
 
-## How to get Yelmo
+## Quick start
 
-The Yelmo code repository is here: [https://github.com/fesmc/yelmo](https://github.com/fesmc/yelmo). To get a local copy:
+Yelmo is configured and built with [`configme`](https://github.com/fesmc/configme), a small Python tool that detects your netCDF installation, configures every package in the stack for your machine and compiler, and clones/links/builds the whole thing with one command.
 
-```bash
-git clone git@github.com:fesmc/yelmo.git
-cd yelmo
-```
-
-## Install configme (one time)
-
-Yelmo is configured and built with [`configme`](https://github.com/fesmc/configme), a small Python tool that detects your netCDF installation, configures every package in the stack for your machine and compiler, and clones/links/builds the whole thing with one command. It is installed once, globally, and provides the `configme` command on your `PATH`:
+Install `configme` once, globally:
 
 ```bash
 pip install git+https://github.com/fesmc/configme
 ```
 
-To upgrade it later, add `--upgrade` to the same command. If the `configme` command is not found afterwards, your Python user bin directory is probably not on your `PATH`; add it in your `~/.bashrc` / `~/.zshrc`:
-
-```bash
-export PATH="${PATH}:${HOME}/.local/bin"
-```
-
-The only system dependency you must install yourself is **netCDF** (see [Dependencies](#dependencies)). Everything else — LIS, FFTW, the `fesm-utils` libraries, and `runme` — is managed by `configme`.
-
-## Quick start
-
-With `configme` installed, build Yelmo and the packages it needs with a single command from the directory where you want the checkout to live:
+Then, from the directory where you want the checkout to live, install Yelmo and the packages it needs with a single command:
 
 ```bash
 configme install yelmo
@@ -37,7 +20,13 @@ configme install yelmo
 
 This clones Yelmo together with `fesm-utils`, configures each for your machine and compiler, links them, and builds `fesm-utils` (LIS + FFTW + utils, which can take 10-30 min). If `configme` can detect your machine from the hostname it does so, otherwise it prompts you.
 
-Common options:
+The only system dependency you must install yourself is **netCDF** (see [Dependencies](#dependencies)). Everything else — LIS, FFTW, the `fesm-utils` libraries, and `runme` — is managed by `configme`.
+
+Once the install finishes you are ready to compile and run; see [Usage](#usage) below.
+
+### configme install options
+
+Common options for `configme install yelmo`:
 
 ```bash
 configme install yelmo -m dkrz_levante -c ifx   # pick the machine + compiler explicitly
@@ -49,7 +38,25 @@ configme install yelmo --build-deps             # rebuild dependency packages wi
 
 Run `configme list` for the supported machines and compilers, and `configme --help` for the full command surface. The exact clone/configure/link/build commands `configme install yelmo` runs for you are recorded in a `.install.sh` script in the checkout, and are also shown for context on the [configme install details](configme-install-details.md) page — these are shown for reference only; `configme install` is the recommended path and you do not need to run them by hand.
 
-Once the install finishes you are ready to compile and run; see [Usage](#usage) below.
+### Fixing PATH
+
+If the `configme` command is not found after installation, your Python user bin directory is probably not on your `PATH`; add it in your `~/.bashrc` / `~/.zshrc`:
+
+```bash
+export PATH="${PATH}:${HOME}/.local/bin"
+```
+
+## How to get Yelmo manually
+
+If you prefer to clone Yelmo by hand instead of going through `configme install`, the repository is here: [https://github.com/fesmc/yelmo](https://github.com/fesmc/yelmo).
+
+```bash
+git clone git@github.com:fesmc/yelmo.git
+cd yelmo
+configme install yelmo
+```
+
+You will still need to configure the checkout and link `fesm-utils` afterwards, which is done by the `configme install yelmo` step above. See the [configme install details](configme-install-details.md) page for the equivalent step-by-step commands.
 
 ## Dependencies
 
@@ -60,7 +67,7 @@ The Yelmo stack depends on the following libraries:
 - FFTW (ver. 3.9+)
 - ['runme' Python package (fesmc)](https://github.com/fesmc/runme)
 
-Of these, only **NetCDF** must be installed on your system beforehand. LIS, FFTW (built via `fesm-utils`) and `runme` are all managed for you by `configme`. Installation tips for netCDF and `runme` can be found below.
+Of these, only **NetCDF** must be installed on your system beforehand. LIS, FFTW (built via `fesm-utils`) and `runme` are all managed for you by `configme`. Installation tips for netCDF can be found below.
 
 ### Installing NetCDF (preferably version 4.0 or higher)
 
@@ -74,19 +81,12 @@ installation instructions are available from the Unidata website:
 
 [https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html)
 
-### Installing runme
+## Updating configme
 
-`runme` prepares and runs Yelmo simulations (single runs and ensembles). `configme install` installs it for you if it is missing, so you normally do not need to install it by hand. To install it manually into your system's Python installation via `pip`:
-
-```bash
-pip install git+https://github.com/fesmc/runme
-```
-
-That's it! Ensemble support is built in, so no separate `runner` package is needed. Now check that the system command `runme` is available by running `runme -h`. If the command is not found, it means that the Python bin directory is not available in your PATH. To add it, typically something like this is needed in your .profile or .bashrc file:
+To update `configme` later, run:
 
 ```bash
-PATH=${PATH}:${HOME}/.local/bin
-export PATH
+configme update
 ```
 
 ## Directory structure
@@ -152,7 +152,7 @@ The Makefile additionally allows you to specify debugging compiler flags with th
 ### 2. Run the model
 
 Once an executable has been created, you can run the model. This can be
-achieved via the `runme` command (installed via `pip`, see [Installing runme](#installing-runme)). The following steps
+achieved via the `runme` command (installed for you by `configme`). The following steps
 are carried out by `runme`:
 
 1. The output directory is created.
