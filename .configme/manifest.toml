@@ -1,0 +1,6 @@
+# configme manifest for yelmo.
+package = "yelmo"
+deps = [
+    "fesm-utils",
+    "fesm-utils/utils",
+]
