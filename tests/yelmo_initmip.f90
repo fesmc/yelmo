@@ -618,6 +618,12 @@ contains
         call yelmo_write_var(filename,"bmb_grnd",ylmo,n,ncid)
         call yelmo_write_var(filename,"H_w",ylmo,n,ncid)
         call yelmo_write_var(filename,"T_rock",ylmo,n,ncid)
+
+        ! == yelmo_hydrology (fasthydrology) ==
+        call yelmo_write_var(filename,"hyd_H_w",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_dHwdt",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_N",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_p_w",ylmo,n,ncid)
         
         !call yelmo_write_var(filename,"Q_strn",ylmo,n,ncid)
         call nc_write(filename,"Q_strn",ylmo%thrm%now%Q_strn/(ylmo%bnd%c%rho_ice*ylmo%thrm%now%cp),units="K a-1",long_name="Strain heating", &

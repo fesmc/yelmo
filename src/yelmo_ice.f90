@@ -802,6 +802,7 @@ contains
         call load_var_io_table(dom%io%dyn,"input/yelmo-variables-ydyn.md")
         call load_var_io_table(dom%io%mat,"input/yelmo-variables-ymat.md")
         call load_var_io_table(dom%io%thrm,"input/yelmo-variables-ytherm.md")
+        call load_var_io_table(dom%io%hyd,"input/yelmo-variables-yhyd.md")
         call load_var_io_table(dom%io%bnd,"input/yelmo-variables-ybound.md")
         call load_var_io_table(dom%io%dta,"input/yelmo-variables-ydata.md")
 

@@ -163,6 +163,18 @@ contains
 
         end if
 
+        ! == yhyd variables ===
+        if (.not. found) then
+
+            call find_var_io_in_table(io%v,varname,io%hyd)
+
+            if (.not. trim(io%v%varname) .eq. "none") then
+                call yelmo_write_var_io_yhyd(filename,io%v,ylmo,n,ncid,irange,jrange)
+                found = .TRUE.
+            end if
+
+        end if
+
         ! == ybound variables ===
         if (.not. found) then
 
@@ -396,6 +408,11 @@ contains
         ! == ytherm variables ===
         do q = 1, size(io%thrm)
             call yelmo_write_var_io_ytherm(filename,io%thrm(q),dom,n,ncid,irange,jrange)
+        end do
+
+        ! == yhyd variables ===
+        do q = 1, size(io%hyd)
+            call yelmo_write_var_io_yhyd(filename,io%hyd(q),dom,n,ncid,irange,jrange)
         end do
 
         ! == ybound variables ===
@@ -957,22 +974,54 @@ contains
         
         call nc_read_interp(filename,"advecxy",     dom%thrm%now%advecxy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],mps=mps)   
         
-        call nc_read_interp(filename,"Q_rock",      dom%thrm%now%Q_rock,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)        
-        call nc_read_interp(filename,"enth_rock",   dom%thrm%now%enth_rock,  ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)      
-        call nc_read_interp(filename,"T_rock",      dom%thrm%now%T_rock,     ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)      
+        call nc_read_interp(filename,"Q_rock",      dom%thrm%now%Q_rock,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"enth_rock",   dom%thrm%now%enth_rock,  ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)
+        call nc_read_interp(filename,"T_rock",      dom%thrm%now%T_rock,     ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)
+
+        ! == yhyd variables ===
+        ! Guarded against legacy restart files written before fasthydrology
+        ! was integrated. Any field that is missing keeps its post-yhyd_init_state
+        ! value (zeros under HYDRO_INIT_ZERO).
+        if (nc_exists_var(filename,"hyd_H_w")) then
+            call nc_read_interp(filename,"hyd_H_w",   dom%hyd%now%H_w,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_dHwdt")) then
+            call nc_read_interp(filename,"hyd_dHwdt", dom%hyd%now%dHwdt, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_N")) then
+            call nc_read_interp(filename,"hyd_N",     dom%hyd%now%N,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_p_w")) then
+            call nc_read_interp(filename,"hyd_p_w",   dom%hyd%now%p_w,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_q_x")) then
+            call nc_read_interp(filename,"hyd_q_x",   dom%hyd%now%q_x,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_q_y")) then
+            call nc_read_interp(filename,"hyd_q_y",   dom%hyd%now%q_y,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+        if (nc_exists_var(filename,"hyd_kappa")) then
+            call nc_read_interp(filename,"hyd_kappa", dom%hyd%now%kappa, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
+
+        ! Mark fasthydrology as initialized from the restart (state was
+        ! already allocated and seeded by yhyd_init_state earlier in the
+        ! init sequence; this read overrides the zero seed).
+        dom%hyd%now%initialized = .TRUE.
+        dom%hyd%now%time        = time
 
         ! Close the netcdf file
         call nc_close(ncid)
 
-        ! Write summary 
+        ! Write summary
 
         dom%thrm%par%time = time
-        dom%mat%par%time  = time 
+        dom%mat%par%time  = time
         dom%dyn%par%time  = time
-        
-        write(*,*) 
+
+        write(*,*)
         write(*,*) "time = ", time, " : loaded restart file: ", trim(filename)
-        write(*,*) 
+        write(*,*)
         
         return 
 
@@ -1744,6 +1793,70 @@ contains
         return
 
     end subroutine yelmo_write_var_io_ytherm
+
+    subroutine yelmo_write_var_io_yhyd(filename,v,ylmo,n,ncid,irange,jrange)
+        ! Write a single basal-hydrology (fasthydrology) field. Variable
+        ! names carry an explicit "hyd_" prefix so they sit alongside the
+        ! ytherm-side H_w / dHwdt without colliding.
+
+        implicit none
+
+        character(len=*),  intent(IN) :: filename
+        type(var_io_type), intent(IN) :: v
+        type(yelmo_class), intent(IN) :: ylmo
+        integer,           intent(IN) :: n
+        integer,           intent(IN), optional :: ncid
+        integer,           intent(IN), optional :: irange(2)
+        integer,           intent(IN), optional :: jrange(2)
+
+        ! Local variables
+        integer :: i1, i2, j1, j2
+        character(len=32), allocatable :: dims(:)
+
+        ! Get indices for current domain of interest
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+
+        allocate(dims(v%ndims+1))
+        dims(1:v%ndims) = v%dims
+        dims(v%ndims+1) = "time"
+
+        select case(trim(v%varname))
+
+            case("hyd_H_w")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%H_w(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_dHwdt")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%dHwdt(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_N")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%N(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_p_w")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%p_w(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_q_x")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%q_x(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_q_y")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%q_y(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_kappa")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%kappa(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+
+            case DEFAULT
+
+                write(io_unit_err,*)
+                write(io_unit_err,*) "yelmo_write_var_io_yhyd:: Error: variable not yet supported."
+                write(io_unit_err,*) "variable = ", trim(v%varname)
+                write(io_unit_err,*) "filename = ", trim(filename)
+                stop
+
+        end select
+
+        return
+
+    end subroutine yelmo_write_var_io_yhyd
 
     subroutine yelmo_write_var_io_ybound(filename,v,ylmo,n,ncid,irange,jrange)
 

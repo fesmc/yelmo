@@ -953,6 +953,7 @@ module yelmo_defs
         type(var_io_type), allocatable :: dyn(:)
         type(var_io_type), allocatable :: mat(:)
         type(var_io_type), allocatable :: thrm(:)
+        type(var_io_type), allocatable :: hyd(:)
         type(var_io_type), allocatable :: bnd(:)
         type(var_io_type), allocatable :: dta(:)
     end type
