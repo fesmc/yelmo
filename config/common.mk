@@ -14,6 +14,18 @@ LISROOT = fesm-utils/lis-serial
 INC_LIS = -I${LISROOT}/include
 LIB_LIS = -L${LISROOT}/lib/ -llis
 
+# FastHydrology: subglacial hydrology library. Built in-tree as a sibling
+# checkout (yelmo/fasthydrology), exposing module/lib under include/.
+FASTHYDROROOT = fasthydrology
+INC_FASTHYDRO = -I${FASTHYDROROOT}/include
+LIB_FASTHYDRO = -L${FASTHYDROROOT}/include -lfasthydro
+
+# FFTW: required transitively by FastHydrology. Built by fesm-utils into a
+# sibling tree; swapped to the OpenMP variant in the openmp block below.
+FFTWROOT = fesm-utils/fftw-serial
+INC_FFTW = -I${FFTWROOT}/include
+LIB_FFTW = -L${FFTWROOT}/lib -lfftw3 -lm
+
 # PETSc is an optional linear solver (enabled with `make petsc=1`). It is not
 # managed by configme: PETSCROOT / PETSC_DIR are site-specific — set PETSC_DIR
 # in the environment, or override PETSCROOT here for your machine.
@@ -32,6 +44,10 @@ ifeq ($(openmp), 1)
     INC_LIS = -I${LISROOT}/include
     LIB_LIS = -L${LISROOT}/lib/ -llis
 
+    FFTWROOT = fesm-utils/fftw-omp
+    INC_FFTW = -I${FFTWROOT}/include
+    LIB_FFTW = -L${FFTWROOT}/lib -lfftw3_omp -lfftw3 -lm
+
     FFLAGS += $(FFLAGS_OPENMP)
 endif
 
@@ -48,4 +64,4 @@ endif
 # `LFLAGS_EXTRA =` (macOS ld rejects -zmuldefs, so the macbook fragment does).
 LFLAGS_EXTRA ?= -Wl,-zmuldefs
 
-LFLAGS = $(LIB_NC) $(LIB_FESMUTILS) $(LIB_LINEAR) $(LFLAGS_EXTRA)
+LFLAGS = $(LIB_NC) $(LIB_FESMUTILS) $(LIB_FASTHYDRO) $(LIB_FFTW) $(LIB_LINEAR) $(LFLAGS_EXTRA)
