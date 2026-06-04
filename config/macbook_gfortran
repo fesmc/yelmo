@@ -11,14 +11,22 @@ INC_FESMUTILS = -I${FESMUTILSROOT}/include-serial
 LIB_FESMUTILS = -L${FESMUTILSROOT}/include-serial -lfesmutils
 
 LISROOT = fesm-utils/lis-serial
-INC_LIS = -I${LISROOT}/include 
+INC_LIS = -I${LISROOT}/include
 LIB_LIS = -L${LISROOT}/lib/ -llis
+
+FASTHYDROROOT = fasthydrology
+INC_FASTHYDRO = -I${FASTHYDROROOT}/include
+LIB_FASTHYDRO = -L${FASTHYDROROOT}/include -lfasthydro
+
+FFTWROOT = fesm-utils/fftw-serial
+INC_FFTW = -I${FFTWROOT}/include
+LIB_FFTW = -L${FFTWROOT}/lib -lfftw3 -lm
 
 PETSCROOT = /opt/local/lib/petsc
 INC_PETSC = -I $(PETSC_DIR)/include
 LIB_PETSC = -L${PETSC_DIR}/lib -lpetsc
 
-FFLAGS = -I$(objdir) -J$(objdir) -ffree-line-length-none 
+FFLAGS = -I$(objdir) -J$(objdir) -ffree-line-length-none
 
 ifeq ($(openmp), 1)
     FESMUTILSROOT=fesm-utils/utils
@@ -26,22 +34,26 @@ ifeq ($(openmp), 1)
     LIB_FESMUTILS = -L${FESMUTILSROOT}/include-omp -lfesmutils
 
     LISROOT = fesm-utils/lis-omp
-    INC_LIS = -I${LISROOT}/include 
+    INC_LIS = -I${LISROOT}/include
     LIB_LIS = -L${LISROOT}/lib/ -llis
 
-    FFLAGS  = -I$(objdir) -J$(objdir) -ffree-line-length-none -fopenmp 
-endif 
+    FFTWROOT = fesm-utils/fftw-omp
+    INC_FFTW = -I${FFTWROOT}/include
+    LIB_FFTW = -L${FFTWROOT}/lib -lfftw3_omp -lfftw3 -lm
+
+    FFLAGS  = -I$(objdir) -J$(objdir) -ffree-line-length-none -fopenmp
+endif
 
 # Define which linear solvers to include (LIS necessary, PETSC optional)
 INC_LINEAR = $(INC_LIS)
 LIB_LINEAR = $(LIB_LIS)
 ifeq ($(petsc), 1)
     # Add petsc library to flags
-    INC_LINEAR = $(INC_LIS) $(INC_PETSC) 
+    INC_LINEAR = $(INC_LIS) $(INC_PETSC)
     LIB_LINEAR = $(LIB_LIS) $(LIB_PETSC)
 endif
 
-LFLAGS  = $(LIB_NC) $(LIB_FESMUTILS) $(LIB_LINEAR)
+LFLAGS  = $(LIB_NC) $(LIB_FESMUTILS) $(LIB_FASTHYDRO) $(LIB_FFTW) $(LIB_LINEAR)
 
 DFLAGS_NODEBUG = -O2 -march=native
 DFLAGS_DEBUG   = -w -g -ggdb -ffpe-trap=invalid,zero,overflow -fbacktrace -fcheck=all -Wp,-DDEBUG

@@ -1,6 +1,7 @@
 Makefile
 libyelmo
 fesm-utils
+fasthydrology
 libs/lis*
 ice_data
 tests/plots
