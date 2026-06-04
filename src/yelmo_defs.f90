@@ -6,8 +6,9 @@ module yelmo_defs
 
     use nml, only : nml_replace
     use variable_io, only : var_io_type
-    
-    implicit none 
+    use fast_hydrology, only : hydro_class
+
+    implicit none
 
     ! =========================================================================
     !
@@ -980,6 +981,7 @@ module yelmo_defs
         character(len=32)   :: nml_yneff
         character(len=32)   :: nml_ymat
         character(len=32)   :: nml_ytherm
+        character(len=32)   :: nml_yhyd
         character(len=32)   :: nml_masks
         character(len=32)   :: nml_init_topo
         character(len=32)   :: nml_data
@@ -1072,6 +1074,7 @@ module yelmo_defs
         type(ydyn_class)        :: dyn      ! Dynamics variables
         type(ymat_class)        :: mat      ! Material variables
         type(ytherm_class)      :: thrm     ! Thermodynamics variables
+        type(hydro_class)       :: hyd      ! Basal hydrology (fasthydrology)
         type(ybound_class)      :: bnd      ! Boundary variables to drive model
         type(ydata_class)       :: dta      ! Data variables for comparison
         type(yregions_class)    :: reg      ! Regionally aggregated variables for whole domain 

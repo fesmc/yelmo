@@ -1,8 +1,14 @@
 #############################################################
-##							
+##
 ## Rules for individual libraries or modules
 ##
 #############################################################
+
+# fasthydrology .mod files are referenced (transitively) by every yelmo
+# source that uses yelmo_defs, because yelmo_defs declares
+# `type(hydro_class) :: hyd` inside yelmo_class. Make the include path
+# visible to all compile rules below.
+FFLAGS += $(INC_FASTHYDRO)
 
 ## EXTERNAL LIBRARIES #######################################
 
@@ -160,6 +166,9 @@ $(objdir)/yelmo_thermodynamics.o: $(srcdir)/yelmo_thermodynamics.f90 $(objdir)/y
 								  $(objdir)/solver_advection.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
+$(objdir)/yelmo_hydrology.o: $(srcdir)/yelmo_hydrology.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
 $(objdir)/yelmo_boundaries.o: $(srcdir)/yelmo_boundaries.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -183,6 +192,7 @@ $(objdir)/yelmo_ice.o: $(srcdir)/yelmo_ice.f90 $(objdir)/yelmo_defs.o  \
 	                   $(objdir)/velocity_sia.o \
 	                   $(objdir)/yelmo_material.o \
 	                   $(objdir)/yelmo_thermodynamics.o \
+	                   $(objdir)/yelmo_hydrology.o \
 	                   $(objdir)/yelmo_boundaries.o \
 	                   $(objdir)/yelmo_data.o \
 	                   $(objdir)/yelmo_regions.o \
@@ -249,6 +259,7 @@ yelmo_base = 		   $(objdir)/yelmo_defs.o \
 	         		   $(objdir)/yelmo_dynamics.o \
 	         		   $(objdir)/yelmo_material.o \
 	         		   $(objdir)/yelmo_thermodynamics.o \
+	         		   $(objdir)/yelmo_hydrology.o \
 	         		   $(objdir)/yelmo_boundaries.o \
 	                   $(objdir)/yelmo_data.o \
 	                   $(objdir)/yelmo_regions.o \

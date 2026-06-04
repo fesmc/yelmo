@@ -18,6 +18,7 @@ module yelmo_ice
     use yelmo_dynamics
     use yelmo_material
     use yelmo_thermodynamics
+    use yelmo_hydrology, only : yhyd_par_load, yhyd_init_state, calc_yhyd
     use yelmo_boundaries
     use yelmo_data 
     use yelmo_regions 
@@ -287,7 +288,11 @@ contains
 
                     ! Calculate thermodynamics (temperatures and enthalpy)
                     call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time_now)
-                end if 
+
+                    ! Update basal hydrology (fasthydrology). Same gating as
+                    ! ytherm: only fires when calc_ytherm did (update_others_pc).
+                    call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
+                end if
 
                 ! Step 3: Perform corrector step for topography
                 ! Get corrected ice thickness and store it for later use
@@ -388,7 +393,10 @@ contains
                 ! Calculate thermodynamics (temperatures and enthalpy)
                 call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time_now)
 
-            end if 
+                ! Update basal hydrology (fasthydrology) on the same step.
+                call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
+
+            end if
 
             ! Update topography accounting for advective changes
             ! and mass balance changes and calving.
@@ -778,9 +786,15 @@ contains
         call ytherm_par_load(dom%thrm%par,filename,dom%par%nml_ytherm,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
 
         call ytherm_alloc(dom%thrm%now,dom%thrm%par%nx,dom%thrm%par%ny,dom%thrm%par%nz_aa,dom%thrm%par%nz_ac,dom%thrm%par%nzr_aa)
-        
+
         write(*,*) "yelmo_init:: thermodynamics initialized."
-        
+
+        ! == hydrology (fasthydrology) ==
+
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%nx,dom%grd%ny,dom%grd%dx,dom%grd%dy)
+
+        write(*,*) "yelmo_init:: hydrology initialized."
+
         ! === Yelmo IO tables ===
         
         ! Load variable io tables
@@ -1289,15 +1303,20 @@ contains
         
         ! Initialize variables
 
-        if (dom%par%use_restart) then 
-            ! Load variables from a restart file 
+        ! Seed fasthydrology's state from current topo / boundary fields.
+        ! Done unconditionally (commit 2 does not wire hyd into the
+        ! restart yet — it always cold-starts from init_method).
+        call yhyd_init_state(dom%hyd,dom%bnd,dom%tpo,time)
+
+        if (dom%par%use_restart) then
+            ! Load variables from a restart file
 
             call yelmo_restart_read(dom,trim(dom%par%restart),time)
-            
+
             ! And ensure pc is already active
-            dom%time%pc_active = .TRUE. 
-            
-        else 
+            dom%time%pc_active = .TRUE.
+
+        else
 
             ! Consistency check 
             if (trim(thrm_method) .ne. "linear" .and. trim(thrm_method) .ne. "robin" &
@@ -1323,6 +1342,9 @@ contains
             ! Calculate initial thermodynamic information
             dom%thrm%par%time = dble(time) - dom%par%dt_min
             call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time)
+
+            ! Initial basal hydrology step (fasthydrology), mirroring ytherm.
+            call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time)
 
             ! Calculate material information (with no dynamics), and set initial ice dep_time values
             
@@ -1390,6 +1412,7 @@ contains
         call nml_read(filename,group,"nml_yneff",     par%nml_yneff)
         call nml_read(filename,group,"nml_ymat",      par%nml_ymat)
         call nml_read(filename,group,"nml_ytherm",    par%nml_ytherm)
+        call nml_read(filename,group,"nml_yhyd",      par%nml_yhyd)
         call nml_read(filename,group,"nml_masks",     par%nml_masks)
         call nml_read(filename,group,"nml_init_topo", par%nml_init_topo)
         call nml_read(filename,group,"nml_data",      par%nml_data)
