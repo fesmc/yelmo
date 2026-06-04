@@ -15,8 +15,10 @@ INC_LIS = -I${LISROOT}/include
 LIB_LIS = -L${LISROOT}/lib/ -llis
 
 # FastHydrology: subglacial hydrology library. Built in-tree as a sibling
-# checkout (yelmo/fasthydrology), exposing module/lib under include/.
-FASTHYDROROOT = fasthydrology
+# checkout (yelmo/FastHydrology), exposing module/lib under include/. The
+# directory casing matches the upstream repo and what `configme install`
+# creates as the link target.
+FASTHYDROROOT = FastHydrology
 INC_FASTHYDRO = -I${FASTHYDROROOT}/include
 LIB_FASTHYDRO = -L${FASTHYDROROOT}/include -lfasthydro
 
