@@ -979,30 +979,16 @@ contains
         call nc_read_interp(filename,"T_rock",      dom%thrm%now%T_rock,     ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)
 
         ! == yhyd variables ===
-        ! Guarded against legacy restart files written before fasthydrology
-        ! was integrated. Any field that is missing keeps its post-yhyd_init_state
-        ! value (zeros under HYDRO_INIT_ZERO).
-        if (nc_exists_var(filename,"hyd_H_w")) then
-            call nc_read_interp(filename,"hyd_H_w",   dom%hyd%now%H_w,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_dHwdt")) then
-            call nc_read_interp(filename,"hyd_dHwdt", dom%hyd%now%dHwdt, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_N")) then
-            call nc_read_interp(filename,"hyd_N",     dom%hyd%now%N,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_p_w")) then
-            call nc_read_interp(filename,"hyd_p_w",   dom%hyd%now%p_w,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_q_x")) then
-            call nc_read_interp(filename,"hyd_q_x",   dom%hyd%now%q_x,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_q_y")) then
-            call nc_read_interp(filename,"hyd_q_y",   dom%hyd%now%q_y,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
-        if (nc_exists_var(filename,"hyd_kappa")) then
-            call nc_read_interp(filename,"hyd_kappa", dom%hyd%now%kappa, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
-        end if
+        call nc_read_interp(filename,"hyd_W_til",     dom%hyd%now%W_til,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_W_til_max", dom%hyd%now%W_til_max, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_dW_til_dt", dom%hyd%now%dW_til_dt, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_overflow",  dom%hyd%now%overflow,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_W",         dom%hyd%now%W,         ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_p_w",       dom%hyd%now%p_w,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_q_x",       dom%hyd%now%q_x,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_q_y",       dom%hyd%now%q_y,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_N",         dom%hyd%now%N,         ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        call nc_read_interp(filename,"hyd_kappa",     dom%hyd%now%kappa,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
 
         ! Mark fasthydrology as initialized from the restart (state was
         ! already allocated and seeded by yhyd_init_state earlier in the
@@ -1797,7 +1783,7 @@ contains
     subroutine yelmo_write_var_io_yhyd(filename,v,ylmo,n,ncid,irange,jrange)
         ! Write a single basal-hydrology (fasthydrology) field. Variable
         ! names carry an explicit "hyd_" prefix so they sit alongside the
-        ! ytherm-side H_w / dHwdt without colliding.
+        ! ytherm-side H_w without colliding.
 
         implicit none
 
@@ -1822,14 +1808,20 @@ contains
 
         select case(trim(v%varname))
 
-            case("hyd_H_w")
-                call nc_write(filename,trim(v%varname),ylmo%hyd%now%H_w(i1:i2,j1:j2), &
+            case("hyd_W_til")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%W_til(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("hyd_dHwdt")
-                call nc_write(filename,trim(v%varname),ylmo%hyd%now%dHwdt(i1:i2,j1:j2), &
+            case("hyd_W_til_max")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%W_til_max(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("hyd_N")
-                call nc_write(filename,trim(v%varname),ylmo%hyd%now%N(i1:i2,j1:j2), &
+            case("hyd_dW_til_dt")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%dW_til_dt(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_overflow")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%overflow(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_W")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%W(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_p_w")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%p_w(i1:i2,j1:j2), &
@@ -1839,6 +1831,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_q_y")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%q_y(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_N")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%N(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_kappa")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%kappa(i1:i2,j1:j2), &

@@ -620,10 +620,16 @@ contains
         call yelmo_write_var(filename,"T_rock",ylmo,n,ncid)
 
         ! == yelmo_hydrology (fasthydrology) ==
-        call yelmo_write_var(filename,"hyd_H_w",ylmo,n,ncid)
-        call yelmo_write_var(filename,"hyd_dHwdt",ylmo,n,ncid)
-        call yelmo_write_var(filename,"hyd_N",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_W_til",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_W_til_max",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_dW_til_dt",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_overflow",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_W",ylmo,n,ncid)
         call yelmo_write_var(filename,"hyd_p_w",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_q_x",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_q_y",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_N",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_kappa",ylmo,n,ncid)
         
         !call yelmo_write_var(filename,"Q_strn",ylmo,n,ncid)
         call nc_write(filename,"Q_strn",ylmo%thrm%now%Q_strn/(ylmo%bnd%c%rho_ice*ylmo%thrm%now%cp),units="K a-1",long_name="Strain heating", &
