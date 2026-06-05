@@ -1,7 +1,7 @@
 # Legacy single-file config for `python config.py config/awi_albedo_ifx`.
 # Modern path: `configme config yelmo -m awi_albedo -c ifx`. This file inlines
-# the per-machine/per-compiler bits and then `include`s common.mk for the
-# shared dependency wiring.
+# the per-machine/per-compiler bits only — the shared dependency wiring is
+# included by the top-level Makefile template via `include config/common.mk`.
 
 FC = ifx
 
@@ -20,5 +20,3 @@ FFLAGS_OPENMP = -qopenmp
 DFLAGS_NODEBUG = -Ofast -march=core-avx2 -mtune=core-avx2 -traceback #-recursive
 DFLAGS_DEBUG   = -C -O0 -traceback -ftrapuv -fpe0 -check all -fp-model precise -debug extended -gen-interfaces -warn interfaces -check arg_temp_created
 DFLAGS_PROFILE = -O2 -fp-model precise -pg
-
-include config/common.mk

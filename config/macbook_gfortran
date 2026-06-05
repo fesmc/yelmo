@@ -1,10 +1,10 @@
 # Legacy single-file config for `python config.py config/macbook_gfortran`.
 #
 # The modern path is `configme config yelmo -m macbook -c gfortran`, which
-# assembles compiler + machine fragments + common.mk centrally. This legacy
-# file inlines the per-machine/per-compiler bits and then `include`s
-# common.mk so the shared dependency wiring (FESMUTILS, LIS, FASTHYDRO, ...)
-# lives in exactly one place.
+# assembles compiler + machine fragments centrally. This legacy file inlines
+# the per-machine/per-compiler bits only — the shared dependency wiring
+# (FESMUTILS, LIS, FASTHYDRO, ...) is included by the top-level Makefile
+# template via `include config/common.mk`, so it lives in exactly one place.
 
 FC = gfortran
 
@@ -29,5 +29,3 @@ LFLAGS_EXTRA =
 DFLAGS_NODEBUG = -O2 -march=native
 DFLAGS_DEBUG   = -w -g -ggdb -ffpe-trap=invalid,zero,overflow -fbacktrace -fcheck=all -Wp,-DDEBUG
 DFLAGS_PROFILE = -O2 -p -ggdb
-
-include config/common.mk

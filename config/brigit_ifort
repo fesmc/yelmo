@@ -1,7 +1,7 @@
 # Legacy single-file config for `python config.py config/brigit_ifort`.
 # Modern path: `configme config yelmo -m brigit -c ifort`. This file inlines
-# the per-machine/per-compiler bits and then `include`s common.mk for the
-# shared dependency wiring.
+# the per-machine/per-compiler bits only — the shared dependency wiring is
+# included by the top-level Makefile template via `include config/common.mk`.
 
 FC = ifort
 
@@ -16,5 +16,3 @@ FFLAGS_OPENMP = -qopenmp
 DFLAGS_NODEBUG = -O2 -fp-model precise
 DFLAGS_DEBUG   = -C -traceback -ftrapuv -fpe0 -check all -fp-model precise
 DFLAGS_PROFILE = -O2 -fp-model precise -pg
-
-include config/common.mk
