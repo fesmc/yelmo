@@ -2,10 +2,13 @@
 
 | id | variable          | dimensions        | units        | long_name                                     |
 |----|-------------------|-------------------|--------------|-----------------------------------------------|
-|  1 | hyd_H_w           | xc, yc            | m            | Basal water layer thickness (hydrology)       |
-|  2 | hyd_dHwdt         | xc, yc            | m/yr         | Rate of change of basal water layer thickness (hydrology) |
-|  3 | hyd_N             | xc, yc            | Pa           | Effective pressure at the bed (hydrology)     |
-|  4 | hyd_p_w           | xc, yc            | Pa           | Basal water pressure (hydrology)              |
-|  5 | hyd_q_x           | xc, yc            | m^2/yr       | Basal water flux, x-component (hydrology)     |
-|  6 | hyd_q_y           | xc, yc            | m^2/yr       | Basal water flux, y-component (hydrology)     |
-|  7 | hyd_kappa         | xc, yc            | -            | K24 hydraulic transmissivity field            |
+|  1 | hyd_W_til         | xc, yc            | m            | Till water storage thickness (bucket)         |
+|  2 | hyd_W_til_max     | xc, yc            | m            | Per-cell cap on till water storage            |
+|  3 | hyd_dW_til_dt     | xc, yc            | m/s          | Rate of change of till water storage          |
+|  4 | hyd_overflow      | xc, yc            | m/s          | Till-saturation spill rate (K24 source)       |
+|  5 | hyd_W             | xc, yc            | m            | K24 distributed sheet thickness               |
+|  6 | hyd_p_w           | xc, yc            | Pa           | Basal water pressure                          |
+|  7 | hyd_q_x           | xc, yc            | m^2/s        | Basal water flux, x-component                 |
+|  8 | hyd_q_y           | xc, yc            | m^2/s        | Basal water flux, y-component                 |
+|  9 | hyd_N             | xc, yc            | Pa           | Effective pressure at the bed                 |
+| 10 | hyd_kappa         | xc, yc            | -            | K24 hydraulic transmissivity field            |

@@ -147,16 +147,17 @@
 
 &fhyd
     ! ---- top-level ----
-    method         = 1            ! -1=EXTERNAL 0=NONE 1=BUCKET 2=K24
-    init_method    = 0            ! 0=ZERO 1=EXTERNAL
-    dx             = 0.0          ! overridden by yhyd_par_load with grd%dx
-    dy             = 0.0          ! overridden by yhyd_par_load with grd%dy
-    H_w_max        = 2.0
-    mask_bc        = 0            ! 0=ZERO 1=IMPOSED 2=MIRROR
-    H_w_bc         = 0.0
+    method_til         = 0        ! 0=BUCKET 1=EXTERNAL
+    method_transport   = 0        ! 0=NONE 1=K24
+    init_method        = 0        ! 0=ZERO 1=EXTERNAL
+    dx                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dx
+    dy                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dy
+    W_til_max          = 2.0      ! [m]
+    mask_bc            = 0        ! 0=ZERO 1=IMPOSED 2=MIRROR (BC at domain edges)
+    W_til_bc           = 0.0      ! [m] imposed W_til at the domain border (mask_bc=1)
 
     ! ---- bucket (bkt_) ----
-    bkt_till_rate = 1.0e-3
+    bkt_till_rate = 1.0e-3        ! [m/a] background till drainage (converted to m/s internally)
     bkt_N_closure = 1             ! 0=NONE 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
 
     ! ---- closures (no prefix) ----
@@ -187,11 +188,10 @@
     k24_initial_cavity_height        = 0.1
     k24_coupling_length              = 1.0e4
     k24_long_coupling_water          = 5.0
-    k24_seconds_per_year             = 3.154e7
     k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 1.8e-3
-    k24_W_min                        = 1.0e-8
-    k24_W_max                        = 0.015
+    k24_eta_w                        = 1.8e-3    ! [Pa s] water dynamic viscosity (Kazmierczak 2022)
+    k24_W_min                        = 1.0e-8    ! [m]    W (sheet) lower clamp
+    k24_W_max                        = 0.015     ! [m]    W (sheet) upper clamp
 /
 
 &ytopo
