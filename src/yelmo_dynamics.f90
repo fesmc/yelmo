@@ -45,18 +45,19 @@ module yelmo_dynamics
     
 contains
 
-    subroutine calc_ydyn(dyn,tpo,mat,thrm,bnd,time)
+    subroutine calc_ydyn(dyn,tpo,mat,thrm,bnd,hyd,time)
         ! Velocity is a steady-state solution to a given set of boundary conditions (topo, material, etc).
-        ! However, the time is passed to be able to treat relaxation conditions for stability, etc. 
+        ! However, the time is passed to be able to treat relaxation conditions for stability, etc.
 
         implicit none
-        
+
         type(ydyn_class),   intent(INOUT) :: dyn
-        type(ytopo_class),  intent(IN)    :: tpo 
+        type(ytopo_class),  intent(IN)    :: tpo
         type(ymat_class),   intent(IN)    :: mat
-        type(ytherm_class), intent(IN)    :: thrm 
-        type(ybound_class), intent(IN)    :: bnd   
-        real(wp),         intent(IN)    :: time 
+        type(ytherm_class), intent(IN)    :: thrm
+        type(ybound_class), intent(IN)    :: bnd
+        type(hydro_class),  intent(IN)    :: hyd
+        real(wp),         intent(IN)    :: time
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac   
@@ -118,8 +119,8 @@ contains
         call calc_lateral_bc_stress_2D(dyn%now%taul_int_acx,dyn%now%taul_int_acy,tpo%now%mask_frnt,tpo%now%H_ice, &
                         tpo%now%f_ice,tpo%now%z_srf,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g,dyn%par%boundaries)
 
-        ! Calculate effective pressure 
-        call calc_ydyn_neff(dyn,tpo,thrm,bnd)
+        ! Calculate effective pressure
+        call calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
 
         ! Update bed roughness coefficients cb_ref and c_bed (which are independent of velocity)
 
@@ -842,15 +843,16 @@ contains
 
 !     end subroutine calc_ydyn_ssa
     
-    subroutine calc_ydyn_neff(dyn,tpo,thrm,bnd)
+    subroutine calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
         ! Update N_eff based on parameter choices
 
         implicit none
-        
+
         type(ydyn_class),   intent(INOUT) :: dyn
-        type(ytopo_class),  intent(IN)    :: tpo 
+        type(ytopo_class),  intent(IN)    :: tpo
         type(ytherm_class), intent(IN)    :: thrm
-        type(ybound_class), intent(IN)    :: bnd  
+        type(ybound_class), intent(IN)    :: bnd
+        type(hydro_class),  intent(IN)    :: hyd
 
         ! Local variables
         integer :: i, j, nx, ny 
@@ -884,11 +886,11 @@ contains
             stop
         end if
 
-        if (dyn%par%neff_method .lt. -1 .or. dyn%par%neff_method .gt. 5) then
-            write(*,*) "ydyn_calc_Neff:: Error: neff_method not recognized, must be one of [-1,0,1,2,3,4,5]."
-            write(*,*) "neff_method = ", dyn%par%neff_method 
+        if (dyn%par%neff_method .lt. -1 .or. dyn%par%neff_method .gt. 6) then
+            write(*,*) "ydyn_calc_Neff:: Error: neff_method not recognized, must be one of [-1,0,1,2,3,4,5,6]."
+            write(*,*) "neff_method = ", dyn%par%neff_method
             stop
-        end if 
+        end if
 
         ! Consistency checks
 
@@ -1010,12 +1012,34 @@ contains
                                                             H_w_max,dyn%par%neff_N0,dyn%par%neff_delta,dyn%par%neff_e0,dyn%par%neff_Cc, &
                                                             bnd%c%rho_ice,bnd%c%g) 
 
-                case(5) 
-                    ! Calculate two-valued effective pressure using till parameter neff_delta 
+                case(5)
+                    ! Calculate two-valued effective pressure using till parameter neff_delta
 
                     call calc_effective_pressure_two_value(dyn%now%N_eff(i,j),thrm%now%f_pmp(i,j),tpo%now%H_ice_dyn(i,j),tpo%now%f_ice_dyn(i,j), &
                                                                         tpo%now%f_grnd(i,j),dyn%par%neff_delta,bnd%c%rho_ice,bnd%c%g)
-                    
+
+                case(6)
+                    ! Effective pressure taken from the hyd (fasthydrology) component.
+                    ! N is already computed by hyd's N_closure (bucket or K24);
+                    ! here we only handle subgrid interpolation onto Gaussian
+                    ! quadrature / subgrid arrays for consistency with cases 2/3.
+
+                    if (dyn%par%neff_nxi .eq. 0) then
+                        ! No subgrid interpolation (nxi=1)
+                        dyn%now%N_eff(i,j) = hyd%now%N(i,j)
+
+                    else if (dyn%par%neff_nxi .eq. 1) then
+                        ! Subgrid interpolation using Gaussian quadrature (nxi=4 points)
+                        call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),hyd%now%N,dyn%par%dx,dyn%par%dy,i,j,im1,ip1,jm1,jp1)
+                        dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
+
+                    else
+                        ! Subgrid interpolation using subgrid array of points (nxi=neff_nxi)
+                        call calc_subgrid_array(Neff_int,hyd%now%N,nxi,i,j,im1,ip1,jm1,jp1)
+                        dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
+
+                    end if
+
                 end select
 
             end do

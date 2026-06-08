@@ -270,7 +270,7 @@ contains
 
                 ! Step 2: Calculate dynamics for predicted ice thickness 
 
-                call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,time_now)
+                call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time_now)
 
                 if (dom%par%pc_filter_vel) then 
                     
@@ -1368,7 +1368,7 @@ contains
                 dom%dyn%now%beta   = dom%dyn%now%c_bed
             end if
             
-            call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,time)
+            call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time)
 
             ! Calculate material information again with updated dynamics
         
