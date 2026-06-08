@@ -265,7 +265,7 @@ contains
                 names(14) = "taud"
                 names(15) = "visc_bar"
                 names(16) = "T_prime_b"
-                names(17) = "W_til"
+                names(17) = "hyd_W_til"
                 names(18) = "mb_net"
                 names(19) = "smb"
                 names(20) = "bmb"
@@ -1742,10 +1742,6 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("T_prime_b")
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%T_prime_b(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("W_til")
-                ! ytherm-side legacy "H_w" output renamed; reads hyd%W_til now.
-                call nc_write(filename,trim(v%varname),ylmo%hyd%now%W_til(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("cp") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%cp(i1:i2,j1:j2,:), &

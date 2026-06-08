@@ -616,7 +616,7 @@ contains
         call yelmo_write_var(filename,"Q_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"Q_ice_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"bmb_grnd",ylmo,n,ncid)
-        call yelmo_write_var(filename,"H_w",ylmo,n,ncid)
+        ! Note: basal water moved to hyd; output as "hyd_W_til" below.
         call yelmo_write_var(filename,"T_rock",ylmo,n,ncid)
 
         ! == yelmo_hydrology (fasthydrology) ==
