@@ -38,8 +38,6 @@ module thermodynamics
     public :: calc_Q_bedrock
     public :: calc_Q_bedrock_column
 
-    public :: calc_basal_water_local
-    
     public :: calc_basal_heating_nodes
     public :: calc_basal_heating_simplestagger
 
@@ -1169,7 +1167,7 @@ contains
 
     end function define_temp_linear_column
 
-    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,H_w,smb,bmb, &
+    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
                                                                     f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold)
         ! Robin solution for thermodynamics for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -1185,7 +1183,7 @@ contains
         real(wp), intent(IN)  :: Q_rock(:,:)      ! [mW m-2] Bedrock surface heat flux 
         real(wp), intent(IN)  :: T_srf(:,:)       ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_ice(:,:)       ! [m] Ice thickness 
-        real(wp), intent(IN)  :: H_w(:,:)         ! [m] Basal water layer thickness 
+        real(wp), intent(IN)  :: W_til(:,:)       ! [m] Basal till water thickness (from hyd; unused but kept for signature stability)
         real(wp), intent(IN)  :: smb(:,:)         ! [m a-1] Surface mass balance (melting is negative)
         real(wp), intent(IN)  :: bmb(:,:)         ! [m a-1] Basal mass balance (melting is negative)
         real(wp), intent(IN)  :: f_grnd(:,:)      ! [--] Floating point or grounded?
@@ -1531,88 +1529,6 @@ contains
         return
 
     end function error_function
-
-    ! ==== BASAL HYDROLOGY PHYSICS ===============================
-
-    subroutine calc_basal_water_local(H_w,dHwdt,f_ice,f_grnd,bmb_w,dt,till_rate,H_w_max)
-        ! Calculate the basal water layer thickness based on a simple local 
-        ! water balance: dHw/dt = bmb_w - till_rate
-        implicit none 
-         
-        real(wp), intent(INOUT) :: H_w(:,:)         ! [m] Water layer thickness
-        real(wp), intent(INOUT) :: dHwdt(:,:)       ! [m/a] Water layer thickness change
-        real(wp), intent(IN)    :: f_ice(:,:)       ! [m] Ice cell fraction
-        real(wp), intent(IN)    :: f_grnd(:,:)      ! [-] Grounded fraction
-        real(wp), intent(IN)    :: bmb_w(:,:)       ! [m/a] Basal water mass balance
-        real(wp), intent(IN)    :: dt               ! [a] Timestep 
-        real(wp), intent(IN)    :: till_rate        ! [m/a] Till drainage rate 
-        real(wp), intent(IN)    :: H_w_max          ! [m] Maximum allowed water depth 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        integer :: im1, ip1, jm1, jp1 
-        
-        nx = size(f_ice,1)
-        ny = size(f_ice,2)
-
-        ! Store initial H_w field  
-        dHwdt   = H_w 
-
-
-        ! Calculate the basal water balance at each grid point
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Define neighbor indices
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1)
-            jp1 = min(j+1,ny)
-            
-            ! Check cases...
-
-            if (f_grnd(i,j) .eq. 0.0_wp) then 
-                ! Floating or ice-free ocean point - set water layer to maximum
-
-                H_w(i,j)       = H_w_max 
-
-            else if (f_grnd(i,j) .gt. 0.0_wp .and. f_ice(i,j) .eq. 1.0_wp .and.  &
-                      (f_grnd(im1,j) .eq. 0.0_wp .or. f_grnd(ip1,j) .eq. 0.0_wp .or. &
-                       f_grnd(i,jm1) .eq. 0.0_wp .or. f_grnd(i,jp1) .eq. 0.0_wp) ) then 
-                ! Grounded- or partially-floating point with floating neighbors
-                
-                H_w(i,j)       = H_w_max
-
-            else if (f_grnd(i,j) .gt. 0.0_wp .and. f_ice(i,j) .lt. 1.0_wp) then 
-                ! Grounded ice-free point - set water layer to zero
-
-                H_w(i,j)       = 0.0_wp 
-
-            else
-                ! Grounded ice-covered point - evolve H_w as normal
-
-                ! Update mass balance of H_w
-                H_w(i,j) = H_w(i,j) + dt*(bmb_w(i,j)-till_rate)
-
-                ! Restrict H_w to values within limits
-                H_w(i,j) = max(H_w(i,j),0.0_wp)
-                H_w(i,j) = min(H_w(i,j),H_w_max)
-
-            end if 
-
-            ! Finally, determine rate of change 
-            if (dt .ne. 0.0_wp) then 
-                dHwdt(i,j)   = (dHwdt(i,j) - H_w(i,j)) / dt
-            else 
-                dHwdt(i,j)   = 0.0_wp
-            end if 
-
-        end do 
-        end do
-
-        return 
-
-    end subroutine calc_basal_water_local
 
     ! ========== ENTHALPY ==========================================
 

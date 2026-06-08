@@ -265,7 +265,7 @@ contains
                 names(14) = "taud"
                 names(15) = "visc_bar"
                 names(16) = "T_prime_b"
-                names(17) = "H_w"
+                names(17) = "W_til"
                 names(18) = "mb_net"
                 names(19) = "smb"
                 names(20) = "bmb"
@@ -964,10 +964,8 @@ contains
         call nc_read_interp(filename,"dQsdT",       dom%thrm%now%dQsdT,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],mps=mps)      
         call nc_read_interp(filename,"Q_b",         dom%thrm%now%Q_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)         
         call nc_read_interp(filename,"Q_ice_b",     dom%thrm%now%Q_ice_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)         
-        call nc_read_interp(filename,"T_prime_b",   dom%thrm%now%T_prime_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)  
-        call nc_read_interp(filename,"H_w",         dom%thrm%now%H_w,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps) 
-        call nc_read_interp(filename,"dHwdt",       dom%thrm%now%dHwdt,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps) 
-        
+        call nc_read_interp(filename,"T_prime_b",   dom%thrm%now%T_prime_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+
         call nc_read_interp(filename,"cp",          dom%thrm%now%cp,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],mps=mps) 
         call nc_read_interp(filename,"kt",          dom%thrm%now%kt,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],mps=mps)      
         call nc_read_interp(filename,"H_cts",       dom%thrm%now%H_cts,ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)       
@@ -979,7 +977,14 @@ contains
         call nc_read_interp(filename,"T_rock",      dom%thrm%now%T_rock,     ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],mps=mps)
 
         ! == yhyd variables ===
-        call nc_read_interp(filename,"hyd_W_til",     dom%hyd%now%W_til,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        ! Restart compatibility: legacy restarts wrote H_w (ytherm-side
+        ! basal water bucket). If hyd_W_til is missing, fall back to H_w
+        ! and seed hyd%now%W_til from it.
+        if (nc_exists_var(filename,"hyd_W_til")) then
+            call nc_read_interp(filename,"hyd_W_til", dom%hyd%now%W_til,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        else if (nc_exists_var(filename,"H_w")) then
+            call nc_read_interp(filename,"H_w",       dom%hyd%now%W_til,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
+        end if
         call nc_read_interp(filename,"hyd_W_til_max", dom%hyd%now%W_til_max, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
         call nc_read_interp(filename,"hyd_dW_til_dt", dom%hyd%now%dW_til_dt, ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
         call nc_read_interp(filename,"hyd_overflow",  dom%hyd%now%overflow,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],mps=mps)
@@ -1738,11 +1743,9 @@ contains
             case("T_prime_b")
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%T_prime_b(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("H_w")
-                call nc_write(filename,trim(v%varname),ylmo%thrm%now%H_w(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("dHwdt")
-                call nc_write(filename,trim(v%varname),ylmo%thrm%now%dHwdt(i1:i2,j1:j2), &
+            case("W_til")
+                ! ytherm-side legacy "H_w" output renamed; reads hyd%W_til now.
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%W_til(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("cp") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%cp(i1:i2,j1:j2,:), &
@@ -1783,7 +1786,8 @@ contains
     subroutine yelmo_write_var_io_yhyd(filename,v,ylmo,n,ncid,irange,jrange)
         ! Write a single basal-hydrology (fasthydrology) field. Variable
         ! names carry an explicit "hyd_" prefix so they sit alongside the
-        ! ytherm-side H_w without colliding.
+        ! standard ytherm output without colliding (e.g. "W_til" in
+        ! ytherm output reads hyd%W_til for backward compatibility).
 
         implicit none
 
