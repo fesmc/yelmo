@@ -765,7 +765,7 @@ contains
         
         ! == dynamics == 
 
-        call ydyn_par_load(dom%dyn%par,filename,dom%par%nml_ydyn,dom%par%nml_ytill,dom%par%nml_yneff, &
+        call ydyn_par_load(dom%dyn%par,filename,dom%par%nml_ydyn,dom%par%nml_ytill, &
                             dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
 
         call ydyn_alloc(dom%dyn%now,dom%dyn%par%nx,dom%dyn%par%ny,dom%dyn%par%nz_aa,dom%dyn%par%nz_ac)
@@ -1410,7 +1410,6 @@ contains
         call nml_read(filename,group,"nml_ycalv",     par%nml_ycalv)
         call nml_read(filename,group,"nml_ydyn",      par%nml_ydyn)
         call nml_read(filename,group,"nml_ytill",     par%nml_ytill)
-        call nml_read(filename,group,"nml_yneff",     par%nml_yneff)
         call nml_read(filename,group,"nml_ymat",      par%nml_ymat)
         call nml_read(filename,group,"nml_ytherm",    par%nml_ytherm)
         call nml_read(filename,group,"nml_yhyd",      par%nml_yhyd)

@@ -979,7 +979,6 @@ module yelmo_defs
         character(len=32)   :: nml_ycalv    
         character(len=32)   :: nml_ydyn
         character(len=32)   :: nml_ytill
-        character(len=32)   :: nml_yneff
         character(len=32)   :: nml_ymat
         character(len=32)   :: nml_ytherm
         character(len=32)   :: nml_yhyd

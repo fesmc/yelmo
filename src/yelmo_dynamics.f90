@@ -919,13 +919,12 @@ contains
 
     end subroutine calc_ydyn_neff
 
-    subroutine ydyn_par_load(par,filename,group_ydyn,group_ytill,group_yneff,zeta_aa,zeta_ac,nx,ny,dx,init)
+    subroutine ydyn_par_load(par,filename,group_ydyn,group_ytill,zeta_aa,zeta_ac,nx,ny,dx,init)
 
         type(ydyn_param_class), intent(OUT) :: par
         character(len=*),       intent(IN)  :: filename
         character(len=*),       intent(IN)  :: group_ydyn        ! Usually "ydyn"
         character(len=*),       intent(IN)  :: group_ytill       ! Usually "ytill"
-        character(len=*),       intent(IN)  :: group_yneff       ! Usually "yneff"
         real(wp),               intent(IN)  :: zeta_aa(:)
         real(wp),               intent(IN)  :: zeta_ac(:)
         integer,                intent(IN)  :: nx, ny 
@@ -985,10 +984,10 @@ contains
         call nml_read(filename,group_ytill,"cf_ref",            par%till_cf_ref,        init=init_pars)
         
         ! Effective pressure: N_eff is taken from hyd%now%N (computed by
-        ! the fasthydrology N-closure in &fhyd). The only remaining yneff
-        ! knob is subgrid interpolation of N onto Gaussian-quadrature /
-        ! subgrid sample points.
-        call nml_read(filename,group_yneff,"nxi",               par%neff_nxi,           init=init_pars)
+        ! the fasthydrology N-closure in &fhyd). The only remaining dyn-
+        ! side knob is subgrid interpolation of N onto Gaussian-quadrature /
+        ! subgrid sample points; lives under &ydyn as neff_nxi.
+        call nml_read(filename,group_ydyn,"neff_nxi",           par%neff_nxi,           init=init_pars)
 
         ! === Set internal parameters ======
 

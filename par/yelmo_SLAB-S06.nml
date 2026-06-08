@@ -1,8 +1,15 @@
 &ctrl
+    ! NOTE: tests/yelmo_slab.f90 reads several extra parameters from this
+    ! &ctrl group that are not currently defined here (H0, H_stdev, nx, ny,
+    ! alpha, nt, n_dx, n_dt, dx_range, dt_range, conv_tol). Running
+    ! yelmo_slab.x against this file will fail at nml_read("ctrl","H0",...).
+    ! The "schoof" companion values (H0, alpha) live in &ctrl_schoof below
+    ! and the slab driver needs updating to read from either group. Until
+    ! that lands, this file is a configuration template only.
 
     domain       = "SLAB-S06"           ! "SLAB-S06", "RAYMOND"
-    
-    ! Timing parameters 
+
+    ! Timing parameters
     time_init    = 0.0                  ! [yr] Starting time 
     time_end     = 1.0                  ! [yr] Ending time 
     dtt          = 1.0                  ! [yr] Main loop timestep 
@@ -42,7 +49,6 @@
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"
     nml_ytill       = "ytill"
-    nml_yneff       = "yneff"
     nml_ymat        = "ymat"
     nml_ytherm      = "ytherm"
     nml_yhyd        = "fhyd"
@@ -173,9 +179,11 @@
     ssa_iter_max        = 10              ! Number of maximum allowed iterations over ssa to converge on vel. solution
     ssa_iter_rel        = 0.7             ! [--] Relaxation fraction [0:1] to stabilize ssa iterations
     ssa_iter_conv       = 1e-4            ! [--] L2 relative error convergence limit to exit ssa iterations
-    taud_lim            = 2e5             ! [Pa] Maximum allowed driving stress 
+    taud_lim            = 2e5             ! [Pa] Maximum allowed driving stress
     cb_sia              = 0.0             ! [m a-1 Pa-1] Bed roughness coefficient for SIA sliding
-    
+
+    neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
+
 /
 
 &ytill
@@ -193,69 +201,33 @@
     cf_ref          =  0.8              ! [-- or deg] Reference/const/max value of cf
 /
 
-&yneff 
-    method          = 0                 ! -1: external N_eff, 0: neff_const, 1: overburden pressure, 2: Leguy param., 3: Till pressure
-    nxi             = 0                 ! 0: no subgrid interpolation, 1: Guassian quadrature of Neff, > 1: interpolate cell H_w to nxi x nxi points.
-    const           = 1.0               ! == rho_ice*g*(eg 1000 m ice thickness)
-    p               = 0.0               ! *neff_method=2* marine connectivity exponent (0: none, 1: full)
-    H_w_max         = -1.0              ! < 0: Use ytherm.H_w_max; >= 0: Saturation water thickness for neff_method=3.
-    N0              = 1000.0            ! [Pa] *neff_method=3* Reference effective pressure 
-    delta           = 0.04              ! [--] *neff_method=3* Fraction of overburden pressure for saturated till
-    e0              = 0.69              ! [--] *neff_method=3* Reference void ratio at N0 
-    Cc              = 0.12              ! [--] *neff_method=3* Till compressibility    
-    s_const         = 0.5               ! [--] *neff_method=4* Imposed constant till water saturation level    
-/
-
-&ymat
-    flow_law                = "glen"        ! Only "glen" is possible right now
-    rf_method               = 0             ! -1: set externally; 0: rf_const everywhere; 1: standard function 
-    rf_const                = 1e-16         ! [Pa a^(1/3)]
-    rf_use_eismint2         = False         ! Only applied for rf_method=1
-    rf_with_water           = False         ! Only applied for rf_method=1, scale rf by water content?
-    n_glen                  = 3.0           ! Glen flow law exponent
-    visc_min                = 1e3           ! [Pa a] Minimum allowed viscosity 
-    de_max                  = 0.5           ! [a-1]  Maximum allowed effective strain rate
-    enh_method              = "shear3D"     ! "simple","shear2D", "shear3D", "paleo-shear" 
-    enh_shear               = 1.0
-    enh_stream              = 1.0
-    enh_shlf                = 1.0
-    enh_umin                = 50.0          ! [m/yr] Minimum transition velocity to enh_stream (enh_method="paleo-shear")
-    enh_umax                = 500.0         ! [m/yr] Maximum transition velocity to enh_stream (enh_method="paleo-shear")
-    calc_age                = False         ! Calculate age tracer field?
-    age_iso                 = 0.0
-    tracer_method           = "expl"        ! "expl", "impl": used for age and 'paleo-shear' enh fields
-    tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit tracer solving 
-    
-/
-
 &fhyd
-    ! Bucket-only configuration, mirroring the legacy ytherm H_w bucket
-    ! one-to-one. With yneff method=6 the dyn N_eff is read from hyd%now%N.
-    ! Parameters here are matched to ytherm.{H_w_max,till_rate} and
-    ! yneff.{N0,delta,e0,Cc} so the till N-closure is bit-for-bit identical
-    ! to the legacy van Pelt & Bueler (2015) path (neff_method=3).
-    method_til         = 0        ! 0=BUCKET (matches legacy thrm bucket)
-    method_transport   = 0        ! 0=NONE   (no K24 sheet transport)
-    init_method        = 0        ! 0=ZERO
+    ! Bucket-only configuration (no K24 transport). For SLAB-S06 the
+    ! ytherm method is "fixed" so W_til stays at zero; the N-closure is
+    ! set to overburden as the most reasonable replacement for the
+    ! legacy neff_method=0 (constant N_eff) path.
+    method_til         = 0        ! 0=BUCKET 1=EXTERNAL
+    method_transport   = 0        ! 0=NONE 1=K24
+    init_method        = 0        ! 0=ZERO 1=EXTERNAL
     dx                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dx
     dy                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dy
-    W_til_max          = 2.0      ! [m]   match ytherm.H_w_max
-    mask_bc            = 0        ! 0=ZERO
+    W_til_max          = 2.0      ! [m]   was ytherm.H_w_max
+    mask_bc            = 0        ! 0=ZERO 1=IMPOSED 2=MIRROR
     W_til_bc           = 0.0      ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_till_rate = 1.0e-3        ! [m/a]  match ytherm.till_rate
-    bkt_N_closure = 3             ! 0=NONE 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_till_rate = 1.0e-3        ! [m/a]  was ytherm.till_rate
+    bkt_N_closure = 1             ! 0=NONE 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
 
     ! ---- closures (no prefix) ----
     rho_ice          = 917.0
     g                = 9.81
     marine_p         = 1.0
     marine_rho_sw    = 1028.0
-    till_N0          = 1000.0     ! match yneff.N0
-    till_delta       = 0.04       ! match yneff.delta (SLAB uses 0.04)
-    till_e0          = 0.69       ! match yneff.e0
-    till_Cc          = 0.12       ! match yneff.Cc
+    till_N0          = 1000.0     ! legacy yneff.N0
+    till_delta       = 0.04       ! legacy yneff.delta
+    till_e0          = 0.69       ! legacy yneff.e0
+    till_Cc          = 0.12       ! legacy yneff.Cc
     two_value_delta  = 0.02
 
     ! ---- k24 (k24_) ----  unused under method_transport=0
@@ -281,6 +253,28 @@
     k24_W_max                        = 0.015
 /
 
+&ymat
+    flow_law                = "glen"        ! Only "glen" is possible right now
+    rf_method               = 0             ! -1: set externally; 0: rf_const everywhere; 1: standard function 
+    rf_const                = 1e-16         ! [Pa a^(1/3)]
+    rf_use_eismint2         = False         ! Only applied for rf_method=1
+    rf_with_water           = False         ! Only applied for rf_method=1, scale rf by water content?
+    n_glen                  = 3.0           ! Glen flow law exponent
+    visc_min                = 1e3           ! [Pa a] Minimum allowed viscosity 
+    de_max                  = 0.5           ! [a-1]  Maximum allowed effective strain rate
+    enh_method              = "shear3D"     ! "simple","shear2D", "shear3D", "paleo-shear" 
+    enh_shear               = 1.0
+    enh_stream              = 1.0
+    enh_shlf                = 1.0
+    enh_umin                = 50.0          ! [m/yr] Minimum transition velocity to enh_stream (enh_method="paleo-shear")
+    enh_umax                = 500.0         ! [m/yr] Maximum transition velocity to enh_stream (enh_method="paleo-shear")
+    calc_age                = False         ! Calculate age tracer field?
+    age_iso                 = 0.0
+    tracer_method           = "expl"        ! "expl", "impl": used for age and 'paleo-shear' enh fields
+    tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit tracer solving 
+    
+/
+
 &ytherm
     method          = "fixed"           ! "fixed", "robin", "temp", "enth"
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
@@ -293,9 +287,8 @@
     use_const_kt    = False             ! Use specified constant value of heat conductivity?
     const_kt        = 6.62e7            ! [J a-1 m-1 K-1] Thermal conductivity [W m-1 K-1 * sec_year] => [J a-1 m-1 K-1]
     enth_cr         = 1e-3              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
-    omega_max       = 0.01              ! [--] Maximum allowed water content fraction 
-    till_rate       = 1e-3              ! [m/a] Basal water till drainage rate (water equiv.)
-    H_w_max         = 2.0               ! [m] Maximum limit to basal water layer thickness (water equiv.)
+    omega_max       = 0.01              ! [--] Maximum allowed water content fraction
+    ! Basal water bucket (till_rate, H_w_max) moved to &fhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock) or "active"
     nzr_aa          = 5                 ! Number of vertical points in bedrock 
