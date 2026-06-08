@@ -133,13 +133,13 @@ contains
         ! Update global region mask in case mask_ice is changing
         ylmo%reg%mask = (ylmo%bnd%mask_ice /= MASK_ICE_NONE)
 
-        call yelmo_calc_region(ylmo%reg,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd) 
+        call yelmo_calc_region(ylmo%reg,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
 
         ! Next calculate each sub region
 
         if (ylmo%par%n_reg .gt. 0) then
             do k = 1, ylmo%par%n_reg 
-                call yelmo_calc_region(ylmo%regs(k),ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd) 
+                call yelmo_calc_region(ylmo%regs(k),ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
             end do
         end if
 
@@ -205,19 +205,20 @@ contains
 
     end subroutine yelmo_regions_write
 
-    subroutine yelmo_calc_region(reg,tpo,dyn,thrm,mat,bnd,mask) 
+    subroutine yelmo_calc_region(reg,tpo,dyn,thrm,mat,bnd,hyd,mask)
         ! Calculate a set of regional variables (averages, totals)
         ! for a given domain defined by `mask`.
 
-        implicit none 
+        implicit none
 
-        type(yregions_class), intent(INOUT) :: reg 
-        type(ytopo_class),    intent(IN)    :: tpo 
+        type(yregions_class), intent(INOUT) :: reg
+        type(ytopo_class),    intent(IN)    :: tpo
         type(ydyn_class),     intent(IN)    :: dyn
-        type(ytherm_class),   intent(IN)    :: thrm 
+        type(ytherm_class),   intent(IN)    :: thrm
         type(ymat_class),     intent(IN)    :: mat
-        type(ybound_class),   intent(IN)    :: bnd  
-        logical,              intent(IN), optional :: mask(:,:) 
+        type(ybound_class),   intent(IN)    :: bnd
+        type(hydro_class),    intent(IN)    :: hyd
+        logical,              intent(IN), optional :: mask(:,:)
 
         ! Local variables
         integer  :: nx, ny
@@ -356,7 +357,7 @@ contains
             
             ! ythrm variables 
             reg%f_pmp        = sum(thrm%now%f_pmp,mask=mask_grnd)/npts_grnd       ! [fraction]
-            reg%H_w          = sum(thrm%now%H_w,mask=mask_grnd)/npts_grnd
+            reg%W_til        = sum(hyd%now%W_til,mask=mask_grnd)/npts_grnd
             reg%bmb_g        = sum(tpo%now%bmb,mask=mask_grnd)/npts_grnd
             
         else 
@@ -375,7 +376,7 @@ contains
             
             ! ythrm variables 
             reg%f_pmp        = 0.0_wp 
-            reg%H_w          = 0.0_wp 
+            reg%W_til        = 0.0_wp
             reg%bmb_g        = 0.0_wp 
             
         end if 
@@ -475,7 +476,7 @@ contains
             ! If a mask is provided, assume the regional 
             ! values must be calculated now.
 
-            call yelmo_calc_region(reg,dom%tpo,dom%dyn,dom%thrm,dom%mat,dom%bnd,mask) 
+            call yelmo_calc_region(reg,dom%tpo,dom%dyn,dom%thrm,dom%mat,dom%bnd,dom%hyd,mask) 
 
         else if (present(reg_now)) then 
             ! Assume region has been calculated and is available 
@@ -577,7 +578,7 @@ contains
         call nc_write(filename,"f_pmp",reg%f_pmp,units="1",long_name="Temperate fraction (grounded)", &
                       dim1="time",start=[n],ncid=ncid)
         
-        call nc_write(filename,"H_w",reg%H_w,units="m",long_name="Mean basal water thickness (grounded)", &
+        call nc_write(filename,"W_til",reg%W_til,units="m",long_name="Mean till water thickness (grounded)", &
                       dim1="time",start=[n],ncid=ncid)
         
         call nc_write(filename,"bmb_g",reg%bmb_g,units="m/a",long_name="Mean basal mass balance (grounded)", &

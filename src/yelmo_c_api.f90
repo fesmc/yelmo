@@ -459,8 +459,6 @@ contains
       case("thrm_Q_b");          v2D = real(ylmo%thrm%now%Q_b,          c_double)
       case("thrm_Q_ice_b");      v2D = real(ylmo%thrm%now%Q_ice_b,      c_double)
       case("thrm_T_prime_b");    v2D = real(ylmo%thrm%now%T_prime_b,    c_double)
-      case("thrm_H_w");          v2D = real(ylmo%thrm%now%H_w,          c_double)
-      case("thrm_dHwdt");        v2D = real(ylmo%thrm%now%dHwdt,        c_double)
       case("thrm_H_cts");        v2D = real(ylmo%thrm%now%H_cts,        c_double)
       case("thrm_Q_rock");       v2D = real(ylmo%thrm%now%Q_rock,       c_double)
 
@@ -643,7 +641,7 @@ contains
       ! -----------------------------------------------------------------------
       ! ytherm%now — 2D fields
       ! -----------------------------------------------------------------------
-      case("thrm_H_w");          ylmo%thrm%now%H_w          = real(v2D, wp)
+      ! (Basal water moved to hyd; use hyd_W_til via the hyd setters.)
 
       case DEFAULT
         write(*,*) "yelmo_set_var2D:: variable not found or not settable: "//trim(f_name)

@@ -844,7 +844,12 @@ contains
 !     end subroutine calc_ydyn_ssa
     
     subroutine calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
-        ! Update N_eff based on parameter choices
+        ! Pipe the effective pressure from the hyd (fasthydrology)
+        ! component into dyn%now%N_eff, optionally averaging over
+        ! Gaussian-quadrature / subgrid sample points selected by
+        ! dyn%par%neff_nxi. The N-closure (overburden / marine / till /
+        ! two-value) lives inside fasthydrology now; this routine is
+        ! purely a grid-side interpolation hook.
 
         implicit none
 
@@ -855,199 +860,62 @@ contains
         type(hydro_class),  intent(IN)    :: hyd
 
         ! Local variables
-        integer :: i, j, nx, ny 
-        real(wp) :: H_w_max
-        real(wp) :: H_w
-        real(wp) :: H_eff
-
+        integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1, nxi
-        real(wp) :: wt 
-        real(wp), allocatable :: Hw_int(:,:)
         real(wp), allocatable :: Neff_int(:,:)
-
-        real(wp) :: wt0
-        real(wp) :: xn(4) 
-        real(wp) :: yn(4) 
-        real(wp) :: wtn(4)
         real(wp) :: wt2D
-
         type(gq2D_class) :: gq2D
-
-        integer :: BC
-
-        ! Initialize gaussian quadrature calculations
-        call gq2D_init(gq2D)
-
-        ! Error checking
+        integer  :: BC
 
         if (dyn%par%neff_nxi .lt. 0) then
-            write(*,*) "ydyn_calc_Neff:: Error: neff_nxi must be >= 0."
-            write(*,*) "neff_nxi = ", dyn%par%neff_nxi 
+            write(*,*) "calc_ydyn_neff:: Error: neff_nxi must be >= 0."
+            write(*,*) "neff_nxi = ", dyn%par%neff_nxi
             stop
         end if
 
-        if (dyn%par%neff_method .lt. -1 .or. dyn%par%neff_method .gt. 6) then
-            write(*,*) "ydyn_calc_Neff:: Error: neff_method not recognized, must be one of [-1,0,1,2,3,4,5,6]."
-            write(*,*) "neff_method = ", dyn%par%neff_method
-            stop
+        ! Cell-centered fast path - just copy hyd%now%N
+        if (dyn%par%neff_nxi .eq. 0) then
+            dyn%now%N_eff = hyd%now%N
+            return
         end if
 
-        ! Consistency checks
-
-        if (dyn%par%neff_H_w_max .lt. 0.0) then 
-            ! Set the water saturation value to the parameter value
-            ! obtained from the thermodynamics module. Ie, let the
-            ! saturation value coincide with the maximum allowed water thickness. 
-            H_w_max = thrm%par%H_w_max
-        else
-            ! Impose the water saturation value desired
-            H_w_max = dyn%par%neff_H_w_max 
-        end if
+        ! Subgrid path: average hyd%now%N over interpolation nodes
+        call gq2D_init(gq2D)
+        BC = boundary_code(dyn%par%boundaries)
 
         nx = size(dyn%now%N_eff,1)
         ny = size(dyn%now%N_eff,2)
 
-        ! Set boundary condition code
-        BC = boundary_code(dyn%par%boundaries)
-
-        ! Set local variable: number of interpolation points in cell [nxi x nxi]
-        if (dyn%par%neff_nxi .eq. 0) then
-            ! No interpolation
-            nxi = 1
-        else if (dyn%par%neff_nxi .eq. 1) then
-            ! Guassian quadrature
-            nxi = 4
-            allocate(Hw_int(1,nxi))
+        if (dyn%par%neff_nxi .eq. 1) then
+            ! Gaussian quadrature on 4 nodes
+            nxi  = 4
+            wt2D = 4.0_wp
             allocate(Neff_int(1,nxi))
-            
-            wt0  = 1.0/sqrt(3.0)
-            xn   = [wt0,-wt0,-wt0, wt0]
-            yn   = [wt0, wt0,-wt0,-wt0]
-            wtn  = [1.0,1.0,1.0,1.0]
-            wt2D = 4.0   ! Surface area of square [-1:1,-1:1]=> 2x2 => 4 
         else
-            ! Subgrid interpolation
-            nxi = dyn%par%neff_nxi
-            allocate(Hw_int(nxi,nxi))
+            ! nxi x nxi subgrid sample
+            nxi  = dyn%par%neff_nxi
+            wt2D = real(nxi*nxi,wp)
             allocate(Neff_int(nxi,nxi))
-            
-            wt2D = real(nxi*nxi,wp)     ! Number of subgrid points to get average value
-
         end if
 
-        
-        
-        if (dyn%par%neff_method .eq. -1) then
-            ! Do nothing, effective pressure is calculated externally 
-        else if (dyn%par%neff_method .eq. 0) then
-            ! Constant value [Pa] (to scale friction coefficients)
-            dyn%now%N_eff = dyn%par%neff_const
-        else
-            ! Calculate effective pressure N_eff [Pa]
+        do j = 1, ny
+        do i = 1, nx
 
-            do j = 1, ny
-            do i = 1, nx 
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            if (dyn%par%neff_nxi .eq. 1) then
+                call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),hyd%now%N,dyn%par%dx,dyn%par%dy, &
+                                      i,j,im1,ip1,jm1,jp1)
+                dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
+            else
+                call calc_subgrid_array(Neff_int,hyd%now%N,nxi,i,j,im1,ip1,jm1,jp1)
+                dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
+            end if
 
-                select case(dyn%par%neff_method)
+        end do
+        end do
 
-                case(1)
-                    ! Effective pressure == overburden pressure 
-
-                    dyn%now%N_eff(i,j) = calc_effective_pressure_overburden(tpo%now%H_ice_dyn(i,j),tpo%now%f_ice_dyn(i,j), &
-                                                                            tpo%now%f_grnd(i,j),bnd%c%rho_ice,bnd%c%g)
-
-                case(2) 
-                    ! Effective pressure diminishes with marine character
-                    ! following Leguy et al. (2014) 
-
-                    dyn%now%N_eff(i,j) = calc_effective_pressure_marine(tpo%now%H_ice_dyn(i,j),tpo%now%f_ice_dyn(i,j),bnd%z_bed(i,j),bnd%z_sl(i,j), &
-                                                                    thrm%now%H_w(i,j),dyn%par%neff_p,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g)
-
-                case(3)
-                    ! Effective pressure as basal till pressure
-                    ! following van Pelt and Bueler (2015)
-
-                    H_eff = tpo%now%H_ice_dyn(i,j)
-                    !if (tpo%now%H_ice_dyn(i,j) .gt. 0.0) H_eff = max(tpo%now%H_ice_dyn(i,j),100.0)
-
-                    if (dyn%par%neff_nxi .eq. 0) then
-                        ! No subgrid interpolation (nxi=1)
-                        call calc_effective_pressure_till(dyn%now%N_eff(i,j),thrm%now%H_w(i,j),H_eff,tpo%now%f_ice_dyn(i,j),tpo%now%f_grnd(i,j), &
-                                                    H_w_max,dyn%par%neff_N0,dyn%par%neff_delta,dyn%par%neff_e0,dyn%par%neff_Cc,bnd%c%rho_ice,bnd%c%g)
-                        
-                    else if (dyn%par%neff_nxi .eq. 1) then
-                        ! Subgrid interpolation using Gaussian quadrature (nxi=4 points)
-
-                        ! Get H_w on Gaussian quadrature points
-                        call gq2D_to_nodes_aa(gq2D,Hw_int(1,:),thrm%now%H_w,dyn%par%dx,dyn%par%dy,i,j,im1,ip1,jm1,jp1)
-                    
-                        call calc_effective_pressure_till(Neff_int,Hw_int,H_eff,tpo%now%f_ice_dyn(i,j),tpo%now%f_grnd(i,j), &
-                                                    H_w_max,dyn%par%neff_N0,dyn%par%neff_delta,dyn%par%neff_e0,dyn%par%neff_Cc,bnd%c%rho_ice,bnd%c%g)
-
-                        dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
-                        
-                    else
-                        ! Subgrid interpolation using subgrid array of points (nxi=neff_nxi)
-
-                        call calc_subgrid_array(Hw_int,thrm%now%H_w,nxi,i,j,im1,ip1,jm1,jp1)
-
-                        call calc_effective_pressure_till(Neff_int,Hw_int,H_eff,tpo%now%f_ice_dyn(i,j),tpo%now%f_grnd(i,j), &
-                                                    H_w_max,dyn%par%neff_N0,dyn%par%neff_delta,dyn%par%neff_e0,dyn%par%neff_Cc,bnd%c%rho_ice,bnd%c%g)
-
-                        dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
-                        
-                    end if
-
-                case(4)
-                    ! Effective pressure as basal till pressure
-                    ! following van Pelt and Bueler (2015), but
-                    ! with constant imposed till water saturation value s_const
-
-                    H_w = H_w_max*dyn%par%neff_s_const
-
-                    call calc_effective_pressure_till(dyn%now%N_eff(i,j),H_w,tpo%now%H_ice_dyn(i,j),tpo%now%f_ice_dyn(i,j),tpo%now%f_grnd(i,j), &
-                                                            H_w_max,dyn%par%neff_N0,dyn%par%neff_delta,dyn%par%neff_e0,dyn%par%neff_Cc, &
-                                                            bnd%c%rho_ice,bnd%c%g) 
-
-                case(5)
-                    ! Calculate two-valued effective pressure using till parameter neff_delta
-
-                    call calc_effective_pressure_two_value(dyn%now%N_eff(i,j),thrm%now%f_pmp(i,j),tpo%now%H_ice_dyn(i,j),tpo%now%f_ice_dyn(i,j), &
-                                                                        tpo%now%f_grnd(i,j),dyn%par%neff_delta,bnd%c%rho_ice,bnd%c%g)
-
-                case(6)
-                    ! Effective pressure taken from the hyd (fasthydrology) component.
-                    ! N is already computed by hyd's N_closure (bucket or K24);
-                    ! here we only handle subgrid interpolation onto Gaussian
-                    ! quadrature / subgrid arrays for consistency with cases 2/3.
-
-                    if (dyn%par%neff_nxi .eq. 0) then
-                        ! No subgrid interpolation (nxi=1)
-                        dyn%now%N_eff(i,j) = hyd%now%N(i,j)
-
-                    else if (dyn%par%neff_nxi .eq. 1) then
-                        ! Subgrid interpolation using Gaussian quadrature (nxi=4 points)
-                        call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),hyd%now%N,dyn%par%dx,dyn%par%dy,i,j,im1,ip1,jm1,jp1)
-                        dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
-
-                    else
-                        ! Subgrid interpolation using subgrid array of points (nxi=neff_nxi)
-                        call calc_subgrid_array(Neff_int,hyd%now%N,nxi,i,j,im1,ip1,jm1,jp1)
-                        dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
-
-                    end if
-
-                end select
-
-            end do
-            end do
-
-        end if
-
-        return 
+        return
 
     end subroutine calc_ydyn_neff
 
@@ -1116,16 +984,11 @@ contains
         call nml_read(filename,group_ytill,"cf_min",            par%till_cf_min,        init=init_pars)
         call nml_read(filename,group_ytill,"cf_ref",            par%till_cf_ref,        init=init_pars)
         
-        call nml_read(filename,group_yneff,"method",            par%neff_method,        init=init_pars)
+        ! Effective pressure: N_eff is taken from hyd%now%N (computed by
+        ! the fasthydrology N-closure in &fhyd). The only remaining yneff
+        ! knob is subgrid interpolation of N onto Gaussian-quadrature /
+        ! subgrid sample points.
         call nml_read(filename,group_yneff,"nxi",               par%neff_nxi,           init=init_pars)
-        call nml_read(filename,group_yneff,"const",             par%neff_const,         init=init_pars)
-        call nml_read(filename,group_yneff,"p",                 par%neff_p,             init=init_pars)
-        call nml_read(filename,group_yneff,"H_w_max",           par%neff_H_w_max,       init=init_pars)
-        call nml_read(filename,group_yneff,"N0",                par%neff_N0,            init=init_pars)
-        call nml_read(filename,group_yneff,"delta",             par%neff_delta,         init=init_pars)
-        call nml_read(filename,group_yneff,"e0",                par%neff_e0,            init=init_pars)
-        call nml_read(filename,group_yneff,"Cc",                par%neff_Cc,            init=init_pars)
-        call nml_read(filename,group_yneff,"s_const",           par%neff_S_const,       init=init_pars)
 
         ! === Set internal parameters ======
 

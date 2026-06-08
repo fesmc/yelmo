@@ -22,7 +22,7 @@ module ice_enthalpy
 contains 
     
     subroutine calc_temp_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
-                                Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,H_w,f_grnd,zeta_aa,zeta_ac, &
+                                Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -51,7 +51,7 @@ contains
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
         real(wp), intent(IN)    :: T_shlf         ! [K] Marine-shelf interface temperature
         real(wp), intent(IN)    :: H_ice          ! [m] Ice thickness 
-        real(wp), intent(IN)    :: H_w            ! [m] Basal water layer thickness 
+        real(wp), intent(IN)    :: W_til            ! [m] Basal water layer thickness 
         real(wp), intent(IN)    :: f_grnd         ! [--] Grounded fraction
         real(wp), intent(IN)    :: zeta_aa(:)     ! nz_aa [--] Vertical sigma coordinates (zeta==height), layer centered aa-nodes
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
@@ -67,7 +67,7 @@ contains
 
         ! Local variables 
         integer  :: k, nz_aa, nz_ac
-        real(wp) :: H_w_predicted
+        real(wp) :: W_til_predicted
         real(wp) :: dz, dz1, dz2, d2Tdz2 
         real(wp) :: T00, T01, T02, zeta_now  
         real(wp) :: T_excess
@@ -122,18 +122,18 @@ contains
 
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
-            H_w_predicted = H_w - (bmb_grnd*(rho_w/rho_ice))*dt
+            W_til_predicted = W_til - (bmb_grnd*(rho_w/rho_ice))*dt
             
             ! == Assign grounded basal boundary conditions ==
 
-            if (H_w_predicted .gt. 0.0_wp) then 
+            if (W_til_predicted .gt. 0.0_wp) then 
                 ! Temperate at bed 
                 ! Hold basal temperature at pressure melting point
 
                 val_base      = T_pmp(1)
                 is_basal_flux = .FALSE.
 
-            else if ( T_ice(1) .lt. T_pmp(1) .or. H_w_predicted .lt. 0.0_wp ) then
+            else if ( T_ice(1) .lt. T_pmp(1) .or. W_til_predicted .lt. 0.0_wp ) then
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition
@@ -206,7 +206,7 @@ contains
         if (H_ice .gt. 0.0_wp) then 
 
             ! 1st order, upwind gradient dTdz 
-            ! Works, but can cause oscillations in H_w 
+            ! Works, but can cause oscillations in W_til 
             dz = H_ice * (zeta_aa(2)-zeta_aa(1))
             Q_ice_b_now = -kt(1) * (T_ice(2) - T_ice(1)) / dz 
 
@@ -354,7 +354,7 @@ contains
         ! Calculate heat flux at bedrock surface as temperature gradient * conductivity [J a-1 m-2]
 
         ! 1st order, upwind gradient dTdz 
-        ! Works, but can cause oscillations in H_w 
+        ! Works, but can cause oscillations in W_til 
         dz = H_rock * (zeta_aa(nz_aa)-zeta_aa(nz_aa-1))
         Q_rock_now = -kt * (temp(nz_aa) - temp(nz_aa-1)) / dz 
 
@@ -534,7 +534,7 @@ end if
     end subroutine calc_temp_column_internal
 
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
-                                Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,H_w,f_grnd,zeta_aa,zeta_ac, &
+                                Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -563,7 +563,7 @@ end if
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
         real(wp), intent(IN)    :: T_shlf         ! [K] Marine-shelf interface temperature
         real(wp), intent(IN)    :: H_ice          ! [m] Ice thickness 
-        real(wp), intent(IN)    :: H_w            ! [m] Basal water layer thickness 
+        real(wp), intent(IN)    :: W_til            ! [m] Basal water layer thickness 
         real(wp), intent(IN)    :: f_grnd         ! [--] Grounded fraction
         real(wp), intent(IN)    :: zeta_aa(:)     ! nz_aa [--] Vertical sigma coordinates (zeta==height), layer centered aa-nodes
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
@@ -581,7 +581,7 @@ end if
         ! Local variables 
         integer  :: k, nz_aa, nz_ac
         integer  :: k_cts  
-        real(wp) :: H_w_predicted
+        real(wp) :: W_til_predicted
         real(wp) :: dz 
         real(wp) :: omega_excess
         real(wp) :: melt_internal
@@ -635,16 +635,16 @@ end if
 
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
-            H_w_predicted = H_w - (bmb_grnd*(rho_w/rho_ice))*dt 
+            W_til_predicted = W_til - (bmb_grnd*(rho_w/rho_ice))*dt 
             
             ! == Assign grounded basal boundary conditions ==
 
-            if (H_w_predicted .gt. 0.0_wp) then 
+            if (W_til_predicted .gt. 0.0_wp) then 
 
                 val_base = enth_pmp(1)
                 is_basal_flux = .FALSE.
 
-            else if ( enth(1) .lt. enth_pmp(1) .or. H_w_predicted .lt. 0.0_wp ) then
+            else if ( enth(1) .lt. enth_pmp(1) .or. W_til_predicted .lt. 0.0_wp ) then
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition

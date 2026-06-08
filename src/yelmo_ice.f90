@@ -287,7 +287,7 @@ contains
                     call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
 
                     ! Calculate thermodynamics (temperatures and enthalpy)
-                    call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time_now)
+                    call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
 
                     ! Update basal hydrology (fasthydrology). Same gating as
                     ! ytherm: only fires when calc_ytherm did (update_others_pc).
@@ -391,7 +391,7 @@ contains
                 call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
 
                 ! Calculate thermodynamics (temperatures and enthalpy)
-                call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time_now)
+                call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
 
                 ! Update basal hydrology (fasthydrology) on the same step.
                 call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
@@ -1342,7 +1342,7 @@ contains
 
             ! Calculate initial thermodynamic information
             dom%thrm%par%time = dble(time) - dom%par%dt_min
-            call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,time)
+            call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time)
 
             ! Initial basal hydrology step (fasthydrology), mirroring ytherm.
             call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time)

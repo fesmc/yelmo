@@ -419,17 +419,13 @@ module yelmo_defs
         real(wp)   :: till_cf_min
         real(wp)   :: till_cf_ref 
 
-        ! Effective pressure parameters
-        integer    :: neff_method
+        ! Effective pressure parameters.
+        ! N_eff is now sourced from the hyd (fasthydrology) component;
+        ! the N-closure (overburden/marine/till/two-value) and its
+        ! parameters live in &fhyd. The only remaining yneff knob is
+        ! subgrid interpolation of hyd%now%N onto Gaussian-quadrature
+        ! or subgrid arrays.
         integer    :: neff_nxi
-        real(wp)   :: neff_const
-        real(wp)   :: neff_p 
-        real(wp)   :: neff_H_w_max
-        real(wp)   :: neff_N0
-        real(wp)   :: neff_delta 
-        real(wp)   :: neff_e0 
-        real(wp)   :: neff_Cc 
-        real(wp)   :: neff_s_const
 
         ! Internal parameters 
         character(len=256) :: boundaries 
@@ -664,10 +660,12 @@ module yelmo_defs
         logical             :: use_const_kt 
         real(wp)            :: const_kt 
         real(wp)            :: enth_cr  
-        real(wp)            :: omega_max 
-        real(wp)            :: till_rate 
-        real(wp)            :: H_w_max 
-        
+        real(wp)            :: omega_max
+
+        ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
+        ! component as par%bucket%till_rate and par%W_til_max.
+
+
         type(zeta_column_class) :: z        ! Ice column vertical axis info
         type(zeta_column_class) :: zr       ! Bedrock column vertical axis info
         
@@ -702,10 +700,12 @@ module yelmo_defs
         real(wp), allocatable :: dQsdT(:,:,:)     ! Internal heat production derivative w.r.t. temperature
         real(wp), allocatable :: Q_b(:,:)         ! Basal friction heat production
         real(wp), allocatable :: Q_ice_b(:,:)     ! Basal ice heat flux 
-        real(wp), allocatable :: T_prime_b(:,:)   ! Homologous temperature at the base 
-        real(wp), allocatable :: H_w(:,:)         ! [m] Basal water layer thickness 
-        real(wp), allocatable :: dHwdt(:,:)       ! [m/a] Basal water layer thickness rate of change
-        
+        real(wp), allocatable :: T_prime_b(:,:)   ! Homologous temperature at the base
+
+        ! Note: basal water (H_w, dHwdt) is now owned by the hyd
+        ! (fasthydrology) component as hyd%now%W_til / dW_til_dt.
+
+
         real(wp), allocatable :: cp(:,:,:)        ! Specific heat capacity  
         real(wp), allocatable :: kt(:,:,:)        ! Heat conductivity  
         real(wp), allocatable :: H_cts(:,:)       ! Height of the cts
@@ -899,7 +899,7 @@ module yelmo_defs
 
         ! ===== Grounded ice variables =====
         real(wp)   :: H_ice_g, z_srf_g, V_ice_g, A_ice_g, uxy_bar_g, uxy_s_g, uxy_b_g
-        real(wp)   :: f_pmp, H_w, bmb_g 
+        real(wp)   :: f_pmp, W_til, bmb_g 
 
         ! ===== Floating ice variables =====
         real(wp)   :: H_ice_f, V_ice_f, A_ice_f, uxy_bar_f, uxy_s_f, uxy_b_f, z_sl, bmb_shlf, T_shlf

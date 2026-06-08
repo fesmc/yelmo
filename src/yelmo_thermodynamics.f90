@@ -19,30 +19,27 @@ module yelmo_thermodynamics
 
 contains
 
-    subroutine calc_ytherm(thrm,tpo,dyn,mat,bnd,time)
+    subroutine calc_ytherm(thrm,tpo,dyn,mat,bnd,hyd,time)
 
         implicit none
-        
+
         type(ytherm_class), intent(INOUT) :: thrm
-        type(ytopo_class),  intent(IN)    :: tpo 
+        type(ytopo_class),  intent(IN)    :: tpo
         type(ydyn_class),   intent(IN)    :: dyn
         type(ymat_class),   intent(IN)    :: mat
-        type(ybound_class), intent(IN)    :: bnd  
-        real(wp),         intent(IN)    :: time  
+        type(ybound_class), intent(IN)    :: bnd
+        type(hydro_class),  intent(IN)    :: hyd
+        real(wp),         intent(IN)    :: time
 
-        ! Local variables 
-        integer :: i, j, k, nx, ny  
-        real(wp) :: dt 
-        real(wp), allocatable :: H_w_now(:,:)
+        ! Local variables
+        integer :: i, j, k, nx, ny
+        real(wp) :: dt
         real(wp), allocatable :: dTdz_b_now(:,:)
-        
+
         logical, parameter :: calculate_Q_strn_derivative = .FALSE.
 
         nx = thrm%par%nx
         ny = thrm%par%ny
-
-        allocate(H_w_now(nx,ny)) 
-        H_w_now = 0.0_wp
 
         ! Initialize time if necessary 
         if (thrm%par%time .gt. dble(time)) then 
@@ -123,16 +120,14 @@ contains
             thrm%now%Q_rock = bnd%Q_geo 
         end if
 
-        if ( dt .gt. 0.0 ) then     
-            ! Ice thermodynamics should evolve, perform calculations 
-                     
-            ! Store initial value of H_w
-            H_w_now = thrm%now%H_w  
+        if ( dt .gt. 0.0 ) then
+            ! Ice thermodynamics should evolve, perform calculations.
+            ! Basal water (W_til) is owned by hyd and updated separately
+            ! after thermodynamics. For the basal BC decision inside the
+            ! enthalpy solver, a thin one-line forward-Euler predictor
+            ! W_til_predicted = W_til - bmb*dt is computed locally inside
+            ! calc_enth_column from the current hyd%now%W_til.
 
-            ! Update basal water layer thickness for half timestep (Runge Kutta, step 1)
-            call calc_basal_water_local(thrm%now%H_w,thrm%now%dHwdt,tpo%now%f_ice,tpo%now%f_grnd, &
-                                    -thrm%now%bmb_grnd*(bnd%c%rho_ice/bnd%c%rho_w),dt*0.5_wp,thrm%par%till_rate,thrm%par%H_w_max)
-            
             select case(trim(thrm%par%method))
 
                 case("enth","temp") 
@@ -161,16 +156,16 @@ contains
                     call calc_ytherm_enthalpy_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%bmb_grnd, &
                                 thrm%now%Q_ice_b,thrm%now%H_cts,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt,thrm%now%advecxy, &
                                 dyn%now%ux,dyn%now%uy,dyn%now%uz_star,thrm%now%Q_strn,thrm%now%Q_b,thrm%now%Q_rock,bnd%T_srf, &
-                                tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,thrm%now%H_w,thrm%now%dHwdt,tpo%now%H_grnd, &
+                                tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec)
 
                 case("robin")
-                    ! Use Robin solution for ice temperature 
+                    ! Use Robin solution for ice temperature
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,thrm%now%H_w,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.)
 
@@ -179,7 +174,7 @@ contains
                     ! to ensure cold ice at the base
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,thrm%now%H_w,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.)
 
@@ -200,10 +195,8 @@ contains
 
             end select 
 
-            ! Update basal water layer thickness for full timestep with corrected rate (Runge Kutta, step 2)
-            thrm%now%H_w = H_w_now 
-            call calc_basal_water_local(thrm%now%H_w,thrm%now%dHwdt,tpo%now%f_ice,tpo%now%f_grnd, &
-                                        -thrm%now%bmb_grnd*(bnd%c%rho_ice/bnd%c%rho_w),dt,thrm%par%till_rate,thrm%par%H_w_max)
+            ! (No basal-water bucket update here - hyd owns W_til and is
+            ! advanced separately after calc_ytherm by calc_yhyd.)
 
 
             ! ==== Bedrock ======================================
@@ -266,7 +259,7 @@ contains
     end subroutine calc_ytherm
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
-                                        T_srf,H_ice,f_ice,z_srf,H_w,dHwdt,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
+                                        T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                         cr,omega_max,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
@@ -297,9 +290,8 @@ contains
         real(wp), intent(IN)    :: H_ice(:,:)     ! [m] Ice thickness 
         real(wp), intent(IN)    :: f_ice(:,:)     ! [--] Area fraction ice cover
         real(wp), intent(IN)    :: z_srf(:,:)     ! [m] Surface elevation 
-        real(wp), intent(IN)    :: H_w(:,:)       ! [m] Basal water layer thickness 
-        real(wp), intent(IN)    :: dHwdt(:,:)     ! [m/a] Basal water layer thickness change
-        real(wp), intent(IN)    :: H_grnd(:,:)    ! [--] Ice thickness above flotation 
+        real(wp), intent(IN)    :: W_til(:,:)     ! [m] Basal till water thickness (from hyd)
+        real(wp), intent(IN)    :: H_grnd(:,:)    ! [--] Ice thickness above flotation
         real(wp), intent(IN)    :: f_grnd(:,:)    ! [--] Grounded fraction
         real(wp), intent(IN)    :: zeta_aa(:)     ! [--] Vertical sigma coordinates (zeta==height), aa-nodes
         real(wp), intent(IN)    :: zeta_ac(:)     ! [--] Vertical sigma coordinates (zeta==height), ac-nodes
@@ -369,15 +361,15 @@ contains
 
                     call calc_enth_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
-                            Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,H_w(i,j),f_grnd(i,j),zeta_aa, &
+                            Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
                             zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt)
-                
-                else 
+
+                else
 
                     call calc_temp_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
-                            Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,H_w(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt)                
+                            Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
+                            zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt)
                     
                 end if 
 
@@ -429,7 +421,7 @@ if (.FALSE.) then
             call check_symmetry_2D(Q_b,"Q_b",i,j,"x")
             call check_symmetry_2D(T_srf,"T_srf",i,j,"x")
             call check_symmetry_2D(uz(:,:,1),"uz_b",i,j,"x")
-            call check_symmetry_2D(H_w,"H_w",i,j,"x")
+            call check_symmetry_2D(W_til,"W_til",i,j,"x")
             call check_symmetry_2D(Q_rock,"Q_rock",i,j,"x")
             call check_symmetry_2D(Q_ice_b,"Q_ice_b",i,j,"x")
             call check_symmetry_2D(advecxy(:,:,1),"advecxy_b",i,j,"x")
@@ -652,8 +644,8 @@ end if
         call nml_read(filename,group,"const_kt",       par%const_kt,         init=init_pars)
         call nml_read(filename,group,"enth_cr",        par%enth_cr,          init=init_pars)
         call nml_read(filename,group,"omega_max",      par%omega_max,        init=init_pars)
-        call nml_read(filename,group,"till_rate",      par%till_rate,        init=init_pars)
-        call nml_read(filename,group,"H_w_max",        par%H_w_max,          init=init_pars)
+        ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate
+        ! and par%W_til_max in fasthydrology). They are no longer read here.
         
         call nml_read(filename,group,"rock_method",    par%rock_method,      init=init_pars)
         call nml_read(filename,group,"nzr_aa",         par%nzr_aa,           init=init_pars)
@@ -740,9 +732,6 @@ end if
         allocate(now%kt(nx,ny,nz_aa))
         allocate(now%H_cts(nx,ny))
         allocate(now%T_prime_b(nx,ny))
-        allocate(now%H_w(nx,ny))
-        allocate(now%dHwdt(nx,ny))
-        
         allocate(now%advecxy(nx,ny,nz_aa))
 
         allocate(now%Q_rock(nx,ny))
@@ -763,11 +752,9 @@ end if
         now%cp          = 0.0 
         now%kt          = 0.0 
         now%H_cts       = 0.0 
-        now%T_prime_b   = 0.0 
-        now%H_w         = 0.0 
-        now%dHwdt       = 0.0 
-        
-        now%advecxy     = 0.0 
+        now%T_prime_b   = 0.0
+
+        now%advecxy     = 0.0
 
         now%Q_rock      = 0.0 
         now%enth_rock   = 0.0 
@@ -798,9 +785,7 @@ end if
         if (allocated(now%kt))          deallocate(now%kt)
         if (allocated(now%H_cts))       deallocate(now%H_cts)
         if (allocated(now%T_prime_b))   deallocate(now%T_prime_b)
-        if (allocated(now%H_w))         deallocate(now%H_w)
-        if (allocated(now%dHwdt))       deallocate(now%dHwdt)
-        
+
         if (allocated(now%advecxy))     deallocate(now%advecxy)
 
         if (allocated(now%Q_rock))      deallocate(now%Q_rock)
