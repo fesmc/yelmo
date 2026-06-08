@@ -4,9 +4,10 @@ module yelmo_hydrology
     ! (mask, bmb_w, A_glen) expected by fasthydrology from the
     ! corresponding yelmo state.
     !
-    ! NOTE: this wrapper does NOT consume any field that fasthydrology
-    ! writes back into dom%hyd. yelmo's own basal water (thrm%now%H_w)
-    ! and effective pressure (dyn%now%N_eff) paths remain untouched.
+    ! fasthydrology writes hyd%now%N back to yelmo, and dyn%now%N_eff
+    ! is read from hyd%now%N when ydyn neff_method=6 (see calc_ydyn_neff).
+    ! Other paths (thrm%now%H_w, the legacy ytherm bucket, neff_method=1..5)
+    ! still co-exist during the migration and are untouched here.
 
     use yelmo_defs
     use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update
