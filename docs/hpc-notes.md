@@ -6,19 +6,19 @@ The following modules have to be loaded in order to compile and run the model.
 For convenience you can also add those commands to your `.profile` file in your home directory.
 
 ```bash
-    module purge
-    module use /p/system/modulefiles/compiler \
-               /p/system/modulefiles/gpu \
-               /p/system/modulefiles/libraries \
-               /p/system/modulefiles/parallel \
-               /p/system/modulefiles/tools
+module purge
+module use /p/system/modulefiles/compiler \
+            /p/system/modulefiles/gpu \
+            /p/system/modulefiles/libraries \
+            /p/system/modulefiles/parallel \
+            /p/system/modulefiles/tools
 
-    module load intel/oneAPI/2024.0.0
-    module load netcdf-c/4.9.2
-    module load netcdf-fortran-intel/4.6.1
-    module load udunits/2.2.28
-    module load ncview/2.1.10
-    module load cdo/2.4.2
+module load intel/oneAPI/2024.0.0
+module load netcdf-c/4.9.2
+module load netcdf-fortran-intel/4.6.1
+module load udunits/2.2.28
+module load ncview/2.1.10
+module load cdo/2.4.2
 ```
 
 When installing `fesm-utils` (see [Installation](getting-started.md#dependencies)) use the `pik` script:
@@ -38,13 +38,15 @@ datapath=/p/projects/megarun
 Load the following modules in your `.bashrc` or `.bash_profile` file in your home directory.
 
 ```bash
-    module load intel-oneapi-compilers/2024.0.0
-    module load netcdf-c/4.8.1-openmpi4.1.3-oneapi2022.1.0
-    module load netcdf-fortran/4.5.4-oneapi2022.1.0
-    module load udunits/2.2.28
-    module load ncview/2.1.8
-    module load cdo/2.2.0
-    module load python/3.10.4
+module load intel-oneapi-compilers/2024.1.0
+module load netcdf-c/4.8.1-openmpi4.1.3-oneapi2022.1.0
+module load netcdf-fortran/4.5.4-oneapi2022.1.0
+module load udunits/2.2.28
+module load ncview/2.1.8
+module load cdo/2.5.2
+module load nco/5.0.1
+module load python/3.11.7
+module load git-lfs/3.1.2
 ```
 
 When installing `fesm-utils` (see [Installation](getting-started.md#dependencies)) use the `awi` script (which is a link to the `dkrz` script):
