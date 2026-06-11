@@ -22,9 +22,10 @@ module yelmo_hydrology
 contains
 
     subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy)
-        ! Load fasthydrology parameters from the yelmo namelist and
-        ! override dx / dy with the yelmo grid spacing so the user does
-        ! not have to keep them in sync in the namelist.
+        ! Load fasthydrology parameters from the yelmo namelist. The grid
+        ! spacing is passed to hydro_init so the user does not have to
+        ! keep dx / dy in sync in the namelist (they are no longer
+        ! namelist-loaded by fasthydrology).
 
         type(hydro_class), intent(INOUT) :: hyd
         character(len=*),  intent(IN)    :: filename
@@ -32,13 +33,7 @@ contains
         integer,           intent(IN)    :: nx, ny
         real(wp),          intent(IN)    :: dx, dy
 
-        call hydro_init(hyd, filename, nx, ny, group=group)
-
-        ! Force the grid spacing to match yelmo's, regardless of the
-        ! value supplied in the namelist (which is typically 0.0 for
-        ! BUCKET runs and irrelevant for NONE / EXTERNAL).
-        hyd%par%dx = dx
-        hyd%par%dy = dy
+        call hydro_init(hyd, filename, nx, ny, dx, dy, group=group)
 
         return
 

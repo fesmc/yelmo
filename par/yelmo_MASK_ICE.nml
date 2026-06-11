@@ -209,11 +209,11 @@
     ! Bucket-only configuration (no K24 transport). Closure parameters
     ! mirror the legacy &yneff till closure; W_til_max / bkt_till_rate
     ! mirror the legacy &ytherm bucket.
-    method_til         = 0        ! 0=BUCKET 1=EXTERNAL
+    method_til         = 1        ! 0=NONE 1=BUCKET
     method_transport   = 0        ! 0=NONE 1=K24
-    init_method        = 0        ! 0=ZERO 1=EXTERNAL
-    dx                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dx
-    dy                 = 0.0      ! [m] overridden by yhyd_par_load with grd%dy
+    rho_ice            = 917.0    ! [kg/m^3]
+    rho_w              = 1000.0   ! [kg/m^3]
+    g                  = 9.81     ! [m/s^2]
     W_til_max          = 2.0      ! [m]   was ytherm.H_w_max
     mask_bc            = 0        ! 0=ZERO 1=IMPOSED 2=MIRROR
     W_til_bc           = 0.0      ! [m]
@@ -223,8 +223,6 @@
     bkt_N_closure = 3             ! 0=NONE 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
 
     ! ---- closures (no prefix) ----
-    rho_ice          = 917.0
-    g                = 9.81
     marine_p         = 1.0
     marine_rho_sw    = 1028.0
     till_N0          = 1000.0     ! legacy yneff.N0
@@ -236,9 +234,6 @@
     ! ---- k24 (k24_) ----  unused under method_transport=0
     k24_substrate_type               = 0
     k24_flux_solver                  = 0
-    k24_water_density                = 1000.0
-    k24_ice_density                  = 917.0
-    k24_gravity                      = 9.81
     k24_manning_exponent             = 3.0
     k24_latent_heat_water            = 3.35e5
     k24_bed_thickness                = 0.1
