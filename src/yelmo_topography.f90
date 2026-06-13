@@ -721,11 +721,13 @@ end if
             case("vm-m16")
                 call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,mat%now%strs2D%tau_eig_1,tpo%par%tau_ice,tpo%now%f_ice,tpo%par%boundaries)    
 
-            ! Add new laws
-            ! MICI should be a marine terminating calving law (only for grounding-line points?)
+            case("ismip7")
+                ! Retreat of marine-terminating glaciers following ISMIP7 protocol
+                call calc_fmb_ismip7(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,bnd%z_bed,bnd%Qd,bnd%T_shlf,tpo%par%dx,tpo%now%f_ice,tpo%par%boundaries)            
 
             case DEFAULT
-    
+                ! To do: Add new laws
+                ! MICI should be a marine terminating calving law (only for grounding-line points?)
                 write(*,*) "calc_ytopo:: Error: grounded calving method not recognized."
                 write(*,*) "calv_grnd_method = ", trim(tpo%par%calv_grnd_method)
                 stop

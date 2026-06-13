@@ -18,6 +18,7 @@ module calving_ac
     public :: calc_calving_rate_vonmises_m16
     
     ! === Grounded calving routines === 
+    public :: calc_fmb_ismip7
 
     ! === CalvMIP calving rates ===
     public :: calvmip_exp1
@@ -381,10 +382,89 @@ contains
      
     ! ===================================================================
     !
-    ! Calving - grounded ice 
+    ! Calving - Grounded ice (Marine terminating glaciers)
     !
     ! ===================================================================
 
+    subroutine calc_fmb_ismip7(cr_acx,cr_acy,z_bed,Qd,TF,dx,f_ice,boundaries)
+        ! Calculate the retreat rate of marine terminating glaciers based on ISMIP7 protocol
+        ! 
+        ! m = (a h_w q^alpha + b) TF^beta [m/yr]
+        ! q = 86400*Q/A [m3/s]
+        !
+        ! a, alpha, b, beta: constants
+        ! h_w: water depth
+        ! Q: subglacial discharge (units?)
+        ! A: submerged ice area
+        ! TF: thermal forcing [degC?/K?]
+
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
+        real(wp), intent(IN)    :: z_bed(:,:)               ! Bedrock elevation [m]
+        real(wp), intent(IN)    :: Qd(:,:)                  ! subglacial discharge [m3/s]
+        real(wp), intent(IN)    :: TF(:,:)                  ! Thermal forcing [degC]
+        real(wp), intent(IN)    :: dx                       ! Resolution [m]
+        real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
+        character(len=*), intent(IN) :: boundaries 
+
+        ! local variables
+        integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
+        real(wp) :: a, b, alpha, beta, m_acx, m_acy
+        real(wp), allocatable :: m_aa(:,:)
+        integer  :: BC
+
+        nx = size(z_bed,1)
+        ny = size(z_bed,2) 
+
+        allocate(m_aa(nx,ny))
+
+        a     = 3.0e-4
+        b     = 0.15
+        alpha = 0.39
+        beta  = 1.18
+        m_aa  = 0.0_wp
+
+        m_aa  = 365.25*(a*MAX(0.0,-1.0*z_bed)*((86400.0*Qd/(MAX(0.0,-1.0*z_bed)*dx+1e-8))**alpha)+b)*&
+                (MAX(0.0_wp, TF)**beta) ! is in m/yr
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,BC)        
+        do j = 1, ny
+            do i = 1, nx
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                    
+                ! Stagger 1st ppal stress into ac-nodes                        
+                m_acx = 0.5*(m_aa(i,j)+m_aa(ip1,j))
+                m_acy = 0.5*(m_aa(i,j)+m_aa(i,jp1))
+                        
+                ! Special case for border
+                ! x-axis  
+                if ((f_ice(i,j) .gt. 0.0_wp) .and. (f_ice(ip1,j) .eq. 0.0_wp)) then
+                    m_acx = m_aa(i,j)
+                else if ((f_ice(i,j) .eq. 0.0_wp) .and. (f_ice(ip1,j) .gt. 0.0_wp)) then
+                    m_acx = m_aa(ip1,j)
+                end if
+
+                ! y-axis  
+                if ((f_ice(i,j) .gt. 0.0_wp) .and. (f_ice(i,jp1) .eq. 0.0_wp)) then
+                    m_acy = m_aa(i,j)
+                else if ((f_ice(i,j) .eq. 0.0_wp) .and. (f_ice(i,jp1) .gt. 0.0_wp)) then
+                    m_acy = m_aa(i,jp1)
+                end if
+
+                ! Compute calving-rates on ac-nodes
+                cr_acx(i,j) = -1.0*MAX(0.0_wp,m_acx)
+                cr_acy(i,j) = -1.0*MAX(0.0_wp,m_acy)
+            end do
+        end do
+        !$omp end parallel do
+
+        deallocate(m_aa)
+
+        return 
+
+    end subroutine calc_fmb_ismip7
     
     ! ===================================================================
     !
