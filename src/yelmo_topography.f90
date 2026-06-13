@@ -841,9 +841,13 @@ end if
         do j=1,ny
         do i=1,nx
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            ! Compute the mean calving rate in every aa node
+            ! Compute the mean floating calving rate in every aa node
             tpo%now%cmb_flt(i,j) = ((0.5*(tpo%now%cmb_flt_x(im1,j)+tpo%now%cmb_flt_x(i,j)))**2 + &
                                     (0.5*(tpo%now%cmb_flt_y(i,jm1)+tpo%now%cmb_flt_y(i,j)))**2)**0.5
+
+            ! Compute the mean grounded calving rate in every aa node
+            tpo%now%cmb_grnd(i,j) = ((0.5*(tpo%now%cmb_grnd_x(im1,j)+tpo%now%cmb_grnd_x(i,j)))**2 + &
+                                     (0.5*(tpo%now%cmb_grnd_y(i,jm1)+tpo%now%cmb_grnd_y(i,j)))**2)**0.5
 
             if (tpo%now%lsf(i,j) .gt. 0.0_wp) then
                 ! Calve ice outside LSF mask (cmb = H_ice / dt_kill)
@@ -886,6 +890,30 @@ end if
             case DEFAULT
                     where(tpo%now%H_ice .le. 0.0 .and. tpo%now%lsf .lt. 0.0 .and. bnd%z_bed .lt. bnd%z_sl) tpo%now%lsf = 1.0_wp
         end select 
+
+        ! compute diagnostic fields for output
+        do j=2,ny-1
+        do i=2,nx-1
+            if (bnd%z_bed(i,j) .gt. bnd%z_sl(i,j)) then
+                ! No calving in points above sea-level
+                tpo%now%cmb_flt(i,j) = 0.0_wp
+                tpo%now%cmb_grnd(i,j) = 0.0_wp
+            elseif (tpo%now%f_grnd(i,j) .eq. 0.0) then
+                ! Floating no grounded caalving
+                tpo%now%cmb_grnd(i,j) = 0.0_wp
+            else
+                ! Grounded no floating calving
+                tpo%now%cmb_flt(i,j) = 0.0_wp
+            end if
+
+            ! just compute cmb_flt and cmb_grnd in the border lsf points
+            if (tpo%now%H_ice(i,j) .gt. 0.0_wp .and. (tpo%now%H_ice(i+1,j) .gt. 0.0_wp .or. tpo%now%H_ice(i-1,j) .gt. 0.0_wp .or. &
+                                                      tpo%now%H_ice(i,j+1) .gt. 0.0_wp .or. tpo%now%H_ice(i,j-1) .gt. 0.0_wp)) then
+                tpo%now%cmb_flt(i,j)  = 0.0_wp
+                tpo%now%cmb_grnd(i,j) = 0.0_wp
+            end if
+        end do
+        end do
 
         return
     
