@@ -1257,78 +1257,89 @@ end if
         character(len=*),        intent(IN)  :: filename
         character(len=*),        intent(IN)  :: group_ytopo ! Usually "ytopo"
         character(len=*),        intent(IN)  :: group_ycalv ! calving group
-        integer,                 intent(IN)  :: nx, ny 
-        real(wp),                intent(IN)  :: dx  
-        logical, optional,       intent(IN)  :: init 
+        integer,                 intent(IN)  :: nx, ny
+        real(wp),                intent(IN)  :: dx
+        logical, optional,       intent(IN)  :: init
 
         ! Local variables
-        logical :: init_pars 
+        logical :: init_pars
+
+        ! Canonical defaults file (schema) and canonical group names.
+        ! User par files only need to list overrides; missing parameters
+        ! are taken from this file and unknowns are caught by nml_validate.
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_ytopo = "ytopo"
+        character(len=*), parameter :: def_ycalv = "ycalv"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE. 
- 
+        if (present(init)) init_pars = .TRUE.
+
+        ! Reject typos in the user file under either group
+        call nml_validate(filename,def_file,group_ytopo,defaults_group=def_ytopo)
+        call nml_validate(filename,def_file,group_ycalv,defaults_group=def_ycalv)
+
         ! Store parameter values in output object
-        call nml_read(filename,group_ytopo,"solver",            par%solver,           init=init_pars)
-        call nml_read(filename,group_ytopo,"surf_gl_method",    par%surf_gl_method,   init=init_pars)
-        call nml_read(filename,group_ytopo,"grad_lim",          par%grad_lim,         init=init_pars)
-        call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars)
-        call nml_read(filename,group_ytopo,"dHdt_dyn_lim",      par%dHdt_dyn_lim,     init=init_pars) 
-        call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars)
-        call nml_read(filename,group_ytopo,"margin_flt_subgrid",par%margin_flt_subgrid,init=init_pars)
-        call nml_read(filename,group_ytopo,"f_ice_method",      par%f_ice_method,     init=init_pars)
-        call nml_read(filename,group_ytopo,"use_bmb",           par%use_bmb,          init=init_pars)
-        call nml_read(filename,group_ytopo,"topo_fixed",        par%topo_fixed,       init=init_pars)
-        call nml_read(filename,group_ytopo,"topo_rel",          par%topo_rel,         init=init_pars)
-        call nml_read(filename,group_ytopo,"topo_rel_tau",      par%topo_rel_tau,     init=init_pars)
-        call nml_read(filename,group_ytopo,"topo_rel_field",    par%topo_rel_field,   init=init_pars)
+        call nml_read(filename,group_ytopo,"solver",            par%solver,           init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"surf_gl_method",    par%surf_gl_method,   init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"grad_lim",          par%grad_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dHdt_dyn_lim",      par%dHdt_dyn_lim,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"margin_flt_subgrid",par%margin_flt_subgrid,init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"f_ice_method",      par%f_ice_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"use_bmb",           par%use_bmb,          init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"topo_fixed",        par%topo_fixed,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"topo_rel",          par%topo_rel,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"topo_rel_tau",      par%topo_rel_tau,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"topo_rel_field",    par%topo_rel_field,   init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         ! Grounding line
-        call nml_read(filename,group_ytopo,"bmb_gl_method",     par%bmb_gl_method,    init=init_pars)
-        call nml_read(filename,group_ytopo,"gl_sep",            par%gl_sep,           init=init_pars)
-        call nml_read(filename,group_ytopo,"gz_nx",             par%gz_nx,            init=init_pars)
+        call nml_read(filename,group_ytopo,"bmb_gl_method",     par%bmb_gl_method,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"gl_sep",            par%gl_sep,           init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"gz_nx",             par%gz_nx,            init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         ! pmpt method
-        call nml_read(filename,group_ytopo,"dist_grz",          par%dist_grz,         init=init_pars)
-        call nml_read(filename,group_ytopo,"gz_Hg0",            par%gz_Hg0,           init=init_pars)
-        call nml_read(filename,group_ytopo,"gz_Hg1",            par%gz_Hg1,           init=init_pars)
+        call nml_read(filename,group_ytopo,"dist_grz",          par%dist_grz,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"gz_Hg0",            par%gz_Hg0,           init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"gz_Hg1",            par%gz_Hg1,           init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         ! dmb
-        call nml_read(filename,group_ytopo,"dmb_method",        par%dmb_method,       init=init_pars)
-        call nml_read(filename,group_ytopo,"dmb_alpha_max",     par%dmb_alpha_max,    init=init_pars)
-        call nml_read(filename,group_ytopo,"dmb_tau",           par%dmb_tau,          init=init_pars)
-        call nml_read(filename,group_ytopo,"dmb_sigma_ref",     par%dmb_sigma_ref,    init=init_pars)
-        call nml_read(filename,group_ytopo,"dmb_m_d",           par%dmb_m_d,          init=init_pars)
-        call nml_read(filename,group_ytopo,"dmb_m_r",           par%dmb_m_r,          init=init_pars)
+        call nml_read(filename,group_ytopo,"dmb_method",        par%dmb_method,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dmb_alpha_max",     par%dmb_alpha_max,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dmb_tau",           par%dmb_tau,          init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dmb_sigma_ref",     par%dmb_sigma_ref,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dmb_m_d",           par%dmb_m_d,          init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"dmb_m_r",           par%dmb_m_r,          init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         ! fmb
-        call nml_read(filename,group_ytopo,"fmb_method",        par%fmb_method,       init=init_pars)
-        call nml_read(filename,group_ytopo,"fmb_scale",         par%fmb_scale,        init=init_pars)
+        call nml_read(filename,group_ytopo,"fmb_method",        par%fmb_method,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"fmb_scale",         par%fmb_scale,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
 
         ! === read calving routine ===
-        call nml_read(filename,group_ycalv,"use_lsf",           par%use_lsf,            init=init_pars)
-        call nml_read(filename,group_ycalv,"lsf_method",        par%lsf_method,         init=init_pars)
-        call nml_read(filename,group_ycalv,"dt_lsf",            par%dt_lsf,             init=init_pars)
-        call nml_read(filename,group_ycalv,"lsf_redist_n_iter", par%lsf_redist_n_iter,  init=init_pars)
-        call nml_read(filename,group_ycalv,"calv_flt_method",   par%calv_flt_method,    init=init_pars)
-        call nml_read(filename,group_ycalv,"calv_grnd_method",  par%calv_grnd_method,   init=init_pars)
+        call nml_read(filename,group_ycalv,"use_lsf",           par%use_lsf,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"lsf_method",        par%lsf_method,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"dt_lsf",            par%dt_lsf,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"lsf_redist_n_iter", par%lsf_redist_n_iter,  init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"calv_flt_method",   par%calv_flt_method,    init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"calv_grnd_method",  par%calv_grnd_method,   init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         ! ?
-        call nml_read(filename,group_ycalv,"H_min_grnd",        par%H_min_grnd,         init=init_pars)
-        call nml_read(filename,group_ycalv,"H_min_flt",         par%H_min_flt,          init=init_pars)
-        call nml_read(filename,group_ycalv,"sd_min",            par%sd_min,             init=init_pars)
-        call nml_read(filename,group_ycalv,"sd_max",            par%sd_max,             init=init_pars)
-        call nml_read(filename,group_ycalv,"calv_grnd_max",     par%calv_grnd_max,      init=init_pars) 
+        call nml_read(filename,group_ycalv,"H_min_grnd",        par%H_min_grnd,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"H_min_flt",         par%H_min_flt,          init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"sd_min",            par%sd_min,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"sd_max",            par%sd_max,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"calv_grnd_max",     par%calv_grnd_max,      init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         !
-        call nml_read(filename,group_ycalv,"calv_tau",          par%calv_tau,           init=init_pars)
-        call nml_read(filename,group_ycalv,"calv_thin",         par%calv_thin,          init=init_pars)
-        call nml_read(filename,group_ycalv,"k2",                par%k2,                 init=init_pars)
-        call nml_read(filename,group_ycalv,"w2",                par%w2,                 init=init_pars)
-        call nml_read(filename,group_ycalv,"kt_ref",            par%kt_ref,             init=init_pars)
-        call nml_read(filename,group_ycalv,"kt_deep",           par%kt_deep,            init=init_pars)
-        call nml_read(filename,group_ycalv,"tau_ice",           par%tau_ice,            init=init_pars)
+        call nml_read(filename,group_ycalv,"calv_tau",          par%calv_tau,           init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"calv_thin",         par%calv_thin,          init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"k2",                par%k2,                 init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"w2",                par%w2,                 init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"kt_ref",            par%kt_ref,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"kt_deep",           par%kt_deep,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"tau_ice",           par%tau_ice,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         ! Threshold method
-        call nml_read(filename,group_ycalv,"Hc_ref_flt",        par%Hc_ref_flt,       init=init_pars)
-        call nml_read(filename,group_ycalv,"Hc_ref_grnd",       par%Hc_ref_grnd,      init=init_pars)
-        call nml_read(filename,group_ycalv,"Hc_ref_thin",       par%Hc_ref_thin,      init=init_pars)
-        call nml_read(filename,group_ycalv,"Hc_deep",           par%Hc_deep,          init=init_pars)
-        call nml_read(filename,group_ycalv,"zb_deep_0",         par%zb_deep_0,        init=init_pars)
-        call nml_read(filename,group_ycalv,"zb_deep_1",         par%zb_deep_1,        init=init_pars)
-        call nml_read(filename,group_ycalv,"zb_sigma",          par%zb_sigma,         init=init_pars)
+        call nml_read(filename,group_ycalv,"Hc_ref_flt",        par%Hc_ref_flt,       init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"Hc_ref_grnd",       par%Hc_ref_grnd,      init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"Hc_ref_thin",       par%Hc_ref_thin,      init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"Hc_deep",           par%Hc_deep,          init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"zb_deep_0",         par%zb_deep_0,        init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"zb_deep_1",         par%zb_deep_1,        init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"zb_sigma",          par%zb_sigma,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         
         ! === Set internal parameters ====
         par%nx  = nx 

@@ -1014,14 +1014,21 @@ contains
         ! Step 1: load topography variables from a file, if desired.
         ! Manipulate in local arrays, then store in the main dom object. 
 
-        ! Load parameters related to topography initiaization 
-        call nml_read(filename,group,"init_topo_load",  init_topo_load)
-        call nml_read(filename,group,"init_topo_path",  init_topo_path)
-        call nml_read(filename,group,"init_topo_names", init_topo_names)
-        call nml_read(filename,group,"init_topo_state", init_topo_state)
-        call nml_read(filename,group,"z_bed_f_sd",      z_bed_f_sd)
-        call nml_read(filename,group,"smooth_H_ice",    smooth_H_ice)
-        call nml_read(filename,group,"smooth_z_bed",    smooth_z_bed)
+        ! Load parameters related to topography initiaization
+        block
+            character(len=*), parameter :: def_file       = "input/yelmo_defaults.nml"
+            character(len=*), parameter :: def_init_topo  = "yelmo_init_topo"
+
+            call nml_validate(filename,def_file,group,defaults_group=def_init_topo)
+
+            call nml_read(filename,group,"init_topo_load",  init_topo_load,  defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"init_topo_path",  init_topo_path,  defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"init_topo_names", init_topo_names, defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"init_topo_state", init_topo_state, defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"z_bed_f_sd",      z_bed_f_sd,      defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"smooth_H_ice",    smooth_H_ice,    defaults_file=def_file,defaults_group=def_init_topo)
+            call nml_read(filename,group,"smooth_z_bed",    smooth_z_bed,    defaults_file=def_file,defaults_group=def_init_topo)
+        end block
 
         call yelmo_parse_path(init_topo_path,dom%par%domain,dom%par%grid_name)
             
@@ -1398,46 +1405,53 @@ contains
         character(len=*),        intent(IN)  :: filename
         character(len=*),        intent(IN)  :: group               ! Usually "yelmo"
         character(len=*),        intent(IN), optional :: domain
-        character(len=*),        intent(IN), optional :: grid_name 
+        character(len=*),        intent(IN), optional :: grid_name
 
-        call nml_read(filename,group,"domain",        par%domain)
-        call nml_read(filename,group,"grid_name",     par%grid_name)
-        call nml_read(filename,group,"grid_path",     par%grid_path)
-        call nml_read(filename,group,"phys_const",    par%phys_const)
-        call nml_read(filename,group,"experiment",    par%experiment)
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_yelmo = "yelmo"
 
-        call nml_read(filename,group,"nml_ytopo",     par%nml_ytopo)
-        call nml_read(filename,group,"nml_ycalv",     par%nml_ycalv)
-        call nml_read(filename,group,"nml_ydyn",      par%nml_ydyn)
-        call nml_read(filename,group,"nml_ytill",     par%nml_ytill)
-        call nml_read(filename,group,"nml_ymat",      par%nml_ymat)
-        call nml_read(filename,group,"nml_ytherm",    par%nml_ytherm)
-        call nml_read(filename,group,"nml_yhyd",      par%nml_yhyd)
-        call nml_read(filename,group,"nml_masks",     par%nml_masks)
-        call nml_read(filename,group,"nml_init_topo", par%nml_init_topo)
-        call nml_read(filename,group,"nml_data",      par%nml_data)
-        
-        call nml_read(filename,group,"restart",       par%restart)
-        call nml_read(filename,group,"restart_z_bed", par%restart_z_bed)
-        call nml_read(filename,group,"restart_H_ice", par%restart_H_ice)
-        call nml_read(filename,group,"restart_relax", par%restart_relax)
-        call nml_read(filename,group,"log_timestep",  par%log_timestep)
-        call nml_read(filename,group,"disable_kill",  par%disable_kill)
-        call nml_read(filename,group,"zeta_scale",    par%zeta_scale)
-        call nml_read(filename,group,"zeta_exp",      par%zeta_exp)
-        call nml_read(filename,group,"nz_aa",         par%nz_aa)
-        call nml_read(filename,group,"dt_method",     par%dt_method)
-        call nml_read(filename,group,"dt_min",        par%dt_min)
-        call nml_read(filename,group,"cfl_max",       par%cfl_max)
-        call nml_read(filename,group,"cfl_diff_max",  par%cfl_diff_max)
-        call nml_read(filename,group,"pc_method",     par%pc_method)
-        call nml_read(filename,group,"pc_controller", par%pc_controller)
-        call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred)
-        call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel)
-        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel)
-        call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo)
-        call nml_read(filename,group,"pc_tol",        par%pc_tol)
-        call nml_read(filename,group,"pc_eps",        par%pc_eps)
+        write(*,*) "yelmo_par_load:: defaults file = ", def_file
+
+        call nml_validate(filename,def_file,group,defaults_group=def_yelmo)
+
+        call nml_read(filename,group,"domain",        par%domain,        defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"grid_name",     par%grid_name,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"grid_path",     par%grid_path,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"phys_const",    par%phys_const,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"experiment",    par%experiment,    defaults_file=def_file,defaults_group=def_yelmo)
+
+        call nml_read(filename,group,"nml_ytopo",     par%nml_ytopo,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ycalv",     par%nml_ycalv,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ydyn",      par%nml_ydyn,      defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ytill",     par%nml_ytill,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ymat",      par%nml_ymat,      defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ytherm",    par%nml_ytherm,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_yhyd",      par%nml_yhyd,      defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_masks",     par%nml_masks,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_init_topo", par%nml_init_topo, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_data",      par%nml_data,      defaults_file=def_file,defaults_group=def_yelmo)
+
+        call nml_read(filename,group,"restart",       par%restart,       defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"restart_z_bed", par%restart_z_bed, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"restart_H_ice", par%restart_H_ice, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"restart_relax", par%restart_relax, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"log_timestep",  par%log_timestep,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"disable_kill",  par%disable_kill,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"zeta_scale",    par%zeta_scale,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"zeta_exp",      par%zeta_exp,      defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nz_aa",         par%nz_aa,         defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"dt_method",     par%dt_method,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"dt_min",        par%dt_min,        defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"cfl_max",       par%cfl_max,       defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"cfl_diff_max",  par%cfl_diff_max,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_method",     par%pc_method,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel, defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel,   defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
         
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)

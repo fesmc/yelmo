@@ -403,29 +403,34 @@ contains
         logical, optional,       intent(IN)  :: init 
 
         ! Local variables
-        logical :: init_pars 
+        logical :: init_pars
+
+        character(len=*), parameter :: def_file = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_data = "yelmo_data"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE. 
- 
+        if (present(init)) init_pars = .TRUE.
+
+        call nml_validate(filename,def_file,group,defaults_group=def_data)
+
         ! Store parameter values in output object
-        call nml_read(filename,group,"pd_topo_load",    par%pd_topo_load,    init=init_pars)
-        call nml_read(filename,group,"pd_topo_path",    par%pd_topo_path,    init=init_pars)
-        call nml_read(filename,group,"pd_topo_names",   par%pd_topo_names,   init=init_pars)
-        call nml_read(filename,group,"pd_tsrf_load",    par%pd_tsrf_load,    init=init_pars)
-        call nml_read(filename,group,"pd_tsrf_path",    par%pd_tsrf_path,    init=init_pars)
-        call nml_read(filename,group,"pd_tsrf_name",    par%pd_tsrf_name,    init=init_pars)
-        call nml_read(filename,group,"pd_tsrf_monthly", par%pd_tsrf_monthly, init=init_pars)
-        call nml_read(filename,group,"pd_smb_load",     par%pd_smb_load,     init=init_pars)
-        call nml_read(filename,group,"pd_smb_path",     par%pd_smb_path,     init=init_pars)
-        call nml_read(filename,group,"pd_smb_name",     par%pd_smb_name,     init=init_pars)
-        call nml_read(filename,group,"pd_smb_monthly",  par%pd_smb_monthly,  init=init_pars)
-        call nml_read(filename,group,"pd_vel_load",     par%pd_vel_load,     init=init_pars)
-        call nml_read(filename,group,"pd_vel_path",     par%pd_vel_path,     init=init_pars)
-        call nml_read(filename,group,"pd_vel_names",    par%pd_vel_names,    init=init_pars)
-        call nml_read(filename,group,"pd_age_load",     par%pd_age_load,     init=init_pars)
-        call nml_read(filename,group,"pd_age_path",     par%pd_age_path,     init=init_pars)
-        call nml_read(filename,group,"pd_age_names",    par%pd_age_names,    init=init_pars)
+        call nml_read(filename,group,"pd_topo_load",    par%pd_topo_load,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_topo_path",    par%pd_topo_path,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_topo_names",   par%pd_topo_names,   init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_tsrf_load",    par%pd_tsrf_load,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_tsrf_path",    par%pd_tsrf_path,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_tsrf_name",    par%pd_tsrf_name,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_tsrf_monthly", par%pd_tsrf_monthly, init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_smb_load",     par%pd_smb_load,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_smb_path",     par%pd_smb_path,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_smb_name",     par%pd_smb_name,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_smb_monthly",  par%pd_smb_monthly,  init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_vel_load",     par%pd_vel_load,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_vel_path",     par%pd_vel_path,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_vel_names",    par%pd_vel_names,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_age_load",     par%pd_age_load,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_age_path",     par%pd_age_path,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_age_names",    par%pd_age_names,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
         
         ! Subsitute domain/grid_name
         call yelmo_parse_path(par%pd_topo_path,domain,grid_name)

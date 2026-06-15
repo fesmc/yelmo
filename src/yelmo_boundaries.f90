@@ -115,37 +115,42 @@ contains
 
         ! Local variables
         logical            :: load_var
-        character(len=512) :: filename 
-        character(len=56)  :: vnames(2)  
+        character(len=512) :: filename
+        character(len=56)  :: vnames(2)
+
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_masks = "yelmo_masks"
+
+        call nml_validate(nml_path,def_file,nml_group,defaults_group=def_masks)
 
         ! ====================================
         !
-        ! basins 
+        ! basins
         !
         ! ====================================
 
-        ! Specify default values 
+        ! Specify default values
         bnd%basin_mask = 1.0
         bnd%basins     = 1.0
 
-        call nml_read(nml_path,nml_group,"basins_load",load_var)
+        call nml_read(nml_path,nml_group,"basins_load",load_var,defaults_file=def_file,defaults_group=def_masks)
 
         if (load_var) then
 
-            call nml_read(nml_path,nml_group, "basins_path",filename)
+            call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
-            
-            call nml_read(nml_path,nml_group,"basins_nms",vnames) 
-            ! Load basin information from a file 
+
+            call nml_read(nml_path,nml_group,"basins_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
+            ! Load basin information from a file
             call nc_read(filename,vnames(1),bnd%basins)
 
-            if (trim(vnames(2)) .ne. "None") then 
+            if (trim(vnames(2)) .ne. "None") then
                 ! If basins have been extrapolated, also load the original basin extent mask
                 call nc_read(filename,vnames(2),bnd%basin_mask)
-            end if 
+            end if
 
-        end if 
-        
+        end if
+
         ! ====================================
         !
         ! Read in the regions
@@ -153,7 +158,7 @@ contains
         ! ====================================
 
         ! First assign default region values
-        bnd%region_mask = 1.0 
+        bnd%region_mask = 1.0
         select case(trim(domain))
             case("North")
                 bnd%regions = bnd%index_north
@@ -161,28 +166,28 @@ contains
                 bnd%regions = bnd%index_south
             case("Greenland")
                 bnd%regions = bnd%index_grl
-            case DEFAULT 
-                ! Assign a default value everywhere 
-                bnd%regions = 1.0  
+            case DEFAULT
+                ! Assign a default value everywhere
+                bnd%regions = 1.0
 
         end select
 
-        call nml_read(nml_path,nml_group,"regions_load",load_var)
-          
+        call nml_read(nml_path,nml_group,"regions_load",load_var,defaults_file=def_file,defaults_group=def_masks)
+
         if (load_var) then
-            
-            call nml_read(nml_path,nml_group, "regions_path",filename)
+
+            call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
-            
-            ! Load region information from a file 
-            call nml_read(nml_path,nml_group,"regions_nms",vnames)
+
+            ! Load region information from a file
+            call nml_read(nml_path,nml_group,"regions_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
             call nc_read(filename,vnames(1),bnd%regions)
 
-            if (trim(vnames(2)) .ne. "None") then 
+            if (trim(vnames(2)) .ne. "None") then
                 ! If regions have been extrapolated, also load the original region extent mask
                 call nc_read(filename,vnames(2),bnd%region_mask)
-            end if 
-            
+            end if
+
         end if 
         
         write(*,*) "ybound_load_masks:: range(basins):  ", minval(bnd%basins),  maxval(bnd%basins)

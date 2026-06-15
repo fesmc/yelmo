@@ -931,63 +931,70 @@ contains
         real(wp),               intent(IN)  :: dx   
         logical, optional,      intent(IN)  :: init 
 
-        ! Local variables 
-        logical :: init_pars 
+        ! Local variables
+        logical :: init_pars
+
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_ydyn  = "ydyn"
+        character(len=*), parameter :: def_ytill = "ytill"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE. 
-        
-        call nml_read(filename,group_ydyn,"solver",             par%solver,             init=init_pars)
-        call nml_read(filename,group_ydyn,"uz_method",          par%uz_method,          init=init_pars)
-        call nml_read(filename,group_ydyn,"visc_method",        par%visc_method,        init=init_pars)
-        call nml_read(filename,group_ydyn,"visc_const",         par%visc_const,         init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_method",        par%beta_method,        init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_const",         par%beta_const,         init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_q",             par%beta_q,             init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_u0",            par%beta_u0,            init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_gl_scale",      par%beta_gl_scale,      init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_gl_stag",       par%beta_gl_stag,       init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_gl_f",          par%beta_gl_f,          init=init_pars)
-        call nml_read(filename,group_ydyn,"taud_gl_method",     par%taud_gl_method,     init=init_pars)
-        call nml_read(filename,group_ydyn,"H_grnd_lim",         par%H_grnd_lim,         init=init_pars)
-        call nml_read(filename,group_ydyn,"beta_min",           par%beta_min,           init=init_pars)
-        call nml_read(filename,group_ydyn,"eps_0",              par%eps_0,              init=init_pars)
-        call nml_read(filename,group_ydyn,"scale_T",            par%scale_T,            init=init_pars)
-        call nml_read(filename,group_ydyn,"T_frz",              par%T_frz,              init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_solver",         par%ssa_solver,         init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_lat_bc",         par%ssa_lat_bc,         init=init_pars)
+        if (present(init)) init_pars = .TRUE.
+
+        call nml_validate(filename,def_file,group_ydyn, defaults_group=def_ydyn)
+        call nml_validate(filename,def_file,group_ytill,defaults_group=def_ytill)
+
+        call nml_read(filename,group_ydyn,"solver",             par%solver,             init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"uz_method",          par%uz_method,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"visc_method",        par%visc_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"visc_const",         par%visc_const,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_method",        par%beta_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_const",         par%beta_const,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_q",             par%beta_q,             init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_u0",            par%beta_u0,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_gl_scale",      par%beta_gl_scale,      init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_gl_stag",       par%beta_gl_stag,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_gl_f",          par%beta_gl_f,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"taud_gl_method",     par%taud_gl_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"H_grnd_lim",         par%H_grnd_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"beta_min",           par%beta_min,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"eps_0",              par%eps_0,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"scale_T",            par%scale_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"T_frz",              par%T_frz,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_solver",         par%ssa_solver,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_lat_bc",         par%ssa_lat_bc,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         ! Apply default for ssa_solver if not set in namelist
         if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "residual"
-        call nml_read(filename,group_ydyn,"ssa_beta_max",       par%ssa_beta_max,       init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars)
-        call nml_read(filename,group_ydyn,"ssa_iter_conv",      par%ssa_iter_conv,      init=init_pars)
+        call nml_read(filename,group_ydyn,"ssa_beta_max",       par%ssa_beta_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_iter_conv",      par%ssa_iter_conv,      init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
-        call nml_read(filename,group_ydyn,"taud_lim",           par%taud_lim,           init=init_pars)
-        call nml_read(filename,group_ydyn,"cb_sia",             par%cb_sia,             init=init_pars)
-        
-        call nml_read(filename,group_ytill,"method",            par%till_method,        init=init_pars)
-        call nml_read(filename,group_ytill,"scale_zb",          par%till_scale_zb,      init=init_pars)
-        call nml_read(filename,group_ytill,"scale_sed",         par%till_scale_sed,     init=init_pars)
-        call nml_read(filename,group_ytill,"is_angle",          par%till_is_angle,      init=init_pars)
-        call nml_read(filename,group_ytill,"n_sd",              par%till_n_sd,          init=init_pars)
-        call nml_read(filename,group_ytill,"f_sed",             par%till_f_sed,         init=init_pars)
-        call nml_read(filename,group_ytill,"sed_min",           par%till_sed_min,       init=init_pars)
-        call nml_read(filename,group_ytill,"sed_max",           par%till_sed_max,       init=init_pars)
-        call nml_read(filename,group_ytill,"z0",                par%till_z0,            init=init_pars)
-        call nml_read(filename,group_ytill,"z1",                par%till_z1,            init=init_pars)
-        call nml_read(filename,group_ytill,"cf_min",            par%till_cf_min,        init=init_pars)
-        call nml_read(filename,group_ytill,"cf_ref",            par%till_cf_ref,        init=init_pars)
-        
+        call nml_read(filename,group_ydyn,"taud_lim",           par%taud_lim,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"cb_sia",             par%cb_sia,             init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+
+        call nml_read(filename,group_ytill,"method",            par%till_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"scale_zb",          par%till_scale_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"scale_sed",         par%till_scale_sed,     init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"is_angle",          par%till_is_angle,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"n_sd",              par%till_n_sd,          init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"f_sed",             par%till_f_sed,         init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"sed_min",           par%till_sed_min,       init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"sed_max",           par%till_sed_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"z0",                par%till_z0,            init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"z1",                par%till_z1,            init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"cf_min",            par%till_cf_min,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"cf_ref",            par%till_cf_ref,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+
         ! Effective pressure: N_eff is taken from hyd%now%N (computed by
         ! the fasthydrology N-closure in &fhyd). The only remaining dyn-
         ! side knob is subgrid interpolation of N onto Gaussian-quadrature /
         ! subgrid sample points; lives under &ydyn as neff_nxi.
-        call nml_read(filename,group_ydyn,"neff_nxi",           par%neff_nxi,           init=init_pars)
+        call nml_read(filename,group_ydyn,"neff_nxi",           par%neff_nxi,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         ! === Set internal parameters ======
 

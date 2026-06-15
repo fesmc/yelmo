@@ -10,6 +10,7 @@ module yelmo_hydrology
     ! still co-exist during the migration and are untouched here.
 
     use yelmo_defs
+    use nml,            only : nml_validate
     use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update
 
     implicit none
@@ -32,6 +33,15 @@ contains
         character(len=*),  intent(IN)    :: group
         integer,           intent(IN)    :: nx, ny
         real(wp),          intent(IN)    :: dx, dy
+
+        ! Schema for typo-checking. Note: the actual nml_read calls run
+        ! inside fasthydrology's hydro_init, so the defaults-overlay
+        ! mechanism is not wired through here yet; only the user-file
+        ! typo check is.
+        character(len=*), parameter :: def_file = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_fhyd = "fhyd"
+
+        call nml_validate(filename, def_file, group, defaults_group=def_fhyd)
 
         call hydro_init(hyd, filename, nx, ny, dx, dy, group=group)
 

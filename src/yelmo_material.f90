@@ -284,34 +284,39 @@ contains
         real(wp),               intent(IN)  :: dx  
         logical, optional,      intent(IN)  :: init 
 
-        ! Local variables 
-        logical  :: init_pars 
-        real(wp) :: age_iso(10) 
+        ! Local variables
+        logical  :: init_pars
+        real(wp) :: age_iso(10)
 
-        age_iso = 0.0 
-        
+        character(len=*), parameter :: def_file = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_ymat = "ymat"
+
+        age_iso = 0.0
+
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE. 
- 
+        if (present(init)) init_pars = .TRUE.
+
+        call nml_validate(filename,def_file,group,defaults_group=def_ymat)
+
         ! Store local parameter values in output object
-        call nml_read(filename,group,"flow_law",               par%flow_law,               init=init_pars)
-        call nml_read(filename,group,"rf_method",              par%rf_method,              init=init_pars)
-        call nml_read(filename,group,"rf_const",               par%rf_const,               init=init_pars)
-        call nml_read(filename,group,"rf_use_eismint2",        par%rf_use_eismint2,        init=init_pars)
-        call nml_read(filename,group,"rf_with_water",          par%rf_with_water,          init=init_pars)
-        call nml_read(filename,group,"n_glen",                 par%n_glen,                 init=init_pars)
-        call nml_read(filename,group,"visc_min",               par%visc_min,               init=init_pars)
-        call nml_read(filename,group,"de_max",                 par%de_max,                 init=init_pars)
-        call nml_read(filename,group,"enh_method",             par%enh_method,             init=init_pars)
-        call nml_read(filename,group,"enh_shear",              par%enh_shear,              init=init_pars)
-        call nml_read(filename,group,"enh_stream",             par%enh_stream,             init=init_pars)
-        call nml_read(filename,group,"enh_shlf",               par%enh_shlf,               init=init_pars)
-        call nml_read(filename,group,"enh_umin",               par%enh_umin,               init=init_pars)
-        call nml_read(filename,group,"enh_umax",               par%enh_umax,               init=init_pars)
-        call nml_read(filename,group,"calc_age",               par%calc_age,               init=init_pars)
-        call nml_read(filename,group,"age_iso",                age_iso,                    init=init_pars)
-        call nml_read(filename,group,"tracer_method",          par%tracer_method,          init=init_pars)
-        call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars)
+        call nml_read(filename,group,"flow_law",               par%flow_law,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"rf_method",              par%rf_method,              init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"rf_const",               par%rf_const,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"rf_use_eismint2",        par%rf_use_eismint2,        init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"rf_with_water",          par%rf_with_water,          init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"n_glen",                 par%n_glen,                 init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"visc_min",               par%visc_min,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"de_max",                 par%de_max,                 init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_method",             par%enh_method,             init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_shear",              par%enh_shear,              init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_stream",             par%enh_stream,             init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_shlf",               par%enh_shlf,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_umin",               par%enh_umin,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"enh_umax",               par%enh_umax,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"calc_age",               par%calc_age,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"age_iso",                age_iso,                    init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"tracer_method",          par%tracer_method,          init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
+        call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         
         ! Set internal parameters
         par%nx    = nx 
