@@ -404,7 +404,7 @@ contains
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
         real(wp), intent(IN)    :: z_bed(:,:)               ! Bedrock elevation [m]
         real(wp), intent(IN)    :: Qd(:,:)                  ! subglacial discharge [m3/s]
-        real(wp), intent(IN)    :: TF(:,:)                  ! Thermal forcing [degC]
+        real(wp), intent(IN)    :: TF(:,:)                  ! Thermal forcing [K]
         real(wp), intent(IN)    :: dx                       ! Resolution [m]
         real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
         character(len=*), intent(IN) :: boundaries 
@@ -427,7 +427,8 @@ contains
         m_aa  = 0.0_wp
 
         m_aa  = 365.25*(a*MAX(0.0,-1.0*z_bed)*((86400.0*Qd/(MAX(0.0,-1.0*z_bed)*dx+1e-8))**alpha)+b)*&
-                (MAX(0.0_wp, TF)**beta) ! is in m/yr
+                (MAX(0.0_wp, TF - 273.15)**beta) ! is in m/yr
+        where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,BC)        
         do j = 1, ny

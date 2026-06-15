@@ -627,7 +627,7 @@ end if
     
         type(ytopo_class),  intent(INOUT) :: tpo
         type(ydyn_class),   intent(IN)    :: dyn
-        type(ymat_class),   intent(INOUT)    :: mat
+        type(ymat_class),   intent(INOUT) :: mat
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         real(wp),           intent(IN)    :: dt
