@@ -12,6 +12,8 @@ module ice_optimization
         real(wp) :: cf_time_init
         real(wp) :: cf_time_end
         real(wp) :: cf_init
+        logical  :: use_yelmo_cf_min
+        real(wp) :: opt_cf_min
         real(wp) :: tau_c 
         real(wp) :: H0
         real(wp) :: sigma_err 
@@ -80,6 +82,8 @@ contains
         call nml_read(path_par,group,"cf_time_init",opt%cf_time_init)
         call nml_read(path_par,group,"cf_time_end", opt%cf_time_end)
         call nml_read(path_par,group,"cf_init",     opt%cf_init)
+        call nml_read(path_par,group,"use_yelmo_cf_min",  opt%use_yelmo_cf_min)
+        call nml_read(path_par,group,"opt_cf_min",  opt%opt_cf_min)
         call nml_read(path_par,group,"tau_c",       opt%tau_c)
         call nml_read(path_par,group,"H0",          opt%H0)   
         call nml_read(path_par,group,"sigma_err",   opt%sigma_err)   
@@ -497,6 +501,8 @@ contains
         ! Additionally, apply a Gaussian filter to H_err to ensure smooth transitions
         ! Apply a weighted average between smoothed and original H_err, where 
         ! slow regions get more smoothed, and fast regions use more local error 
+        ! jablasco:
+        if (.FALSE.) then
         if (sigma_err .gt. 0.0) then
 
             H_err_sm = H_err  
@@ -509,6 +515,7 @@ contains
             end do 
             end do  
 
+        end if
         end if
 
         ! Initially set cf to missing value for now where no correction possible
@@ -528,8 +535,10 @@ contains
             
             uxy_aa = sqrt(ux_aa**2+uy_aa**2)
 
-            if ( uxy(i,j) .ne. 0.0 .and. uxy_err(i,j) .ne. MV &
-                            .and. (H_grnd_obs(i,j) .gt. 0.0) ) then 
+            ! jablasco
+            !if ( uxy(i,j) .ne. 0.0 .and. uxy_err(i,j) .ne. MV &
+            !                .and. (H_grnd_obs(i,j) .gt. 0.0) ) then 
+            if ( uxy(i,j) .ne. 0.0 .and. (H_grnd_obs(i,j) .gt. 0.0) ) then
                 ! Update coefficient where velocity exists and 
                 ! observations are not floating.
 
@@ -549,15 +558,21 @@ contains
                 
                 ! Get weighted error  =========
 
-                xywt  = abs(ux_aa)+abs(uy_aa)
-                if (xywt .gt. 0.0) then 
-                    xwt = abs(ux_aa) / xywt 
-                    ywt = abs(uy_aa) / xywt 
-                else 
+                if (uxy_err(i,j) .eq. MV) then
                     ! Dummy weights
-                    xwt   = 0.5 
-                    ywt   = 0.5
-                end if 
+                        xwt   = 0.5 
+                        ywt   = 0.5
+                else
+                    xywt  = abs(ux_aa)+abs(uy_aa)
+                    if (xywt .gt. 0.0) then 
+                        xwt = abs(ux_aa) / xywt 
+                        ywt = abs(uy_aa) / xywt 
+                    else 
+                        ! Dummy weights
+                        xwt   = 0.5 
+                        ywt   = 0.5
+                    end if 
+                end if
 
                 ! Define error for ice thickness 
                 H_err_now = xwt*H_err(i1,j) + ywt*H_err(i,j1) 
@@ -571,9 +586,8 @@ contains
                 end if 
 
                 ! Get adjustment rate given error in ice thickness  =========
-                ! jablasco
                 if (scaleH) then
-                        cb_ref_dot = -(cb_prev(i,j)/H_obs(i,j)) * &
+                        cb_ref_dot = -(cb_prev(i,j)/max(50.0,H_obs(i,j))) * &
                                 ((H_err_now / tau_c) + f_damp*dHdt_now + (f_tgt/tau_tgt)*cb_tgt_fac)
                 else
                         cb_ref_dot = -(cb_prev(i,j)/H0) * &
