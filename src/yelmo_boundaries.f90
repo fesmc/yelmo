@@ -139,6 +139,7 @@ contains
 
             call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
+            call yelmo_check_file(nml_group,"basins_path",filename)
 
             call nml_read(nml_path,nml_group,"basins_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
             ! Load basin information from a file
@@ -178,6 +179,7 @@ contains
 
             call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
+            call yelmo_check_file(nml_group,"regions_path",filename)
 
             ! Load region information from a file
             call nml_read(nml_path,nml_group,"regions_nms",vnames,defaults_file=def_file,defaults_group=def_masks)

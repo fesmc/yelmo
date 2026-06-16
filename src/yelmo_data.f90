@@ -439,6 +439,13 @@ contains
         call yelmo_parse_path(par%pd_vel_path, domain,grid_name)
         call yelmo_parse_path(par%pd_age_path, domain,grid_name)
 
+        ! Check that requested data files exist
+        if (par%pd_topo_load) call yelmo_check_file(group,"pd_topo_path",par%pd_topo_path)
+        if (par%pd_tsrf_load) call yelmo_check_file(group,"pd_tsrf_path",par%pd_tsrf_path)
+        if (par%pd_smb_load)  call yelmo_check_file(group,"pd_smb_path", par%pd_smb_path)
+        if (par%pd_vel_load)  call yelmo_check_file(group,"pd_vel_path", par%pd_vel_path)
+        if (par%pd_age_load)  call yelmo_check_file(group,"pd_age_path", par%pd_age_path)
+
         ! Internal parameters 
         par%domain = trim(domain) 
         
