@@ -34,6 +34,7 @@ website:
           - hpc-notes.md
       - benchmarks.md
       - parameters.md
+      - yelmo-config.md
       - section: "Physics"
         href: physics/index.md
         contents:

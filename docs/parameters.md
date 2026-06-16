@@ -10,6 +10,11 @@ in the documentation (since code usually changes over time).
 
 **This is a work in progress!**
 
+::: {.callout-tip}
+To browse, build, compare and validate parameter files from the command line, see
+[`yelmo-config`](yelmo-config.md).
+:::
+
 ## Basal friction
 
 Yelmo includes the representation of several friction laws that all take the form:

@@ -67,6 +67,35 @@ See: [Dependencies](https://palma-ice.github.io/yelmo-docs/dependencies/) for in
 - [Optional] Python 3.x, which is only needed for automatic configuration of the Makefile and the use of the `runme` command for job preparation and submission.
 - [Optional] `runme` Python package: [https://github.com/fesmc/runme](https://github.com/fesmc/runme). Used for changing parameters at the command line, and for running single simulations and ensembles. Install with `pip install git+https://github.com/fesmc/runme`. Ensemble support is built in (no separate `runner` package needed).
 
+## Parameter configuration tool (`yelmo-config`)
+
+Yelmo reads a canonical default parameter set from `input/yelmo_defaults.nml`; a
+user parameter file only needs to list the parameters it wants to override.
+`yelmo-config` is a command-line tool to **discover, manage, compare and
+validate** Yelmo parameter files against those defaults and the model's built-in
+consistency checks.
+
+Install it system-wide straight from this repository:
+
+```bash
+pip install -U "git+https://github.com/fesmc/yelmo#subdirectory=tools/yelmo-config"
+```
+
+A snapshot of the defaults and constraints is bundled, so it works without a
+local checkout; run it inside a checkout to use that copy's live files. Then,
+e.g.:
+
+```bash
+yelmo-config list ydyn                   # browse the dynamics parameters
+yelmo-config check par/yelmo_initmip.nml # validate a parameter file
+yelmo-config diff runA.nml runB.nml      # compare two runs
+yelmo-config update                      # self-update to the latest version
+```
+
+See [tools/yelmo-config/README.md](tools/yelmo-config/README.md) and the
+[documentation](https://fesmc.github.io/yelmo/yelmo-config.html) for the full
+command set.
+
 ## Directory structure
 
 ```fortran
@@ -87,6 +116,8 @@ See: [Dependencies](https://palma-ice.github.io/yelmo-docs/dependencies/) for in
         Source code for Yelmo.
     tests/
         Source code and analysis scripts for specific model benchmarks and tests.
+    tools/
+        Auxiliary tools, including yelmo-config for parameter management.
 ```
 
 ## Usage
