@@ -150,7 +150,7 @@ contains
                 case DEFAULT 
 
                     write(io_unit_err,*) "set_pc_beta_coefficients:: &
-                        &Error: one-step pc_method does not match available options [FE, SBE, AB, SAM]."
+                        &Error: one-step dt_method does not match available options [FE, AB, SAM]."
                     write(io_unit_err,*) "thrm:: dt_method = ", trim(pc_method)
                     stop 
 
