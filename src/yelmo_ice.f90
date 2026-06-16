@@ -1035,9 +1035,11 @@ contains
         ! Override parameter choice if command-line argument present 
         if (present(load_topo)) init_topo_load = load_topo 
 
-        if (init_topo_load) then 
+        if (init_topo_load) then
             ! =========================================
-            ! Load topography data from netcdf file 
+            ! Load topography data from netcdf file
+
+            call yelmo_check_file("yelmo_init_topo","init_topo_path",init_topo_path)
 
             call nc_read(init_topo_path,init_topo_names(1), H_ice, missing_value=mv)
             call nc_read(init_topo_path,init_topo_names(2), z_bed, missing_value=mv) 
@@ -1492,11 +1494,30 @@ contains
             par%use_restart = .TRUE. 
         end if 
 
-        if (par%pc_eps .gt. par%pc_tol) then 
+        if (par%pc_eps .gt. par%pc_tol) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must be less than pc_tol."
             write(io_unit_err,*) trim(filename), " : ", trim(group)
-            write(io_unit_err,*) "pc_eps, pc_tol: ", par%pc_eps, par%pc_tol 
-            stop 
+            write(io_unit_err,*) "pc_eps, pc_tol: ", par%pc_eps, par%pc_tol
+            stop
+        end if
+
+        ! Enum-string validation
+        call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh")
+        call yelmo_check_enum(group,"pc_method",     par%pc_method,     "FE-SBE|AB-SAM|HEUN")
+        call yelmo_check_enum(group,"pc_controller", par%pc_controller, "PI42|H312b|H312PID|H321PID|PID1")
+
+        ! Range checks
+        if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: cfl_max must be in (0,1]; got ", par%cfl_max
+            stop "Program stopped."
+        end if
+        if (par%cfl_diff_max .le. 0.0_wp .or. par%cfl_diff_max .gt. 1.0_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: cfl_diff_max must be in (0,1]; got ", par%cfl_diff_max
+            stop "Program stopped."
+        end if
+        if (par%nz_aa .lt. 2) then
+            write(io_unit_err,*) "yelmo_par_load:: error: nz_aa must be >= 2; got ", par%nz_aa
+            stop "Program stopped."
         end if
 
         return

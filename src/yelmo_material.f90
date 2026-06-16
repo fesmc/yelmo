@@ -317,7 +317,22 @@ contains
         call nml_read(filename,group,"age_iso",                age_iso,                    init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"tracer_method",          par%tracer_method,          init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
-        
+
+        ! Validate parameter values
+        call yelmo_check_enum(group,"flow_law",      par%flow_law,      "glen")
+        call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|shear2D|shear3D|paleo-shear")
+        call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
+
+        if (par%n_glen .le. 0.0_wp) then
+            write(io_unit_err,*) "ymat_par_load:: error: n_glen must be > 0; got ", par%n_glen
+            stop "Program stopped."
+        end if
+        if (trim(par%enh_method) == "paleo-shear" .and. par%enh_umin .ge. par%enh_umax) then
+            write(io_unit_err,*) "ymat_par_load:: error: enh_umin must be < enh_umax for &
+                                 &enh_method='paleo-shear'; got ", par%enh_umin, par%enh_umax
+            stop "Program stopped."
+        end if
+
         ! Set internal parameters
         par%nx    = nx 
         par%ny    = ny 

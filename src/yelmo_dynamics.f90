@@ -996,6 +996,23 @@ contains
         ! subgrid sample points; lives under &ydyn as neff_nxi.
         call nml_read(filename,group_ydyn,"neff_nxi",           par%neff_nxi,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
+        ! === Validate parameter values ======
+        call yelmo_check_enum(group_ydyn,"solver",     par%solver,     &
+                              "fixed|sia|ssa|hybrid|diva|diva-noslip|l1l2|l1l2-noslip")
+        call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
+        call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|none|slab")
+
+        if (par%till_z0 .ge. par%till_z1) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &
+                                 par%till_z0, par%till_z1
+            stop "Program stopped."
+        end if
+        if (par%till_cf_min .ge. par%till_cf_ref) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be < ytill.cf_ref; got ", &
+                                 par%till_cf_min, par%till_cf_ref
+            stop "Program stopped."
+        end if
+
         ! === Set internal parameters ======
 
         par%nx    = nx 

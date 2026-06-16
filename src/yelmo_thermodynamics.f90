@@ -659,13 +659,24 @@ end if
         call nml_read(filename,group,"H_rock",         par%H_rock,           init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"cp_rock",        par%cp_rock,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"kt_rock",        par%kt_rock,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
-        
+
+        ! Validate parameter values
+        call yelmo_check_enum(group,"method",          par%method,          "fixed|robin|temp|enth")
+        call yelmo_check_enum(group,"dt_method",       par%dt_method,       "FE|AB|SAM")
+        call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
+        call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active")
+        call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
+
+        if (par%nzr_aa .lt. 2) then
+            write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
+            stop "Program stopped."
+        end if
 
         ! In case of method=="temp", prescribe some parameters
-        if (trim(par%method) .eq. "temp") then  
-            par%enth_cr   = 1.0_wp 
-            par%omega_max = 0.0_wp 
-        end if 
+        if (trim(par%method) .eq. "temp") then
+            par%enth_cr   = 1.0_wp
+            par%omega_max = 0.0_wp
+        end if
 
         ! Set internal parameters
         par%nx  = nx

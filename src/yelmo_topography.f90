@@ -1340,7 +1340,36 @@ end if
         call nml_read(filename,group_ycalv,"zb_deep_0",         par%zb_deep_0,        init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"zb_deep_1",         par%zb_deep_1,        init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"zb_sigma",          par%zb_sigma,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
-        
+
+        ! === Validate parameter values ====
+        call yelmo_check_enum(group_ytopo,"solver",         par%solver,         "expl|impl-lis")
+        call yelmo_check_enum(group_ytopo,"f_ice_method",   par%f_ice_method,   "upstream|lsf")
+        call yelmo_check_enum(group_ytopo,"bmb_gl_method",  par%bmb_gl_method,  "fcmp|fmp|pmp|nmp")
+        call yelmo_check_enum(group_ytopo,"topo_rel_field", par%topo_rel_field, "H_ref|H_ice_n")
+        call yelmo_check_enum(group_ycalv,"lsf_method",     par%lsf_method,     "snap|redist")
+        call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method,"zero|simple|flux|vm-l19|vm-m16|kill")
+        call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method,"zero|stress-b12|vm-m16")
+
+        if (par%grad_lim .le. 0.0_wp) then
+            write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim
+            stop "Program stopped."
+        end if
+        if (par%grad_lim_zb .le. 0.0_wp) then
+            write(io_unit_err,*) "ytopo_par_load:: error: grad_lim_zb must be > 0; got ", par%grad_lim_zb
+            stop "Program stopped."
+        end if
+        if (par%sd_min .ge. par%sd_max) then
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.sd_min must be < ycalv.sd_max; got ", &
+                                 par%sd_min, par%sd_max
+            stop "Program stopped."
+        end if
+        if (par%zb_deep_0 .lt. par%zb_deep_1) then
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.zb_deep_0 must be >= ycalv.zb_deep_1 &
+                                 &(both negative; transition starts at zb_deep_0); got ", &
+                                 par%zb_deep_0, par%zb_deep_1
+            stop "Program stopped."
+        end if
+
         ! === Set internal parameters ====
         par%nx  = nx 
         par%ny  = ny 
