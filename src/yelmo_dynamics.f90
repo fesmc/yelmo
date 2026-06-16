@@ -1007,8 +1007,8 @@ contains
                                  par%till_z0, par%till_z1
             stop "Program stopped."
         end if
-        if (par%till_cf_min .ge. par%till_cf_ref) then
-            write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be < ytill.cf_ref; got ", &
+        if (par%till_cf_min .gt. par%till_cf_ref) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be <= ytill.cf_ref; got ", &
                                  par%till_cf_min, par%till_cf_ref
             stop "Program stopped."
         end if

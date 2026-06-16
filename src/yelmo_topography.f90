@@ -1347,7 +1347,15 @@ end if
         call yelmo_check_enum(group_ytopo,"bmb_gl_method",  par%bmb_gl_method,  "fcmp|fmp|pmp|nmp")
         call yelmo_check_enum(group_ytopo,"topo_rel_field", par%topo_rel_field, "H_ref|H_ice_n")
         call yelmo_check_enum(group_ycalv,"lsf_method",     par%lsf_method,     "snap|redist")
-        call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method,"zero|simple|flux|vm-l19|vm-m16|kill")
+        ! Allowed calv_flt_method values differ between the level-set and mass-balance calving paths
+        ! (see calc_ytopo_calving_lsf and calc_ytopo_calving, respectively).
+        if (par%use_lsf) then
+            call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method, &
+                                  "zero|none|equil|threshold|vm-m16|exp1|exp2|exp3|exp4|exp5")
+        else
+            call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method, &
+                                  "zero|none|threshold|vm-l19|eigen|kill|kill-pos")
+        end if
         call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method,"zero|stress-b12|vm-m16")
 
         if (par%grad_lim .le. 0.0_wp) then

@@ -109,7 +109,7 @@
     lsf_method          = "snap"            ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
     dt_lsf              = -1                ! [yr] periodic LSF reflag interval; <= 0 disables. snap mode only.
     lsf_redist_n_iter   = 5                 ! Sussman/Osher LSF redistancing iterations. redist mode only.
-    calv_flt_method     = "kill-pos"        ! "zero", "simple", "flux", "vm-l19", "vm-m16", "kill"
+    calv_flt_method     = "kill-pos"        ! use_lsf=False: "zero"/"none","threshold","vm-l19","eigen","kill","kill-pos"
     calv_grnd_method    = "zero"            ! "zero", "stress-b12", "vm-m16"
     
     ! === numeric noise === 
