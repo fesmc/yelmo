@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -346,6 +347,36 @@ def cmd_check(args, schema):
         sys.exit(1)
 
 
+# yelmo-config lives in the tools/yelmo-config subdirectory of the yelmo repo,
+# so pip must be told to build from that subdirectory of the git checkout.
+UPDATE_REPO = "git+https://github.com/fesmc/yelmo"
+UPDATE_SUBDIR = "tools/yelmo-config"
+
+
+def cmd_update(args) -> None:
+    """`yelmo-config update [ref]` — self-update by reinstalling from the git
+    repo with ``pip install -U``. With no ``ref``, pip pulls the default branch;
+    pass a branch, tag, or commit SHA (e.g. ``yelmo-config update dev``) to
+    install that ref instead."""
+    url = UPDATE_REPO
+    if args.ref:
+        url = f"{url}@{args.ref}"
+    url = f"{url}#subdirectory={UPDATE_SUBDIR}"
+    cmd = [sys.executable, "-m", "pip", "install", "-U", url]
+
+    if args.dry_run:
+        print("DRY RUN — no changes will be made.")
+        print(f"  would run: {' '.join(cmd)}")
+        return
+
+    print(f"yelmo-config update (currently {__version__})")
+    print(f"  running: {' '.join(cmd)}")
+    try:
+        subprocess.run(cmd, check=True)
+    except (subprocess.CalledProcessError, OSError) as e:
+        sys.exit(f"yelmo-config: self-update failed: {e}")
+
+
 # --------------------------------------------------------------------------- #
 # Argument parsing
 # --------------------------------------------------------------------------- #
@@ -410,6 +441,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--root", help="root dir to resolve relative input paths against")
     sp.set_defaults(func=cmd_check)
 
+    sp = sub.add_parser("update",
+                        help="self-update yelmo-config (pip install -U from its git repo)")
+    sp.add_argument("ref", nargs="?", default=None,
+                    help="git branch, tag, or commit SHA to install (e.g. 'dev'). "
+                         "Default: the repo's default branch.")
+    sp.add_argument("--dry-run", action="store_true",
+                    help="print the pip command without running it")
+    sp.set_defaults(func=cmd_update)
+
     sp = sub.add_parser("completion", help="emit a shell completion script (bash|zsh)")
     sp.add_argument("shell", choices=["bash", "zsh"])
 
@@ -428,9 +468,12 @@ def main(argv=None):
             or getattr(args, "format", "text") != "text"):
         C.enabled = False
 
-    # completion does not need a Yelmo checkout
+    # these do not need a Yelmo checkout
     if args.command == "completion":
         sys.stdout.write(completion_script(args.shell))
+        return
+    if args.command == "update":
+        cmd_update(args)
         return
 
     try:

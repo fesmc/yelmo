@@ -244,8 +244,22 @@ def test_jsonable_and_completion():
     assert _jsonable("1.0, 2.0") == [1.0, 2.0]
     assert "complete -F" in script("bash")
     assert "#compdef" in script("zsh")
+    assert "update" in script("bash") and "update" in script("zsh")
     with pytest.raises(ValueError):
         script("fish")
+
+
+def test_update_dry_run(capsys):
+    from yelmo_config import cli
+    cli.main(["update", "--dry-run"])
+    out = capsys.readouterr().out
+    assert "DRY RUN" in out
+    assert "pip install -U" in out
+    assert "git+https://github.com/fesmc/yelmo#subdirectory=tools/yelmo-config" in out
+
+    cli.main(["update", "dev", "--dry-run"])
+    out = capsys.readouterr().out
+    assert "git+https://github.com/fesmc/yelmo@dev#subdirectory=tools/yelmo-config" in out
 
 
 def _run_cli(tmp_path, argv):

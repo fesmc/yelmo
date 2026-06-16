@@ -11,7 +11,13 @@ its constraints, and can build, diff and check par files accordingly.
 
 ## Install
 
-System-wide (from a Yelmo checkout):
+System-wide, straight from the git repo:
+
+```bash
+pip install -U "git+https://github.com/fesmc/yelmo#subdirectory=tools/yelmo-config"
+```
+
+Or from a local Yelmo checkout:
 
 ```bash
 pip install -e tools/yelmo-config      # editable: always tracks the repo's defaults
@@ -21,6 +27,18 @@ pip install tools/yelmo-config
 
 This installs the `yelmo-config` console command. Python ≥ 3.11, no third-party
 dependencies.
+
+### Updating
+
+```bash
+yelmo-config update             # reinstall latest from the git repo (default branch)
+yelmo-config update dev         # install a specific branch / tag / commit SHA
+yelmo-config update --dry-run   # show the pip command without running it
+```
+
+`update` runs `pip install -U "git+https://github.com/fesmc/yelmo#subdirectory=tools/yelmo-config"`
+(with `@<ref>` appended when given). It refreshes the installed command only; the
+parameter data is still read from your local checkout (see below).
 
 ### How it finds the model files
 
@@ -45,6 +63,7 @@ So run it from inside a Yelmo checkout, or set `YELMO_ROOT`, or pass `--defaults
 | `write [user.nml] [-o out]` | Emit a **complete**, documented par file from the defaults, with any overrides from `user.nml` applied. |
 | `diff A [B] [--raw]` | Compare two par files, or one against the defaults. Supports per-group selectors. |
 | `check FILE [--files]` | Validate a user par file against the schema and all constraints. |
+| `update [ref]` | Self-update: reinstall the tool from its git repo via `pip install -U`. |
 | `completion {bash,zsh}` | Print a shell completion script. |
 
 ### Output formats

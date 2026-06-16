@@ -15,7 +15,7 @@ _yelmo_config_complete() {
     local cur prev sub i
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local subcommands="groups list show search write diff check completion"
+    local subcommands="groups list show search write diff check update completion"
     local global_opts="--defaults --src --no-color --format --version --help"
 
     if [[ "$prev" == "--format" ]]; then
@@ -50,6 +50,8 @@ _yelmo_config_complete() {
             COMPREPLY=( $(compgen -W "--raw --exit-code --format" -- "$cur") $(compgen -f -- "$cur") );;
         check)
             COMPREPLY=( $(compgen -W "--files --root --format" -- "$cur") $(compgen -f -- "$cur") );;
+        update)
+            COMPREPLY=( $(compgen -W "--dry-run" -- "$cur") );;
         completion)
             COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") );;
         *)
@@ -74,6 +76,7 @@ _yelmo_config() {
         'write:write a complete par file'
         'diff:compare par files'
         'check:validate a par file'
+        'update:self-update yelmo-config'
         'completion:emit a shell completion script'
     )
     local state line
@@ -94,6 +97,7 @@ _yelmo_config() {
                 write)  _arguments '-o[output]:file:_files' '--output[output]:file:_files' '--no-align' '--format:format:(text json compact)' '*:file:_files' ;;
                 diff)   _arguments '--raw' '--exit-code' '--format:format:(text json compact)' '*:file:_files' ;;
                 check)  _arguments '--files' '--root:dir:_files -/' '--format:format:(text json compact)' '*:file:_files' ;;
+                update) _arguments '--dry-run' '1:ref:' ;;
                 completion) compadd bash zsh ;;
             esac ;;
     esac
