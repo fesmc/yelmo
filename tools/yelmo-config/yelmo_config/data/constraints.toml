@@ -102,12 +102,13 @@ op = "le"
 right = "pc_tol"
 note = "pc_eps must be <= pc_tol"
 
-# Conditional ordering: only enforced when `when_name` == `when_value`.
+# Conditional ordering: enforced only when the guard holds. The guard is either
+# `when_name` == `when_value`, or `when_name` contains `when_contains`.
 [[order]]
 group = "ymat"
 left = "enh_umin"
 op = "lt"
 right = "enh_umax"
 when_name = "enh_method"
-when_value = "paleo-shear"
-note = "enh_umin must be < enh_umax when enh_method='paleo-shear'"
+when_contains = "-tracer"
+note = "enh_umin must be < enh_umax for a '*-tracer' enh_method"

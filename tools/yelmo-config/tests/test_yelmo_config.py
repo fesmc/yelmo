@@ -216,6 +216,18 @@ def test_conditional_enum_extraction(tmp_path):
     assert enums[("ycalv", "g")][0].conditions == []   # unconditional, after endif
 
 
+def test_order_guard_holds():
+    from yelmo_config.constraints import OrderConstraint
+    eq = OrderConstraint("ymat", "a", "lt", "b", when_name="m", when_value="x")
+    assert eq.guard_holds({"m": '"x"'})
+    assert not eq.guard_holds({"m": '"y"'})
+    sub = OrderConstraint("ymat", "a", "lt", "b", when_name="m", when_contains="-tracer")
+    assert sub.guard_holds({"m": '"shear3D-tracer"'})
+    assert not sub.guard_holds({"m": '"shear3D"'})
+    assert not sub.guard_holds({})                  # guard param absent -> not enforced
+    assert OrderConstraint("ymat", "a", "lt", "b").guard_holds({})  # unconditional
+
+
 def test_enum_maybe_applies():
     from yelmo_config.constraints import EnumConstraint
     ec = EnumConstraint("ycalv", "m", ["a"], conditions=[("use_lsf", True)])

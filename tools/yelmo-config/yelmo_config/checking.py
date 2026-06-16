@@ -147,10 +147,8 @@ def check(user: nl.Namelist, schema: Schema, *,
         gmap = eff.get(oc.group)
         if not gmap or oc.left not in gmap or oc.right not in gmap:
             continue
-        if oc.when_name is not None:
-            cond = gmap.get(oc.when_name)
-            if cond is None or str(nl.normalize(cond)) != oc.when_value:
-                continue
+        if not oc.guard_holds(gmap):
+            continue
         lval, rval = nl.normalize(gmap[oc.left]), nl.normalize(gmap[oc.right])
         if not oc.satisfied(lval, rval):
             rep.issues.append(Issue(

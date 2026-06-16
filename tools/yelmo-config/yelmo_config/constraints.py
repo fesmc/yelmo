@@ -82,7 +82,23 @@ class OrderConstraint:
     right: str
     note: str = ""
     when_name: str | None = None
-    when_value: str | None = None
+    when_value: str | None = None       # guard holds when when_name == when_value
+    when_contains: str | None = None    # guard holds when when_name contains this substring
+
+    def guard_holds(self, gmap: dict) -> bool:
+        """Whether this ordering check applies for the given config."""
+        if self.when_name is None:
+            return True
+        from . import namelist as _nl
+        raw = gmap.get(self.when_name)
+        if raw is None:
+            return False
+        val = _nl.normalize(raw)
+        if self.when_value is not None:
+            return str(val) == self.when_value
+        if self.when_contains is not None:
+            return self.when_contains in str(val)
+        return True
 
     def satisfied(self, lval, rval) -> bool:
         try:
@@ -260,6 +276,7 @@ def _load_toml(path: Path) -> tuple[list, list]:
             group=o["group"], left=o["left"], op=o["op"], right=o["right"],
             note=o.get("note", ""),
             when_name=o.get("when_name"), when_value=o.get("when_value"),
+            when_contains=o.get("when_contains"),
         )
         for o in data.get("order", [])
     ]
