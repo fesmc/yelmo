@@ -1000,7 +1000,7 @@ contains
         call yelmo_check_enum(group_ydyn,"solver",     par%solver,     &
                               "fixed|sia|ssa|hybrid|diva|diva-noslip|l1l2|l1l2-noslip")
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
-        call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|none|slab")
+        call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none|slab|slab-ext")
 
         if (par%till_z0 .ge. par%till_z1) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &

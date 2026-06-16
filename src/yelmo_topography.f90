@@ -1342,9 +1342,9 @@ end if
         call nml_read(filename,group_ycalv,"zb_sigma",          par%zb_sigma,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
 
         ! === Validate parameter values ====
-        call yelmo_check_enum(group_ytopo,"solver",         par%solver,         "expl|impl-lis")
+        call yelmo_check_enum(group_ytopo,"solver",         par%solver,         "none|expl|expl-new|expl-upwind|impl-upwind|expl-sico|impl-sico|impl-sico-lis|impl-lis")
         call yelmo_check_enum(group_ytopo,"f_ice_method",   par%f_ice_method,   "upstream|lsf")
-        call yelmo_check_enum(group_ytopo,"bmb_gl_method",  par%bmb_gl_method,  "fcmp|fmp|pmp|nmp")
+        call yelmo_check_enum(group_ytopo,"bmb_gl_method",  par%bmb_gl_method,  "fcmp|fmp|pmp|pmpt|nmp")
         call yelmo_check_enum(group_ytopo,"topo_rel_field", par%topo_rel_field, "H_ref|H_ice_n")
         call yelmo_check_enum(group_ycalv,"lsf_method",     par%lsf_method,     "snap|redist")
         ! Allowed calv_flt_method values differ between the level-set and mass-balance calving paths
