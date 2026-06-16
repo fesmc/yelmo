@@ -1456,7 +1456,22 @@ contains
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)
         if (present(grid_name))  par%grid_name = trim(grid_name)
-        
+
+        ! The schema in input/yelmo_defaults.nml leaves domain (and grid_name)
+        ! as "None" so a user par file that forgets to set them fails loudly
+        ! here instead of later, during a netcdf open with a nonsensical path.
+        ! grid_name is intentionally not required: some configurations
+        ! (benchmarks, idealized tests) run without a named grid.
+        if (trim(par%domain) == "None") then
+            write(io_unit_err,*) ""
+            write(io_unit_err,*) "yelmo_par_load:: Error: yelmo.domain is not set."
+            write(io_unit_err,*) "  Set 'domain' in the user par file (group ", trim(group), ")"
+            write(io_unit_err,*) "  or pass it as an argument to yelmo_init."
+            write(io_unit_err,*) "  Currently: domain    = '", trim(par%domain),    "'"
+            write(io_unit_err,*) "             grid_name = '", trim(par%grid_name), "'"
+            stop "Program stopped."
+        end if
+
         ! Parse filenames with grid information
         call yelmo_parse_path(par%grid_path,par%domain,par%grid_name)
         call yelmo_parse_path(par%restart,par%domain,par%grid_name)
