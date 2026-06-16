@@ -1,0 +1,113 @@
+# Curated numeric range and inter-parameter ordering constraints.
+#
+# These mirror the `if (...) stop` checks added to the Fortran par_load
+# routines (commit 80e4ae89). They are kept here rather than scraped from the
+# source because the Fortran refers to parameters by struct-member name
+# (e.g. `par%till_z0`), which differs from the namelist name (`z0`), and the
+# checks are free-form `if` blocks rather than a single tidy helper call.
+#
+# Enum and file-existence constraints are NOT listed here — those are extracted
+# automatically from the `yelmo_check_enum` / `yelmo_check_file` calls in src/.
+#
+# Keep in sync with src/*.f90 when the Fortran checks change.
+
+# --- scalar range checks: op is one of  gt | ge | lt | le  (vs `bound`) ---
+[[range]]
+group = "yelmo"
+name = "cfl_max"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+note = "must be in (0, 1]"
+
+[[range]]
+group = "yelmo"
+name = "cfl_diff_max"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+note = "must be in (0, 1]"
+
+[[range]]
+group = "yelmo"
+name = "nz_aa"
+min = 2
+min_inclusive = true
+note = "must be >= 2"
+
+[[range]]
+group = "ytopo"
+name = "grad_lim"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ytopo"
+name = "grad_lim_zb"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ymat"
+name = "n_glen"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ytherm"
+name = "nzr_aa"
+min = 2
+min_inclusive = true
+note = "must be >= 2"
+
+# --- ordering checks: `left` `op` `right` (both in the same group) ---
+# op is one of  lt (<) | le (<=) | gt (>) | ge (>=)
+[[order]]
+group = "ycalv"
+left = "sd_min"
+op = "lt"
+right = "sd_max"
+note = "sd_min must be < sd_max"
+
+[[order]]
+group = "ycalv"
+left = "zb_deep_0"
+op = "ge"
+right = "zb_deep_1"
+note = "zb_deep_0 must be >= zb_deep_1 (transition into deep ocean)"
+
+[[order]]
+group = "ytill"
+left = "z0"
+op = "lt"
+right = "z1"
+note = "z0 must be < z1"
+
+[[order]]
+group = "ytill"
+left = "cf_min"
+op = "le"
+right = "cf_ref"
+note = "cf_min must be <= cf_ref"
+
+[[order]]
+group = "yelmo"
+left = "pc_eps"
+op = "le"
+right = "pc_tol"
+note = "pc_eps must be <= pc_tol"
+
+# Conditional ordering: only enforced when `when_name` == `when_value`.
+[[order]]
+group = "ymat"
+left = "enh_umin"
+op = "lt"
+right = "enh_umax"
+when_name = "enh_method"
+when_value = "paleo-shear"
+note = "enh_umin must be < enh_umax when enh_method='paleo-shear'"

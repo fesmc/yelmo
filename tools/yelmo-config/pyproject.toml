@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yelmo-config"
+version = "0.1.0"
+description = "Discover, manage, compare and validate Yelmo ice-sheet model parameter files."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Yelmo developers" }]
+keywords = ["yelmo", "ice-sheet", "namelist", "fortran", "configuration"]
+dependencies = []   # stdlib only (tomllib requires Python >= 3.11)
+
+[project.scripts]
+yelmo-config = "yelmo_config.cli:main"
+
+[tool.setuptools]
+packages = ["yelmo_config"]
+
+[tool.setuptools.package-data]
+yelmo_config = ["data/*.toml"]
