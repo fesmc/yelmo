@@ -20,4 +20,4 @@ yelmo-config = "yelmo_config.cli:main"
 packages = ["yelmo_config"]
 
 [tool.setuptools.package-data]
-yelmo_config = ["data/*.toml"]
+yelmo_config = ["data/*.toml", "data/*.nml", "data/*.json"]

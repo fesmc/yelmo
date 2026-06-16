@@ -10,6 +10,7 @@ Everything is keyed by canonical group name (``ytopo``, ``ydyn``, ...).
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -257,6 +258,35 @@ def extract_enums(src_dir: Path) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Enum snapshot (bundled fallback when no src/ is available)
+# --------------------------------------------------------------------------- #
+def enums_to_json(enums: dict) -> list:
+    """Flatten ``{(group, name): [EnumConstraint]}`` to a JSON-serialisable list."""
+    out = []
+    for (g, n), ecs in sorted(enums.items()):
+        for ec in ecs:
+            out.append({"group": ec.group, "name": ec.name, "allowed": ec.allowed,
+                        "conditions": [[p, v] for p, v in ec.conditions]})
+    return out
+
+
+def enums_from_json(data: list) -> dict:
+    enums: dict = {}
+    for d in data:
+        conds = [(p, v) for p, v in d.get("conditions", [])]
+        enums.setdefault((d["group"], d["name"]), []).append(
+            EnumConstraint(group=d["group"], name=d["name"],
+                           allowed=list(d["allowed"]), conditions=conds))
+    return enums
+
+
+def load_bundled_enums(path: Path) -> dict:
+    if not path.is_file():
+        return {}
+    return enums_from_json(json.loads(path.read_text()))
+
+
+# --------------------------------------------------------------------------- #
 # Range / ordering from curated TOML
 # --------------------------------------------------------------------------- #
 def _load_toml(path: Path) -> tuple[list, list]:
@@ -283,9 +313,10 @@ def _load_toml(path: Path) -> tuple[list, list]:
     return ranges, orders
 
 
-def load_constraints(src_dir: Path | None,
-                     toml_path: Path | None = None) -> Constraints:
+def load_constraints(enums: dict, toml_path: Path | None = None) -> Constraints:
+    """Build Constraints from an already-resolved ``enums`` dict plus the curated
+    range/ordering TOML. Enum resolution (live ``src/`` vs bundled snapshot) is
+    decided by the caller (see ``schema.build_schema``)."""
     toml_path = toml_path or (DATA_DIR / "constraints.toml")
     ranges, orders = _load_toml(toml_path)
-    enums = extract_enums(src_dir) if src_dir and src_dir.is_dir() else {}
     return Constraints(enums=enums, ranges=ranges, orders=orders)

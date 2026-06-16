@@ -11,8 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import namelist as nl
-from .constraints import Constraints, load_constraints
-from .locate import find_defaults, find_src
+from .constraints import (Constraints, enums_to_json, extract_enums,
+                          load_bundled_enums, load_constraints)
+from .locate import BUNDLED_DEFAULTS, BUNDLED_ENUMS, resolve_defaults
 
 # &yelmo keys that name the group a component is read from (default value =
 # canonical group name). Used to resolve user-renamed groups, e.g.
@@ -48,6 +49,10 @@ class Schema:
     constraints: Constraints = field(default_factory=Constraints)
     defaults_path: Path | None = None
     src_path: Path | None = None
+    repo_root: Path | None = None
+    defaults_source: str = "bundled"   # explicit | env | local | bundled
+    enums_source: str = "bundled"      # local | bundled
+    warnings: list = field(default_factory=list)
 
     # -- group/component helpers ------------------------------------------- #
     @property
@@ -81,13 +86,44 @@ def _section_label(text: str) -> str | None:
     return None
 
 
+def _defaults_value_map(path: Path) -> dict:
+    nml = nl.parse_file(path)
+    return {(g.name, p.name): nl.normalize(p.raw)
+            for g in nml.groups.values()
+            for p in g.items if isinstance(p, nl.Param)}
+
+
 def build_schema(defaults_path: str | Path | None = None,
                  src_path: str | Path | None = None) -> Schema:
-    dp = find_defaults(defaults_path)
+    res = resolve_defaults(defaults_path)
+    dp = res.path
     nml = nl.parse_file(dp)
-    sp = Path(src_path) if src_path else find_src(dp)
+    warnings: list = []
 
-    constraints = load_constraints(sp)
+    # --- defaults: warn if an auto-discovered local file differs from bundle -- #
+    if res.source == "local" and dp != BUNDLED_DEFAULTS and BUNDLED_DEFAULTS.is_file():
+        if _defaults_value_map(dp) != _defaults_value_map(BUNDLED_DEFAULTS):
+            warnings.append(
+                f"local defaults ({dp}) differ from the bundled snapshot; "
+                f"the installed yelmo-config may be out of date "
+                f"(maintainers: refresh with `yelmo-config snapshot`).")
+
+    # --- enums: live src/ if available, else bundled snapshot ---------------- #
+    sp = Path(src_path) if src_path else res.src
+    if sp and Path(sp).is_dir():
+        enums = extract_enums(Path(sp))
+        enums_source = "local"
+        if BUNDLED_ENUMS.is_file():
+            bundled = load_bundled_enums(BUNDLED_ENUMS)
+            if enums_to_json(enums) != enums_to_json(bundled):
+                warnings.append(
+                    f"local enum constraints (from {sp}) differ from the bundled "
+                    f"snapshot (maintainers: refresh with `yelmo-config snapshot`).")
+    else:
+        enums = load_bundled_enums(BUNDLED_ENUMS)
+        enums_source = "bundled"
+
+    constraints = load_constraints(enums)
 
     params: dict = {}
     for group in nml.groups.values():
@@ -118,4 +154,7 @@ def build_schema(defaults_path: str | Path | None = None,
             )
 
     return Schema(nml=nml, params=params, constraints=constraints,
-                  defaults_path=dp, src_path=sp)
+                  defaults_path=dp, src_path=Path(sp) if sp else None,
+                  repo_root=res.repo_root,
+                  defaults_source=res.source, enums_source=enums_source,
+                  warnings=warnings)

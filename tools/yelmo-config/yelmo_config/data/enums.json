@@ -1,0 +1,282 @@
+[
+  {
+    "group": "ycalv",
+    "name": "calv_flt_method",
+    "allowed": [
+      "zero",
+      "none",
+      "equil",
+      "threshold",
+      "vm-m16",
+      "exp1",
+      "exp2",
+      "exp3",
+      "exp4",
+      "exp5"
+    ],
+    "conditions": [
+      [
+        "use_lsf",
+        true
+      ]
+    ]
+  },
+  {
+    "group": "ycalv",
+    "name": "calv_flt_method",
+    "allowed": [
+      "zero",
+      "none",
+      "threshold",
+      "vm-l19",
+      "eigen",
+      "kill",
+      "kill-pos"
+    ],
+    "conditions": [
+      [
+        "use_lsf",
+        false
+      ]
+    ]
+  },
+  {
+    "group": "ycalv",
+    "name": "calv_grnd_method",
+    "allowed": [
+      "zero",
+      "none",
+      "equil",
+      "threshold",
+      "vm-m16",
+      "ismip7"
+    ],
+    "conditions": [
+      [
+        "use_lsf",
+        true
+      ]
+    ]
+  },
+  {
+    "group": "ycalv",
+    "name": "calv_grnd_method",
+    "allowed": [
+      "zero",
+      "none",
+      "stress-b12"
+    ],
+    "conditions": [
+      [
+        "use_lsf",
+        false
+      ]
+    ]
+  },
+  {
+    "group": "ycalv",
+    "name": "lsf_method",
+    "allowed": [
+      "snap",
+      "redist"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ydyn",
+    "name": "solver",
+    "allowed": [
+      "fixed",
+      "sia",
+      "ssa",
+      "hybrid",
+      "diva",
+      "diva-noslip",
+      "l1l2",
+      "l1l2-noslip"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ydyn",
+    "name": "ssa_lat_bc",
+    "allowed": [
+      "all",
+      "marine",
+      "floating",
+      "float",
+      "none",
+      "slab",
+      "slab-ext"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ydyn",
+    "name": "ssa_solver",
+    "allowed": [
+      "residual",
+      "energy"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
+    "name": "pc_controller",
+    "allowed": [
+      "PI42",
+      "H312b",
+      "H312PID",
+      "H321PID",
+      "PID1"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
+    "name": "pc_method",
+    "allowed": [
+      "FE-SBE",
+      "AB-SAM",
+      "HEUN"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
+    "name": "zeta_scale",
+    "allowed": [
+      "linear",
+      "exp",
+      "tanh"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ymat",
+    "name": "enh_method",
+    "allowed": [
+      "simple",
+      "simple-tracer",
+      "shear2D",
+      "shear2D-tracer",
+      "shear3D",
+      "shear3D-tracer"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ymat",
+    "name": "flow_law",
+    "allowed": [
+      "glen"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ymat",
+    "name": "tracer_method",
+    "allowed": [
+      "expl",
+      "impl"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "dt_method",
+    "allowed": [
+      "FE",
+      "AB",
+      "SAM"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "method",
+    "allowed": [
+      "enth",
+      "temp",
+      "robin",
+      "robin-cold",
+      "linear",
+      "fixed"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "rock_method",
+    "allowed": [
+      "equil",
+      "active",
+      "fixed"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "solver_advec",
+    "allowed": [
+      "expl",
+      "impl-upwind"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "zeta_scale_rock",
+    "allowed": [
+      "linear",
+      "exp-inv"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytopo",
+    "name": "bmb_gl_method",
+    "allowed": [
+      "fcmp",
+      "fmp",
+      "pmp",
+      "pmpt",
+      "nmp"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytopo",
+    "name": "f_ice_method",
+    "allowed": [
+      "upstream",
+      "lsf"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytopo",
+    "name": "solver",
+    "allowed": [
+      "none",
+      "expl",
+      "expl-new",
+      "expl-upwind",
+      "impl-upwind",
+      "expl-sico",
+      "impl-sico",
+      "impl-sico-lis",
+      "impl-lis"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytopo",
+    "name": "topo_rel_field",
+    "allowed": [
+      "H_ref",
+      "H_ice_n"
+    ],
+    "conditions": []
+  }
+]

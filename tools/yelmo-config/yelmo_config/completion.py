@@ -15,7 +15,7 @@ _yelmo_config_complete() {
     local cur prev sub i
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local subcommands="groups list show search write diff check update completion"
+    local subcommands="groups list show search write diff check update snapshot completion"
     local global_opts="--defaults --src --no-color --format --version --help"
 
     if [[ "$prev" == "--format" ]]; then
@@ -77,6 +77,7 @@ _yelmo_config() {
         'diff:compare par files'
         'check:validate a par file'
         'update:self-update yelmo-config'
+        'snapshot:refresh bundled defaults/enums from a checkout'
         'completion:emit a shell completion script'
     )
     local state line

@@ -37,20 +37,35 @@ yelmo-config update --dry-run   # show the pip command without running it
 ```
 
 `update` runs `pip install -U "git+https://github.com/fesmc/yelmo#subdirectory=tools/yelmo-config"`
-(with `@<ref>` appended when given). It refreshes the installed command only; the
-parameter data is still read from your local checkout (see below).
+(with `@<ref>` appended when given).
 
-### How it finds the model files
+### How it finds the model data (works with or without a checkout)
 
-The tool reads `input/yelmo_defaults.nml` (parameters, defaults, docs) and
-`src/*.f90` (enum constraints). It locates them, in order, via:
+The tool needs two things: `input/yelmo_defaults.nml` (parameters, defaults,
+docs) and the enum constraints extracted from `src/*.f90`. A **snapshot of both
+is bundled into the package**, so `yelmo-config` works without a local copy of
+Yelmo. Resolution order:
 
 1. `--defaults PATH` / `--src PATH`
 2. `$YELMO_DEFAULTS`, or `$YELMO_ROOT` (expects `$YELMO_ROOT/input/yelmo_defaults.nml`)
 3. walking up from the current directory
 4. walking up from the installed package (works for `-e` installs)
+5. **the bundled snapshot** (fallback)
 
-So run it from inside a Yelmo checkout, or set `YELMO_ROOT`, or pass `--defaults`.
+When an auto-discovered local file (3/4) differs from the bundled snapshot, a
+`warning:` is printed to stderr — telling you the installed tool is out of date
+relative to your checkout (or vice-versa). Run inside a checkout for live data,
+or anywhere for the bundled defaults.
+
+#### Refreshing the bundled snapshot (maintainers)
+
+```bash
+yelmo-config snapshot     # regenerate data/yelmo_defaults.nml + data/enums.json from the checkout
+```
+
+Run this from a Yelmo checkout whenever the defaults or the `yelmo_check_enum`
+calls change, then commit the updated `yelmo_config/data/` files so installs from
+GitHub ship the current snapshot.
 
 ## Commands
 
@@ -64,6 +79,7 @@ So run it from inside a Yelmo checkout, or set `YELMO_ROOT`, or pass `--defaults
 | `diff A [B] [--raw]` | Compare two par files, or one against the defaults. Supports per-group selectors. |
 | `check FILE [--files]` | Validate a user par file against the schema and all constraints. |
 | `update [ref]` | Self-update: reinstall the tool from its git repo via `pip install -U`. |
+| `snapshot` | Refresh the bundled defaults/enums snapshot from a checkout (maintainers). |
 | `completion {bash,zsh}` | Print a shell completion script. |
 
 ### Output formats

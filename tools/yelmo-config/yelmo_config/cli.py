@@ -306,8 +306,7 @@ def _print_group_diff(gd):
 
 def cmd_check(args, schema):
     user = _load(Path(args.file))
-    root = Path(args.root) if args.root else (schema.defaults_path.parent.parent
-                                              if schema.defaults_path else None)
+    root = Path(args.root) if args.root else schema.repo_root
     rep = run_check(user, schema, check_files=args.files, root=root)
 
     if args.format in ("json", "compact"):
@@ -375,6 +374,36 @@ def cmd_update(args) -> None:
         subprocess.run(cmd, check=True)
     except (subprocess.CalledProcessError, OSError) as e:
         sys.exit(f"yelmo-config: self-update failed: {e}")
+
+
+def cmd_snapshot(args) -> None:
+    """`yelmo-config snapshot` — refresh the bundled defaults + enum snapshots
+    from a local Yelmo checkout into the package's data/ directory. For
+    maintainers: run from a checkout, then commit the updated data files."""
+    import json
+    from . import namelist as nl
+    from .constraints import enums_to_json, extract_enums
+    from .locate import (BUNDLED_DEFAULTS, BUNDLED_ENUMS, find_local_defaults,
+                         find_src)
+
+    try:
+        dp = find_local_defaults(args.defaults)
+    except FileNotFoundError as e:
+        sys.exit(f"yelmo-config snapshot: {e}")
+    sp = Path(args.src) if args.src else find_src(dp)
+    if not (sp and sp.is_dir()):
+        sys.exit("yelmo-config snapshot: could not locate src/ for enum extraction "
+                 "(pass --src). A full checkout is required.")
+
+    BUNDLED_DEFAULTS.parent.mkdir(parents=True, exist_ok=True)
+    BUNDLED_DEFAULTS.write_text(Path(dp).read_text())
+    enums = extract_enums(Path(sp))
+    BUNDLED_ENUMS.write_text(json.dumps(enums_to_json(enums), indent=2) + "\n")
+
+    n_enum = sum(len(v) for v in enums.values())
+    print(f"snapshot written to {BUNDLED_DEFAULTS.parent}")
+    print(f"  defaults : {dp}")
+    print(f"  enums    : {sp}  ({n_enum} constraint(s) across {len(enums)} parameter(s))")
 
 
 # --------------------------------------------------------------------------- #
@@ -450,6 +479,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="print the pip command without running it")
     sp.set_defaults(func=cmd_update)
 
+    sp = sub.add_parser("snapshot",
+                        help="refresh the bundled defaults/enums from a checkout (maintainers)")
+    sp.set_defaults(func=cmd_snapshot)
+
     sp = sub.add_parser("completion", help="emit a shell completion script (bash|zsh)")
     sp.add_argument("shell", choices=["bash", "zsh"])
 
@@ -468,12 +501,15 @@ def main(argv=None):
             or getattr(args, "format", "text") != "text"):
         C.enabled = False
 
-    # these do not need a Yelmo checkout
+    # these do not need a built schema (and work without a Yelmo checkout)
     if args.command == "completion":
         sys.stdout.write(completion_script(args.shell))
         return
     if args.command == "update":
         cmd_update(args)
+        return
+    if args.command == "snapshot":
+        cmd_snapshot(args)
         return
 
     try:
@@ -482,6 +518,9 @@ def main(argv=None):
         if args.command == "_complete":
             return   # silent: completion just offers nothing outside a checkout
         sys.exit(f"error: {e}")
+
+    for w in schema.warnings:
+        print(f"warning: {w}", file=sys.stderr)
 
     if args.command == "_complete":
         if args.kind == "groups":

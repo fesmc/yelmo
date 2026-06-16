@@ -299,6 +299,70 @@ def test_cli_check_json(tmp_path):
     assert code == 1
 
 
+def test_enums_json_roundtrip():
+    from yelmo_config.constraints import (EnumConstraint, enums_from_json,
+                                          enums_to_json)
+    enums = {
+        ("ydyn", "solver"): [EnumConstraint("ydyn", "solver", ["sia", "diva"])],
+        ("ycalv", "m"): [
+            EnumConstraint("ycalv", "m", ["a", "b"], conditions=[("use_lsf", True)]),
+            EnumConstraint("ycalv", "m", ["c"], conditions=[("use_lsf", False)]),
+        ],
+    }
+    back = enums_from_json(enums_to_json(enums))
+    assert enums_to_json(back) == enums_to_json(enums)
+    assert back[("ycalv", "m")][0].conditions == [("use_lsf", True)]
+
+
+def test_bundled_files_present_and_loadable():
+    # the committed snapshots must exist and parse
+    from yelmo_config.locate import BUNDLED_DEFAULTS, BUNDLED_ENUMS
+    from yelmo_config.constraints import load_bundled_enums
+    from yelmo_config import namelist as nl
+    assert BUNDLED_DEFAULTS.is_file() and BUNDLED_ENUMS.is_file()
+    assert "ydyn" in nl.parse_file(BUNDLED_DEFAULTS).groups
+    enums = load_bundled_enums(BUNDLED_ENUMS)
+    assert enums[("ydyn", "solver")][0].allowed  # non-empty
+
+
+def test_local_differs_warning(tmp_path, monkeypatch):
+    # a local (auto-discovered) defaults file that differs from the bundle warns
+    (tmp_path / "input").mkdir()
+    (tmp_path / "input" / "yelmo_defaults.nml").write_text(
+        '&yelmo\n domain="None"\n cfl_max=0.999\n/\n')
+    monkeypatch.chdir(tmp_path)
+    from yelmo_config.schema import build_schema
+    schema = build_schema()                 # no explicit path -> source "local"
+    assert schema.defaults_source == "local"
+    assert any("differ" in w for w in schema.warnings)
+
+
+def test_snapshot_writes_bundle(tmp_path, monkeypatch):
+    import argparse
+    from yelmo_config import cli
+    from yelmo_config import locate
+    from yelmo_config.constraints import load_bundled_enums
+    # fake checkout
+    (tmp_path / "input").mkdir()
+    dp = tmp_path / "input" / "yelmo_defaults.nml"
+    dp.write_text('&ycalv\n use_lsf=False\n calv_flt_method="vm-l19"\n/\n')
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "x.f90").write_text(
+        '    subroutine ycalv_par_load(group_ycalv)\n'
+        '        call yelmo_check_enum(group_ycalv,"calv_flt_method",par%x,"vm-l19|kill")\n'
+        '    end subroutine\n')
+    # redirect the bundle target into tmp
+    out_def = tmp_path / "out" / "yelmo_defaults.nml"
+    out_enm = tmp_path / "out" / "enums.json"
+    monkeypatch.setattr(locate, "BUNDLED_DEFAULTS", out_def)
+    monkeypatch.setattr(locate, "BUNDLED_ENUMS", out_enm)
+
+    cli.cmd_snapshot(argparse.Namespace(defaults=str(dp), src=str(tmp_path / "src")))
+    assert out_def.is_file() and out_enm.is_file()
+    enums = load_bundled_enums(out_enm)
+    assert enums[("ycalv", "calv_flt_method")][0].allowed == ["vm-l19", "kill"]
+
+
 def test_real_defaults_smoke():
     from yelmo_config.locate import DEFAULTS_RELPATH
     here = Path(__file__).resolve()
