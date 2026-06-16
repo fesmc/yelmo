@@ -1085,7 +1085,76 @@ module yelmo_defs
 
     public   ! All yelmo defs are public
 
-contains 
+contains
+
+    ! Validate that `value` matches one of the pipe-separated tokens in
+    ! `allowed`, e.g. allowed = "expl|impl-lis". Stops with a clear
+    ! diagnostic naming the group, the parameter, the current value, and
+    ! the allowed list when the check fails.
+    subroutine yelmo_check_enum(group, name, value, allowed)
+
+        implicit none
+
+        character(len=*), intent(IN) :: group, name, value, allowed
+
+        integer :: p, q, n
+        logical :: ok
+
+        ok = .false.
+        n  = len_trim(allowed)
+        p  = 1
+        do while (p <= n)
+            q = index(allowed(p:n), "|")
+            if (q == 0) then
+                if (trim(value) == trim(adjustl(allowed(p:n)))) then
+                    ok = .true.
+                end if
+                exit
+            end if
+            if (trim(value) == trim(adjustl(allowed(p:p+q-2)))) then
+                ok = .true.
+                exit
+            end if
+            p = p + q
+        end do
+
+        if (.not. ok) then
+            write(io_unit_err,*) ""
+            write(io_unit_err,*) "yelmo_check_enum:: Error: invalid value for parameter."
+            write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
+            write(io_unit_err,*) "  value      = '", trim(value), "'"
+            write(io_unit_err,*) "  allowed    = ", trim(allowed)
+            stop "Program stopped."
+        end if
+
+        return
+
+    end subroutine yelmo_check_enum
+
+    ! Stop with a clear diagnostic if the file at `path` does not exist.
+    ! Used to validate *_path parameters whose corresponding *_load flag is
+    ! true, so the user sees the offending group.name instead of a generic
+    ! netCDF "file not found" deeper down.
+    subroutine yelmo_check_file(group, name, path)
+
+        implicit none
+
+        character(len=*), intent(IN) :: group, name, path
+
+        logical :: ex
+
+        inquire(file=trim(path), exist=ex)
+        if (.not. ex) then
+            write(io_unit_err,*) ""
+            write(io_unit_err,*) "yelmo_check_file:: Error: file not found."
+            write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
+            write(io_unit_err,*) "  path       = '", trim(path), "'"
+            stop "Program stopped."
+        end if
+
+        return
+
+    end subroutine yelmo_check_file
 
     function yelmo_get_precision() result(yelmo_prec)
 
