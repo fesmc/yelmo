@@ -95,8 +95,8 @@
     lsf_method          = "snap"            ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
     dt_lsf              = -1                ! [yr] periodic LSF reflag interval; <= 0 disables. snap mode only.
     lsf_redist_n_iter   = 5                 ! Sussman/Osher LSF redistancing iterations. redist mode only.
-    calv_flt_method     = "vm-l19"          ! "zero", "simple", "flux", "vm-l19", "vm-m16", "kill"
-    calv_grnd_method    = "zero"            ! "zero", "stress-b12", "vm-m16"
+    calv_flt_method     = "vm-l19"          ! use_lsf=F: "zero"/"none","threshold","vm-l19","eigen","kill","kill-pos" | use_lsf=T: "zero"/"none","equil","threshold","vm-m16","exp1"-"exp5"
+    calv_grnd_method    = "zero"            ! use_lsf=F: "zero"/"none","stress-b12" | use_lsf=T: "zero"/"none","equil","threshold","vm-m16","ismip7"
     
     ! === numeric noise === 
     H_min_grnd          = 5.0               ! [m] Minimum ice thickness at grounded margin (thinner ice is ablated) - helps with stability, smaller value will lead to more precise summit
@@ -228,21 +228,21 @@
     n_glen                  = 3.0           ! Glen flow law exponent
     visc_min                = 1e3           ! [Pa a] Minimum allowed viscosity 
     de_max                  = 2.0           ! [a-1]  Maximum allowed effective strain rate
-    enh_method              = "shear3D"     ! "simple","shear2D", "shear3D", "paleo-shear" 
+    enh_method              = "shear3D"     ! "simple","shear2D","shear3D" (+ "-tracer" variants)
     enh_shear               = 3.0
     enh_stream              = 3.0
     enh_shlf                = 0.7
-    enh_umin                = 50.0          ! [m/yr] Minimum transition velocity to enh_stream (enh_method="paleo-shear")
-    enh_umax                = 500.0         ! [m/yr] Maximum transition velocity to enh_stream (enh_method="paleo-shear")
+    enh_umin                = 50.0          ! [m/yr] Minimum transition velocity to enh_stream ('*-tracer' enh methods)
+    enh_umax                = 500.0         ! [m/yr] Maximum transition velocity to enh_stream ('*-tracer' enh methods)
     calc_age                = False         ! Calculate age tracer field?
     age_iso                 = 11.7, 29.0, 57.0, 115.0
-    tracer_method           = "expl"        ! "expl", "impl": used for age and 'paleo-shear' enh fields
+    tracer_method           = "expl"        ! "expl", "impl": used for age and '*-tracer' enh fields
     tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit tracer solving 
     
 /
 
 &ytherm
-    method          = "temp"            ! "fixed", "robin", "temp", "enth"
+    method          = "temp"            ! "enth", "temp", "robin", "robin-cold", "linear", "fixed"
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
@@ -256,7 +256,7 @@
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
     ! Basal water bucket (till_rate, H_w_max) moved to &fhyd.
 
-    rock_method     = "equil"           ! "equil" (not active bedrock) or "active"
+    rock_method     = "equil"           ! "equil" (not active bedrock), "active", or "fixed"
     nzr_aa          = 5                 ! Number of vertical points in bedrock 
     zeta_scale_rock = "exp-inv"         ! "linear", "exp-inv"
     zeta_exp_rock   = 2.0  

@@ -661,10 +661,10 @@ end if
         call nml_read(filename,group,"kt_rock",        par%kt_rock,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
 
         ! Validate parameter values
-        call yelmo_check_enum(group,"method",          par%method,          "fixed|robin|temp|enth")
+        call yelmo_check_enum(group,"method",          par%method,          "enth|temp|robin|robin-cold|linear|fixed")
         call yelmo_check_enum(group,"dt_method",       par%dt_method,       "FE|AB|SAM")
         call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
-        call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active")
+        call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
 
         if (par%nzr_aa .lt. 2) then

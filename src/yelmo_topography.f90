@@ -1356,7 +1356,15 @@ end if
             call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method, &
                                   "zero|none|threshold|vm-l19|eigen|kill|kill-pos")
         end if
-        call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method,"zero|stress-b12|vm-m16")
+        ! As with calv_flt_method, the allowed calv_grnd_method values differ between the
+        ! level-set and mass-balance calving paths.
+        if (par%use_lsf) then
+            call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method, &
+                                  "zero|none|equil|threshold|vm-m16|ismip7")
+        else
+            call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method, &
+                                  "zero|none|stress-b12")
+        end if
 
         if (par%grad_lim .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim

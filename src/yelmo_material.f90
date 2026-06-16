@@ -38,8 +38,8 @@ contains
         real(wp), allocatable :: X_srf(:,:) 
         logical,  allocatable :: mask_tracers(:,:) 
 
-        real(wp), parameter   :: enh_min = 0.1_wp       ! Minimum allowed enhancement factor value (for enh_method="paleo-shear")
-        real(wp), parameter   :: enh_max = 10.0_wp      ! Maximum allowed enhancement factor value (for enh_method="paleo-shear")
+        real(wp), parameter   :: enh_min = 0.1_wp       ! Minimum allowed enhancement factor value (for '*-tracer' enh methods)
+        real(wp), parameter   :: enh_max = 10.0_wp      ! Maximum allowed enhancement factor value (for '*-tracer' enh methods)
 
         nz_aa = mat%par%nz_aa
 
@@ -320,16 +320,18 @@ contains
 
         ! Validate parameter values
         call yelmo_check_enum(group,"flow_law",      par%flow_law,      "glen")
-        call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|shear2D|shear3D|paleo-shear")
+        call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|simple-tracer|shear2D|shear2D-tracer|shear3D|shear3D-tracer")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
 
         if (par%n_glen .le. 0.0_wp) then
             write(io_unit_err,*) "ymat_par_load:: error: n_glen must be > 0; got ", par%n_glen
             stop "Program stopped."
         end if
-        if (trim(par%enh_method) == "paleo-shear" .and. par%enh_umin .ge. par%enh_umax) then
+        ! The '*-tracer' enh methods use enh_umin/enh_umax as the velocity transition range
+        ! for the enh_bnd tracer mask (see calc_ymat), so enforce the ordering there.
+        if (index(trim(par%enh_method),"-tracer") > 0 .and. par%enh_umin .ge. par%enh_umax) then
             write(io_unit_err,*) "ymat_par_load:: error: enh_umin must be < enh_umax for &
-                                 &enh_method='paleo-shear'; got ", par%enh_umin, par%enh_umax
+                                 &'*-tracer' enh_method; got ", par%enh_umin, par%enh_umax
             stop "Program stopped."
         end if
 
