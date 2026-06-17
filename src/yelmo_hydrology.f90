@@ -10,7 +10,7 @@ module yelmo_hydrology
     ! still co-exist during the migration and are untouched here.
 
     use yelmo_defs
-    use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update
+    use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update, SEC_PER_YEAR
 
     implicit none
 
@@ -110,7 +110,10 @@ contains
 
         ! Convert grounded basal mass balance (ice-equivalent m/a,
         ! +ve = accumulation) to water-equivalent melt (+ve = water source).
-        bmb_w = -thrm%now%bmb_grnd * (bnd%c%rho_ice / bnd%c%rho_w)
+        ! fasthydrology's mdot contract is SI [m/s], so divide by SEC_PER_YEAR;
+        ! omitting this overscales the source by ~3.16e7 and pegs any melting
+        ! cell straight to W_til_max.
+        bmb_w = -thrm%now%bmb_grnd * (bnd%c%rho_ice / bnd%c%rho_w) / SEC_PER_YEAR
 
         ! Basal Glen-A. zeta_aa(1) = 0 in yelmo, so index 1 is the base.
         A_glen_b = mat%now%ATT(:,:,1)
