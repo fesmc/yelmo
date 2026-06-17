@@ -25,6 +25,8 @@ program yelmo_test
     character(len=12) :: opt_method 
     real(prec) :: cf_min
     real(prec) :: cf_max
+    real(prec), allocatable :: cf_min_2D(:,:)
+    real(prec), allocatable :: cf_max_2D(:,:)
     real(prec) :: cf_init  
     
     integer    :: n_iter 
@@ -183,7 +185,7 @@ program yelmo_test
     yelmo1%bnd%Q_geo    = 50.0                  ! [mW/m2]
     
     yelmo1%bnd%bmb_shlf = bmb_shlf_const        ! [m.i.e./a]
-    yelmo1%bnd%T_shlf   = T0 + dT_ann*0.25_prec ! [K]   
+    yelmo1%bnd%T_shlf   = yelmo1%bnd%c%T0 + dT_ann*0.25_prec ! [K]   
 
     ! Impose present-day surface temperature and surface mass balance fields
     yelmo1%bnd%T_srf    = yelmo1%dta%pd%T_srf + dT_ann  ! [K]
@@ -211,7 +213,8 @@ program yelmo_test
 
             ! Calculate new initial guess of cb_ref using info from dyn
             call guess_cb_ref(yelmo1%dyn%now%cb_ref,yelmo1%dyn%now%taud,yelmo1%dta%pd%uxy_s, &
-                                yelmo1%dta%pd%H_ice,yelmo1%dta%pd%H_grnd,yelmo1%dyn%par%beta_u0,cf_min,cf_max)
+                                yelmo1%dta%pd%H_ice,yelmo1%dta%pd%H_grnd,yelmo1%dyn%par%beta_u0,cf_min,cf_max, &
+                                yelmo1%bnd%c%rho_ice,yelmo1%bnd%c%g)
 
             ! Update ice sheet to get everything in sync
             call yelmo_update_equil(yelmo1,time_init,time_tot=1.0,dt=1.0_prec,topo_fixed=.TRUE.)
@@ -267,7 +270,7 @@ program yelmo_test
         yelmo1%bnd%Q_geo    = 50.0                  ! [mW/m2]
         
         yelmo1%bnd%bmb_shlf = bmb_shlf_const        ! [m.i.e./a]
-        yelmo1%bnd%T_shlf   = T0 + dT_ann*0.25_prec ! [K]   
+        yelmo1%bnd%T_shlf   = yelmo1%bnd%c%T0 + dT_ann*0.25_prec ! [K]   
 
         ! Impose present-day surface temperature and surface mass balance fields
         yelmo1%bnd%T_srf    = yelmo1%dta%pd%T_srf + dT_ann  ! [K]
@@ -302,95 +305,23 @@ program yelmo_test
     select case(opt_method)
 
         case("P12")
-            ! Pollard and DeConto (2012) 
-
-            ! Initialize timing variables 
-            time = time_init 
-            n_now = 1 
-
-            do q = 1, n_iter 
-
-                ! === Optimization parameters =========
-                
-                tau       = get_opt_param(time,time1=rel_time1,time2=rel_time2,p1=rel_tau1,p2=rel_tau2,m=rel_m)
-                err_scale = get_opt_param(time,time1=scale_time1,time2=scale_time2,p1=scale_err1,p2=scale_err2,m=1.0)
-                
-                ! Set model tau, and set yelmo relaxation switch (2: gl-line and shelves relaxing; 0: no relaxation)
-                yelmo1%tpo%par%topo_rel_tau = tau 
-                yelmo1%tpo%par%topo_rel     = 2
-                if (time .gt. rel_time2) yelmo1%tpo%par%topo_rel = 0 
-
-                ! Update relaxation parameters for reference model too 
-                yelmo_ref%tpo%par%topo_rel_tau = yelmo1%tpo%par%topo_rel_tau
-                yelmo_ref%tpo%par%topo_rel     = yelmo1%tpo%par%topo_rel
-
-                ! Diagnose mass balance correction term 
-                call update_mb_corr(mb_corr,yelmo1%tpo%now%H_ice,yelmo1%dta%pd%H_ice,tau)
-                
-                ! === Update cb_ref and reset model ===================
-
-                if (q .gt. 1) then
-                    ! Perform optimization after first iteration
-
-                    ! Update cb_ref based on error metric(s) 
-                    call update_cb_ref_errscaling(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
-                                        yelmo1%bnd%z_bed,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
-                                        yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd.le.0.0_prec, &
-                                        yelmo1%tpo%par%dx,cf_min,cf_max,sigma_err,sigma_vel,err_scale, &
-                                        fill_dist=80.0_prec,optvar=optvar)
-
-                end if 
-                
-                if (reset_model) then
-                    ! Reset model to reference state with updated cb_ref 
-
-                    yelmo_ref%dyn%now%cb_ref = yelmo1%dyn%now%cb_ref
-                    call yelmo_set_time(yelmo_ref,time)
-
-                    if (time_iter_therm .gt. 0.0) then
-                        ! Run thermodynamics without updating topography 
-                        call yelmo_update_equil(yelmo_ref,time,time_tot=time_iter_therm,dt=5.0_prec,topo_fixed=.TRUE.)
-                    end if 
-
-                    yelmo1 = yelmo_ref 
-
-                else 
-                    ! Continue with the model as it is
-
-                    if (time_iter_therm .gt. 0.0) then
-                        ! Run thermodynamics without updating topography  
-                        call yelmo_update_equil(yelmo1,time,time_tot=time_iter_therm,dt=5.0_prec,topo_fixed=.TRUE.)
-                    end if 
-                     
-                end if 
-
-                ! === Update time_iter ==================
-                time_end = time_iter
-                if (q .eq. n_iter) time_end = time_steady_end 
-
-                write(*,"(a,i4,f10.1,i4,f10.1,f12.1,f10.1)") "iter_par: ", q, time, &
-                                    yelmo1%tpo%par%topo_rel, tau, err_scale, time_end
-
-                ! Perform iteration loop to diagnose error for modifying c_bed 
-                do n = 1, int(time_end/dtt)
-                
-                    time = time + dtt 
-
-                    ! Update ice sheet 
-                    call yelmo_update(yelmo1,time)
-
-                    if (mod(nint(time*100),nint(dt2D_out*100))==0) then
-                        call write_step_2D_opt(yelmo1,file2D,time,mb_corr,mask_noice,tau,err_scale)
-                    end if 
-
-                end do 
-
-            end do 
+            ! Pollard and DeConto (2012) - retired.
+            ! Relied on update_cb_ref_errscaling / get_opt_param, which were removed
+            ! from the public ice_optimization API. Use opt_method="L21" (optimize_cb_ref).
+            write(*,*) "yelmo_opt:: Error: opt_method='P12' has been retired."
+            write(*,*) "Use opt_method='L21' (optimize_cb_ref, Lipscomb et al. 2021)."
+            stop
 
         case("L21") 
             ! Lipscomb et al. (2021)
             
-            ! Perform transient simulation with cb_ref nudging  
+            ! optimize_cb_ref expects 2D cf bounds; fill from the scalar ctrl values
+            allocate(cf_min_2D(yelmo1%grd%nx,yelmo1%grd%ny))
+            allocate(cf_max_2D(yelmo1%grd%nx,yelmo1%grd%ny))
+            cf_min_2D = cf_min
+            cf_max_2D = cf_max
+
+            ! Perform transient simulation with cb_ref nudging
             do n = 1, ceiling((time_end-time_init)/dtt)
 
                 ! Get current time 
@@ -399,7 +330,7 @@ program yelmo_test
                 ! === Optimization parameters =========
                 
                 ! Update model relaxation time scale and error scaling (in [m])
-                tau = get_opt_param(time,time1=rel_time1,time2=rel_time2,p1=rel_tau1,p2=rel_tau2,m=rel_m)
+                call optimize_set_transient_param(tau,time,time1=rel_time1,time2=rel_time2,p1=rel_tau1,p2=rel_tau2,m=rel_m)
                 
                 ! Set model tau, and set yelmo relaxation switch (2: gl-line and shelves relaxing; 0: no relaxation)
                 yelmo1%tpo%par%topo_rel_tau = tau 
@@ -413,11 +344,11 @@ program yelmo_test
                 ! === Optimization update step =========
 
                 ! Update cb_ref based on error metric(s) 
-                call update_cb_ref_errscaling_l21(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
-                                    yelmo1%tpo%now%dHicedt,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
-                                    yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd.le.0.0_prec, &
-                                    yelmo1%tpo%par%dx,cf_min,cf_max,sigma_err,sigma_vel,tau_c,H0, &
-                                    fill_dist=80.0_prec,dt=dtt)
+                call optimize_cb_ref(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
+                                    yelmo1%tpo%now%dHidt,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
+                                    yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd, &
+                                    cf_min_2D,cf_max_2D,yelmo1%tpo%par%dx,sigma_err,sigma_vel,tau_c,H0, &
+                                    dt=dtt,fill_method="cf_min",fill_dist=80.0_prec)
 
                 ! === Advance ice sheet =========
 
@@ -431,52 +362,12 @@ program yelmo_test
             end do 
 
         case("L19")
-            ! Ratio method (Le clec’h et al, 2019) - needs revising
-
-            write(*,*) "This method may not work now - check carefully."
-            stop 
-
-            ! Initialize timing variables 
-            time = time_init 
-            
-            do q = 1, n_iter 
-
-                ! Reset model to the initial state (including H_w) and time, with updated c_bed field 
-                yelmo_ref%dyn%now%c_bed = yelmo1%dyn%now%c_bed 
-                yelmo1 = yelmo_ref 
-                time   = 0.0 
-                call yelmo_set_time(yelmo1,time) 
-                
-                ! Perform c_bed tuning step 
-                do n = 1, int(time_tune)
-                
-                    time = time + 1.0
-
-                    ! Update ice sheet 
-                    call yelmo_update(yelmo1,time)
-
-                    ! Update c_bed based on error metric(s) 
-                    call update_cb_ref_thickness_ratio(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
-                                    yelmo1%bnd%z_bed,yelmo1%dyn%now%ux_bar,yelmo1%dyn%now%uy_bar, &
-                                    yelmo1%dyn%now%uxy_i_bar,yelmo1%dyn%now%uxy_b,yelmo1%dta%pd%H_ice, &
-                                    yelmo1%tpo%par%dx,cf_min,cf_max=cf_max)
-
-                end do 
-
-                ! Perform iteration loop to diagnose error for modifying c_bed 
-                do n = 1, int(time_iter)
-                
-                    time = time + 1.0
-
-                    ! Update ice sheet 
-                    call yelmo_update(yelmo1,time)
-
-                end do 
-
-                ! Write the current solution 
-                call write_step_2D_opt(yelmo1,file2D,time,mb_corr,mask_noice,tau,err_scale)
-                
-            end do 
+            ! Ratio method (Le clec'h et al., 2019) - retired.
+            ! Relied on update_cb_ref_thickness_ratio, which was removed from the
+            ! public ice_optimization API. Use opt_method="L21" (optimize_cb_ref).
+            write(*,*) "yelmo_opt:: Error: opt_method='L19' has been retired."
+            write(*,*) "Use opt_method='L21' (optimize_cb_ref, Lipscomb et al. 2021)."
+            stop
 
     end select 
 
@@ -538,7 +429,7 @@ contains
                               dim1="time",start=[n],count=[1],ncid=ncid)
         call nc_write(filename,"A_ice",ylmo%reg%A_ice,units="km2",long_name="Ice area", &
                               dim1="time",start=[n],count=[1],ncid=ncid)
-        call nc_write(filename,"dVicedt",ylmo%reg%dVicedt,units="km3 yr-1",long_name="Rate of volume change", &
+        call nc_write(filename,"dVicedt",ylmo%reg%dVidt,units="km3 yr-1",long_name="Rate of volume change", &
                       dim1="time",start=[n],count=[1],ncid=ncid)
         
         call nc_write(filename,"opt_tau",tau,units="yr",long_name="Relaxation time scale (ice shelves)", &
@@ -558,7 +449,7 @@ contains
         call nc_write(filename,"mask_bed",ylmo%tpo%now%mask_bed,units="",long_name="Bed mask", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
-        call nc_write(filename,"dHicedt",ylmo%tpo%now%dHicedt,units="m/a",long_name="Ice thickness change", &
+        call nc_write(filename,"dHicedt",ylmo%tpo%now%dHidt,units="m/a",long_name="Ice thickness change", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
         call nc_write(filename,"c_bed",ylmo%dyn%now%c_bed,units="Pa",long_name="Bed friction coefficient", &
@@ -588,8 +479,8 @@ contains
         call nc_write(filename,"ATT",ylmo%mat%now%ATT,units="a^-1 Pa^-3",long_name="Rate factor", &
                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
         
-        call nc_write(filename,"H_w",ylmo%thrm%now%H_w,units="m",long_name="Basal water layer", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        ! Basal water moved to hyd (fasthydrology); output as "hyd_W_til".
+        call yelmo_write_var(filename,"hyd_W_til",ylmo,n,ncid)
         call nc_write(filename,"T_prime_b",ylmo%thrm%now%T_prime_b,units="m",long_name="Basal homologous ice temperature", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
@@ -629,179 +520,6 @@ contains
 
     end subroutine write_step_2D_opt
 
-
-    ! Extra...
-
-    subroutine calc_ydyn_cbed_external_channels(dyn,tpo,thrm,bnd,channels)
-        ! Update c_bed based on parameter choices
-
-        implicit none
-        
-        type(ydyn_class),   intent(INOUT) :: dyn
-        type(ytopo_class),  intent(IN)    :: tpo 
-        type(ytherm_class), intent(IN)    :: thrm
-        type(ybound_class), intent(IN)    :: bnd  
-        real(prec),         intent(INOUT) :: channels(:,:) 
-
-        integer :: i, j, nx, ny 
-        integer :: i1, i2, j1, j2 
-        real(prec), allocatable :: f_channel(:,:) 
-
-        real(prec) :: channel_lim = 1e-6 
-
-        nx = size(dyn%now%c_bed,1)
-        ny = size(dyn%now%c_bed,2)
-        
-        allocate(f_channel(nx,ny)) 
-
-        ! Set c_bed according to temperate character of base
-
-        ! Smooth transition between temperate and frozen c_bed
-        dyn%now%c_bed = (thrm%now%f_pmp)*dyn%par%cf_stream &
-                    + (1.0_prec - thrm%now%f_pmp)*dyn%par%cf_frozen 
-
-        if (dyn%par%cb_margin_pmp) then 
-            ! Ensure that both the margin points and the grounding line
-            ! are always considered streaming, independent of their
-            ! thermodynamic character (as sometimes these can incorrectly become frozen)
-
-        
-            ! Ensure any marginal point is also treated as streaming 
-            do j = 1, ny 
-            do i = 1, nx 
-
-                i1 = max(i-1,1)
-                i2 = min(i+1,nx)
-                j1 = max(j-1,1)
-                j2 = min(j+1,ny)
-
-                if (tpo%now%H_ice(i,j) .gt. 0.0 .and. &
-                    (tpo%now%H_ice(i1,j) .le. 0.0 .or. &
-                     tpo%now%H_ice(i2,j) .le. 0.0 .or. &
-                     tpo%now%H_ice(i,j1) .le. 0.0 .or. &
-                     tpo%now%H_ice(i,j2) .le. 0.0)) then 
-
-                    dyn%now%c_bed(i,j) = dyn%par%cf_stream
-
-                end if 
-
-            end do 
-            end do 
-
-            ! Also ensure that grounding line is also considered streaming
-            where(tpo%now%is_grline) dyn%now%c_bed = dyn%par%cf_stream
-
-        end if 
-
-        ! == Until here, c_bed is defined as normally with cb_method=1,
-        !    now refine to increase only marginal velocities 
-
-        ! Reduce c_bed further for low elevation points
-        !where(tpo%now%z_srf .lt. 1500.0) dyn%now%c_bed = 0.5*dyn%now%c_bed
-
-        ! Next diagnose channels
-        call calc_channels(channels,tpo%now%z_srf,dyn%now%ux_bar,dyn%now%uy_bar,tpo%par%dx)
-
-        ! Finally scale c_bed according to concavity of channels 
-        !f_channel = exp(-channels/channel_lim)
-        !where(f_channel .lt. 0.1) f_channel = 0.1 
-        !where(f_channel .gt. 2.0) f_channel = 2.0  
-
-        f_channel = 1.0 
-
-        dyn%now%c_bed = dyn%now%c_bed * f_channel 
-        
-        return 
-
-    end subroutine calc_ydyn_cbed_external_channels
-
-
-    subroutine calc_channels(channels,z_bed,ux,uy,dx)
-
-        implicit none 
-
-        real(prec), intent(OUT) :: channels(:,:) 
-        real(prec), intent(IN)  :: z_bed(:,:) 
-        real(prec), intent(IN)  :: ux(:,:) 
-        real(prec), intent(IN)  :: uy(:,:) 
-        real(prec), intent(IN)  :: dx 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        real(prec) :: ux_aa, uy_aa, uxy 
-        real(prec) :: dzdx1, dzdx2 
-        real(prec) :: dz2dx2, dz2dy2
-        real(prec) :: theta   ! [rad] Angle of direction of ice flow
-        real(prec) :: alpha   ! [rad] Angle of direction perpindicular to ice flow 
-
-        ! Finite-difference coefficients
-        real(prec), parameter :: fm2 = -1.0/12.0 
-        real(prec), parameter :: fm1 =  4.0/3.0 
-        real(prec), parameter :: f0  = -5.0/2.0 
-        real(prec), parameter :: fp1 =  4.0/3.0
-        real(prec), parameter :: fp2 = -1.0/12.0 
-         
-        
-        
-        nx = size(channels,1)
-        ny = size(channels,2)
-
-        ! Set channels to zero initially 
-        channels = 0.0 
-
-        ! Find channels based on change in elevation perpendicular to flow direction,
-        ! then (to do!) negative component for along flow direction  
-        do j = 3, ny-2 
-        do i = 3, nx-2 
-
-            ! Get velocity of current grid point 
-            ux_aa = 0.5*(ux(i-1,j) + ux(i,j))
-            uy_aa = 0.5*(uy(i,j-1) + uy(i,j))
-            uxy   = sqrt(ux_aa**2 + uy_aa**2)
-
-            if (uxy .gt. 0.0) then 
-                ! Only modify areas with some velocity available 
-
-                ! Get direction perpindicular ice flow 
-                alpha = atan2(uy_aa,ux_aa) - pi/2.0 
-
-                ! Calculate second-derivative in each direction (2nd order)
-                dz2dx2 = (1.0/dx**2)*sum([fm2,fm1,f0,fp1,fp2]*z_bed(i-2:i+2,j))
-                dz2dy2 = (1.0/dx**2)*sum([fm2,fm1,f0,fp1,fp2]*z_bed(i,j-2:j+2))
-                
-                ! Scale derivative in each direction to get approximate concavity in
-                ! direction of interest 
-                channels(i,j) = cos(alpha)*dz2dx2 + sin(alpha)*dz2dy2
-
-!                 if (abs(ux_aa) .gt. abs(uy_aa)) then 
-!                     ! Flow predominantly in x-direction
-
-!                     dzdx1         = (z_bed(i,j)   - z_bed(i,j-1)) / dx 
-!                     dzdx2         = (z_bed(i,j+1) - z_bed(i,j))   / dx 
-!                     channels(i,j) = (dzdx2-dzdx1) / dx 
-
-!                     !channels(i,j) = (0.5*(z_bed(i,j-1)+z_bed(i,j+1)) - z_bed(i,j)) / dx 
-
-!                 else 
-!                     ! Flow predominantly in y-direction 
-
-!                     dzdx1         = (z_bed(i,j)   - z_bed(i-1,j)) / dx 
-!                     dzdx2         = (z_bed(i+1,j) - z_bed(i,j))   / dx 
-!                     channels(i,j) = (dzdx2-dzdx1) / dx 
-                    
-!                     !channels(i,j) = (0.5*(z_bed(i-1,j)+z_bed(i+1,j)) - z_bed(i,j)) / dx 
-
-!                 end if 
-
-
-            end if 
-
-        end do 
-        end do 
-
-        return 
-
-    end subroutine calc_channels
 
 end program yelmo_test
 

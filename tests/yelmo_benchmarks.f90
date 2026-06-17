@@ -630,8 +630,8 @@ contains
         
         call nc_write(filename,"bmb_grnd",ylmo%thrm%now%bmb_grnd,units="m/a ice equiv.",long_name="Basal mass balance (grounded)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"H_w",ylmo%thrm%now%H_w,units="m",long_name="Basal water pressure", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        ! Basal water moved to hyd (fasthydrology); output as "hyd_W_til".
+        call yelmo_write_var(filename,"hyd_W_til",ylmo,n,ncid)
         
         call nc_write(filename,"H_cts",ylmo%thrm%now%H_cts,units="m",long_name="Height of CTS", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
