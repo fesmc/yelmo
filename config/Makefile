@@ -57,8 +57,14 @@ include config/Makefile_yelmo.mk
 check-hash:
 	./check_githash > git_yelmo.txt
 
+# FastHydrology's static archive provides fast_hydrology.mod, which yelmo's
+# sources `use` (transitively via yelmo_defs, which declares a hydro_class
+# member of yelmo_class), so this must build before yelmo-static.
+fasthydro-static:
+	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp)
+
 # Static library compilation
-yelmo-static: $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+yelmo-static: fasthydro-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
 	ar rc $(objdir)/libyelmo.a $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
 	ranlib $(objdir)/libyelmo.a
 	./check_githash > git_yelmo.txt
@@ -225,6 +231,7 @@ clean:
 	rm -f  *.x gmon.out $(objdir)/*.o $(objdir)/*.mod $(objdir)/*.a $(objdir)/*.so
 	rm -rf *.x.dSYM
 	rm -f ./git_yelmo.txt
+	$(MAKE) -C $(FASTHYDROROOT) clean
 
 
 # Experimental
