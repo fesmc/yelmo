@@ -1,5 +1,22 @@
 # Yelmo release/tag notes
 
+## Unreleased (dev) — fesm-utils compatibility shift
+
+**Yelmo now requires `fesm-utils` dev at `3f415cc` (2026-06-26) or later.** Building
+against an older fesm-utils will fail to compile. fesm-utils folded its standalone
+`coordinates` library into `utils/src/coords/` and moved several symbols:
+
+- `mv` / `TOL` / `TOL_UNDERFLOW` moved from module `precision` to a new `constants` module.
+- `nc_read_interp` moved from `mapping_scrip` to `ncio_interp`, and its mapping argument
+  changed from `mps=(map_scrip_class)` to `map=(map_class)`.
+
+`yelmo_io` was migrated to the unified `map_class` / `map_read` path (restart interpolation).
+A new `restart_interp_gen` switch selects how the conservative restart map is built:
+`"cdo"` (load a pre-generated SCRIP map; default, unchanged behaviour) or `"coords"`
+(generate the weights in-package via the coords library, no cdo dependency and no map file).
+The bundled `FastHydrology` and `FastIsostasy` libraries need no source changes but must be
+rebuilt against the same fesm-utils.
+
 ## v2.0 (2026-05-21)
 
 First release under the new `fesmc/yelmo` repository home. v2.0 collects the substantial development that has happened since the v1.0 release described in the 2020 GMD model description paper.
