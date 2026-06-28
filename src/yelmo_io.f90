@@ -10,7 +10,7 @@ module yelmo_io
     
     use variable_io
     use interp2D
-    use coordinates, only : grid_class, grid_init
+    use coords, only : grid_class, grid_init
     use mapping,     only : map_class, map_read, map_init
     use ncio_interp, only : nc_read_interp
 
