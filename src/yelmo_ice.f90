@@ -202,14 +202,26 @@ contains
 
             ! Finally, override all cases if time is already up-to-date.
             ! This is done here, to let all PC timestepping algorithms etc.
-            ! update themselves while dt_now>0. 
-            if (dt_max .eq. 0.0) then 
+            ! update themselves while dt_now>0.
+            if (dt_max .eq. 0.0) then
 
-                dt_now = 0.0_wp 
+                dt_now = 0.0_wp
 
-            end if 
+            end if
 
-            do iter_redo=1, dom%par%pc_n_redo 
+            ! Skip a zero-length step on an already-active trajectory. The driver
+            ! re-runs the step at the restart time on its first loop iteration
+            ! (tstep_update leaves time == time_init when ts%n == 0), giving
+            ! dt_now == 0 with the full model state already restored. Re-running the
+            ! predictor/corrector, velocity solve and pc-error machinery at dt == 0
+            ! would perturb that state (pc_dt/pc_eta history, pc_tau, re-solved
+            ! velocities) and break bit-for-bit restart continuity. A cold start's
+            ! equivalent t == 0 zero-step has pc_active == .FALSE. and still runs,
+            ! so non-restart behaviour is unchanged. The post-loop rate finalization
+            ! is already guarded by dt_max_0 > 0, so state is fully maintained here.
+            if (dt_now .eq. 0.0_wp .and. dom%time%pc_active) exit
+
+            do iter_redo=1, dom%par%pc_n_redo
                 ! Prepare to potentially perform several iterations of the same timestep.
                 ! If at the end of one iteration, the truncation error is too high, then 
                 ! redo the timestep with a lower dt. 
@@ -442,7 +454,7 @@ contains
             
             ! Update dt and eta vectors for last N timesteps (first index becomes latest value)
             dom%time%pc_dt = cshift(dom%time%pc_dt,shift=-1)
-            dom%time%pc_dt(1) = max(dt_now,dom%par%dt_min) 
+            dom%time%pc_dt(1) = max(dt_now,dom%par%dt_min)
 
             dom%time%pc_eta = cshift(dom%time%pc_eta,shift=-1)
             dom%time%pc_eta(1) = eta_now
