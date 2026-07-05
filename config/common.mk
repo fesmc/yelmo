@@ -6,11 +6,11 @@
 # (machine or auto-detected netCDF).
 
 # Dependency paths (serial build by default).
-FESMUTILSROOT = fesm-utils/utils
+FESMUTILSROOT = fesm-utils
 INC_FESMUTILS = -I${FESMUTILSROOT}/include-serial
 LIB_FESMUTILS = -L${FESMUTILSROOT}/include-serial -lfesmutils
 
-LISROOT = fesm-utils/lis-serial
+LISROOT = fesm-utils/lis/lis-serial
 INC_LIS = -I${LISROOT}/include
 LIB_LIS = -L${LISROOT}/lib/ -llis
 
@@ -24,7 +24,7 @@ LIB_FASTHYDRO = -L${FASTHYDROROOT}/include -lfasthydro
 
 # FFTW: required transitively by FastHydrology. Built by fesm-utils into a
 # sibling tree; swapped to the OpenMP variant in the openmp block below.
-FFTWROOT = fesm-utils/fftw-serial
+FFTWROOT = fesm-utils/fftw/fftw-serial
 INC_FFTW = -I${FFTWROOT}/include
 LIB_FFTW = -L${FFTWROOT}/lib -lfftw3 -lm
 
@@ -42,11 +42,11 @@ ifeq ($(openmp), 1)
     INC_FESMUTILS = -I${FESMUTILSROOT}/include-omp
     LIB_FESMUTILS = -L${FESMUTILSROOT}/include-omp -lfesmutils
 
-    LISROOT = fesm-utils/lis-omp
+    LISROOT = fesm-utils/lis/lis-omp
     INC_LIS = -I${LISROOT}/include
     LIB_LIS = -L${LISROOT}/lib/ -llis
 
-    FFTWROOT = fesm-utils/fftw-omp
+    FFTWROOT = fesm-utils/fftw/fftw-omp
     INC_FFTW = -I${FFTWROOT}/include
     LIB_FFTW = -L${FFTWROOT}/lib -lfftw3_omp -lfftw3 -lm
 

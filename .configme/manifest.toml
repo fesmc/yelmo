@@ -2,6 +2,5 @@
 package = "yelmo"
 deps = [
     "fesm-utils:dev",
-    "fesm-utils/utils",
     "FastHydrology:dev",
 ]
