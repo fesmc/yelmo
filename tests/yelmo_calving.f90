@@ -324,16 +324,16 @@ contains
         call nc_create(ctl%file_cmip, overwrite=.TRUE., institution="AWI", &
                        description="CalvingMIP output from YELMO ice-sheet model")
 
-        call nc_write_dim(ctl%file_cmip,"X",     x=ylmo%grd%xc, units="m", &
+        call nc_write_dim(ctl%file_cmip,"X",     x=ylmo%grd%G%x, units="m", &
                           long_name="X coordinate (model native grid)", axis="X")
-        call nc_write_dim(ctl%file_cmip,"Y",     x=ylmo%grd%yc, units="m", &
+        call nc_write_dim(ctl%file_cmip,"Y",     x=ylmo%grd%G%y, units="m", &
                           long_name="Y coordinate (model native grid)", axis="Y")
         call nc_write_dim(ctl%file_cmip,"Time1", x=0.0_wp, dx=1.0_wp, nx=1, &
                           units="years", unlimited=.TRUE.)
         call nc_write_dim(ctl%file_cmip,"Time100", x=t100, units="years")
 
         ! Set up profile geometry and write each profile's s{name} dim.
-        call profiles_setup(profiles, ctl%exp, ylmo%grd%dx)
+        call profiles_setup(profiles, ctl%exp, ylmo%grd%G%dx)
         do i = 1, size(profiles)
             call nc_write_dim(ctl%file_cmip,"s"//trim(profiles(i)%name), &
                               x=profiles(i)%s, units="m", &
@@ -423,15 +423,15 @@ contains
         logical, allocatable :: mask_NW(:,:), mask_NE(:,:), mask_SW(:,:), mask_SE(:,:)
 
         rho_ice = 917.0_wp
-        dx = ylmo%grd%dx
-        dy = ylmo%grd%dy
+        dx = ylmo%grd%G%dx
+        dy = ylmo%grd%G%dy
 
-        allocate(mask_grl(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(mask_frnt(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(mask_NW(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(mask_NE(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(mask_SW(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(mask_SE(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_grl(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(mask_frnt(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(mask_NW(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(mask_NE(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(mask_SW(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(mask_SE(ylmo%grd%G%nx,ylmo%grd%G%ny))
 
         reg = ylmo%reg
 
@@ -440,12 +440,12 @@ contains
         mask_frnt = (ylmo%tpo%now%H_ice .gt. 0.0 .and. ylmo%tpo%now%f_grnd .eq. 0.0 &
                                                     .and. ylmo%tpo%now%mask_frnt .eq. 1.0)
         mask_NW = .FALSE.; mask_NE = .FALSE.; mask_SW = .FALSE.; mask_SE = .FALSE.
-        do j = 1, ylmo%grd%ny
-        do i = 1, ylmo%grd%nx
-            if (ylmo%grd%xc(i) <= 0.0_wp .and. ylmo%grd%yc(j) >= 0.0_wp) mask_NW(i,j) = .TRUE.
-            if (ylmo%grd%xc(i) >= 0.0_wp .and. ylmo%grd%yc(j) >= 0.0_wp) mask_NE(i,j) = .TRUE.
-            if (ylmo%grd%xc(i) <= 0.0_wp .and. ylmo%grd%yc(j) <= 0.0_wp) mask_SW(i,j) = .TRUE.
-            if (ylmo%grd%xc(i) >= 0.0_wp .and. ylmo%grd%yc(j) <= 0.0_wp) mask_SE(i,j) = .TRUE.
+        do j = 1, ylmo%grd%G%ny
+        do i = 1, ylmo%grd%G%nx
+            if (ylmo%grd%G%x(i) <= 0.0_wp .and. ylmo%grd%G%y(j) >= 0.0_wp) mask_NW(i,j) = .TRUE.
+            if (ylmo%grd%G%x(i) >= 0.0_wp .and. ylmo%grd%G%y(j) >= 0.0_wp) mask_NE(i,j) = .TRUE.
+            if (ylmo%grd%G%x(i) <= 0.0_wp .and. ylmo%grd%G%y(j) <= 0.0_wp) mask_SW(i,j) = .TRUE.
+            if (ylmo%grd%G%x(i) >= 0.0_wp .and. ylmo%grd%G%y(j) <= 0.0_wp) mask_SE(i,j) = .TRUE.
         end do
         end do
 
@@ -519,9 +519,9 @@ contains
         integer,  allocatable :: mask_cmip(:,:)
         real(wp), allocatable :: ux_aa(:,:), uy_aa(:,:)
 
-        allocate(mask_cmip(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(ux_aa(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(uy_aa(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_cmip(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(ux_aa(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(uy_aa(ylmo%grd%G%nx,ylmo%grd%G%ny))
 
         dims(1) = "X"
         dims(2) = "Y"
@@ -533,8 +533,8 @@ contains
 
         ux_aa = 0.0_wp
         uy_aa = 0.0_wp
-        do j = 2, ylmo%grd%ny-1
-        do i = 2, ylmo%grd%nx-1
+        do j = 2, ylmo%grd%G%ny-1
+        do i = 2, ylmo%grd%G%nx-1
             ux_aa(i,j) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,j) + ylmo%dyn%now%ux_bar(i-1,j))
             uy_aa(i,j) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,j) + ylmo%dyn%now%uy_bar(i,j-1))
         end do
@@ -578,7 +578,7 @@ contains
 
         type(profile_t), allocatable, intent(out) :: profs(:)
         character(len=*), intent(IN) :: exp_name
-        real(wp),         intent(IN) :: ds
+        real(dp),         intent(IN) :: ds
 
         integer  :: ip
         real(wp) :: r_max
@@ -639,7 +639,8 @@ contains
         implicit none
 
         type(profile_t), intent(INOUT) :: prof
-        real(wp),        intent(IN)    :: x0, y0, x1, y1, ds
+        real(wp),        intent(IN)    :: x0, y0, x1, y1
+        real(dp),        intent(IN)    :: ds
 
         integer  :: i
         real(wp) :: L, ux, uy
@@ -675,7 +676,7 @@ contains
         implicit none
 
         real(wp), intent(IN) :: field(:,:)
-        real(wp), intent(IN) :: xc(:), yc(:)
+        real(dp), intent(IN) :: xc(:), yc(:)
         real(wp), intent(IN) :: x, y
         real(wp) :: val
 
@@ -709,7 +710,7 @@ contains
         implicit none
 
         integer,  intent(IN) :: field(:,:)
-        real(wp), intent(IN) :: xc(:), yc(:)
+        real(dp), intent(IN) :: xc(:), yc(:)
         real(wp), intent(IN) :: x, y
         integer,  intent(IN) :: default_val
         integer :: val
@@ -760,18 +761,18 @@ contains
         character(len=8)  :: pname
 
         ! Build 2D mask and aa-staggered velocity arrays once (shared across profiles).
-        allocate(mask_cmip(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(ux_aa(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(uy_aa(ylmo%grd%nx,ylmo%grd%ny))
-        allocate(H_eff(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(mask_cmip(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(ux_aa(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(uy_aa(ylmo%grd%G%nx,ylmo%grd%G%ny))
+        allocate(H_eff(ylmo%grd%G%nx,ylmo%grd%G%ny))
 
         mask_cmip = 3
         where(ylmo%tpo%now%f_ice .eq. 1.0_wp .and. ylmo%tpo%now%f_grnd .eq. 0.0_wp) mask_cmip = 2
         where(ylmo%tpo%now%f_ice .eq. 1.0_wp .and. ylmo%tpo%now%f_grnd .gt. 0.0_wp) mask_cmip = 1
 
         ux_aa = 0.0_wp; uy_aa = 0.0_wp; H_eff = 0.0_wp
-        do j = 2, ylmo%grd%ny-1
-        do i = 2, ylmo%grd%nx-1
+        do j = 2, ylmo%grd%G%ny-1
+        do i = 2, ylmo%grd%G%nx-1
             if (ylmo%tpo%now%f_ice(i,j) .gt. 0.0) then
                 ux_aa(i,j) = 0.5_wp*(ylmo%dyn%now%ux_bar(i,j) + ylmo%dyn%now%ux_bar(i-1,j))
                 uy_aa(i,j) = 0.5_wp*(ylmo%dyn%now%uy_bar(i,j) + ylmo%dyn%now%uy_bar(i,j-1))
@@ -798,15 +799,15 @@ contains
             allocate(mask_p(profiles(ip)%n))
 
             do i = 1, profiles(ip)%n
-                lithk_p(i) = bilinear_sample(H_eff, ylmo%grd%xc, ylmo%grd%yc, &
+                lithk_p(i) = bilinear_sample(H_eff, ylmo%grd%G%x, ylmo%grd%G%y, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
-                xvel_p(i)  = bilinear_sample(ux_aa, ylmo%grd%xc, ylmo%grd%yc, &
+                xvel_p(i)  = bilinear_sample(ux_aa, ylmo%grd%G%x, ylmo%grd%G%y, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
-                yvel_p(i)  = bilinear_sample(uy_aa, ylmo%grd%xc, ylmo%grd%yc, &
+                yvel_p(i)  = bilinear_sample(uy_aa, ylmo%grd%G%x, ylmo%grd%G%y, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
-                lsf_p(i)   = bilinear_sample(ylmo%tpo%now%lsf, ylmo%grd%xc, ylmo%grd%yc, &
+                lsf_p(i)   = bilinear_sample(ylmo%tpo%now%lsf, ylmo%grd%G%x, ylmo%grd%G%y, &
                                              profiles(ip)%x(i), profiles(ip)%y(i))
-                mask_p(i)  = nearest_sample_int(mask_cmip, ylmo%grd%xc, ylmo%grd%yc, &
+                mask_p(i)  = nearest_sample_int(mask_cmip, ylmo%grd%G%x, ylmo%grd%G%y, &
                                                 profiles(ip)%x(i), profiles(ip)%y(i), 3)
             end do
 

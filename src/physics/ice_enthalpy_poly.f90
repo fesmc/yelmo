@@ -40,7 +40,7 @@
     
     type(ytherm_poly_state_class) :: poly 
 
-    call ytherm_poly_init(dom%thrm%poly,dom%grd%nx,dom%grd%ny,dom%thrm%par%nz_pt,dom%thrm%par%nz_pc, &
+    call ytherm_poly_init(dom%thrm%poly,dom%grd%G%nx,dom%grd%G%ny,dom%thrm%par%nz_pt,dom%thrm%par%nz_pc, &
                                                                 dom%thrm%par%zeta_scale,dom%thrm%par%zeta_exp)
            
             ! === Define combined poly vertical grid ===

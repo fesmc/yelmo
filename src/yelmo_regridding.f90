@@ -26,7 +26,7 @@ contains
         ! (target grid must be a multiple of the source grid) 
         f_grid_allowed = [0.0625_prec,0.125_prec,0.25_prec,0.5_prec,1.0_prec,2.0_prec,4.0_prec,8.0_prec,16.0_prec]
         
-        f_grid = dom0%grd%dx*1e-3 / dx1 
+        f_grid = dom0%grd%G%dx*1e-3 / dx1 
 
         if (.not. any(f_grid .eq. f_grid_allowed,1)) then 
 

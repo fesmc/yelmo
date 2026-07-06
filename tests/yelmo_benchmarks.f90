@@ -143,7 +143,7 @@ program yelmo_benchmarks
     call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=ts%time,load_topo=.FALSE.,domain=domain,grid_name=grid_name)
     
     ! Initialize Bueler test type 
-    call bueler_init(buel,yelmo1%grd%nx,yelmo1%grd%ny)
+    call bueler_init(buel,yelmo1%grd%G%nx,yelmo1%grd%G%ny)
 
     ! === Define initial topography =====
 
@@ -321,7 +321,7 @@ end if
     end select 
 
     ! Call bueler_compare once to initialize comparison fields (even though it is not currently used for EISMINT sims)
-    call bueler_compare(buel,yelmo1%tpo%now%H_ice,dx=yelmo1%grd%dx)
+    call bueler_compare(buel,yelmo1%tpo%now%H_ice,dx=yelmo1%grd%G%dx)
 
     ! Actually use a small circular ice sheet to get things rolling...
     ! Set ice thickness to a circle of low ice thickness to start
@@ -456,7 +456,7 @@ end if
         select case(trim(experiment))
             case("BUELER-A","BUELER-B","HALFAR","HALFAR-MED")
 
-                call bueler_compare(buel,yelmo1%tpo%now%H_ice,dx=yelmo1%grd%dx)
+                call bueler_compare(buel,yelmo1%tpo%now%H_ice,dx=yelmo1%grd%G%dx)
                 
             case DEFAULT 
             ! Pass- not a bueler test... 
@@ -495,7 +495,7 @@ end if
     select case(trim(experiment))
         case("BUELER-A","BUELER-B","HALFAR","HALFAR-MED")
 
-            write(*,"(a,3f10.2,10g12.3)") trim(experiment), ts%time, dtt, yelmo1%grd%dx*1e-3, &
+            write(*,"(a,3f10.2,10g12.3)") trim(experiment), ts%time, dtt, yelmo1%grd%G%dx*1e-3, &
                                             buel%rmse_H_ice, buel%err_H0, buel%err_max_H_ice, buel%err_V_ice
 
         case DEFAULT 

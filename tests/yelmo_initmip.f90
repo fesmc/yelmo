@@ -152,8 +152,8 @@ program yelmo_test
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=ts%time)
 
     ! Ensure optimization fields are allocated
-    allocate(opt%cf_min(yelmo1%grd%nx,yelmo1%grd%ny))
-    allocate(opt%cf_max(yelmo1%grd%nx,yelmo1%grd%ny))
+    allocate(opt%cf_min(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    allocate(opt%cf_max(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     opt%cf_min = yelmo1%dyn%par%till_cf_min
     opt%cf_max = yelmo1%dyn%par%till_cf_ref
 
@@ -186,7 +186,7 @@ program yelmo_test
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Define no-ice mask from present-day data
-    allocate(mask_noice(yelmo1%grd%nx,yelmo1%grd%ny))
+    allocate(mask_noice(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mask_noice = .FALSE. 
     ! Present-day
     if (ctl%dT_ann .ge. 0.0) then
@@ -292,7 +292,7 @@ program yelmo_test
         call yelmo_update_equil(yelmo1,ts%time,time_tot=1.0_wp,dt=0.2_wp, &
                                                 topo_fixed=.FALSE.,dyn_solver="ssa")
 
-        if (yelmo1%grd%dx .le. 8e3_wp) then 
+        if (yelmo1%grd%G%dx .le. 8e3_wp) then 
             ! Perform additional ssa smoothing step for higher resolution simulations
 
             call yelmo_update_equil(yelmo1,ts%time,time_tot=100.0_wp,dt=1.0_wp, &
@@ -665,8 +665,8 @@ contains
         type(ytopo_class),  intent(IN)    :: tpo 
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd  
-        type(ygrid_class),  intent(IN)    :: grd
-        character(len=*),   intent(IN)    :: domain 
+        type(grid_class),   intent(IN)    :: grd
+        character(len=*),   intent(IN)    :: domain
         real(wp),           intent(INOUT) :: cb_ref(:,:) 
 
         integer  :: i, j, nx, ny 
@@ -754,8 +754,8 @@ end if
         real(wp), intent(IN) :: x0
         real(wp), intent(IN) :: y0
         real(wp), intent(IN) :: sigma
-        real(wp), intent(IN) :: xx(:,:)
-        real(wp), intent(IN) :: yy(:,:)
+        real(dp), intent(IN) :: xx(:,:)
+        real(dp), intent(IN) :: yy(:,:)
 
         ! Local variables 
         integer :: nx, ny 

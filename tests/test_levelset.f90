@@ -99,14 +99,14 @@ program test_levelset
     dz   = 50.0 
     
     ! Initialize levelset object 
-    call levelset_init(lev1,yelmo1%grd%nx,yelmo1%grd%ny,nz=int((zmax-zmin)/dz)+1)
+    call levelset_init(lev1,yelmo1%grd%G%nx,yelmo1%grd%G%ny,nz=int((zmax-zmin)/dz)+1)
 
     ! Store axis information
     lev1%dx = dx 
-    lev1%x  = yelmo1%grd%xc 
+    lev1%x  = yelmo1%grd%G%x 
 
     lev1%dy = dx 
-    lev1%y  = yelmo1%grd%yc 
+    lev1%y  = yelmo1%grd%G%y 
     
     lev1%dz = dz 
     do k = 1, lev1%nz 

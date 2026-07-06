@@ -436,8 +436,8 @@ contains
 
         ! Initialize netcdf file and dimensions
         call nc_create(filename)
-        call nc_write_dim(filename,"xc",        x=dom%grd%xc*1e-3,      units="kilometers")
-        call nc_write_dim(filename,"yc",        x=dom%grd%yc*1e-3,      units="kilometers")
+        call nc_write_dim(filename,"xc",        x=dom%grd%G%x*1d-3,      units="kilometers")
+        call nc_write_dim(filename,"yc",        x=dom%grd%G%y*1d-3,      units="kilometers")
         call nc_write_dim(filename,"zeta",      x=dom%par%zeta_aa,      units="1")
         call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
         

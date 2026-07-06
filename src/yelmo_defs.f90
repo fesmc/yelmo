@@ -7,6 +7,7 @@ module yelmo_defs
     use nml, only : nml_replace
     use variable_io, only : var_io_type
     use fast_hydrology, only : hydro_class
+    use coords, only : grid_class
 
     implicit none
 
@@ -907,47 +908,6 @@ module yelmo_defs
         
     end type
 
-    ! =========================================================================
-    !
-    ! YELMO objects: ygrid 
-    !
-    ! =========================================================================
-    
-    type ygrid_class 
-
-        ! Grid name 
-        character(len=256) :: name 
-        
-        ! Parameters
-        integer    :: nx, ny, npts
-        real(wp)   :: dx, dy
-
-        ! Projection parameters (optional)
-        character(len=256) :: mtype 
-        real(wp)   :: lambda
-        real(wp)   :: phi
-        real(wp)   :: alpha
-        real(wp)   :: scale
-        real(wp)   :: x_e
-        real(wp)   :: y_n
-        real(wp)   :: semi_major_axis
-        real(wp)   :: inverse_flattening
-        logical    :: is_sphere 
-        logical    :: is_projection 
-
-        ! Axes
-        real(wp), allocatable :: xc(:)    
-        real(wp), allocatable :: yc(:) 
-
-        ! Grid arrays 
-        real(wp), allocatable :: x(:,:)
-        real(wp), allocatable :: y(:,:)
-        real(wp), allocatable :: lon(:,:)
-        real(wp), allocatable :: lat(:,:)
-        real(wp), allocatable :: area(:,:)
-        
-    end type 
-
     type yelmo_io_tables
         type(var_io_type) :: v
         type(var_io_type), allocatable :: tpo(:)
@@ -1068,7 +1028,7 @@ module yelmo_defs
     ! all information needed to model a given domain (eg, Greenland, Antarctica, NH)
     type yelmo_class
         type(yelmo_param_class) :: par      ! General domain parameters
-        type(ygrid_class)       :: grd      ! Grid definition
+        type(grid_class)        :: grd      ! Grid definition (fesm-utils/coords)
         type(ytime_class)       :: time     ! Timestep and timing variables
         type(ytime_class)       :: time_amc ! Timestep and timing variables
         type(ytopo_class)       :: tpo      ! Topography variables

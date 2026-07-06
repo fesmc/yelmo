@@ -170,8 +170,8 @@ program yelmo_trough
 
             ! Calculate analytical stream function to get tau_c and ux
 
-            allocate(ux_ref(yelmo1%grd%nx,yelmo1%grd%ny))
-            allocate(tau_c_ref(yelmo1%grd%nx,yelmo1%grd%ny))
+            allocate(ux_ref(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+            allocate(tau_c_ref(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
             
             call SSA_Schoof2006_analytical_solution_yelmo(ux_ref, tau_c_ref, yelmo1%grd%y, &
                                     s06_alpha,s06_H0,yelmo1%mat%par%rf_const,s06_W,s06_m, &
@@ -207,22 +207,22 @@ program yelmo_trough
             ! Feldmann and Levermann (2017) domain 
 
             call trough_f17_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
-                                    yelmo1%grd%xc*1e-3,yelmo1%grd%yc*1e-3,fc,dc,wc,x_cf)
+                                    yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
         
         case("MISMIP+") 
             ! MISMIP+ domain 
 
             call trough_mismipp_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
-                                    yelmo1%grd%xc*1e-3,yelmo1%grd%yc*1e-3,fc,dc,wc,x_cf)
+                                    yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
         
         case("SLAB-SHELF")
             ! Constant slab slope with an ice shelf
 
             ! call trough_f17_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
-            !                         yelmo1%grd%xc*1e-3,yelmo1%grd%yc*1e-3,fc,dc,wc,x_cf)
+            !                         yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
             
             call slab_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
-                                    yelmo1%grd%xc*1e-3,yelmo1%grd%yc*1e-3)
+                                    yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3)
 
 
         case DEFAULT 
@@ -310,7 +310,7 @@ contains
         implicit none 
 
         logical, intent(OUT) :: calv_mask(:,:) 
-        real(wp), intent(IN) :: xx(:,:) 
+        real(dp), intent(IN) :: xx(:,:) 
         real(wp), intent(IN) :: x_cf 
 
         calv_mask = .FALSE. 
@@ -327,8 +327,8 @@ contains
         real(prec), intent(OUT) :: z_bed(:,:) 
         real(prec), intent(OUT) :: H_ice(:,:) 
         real(prec), intent(OUT) :: z_srf(:,:) 
-        real(prec), intent(IN)  :: xc(:)
-        real(prec), intent(IN)  :: yc(:)
+        real(dp), intent(IN)  :: xc(:)
+        real(dp), intent(IN)  :: yc(:)
 
         ! Local variables 
         integer :: i, j, nx, ny 
@@ -361,8 +361,8 @@ contains
         real(wp), intent(OUT) :: z_bed(:,:) 
         real(wp), intent(OUT) :: H_ice(:,:) 
         real(wp), intent(OUT) :: z_srf(:,:) 
-        real(wp), intent(IN)  :: xc(:) 
-        real(wp), intent(IN)  :: yc(:)  
+        real(dp), intent(IN)  :: xc(:) 
+        real(dp), intent(IN)  :: yc(:)  
         real(wp), intent(IN)  :: fc 
         real(wp), intent(IN)  :: dc 
         real(wp), intent(IN)  :: wc 
@@ -420,8 +420,8 @@ contains
         real(wp), intent(OUT) :: z_bed(:,:) 
         real(wp), intent(OUT) :: H_ice(:,:) 
         real(wp), intent(OUT) :: z_srf(:,:) 
-        real(wp), intent(IN)  :: xc(:) 
-        real(wp), intent(IN)  :: yc(:)  
+        real(dp), intent(IN)  :: xc(:) 
+        real(dp), intent(IN)  :: yc(:)  
         real(wp), intent(IN)  :: fc 
         real(wp), intent(IN)  :: dc 
         real(wp), intent(IN)  :: wc 
@@ -731,7 +731,7 @@ end if
     ! In/output variables:
     real(wp),                            intent(OUT)   :: u             ! Ice velocity in the x-direction
     real(wp),                            intent(OUT)   :: tauc          ! Till yield stress
-    real(wp),                            intent(IN)    :: y             ! y-coordinate
+    real(dp),                            intent(IN)    :: y             ! y-coordinate
     real(wp),                            intent(IN)    :: tantheta      ! Surface slope in the x-direction
     real(wp),                            intent(IN)    :: h0            ! Ice thickness
     real(wp),                            intent(IN)    :: A_flow        ! Ice flow factor

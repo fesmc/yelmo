@@ -70,13 +70,13 @@ contains
         
         call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
 
-        if (ylmo%grd%is_projection) then 
+        if (ylmo%grd%cs%is_projection) then
             call nc_write_attr(filename,"xc","standard_name","projection_x_coordinate")
             call nc_write_attr(filename,"yc","standard_name","projection_y_coordinate")
         end if 
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Write static fields
         call nc_write(filename,"mask_ice",    ylmo%bnd%mask_ice(i1:i2,j1:j2),    dim1="xc",dim2="yc",units="",long_name="Ice mask (0=none, 1=fixed, 2=dynamic)")
@@ -247,7 +247,7 @@ contains
         integer :: i1, i2, j1, j2
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Determine which variables to write
         if (present(nms)) then 
@@ -348,7 +348,7 @@ contains
         if (present(init)) initialize_file = init
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,dom%grd%nx,dom%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,dom%grd%G%nx,dom%grd%G%ny,irange,jrange)
         
         ! Load variable io tables
         ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
@@ -513,7 +513,7 @@ contains
         type(ybound_class), intent(INOUT) :: bnd 
         type(ytime_class),  intent(INOUT) :: tme
         integer,            intent(OUT)   :: restart_interpolated
-        type(ygrid_class),  intent(IN)    :: grd
+        type(grid_class),   intent(IN)    :: grd
         character(len=*),   intent(IN)    :: domain
         character(len=*),   intent(IN)    :: grid_name
         character(len=*),   intent(IN)    :: filename 
@@ -569,7 +569,7 @@ contains
             call nc_read(filename,"xc",xc_restart)
             dx_restart = xc_restart(2) - xc_restart(1) 
 
-            if (dx_restart .lt. grd%dx) then 
+            if (dx_restart .lt. grd%G%dx) then 
                 ! Low to high resolution
                 restart_interpolated = 1
             else 
@@ -649,12 +649,12 @@ contains
         implicit none
 
         type(map_class),   intent(OUT) :: mp
-        type(ygrid_class), intent(IN)  :: grd                 ! target (model) grid
+        type(grid_class),  intent(IN)  :: grd                 ! target (model) grid
         character(len=*),  intent(IN)  :: filename            ! restart file
         character(len=*),  intent(IN)  :: restart_grid_name   ! source grid name
 
         ! Local variables
-        type(grid_class)      :: grid_src, grid_tgt
+        type(grid_class)      :: grid_src
         real(wp), allocatable :: xc_src(:), yc_src(:)
         character(len=56)     :: units
         integer               :: nx_src, ny_src
@@ -679,11 +679,12 @@ contains
                     yc_src = yc_src*1e3
                 end if
 
-                ! Both grids use the model projection; only the axes differ.
-                call yelmo_grid_to_coords(grid_tgt,grd%name,         grd,real(grd%xc,dp),real(grd%yc,dp))
-                call yelmo_grid_to_coords(grid_src,restart_grid_name,grd,real(xc_src,dp),real(yc_src,dp))
+                ! Source grid inherits the model grid's projection; only the
+                ! axes differ. The model grid (grd) is already the target.
+                call grid_init(grid_src,grd,name=restart_grid_name, &
+                               x=real(xc_src,dp),y=real(yc_src,dp))
 
-                call map_init(mp,grid_src,grid_tgt,method="con",gen="coords")
+                call map_init(mp,grid_src,grd,method="con",gen="coords")
                 write(*,*) "Generated con coords map (in-package): " &
                             //trim(restart_grid_name)//" => "//trim(grd%name)
 
@@ -697,27 +698,6 @@ contains
         return
 
     end subroutine yelmo_restart_load_map
-
-    subroutine yelmo_grid_to_coords(grid,name,grd,xc,yc)
-        ! Build a coords grid_class from a yelmo ygrid's projection parameters
-        ! and the given (double-precision, [m]) axis values.
-
-        implicit none
-
-        type(grid_class),  intent(OUT) :: grid
-        character(len=*),  intent(IN)  :: name
-        type(ygrid_class), intent(IN)  :: grd        ! provides projection parameters
-        real(dp),          intent(IN)  :: xc(:)
-        real(dp),          intent(IN)  :: yc(:)
-
-        call grid_init(grid,name=name,mtype=trim(grd%mtype),units="meters", &
-                       x=xc,y=yc, &
-                       lambda=real(grd%lambda,dp),phi=real(grd%phi,dp),alpha=real(grd%alpha,dp), &
-                       x_e=real(grd%x_e,dp),y_n=real(grd%y_n,dp))
-
-        return
-
-    end subroutine yelmo_grid_to_coords
 
     subroutine yelmo_restart_read_topo_bnd_internal(tpo,bnd,tme,filename,time,mp)
         ! Load yelmo variables from restart file: [tpo]
@@ -891,8 +871,8 @@ contains
         ! in order to restart a simulation.
         
         ! Define dimensions of variables 
-        nx    = size(dom%grd%xc,1)
-        ny    = size(dom%grd%yc,1)
+        nx    = size(dom%grd%G%x,1)
+        ny    = size(dom%grd%G%y,1)
         nz    = size(dom%par%zeta_aa,1) 
         nz_ac = size(dom%par%zeta_ac,1) 
         
@@ -1130,7 +1110,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -1387,7 +1367,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -1626,7 +1606,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -1790,7 +1770,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -1892,7 +1872,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         allocate(dims(v%ndims+1))
         dims(1:v%ndims) = v%dims
@@ -1962,7 +1942,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -2062,7 +2042,7 @@ contains
         character(len=32), allocatable :: dims(:)
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Allocate local representation of dims to be able to add "time" as last dimension
         allocate(dims(v%ndims+1))
@@ -2153,7 +2133,7 @@ contains
         integer :: i1, i2, j1, j2
 
         ! Get indices for current domain of interest
-        call get_region_indices(i1,i2,j1,j2,ylmo%grd%nx,ylmo%grd%ny,irange,jrange)
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
 
         ! Write model speed 
         call nc_write(filename,"speed",ylmo%time%model_speed,units="kyr/hr",long_name="Model speed (Yelmo only)", &

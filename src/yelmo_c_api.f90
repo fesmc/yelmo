@@ -175,8 +175,8 @@ contains
     
     call yelmo_set_alias(alias)
 
-    nx    = ylmo%grd%nx
-    ny    = ylmo%grd%ny
+    nx    = ylmo%grd%G%nx
+    ny    = ylmo%grd%G%ny
     nz_aa = ylmo%par%nz_aa
     nz_ac = ylmo%par%nz_ac
     nzr_aa = ylmo%thrm%par%nzr_aa
@@ -209,13 +209,13 @@ contains
     call yelmo_set_alias(alias)
 
     if (c_associated(xc)) then
-      call c_f_pointer(xc,      xc_f,      [ylmo%grd%nx])
-      xc_f = real(ylmo%grd%xc, c_double)
+      call c_f_pointer(xc,      xc_f,      [ylmo%grd%G%nx])
+      xc_f = real(ylmo%grd%G%x, c_double)
     end if
 
     if (c_associated(yc)) then
-      call c_f_pointer(yc,      yc_f,      [ylmo%grd%ny])
-      yc_f = real(ylmo%grd%yc, c_double)
+      call c_f_pointer(yc,      yc_f,      [ylmo%grd%G%ny])
+      yc_f = real(ylmo%grd%G%y, c_double)
     end if
 
     if (c_associated(zeta_aa)) then

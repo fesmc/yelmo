@@ -112,8 +112,8 @@ program yelmo_mask_ice
     call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init, &
                         load_topo=.FALSE.,domain=domain,grid_name=grid_name)
 
-    nx = yelmo1%grd%nx
-    ny = yelmo1%grd%ny
+    nx = yelmo1%grd%G%nx
+    ny = yelmo1%grd%G%ny
 
     ! === Define bedrock topography ===
     ! z_bed = zb_mean + slope*x + amp_sin * sin(2*pi*x/Lx_wave) * cos(2*pi*y/Ly_wave)

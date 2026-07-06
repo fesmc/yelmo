@@ -6,7 +6,7 @@ module ice_benchmarks
 
     ! It also implements the EISMINT1 and EISMINT2 boundary conditions 
     
-    use yelmo_defs, only : prec, wp, pi  
+    use yelmo_defs, only : prec, wp, dp, pi
 
     implicit none
 
@@ -83,7 +83,7 @@ contains
 
         type(bueler_test_type), intent(INOUT) :: buel
         real(wp), intent(IN) :: H_ice(:,:)            ! [m]
-        real(wp), intent(IN) :: dx                    ! [m]
+        real(dp), intent(IN) :: dx                    ! [m]
 
         ! Local variables 
         logical, allocatable :: msk(:,:) 
@@ -118,8 +118,8 @@ contains
         real(wp), intent(OUT) :: H_ice(:,:) 
         real(wp), intent(OUT) :: mbal(:,:) 
         real(wp), intent(OUT) :: u_b(:,:) 
-        real(wp), intent(IN)  :: xx(:,:)      ! [m]
-        real(wp), intent(IN)  :: yy(:,:)      ! [m]
+        real(dp), intent(IN)  :: xx(:,:)      ! [m]
+        real(dp), intent(IN)  :: yy(:,:)      ! [m]
         real(wp), intent(IN)  :: A 
         real(wp), intent(IN)  :: L 
         real(wp), intent(IN)  :: mbal0 
@@ -171,8 +171,8 @@ contains
         real(wp), intent(OUT) :: H_ice(:,:) 
         real(wp), intent(OUT) :: mbal(:,:) 
         real(wp), intent(OUT) :: u_b(:,:) 
-        real(wp), intent(IN)  :: xx(:,:)      ! [m] 
-        real(wp), intent(IN)  :: yy(:,:)      ! [m] 
+        real(dp), intent(IN)  :: xx(:,:)      ! [m] 
+        real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: time         ! [a] Time relative to t0 
         real(wp), intent(IN)  :: R0 
         real(wp), intent(IN)  :: H0 
@@ -253,8 +253,8 @@ contains
         real(wp), intent(OUT) :: T_srf(:,:) 
         real(wp), intent(OUT) :: smb(:,:) 
         real(wp), intent(OUT) :: ghf(:,:) 
-        real(wp), intent(IN)  :: xx(:,:)      ! [m] 
-        real(wp), intent(IN)  :: yy(:,:)      ! [m] 
+        real(dp), intent(IN)  :: xx(:,:)      ! [m] 
+        real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: H_ice(:,:) 
         character(len=*), intent(IN) :: experiment 
         real(wp), intent(IN) :: time 
@@ -431,8 +431,8 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: H_ice(:,:)  
-        real(wp), intent(IN)  :: xx(:,:)      ! [m] 
-        real(wp), intent(IN)  :: yy(:,:)      ! [m] 
+        real(dp), intent(IN)  :: xx(:,:)      ! [m] 
+        real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: R0           ! Normalized radius (in range 0:1), default=0.5
         real(wp), intent(IN)  :: H0  
         real(wp),   intent(IN), optional :: H0_shlf  
@@ -489,8 +489,8 @@ contains
         real(wp), intent(OUT) :: T_srf(:,:) 
         real(wp), intent(OUT) :: smb(:,:) 
         real(wp), intent(OUT) :: ghf(:,:) 
-        real(wp), intent(IN)  :: xx(:,:)      ! [m] 
-        real(wp), intent(IN)  :: yy(:,:)      ! [m] 
+        real(dp), intent(IN)  :: xx(:,:)      ! [m] 
+        real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: H_ice(:,:) 
         character(len=*), intent(IN) :: experiment 
         real(wp), intent(IN) :: time 

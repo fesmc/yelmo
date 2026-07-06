@@ -160,7 +160,7 @@ program yelmo_mismip
     
     ! Intialize topography 
     call mismip3D_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
-                            yelmo1%grd%xc*1e-3,yelmo1%grd%yc*1e-3,experiment)
+                            yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,experiment)
     
     time     = time_init 
     yelmo1%dyn%par%use_ssa = .TRUE. 

@@ -264,7 +264,7 @@ contains
         yelmo1%bnd%z_bed = 10000.0_wp - ctrl%alpha*(yelmo1%grd%x)
 
         ! Define initial ice thickness 
-        allocate(dh(yelmo1%grd%nx,yelmo1%grd%ny))
+        allocate(dh(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
         call gen_random_normal(dh,0.0_wp,ctrl%H_stdev) 
         yelmo1%tpo%now%H_ice = ctrl%H0 !+ dh 
 
@@ -328,7 +328,7 @@ contains
         yelmo1%tpo%now%H_ice        = ctrl%H0 + dh 
         
         ! Make sure all values are the same in y-direction
-        do j = 1, yelmo1%grd%ny 
+        do j = 1, yelmo1%grd%G%ny 
             yelmo1%tpo%now%H_ice(:,j) = yelmo1%tpo%now%H_ice(:,1)
         end do 
 
@@ -367,11 +367,11 @@ contains
 
         ! Get mean values along center x-profile
 
-        j = floor(yelmo1%grd%ny/2.0_wp)
-        res%H_mean   = sum(yelmo1%tpo%now%H_ice(:,j))  / real(yelmo1%grd%nx,wp)
-        res%ux_mean  = sum(yelmo1%dyn%now%ux_bar(:,j)) / real(yelmo1%grd%nx,wp)
-        res%uxb_mean = sum(yelmo1%dyn%now%ux_b(:,j))   / real(yelmo1%grd%nx,wp)
-        res%uxs_mean = sum(yelmo1%dyn%now%ux_s(:,j))   / real(yelmo1%grd%nx,wp)
+        j = floor(yelmo1%grd%G%ny/2.0_wp)
+        res%H_mean   = sum(yelmo1%tpo%now%H_ice(:,j))  / real(yelmo1%grd%G%nx,wp)
+        res%ux_mean  = sum(yelmo1%dyn%now%ux_bar(:,j)) / real(yelmo1%grd%G%nx,wp)
+        res%uxb_mean = sum(yelmo1%dyn%now%ux_b(:,j))   / real(yelmo1%grd%G%nx,wp)
+        res%uxs_mean = sum(yelmo1%dyn%now%ux_s(:,j))   / real(yelmo1%grd%G%nx,wp)
         
         ! Also save dx and dt 
         res%dx = ctrl%dx*1e3    ! Save dx in [m]

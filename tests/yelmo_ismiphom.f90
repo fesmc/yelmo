@@ -78,8 +78,8 @@ program yelmo_ismiphom
     ! First, define grid 
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=x0,dx=dx,nx=nx,y0=x0,dy=dx,ny=nx)
 
-!     do i = 1, yelmo1%grd%nx 
-!         write(*,*) i, yelmo1%grd%xc(i) 
+!     do i = 1, yelmo1%grd%G%nx 
+!         write(*,*) i, yelmo1%grd%G%x(i) 
 !     end do 
 !     stop 
 

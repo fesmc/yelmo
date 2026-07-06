@@ -169,11 +169,11 @@ program yelmo_test
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=time_init)
 
     ! Initialize mass balance correction matrix 
-    allocate(mb_corr(yelmo1%grd%nx,yelmo1%grd%ny))
+    allocate(mb_corr(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mb_corr = 0.0_prec 
 
     ! Define no-ice mask from present-day data
-    allocate(mask_noice(yelmo1%grd%nx,yelmo1%grd%ny))
+    allocate(mask_noice(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mask_noice = .FALSE. 
     !where(yelmo1%dta%pd%H_ice .le. 0.0) mask_noice = .TRUE. 
 
@@ -316,8 +316,8 @@ program yelmo_test
             ! Lipscomb et al. (2021)
             
             ! optimize_cb_ref expects 2D cf bounds; fill from the scalar ctrl values
-            allocate(cf_min_2D(yelmo1%grd%nx,yelmo1%grd%ny))
-            allocate(cf_max_2D(yelmo1%grd%nx,yelmo1%grd%ny))
+            allocate(cf_min_2D(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+            allocate(cf_max_2D(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
             cf_min_2D = cf_min
             cf_max_2D = cf_max
 
@@ -405,7 +405,7 @@ contains
         real(prec) :: rmse, err  
         real(prec), allocatable :: tmp(:,:) 
         
-        allocate(tmp(ylmo%grd%nx,ylmo%grd%ny))
+        allocate(tmp(ylmo%grd%G%nx,ylmo%grd%G%ny))
 
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.TRUE.)

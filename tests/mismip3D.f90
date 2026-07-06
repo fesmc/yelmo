@@ -22,7 +22,7 @@ contains
         real(prec), intent(OUT) :: z_bed(:,:) 
         real(prec), intent(OUT) :: H_ice(:,:) 
         real(prec), intent(OUT) :: z_srf(:,:) 
-        real(prec), intent(IN)  :: x(:), y(:)  
+        real(dp), intent(IN)  :: x(:), y(:)  
         character(len=*), intent(IN) :: experiment 
 
         ! Local variables 
@@ -139,8 +139,8 @@ contains
         implicit none 
 
         real(prec), intent(INOUT) :: cf_bed(:,:) 
-        real(prec), intent(IN)    :: xx(:,:) 
-        real(prec), intent(IN)    :: yy(:,:) 
+        real(dp), intent(IN)    :: xx(:,:) 
+        real(dp), intent(IN)    :: yy(:,:) 
         real(prec), intent(IN)    :: x_gl
 
         ! Local variables 
@@ -169,8 +169,8 @@ contains
         ! Find the position of the grounding line in the x-direction 
         implicit none 
 
-        real(prec), intent(IN) :: xx(:,:) 
-        real(prec), intent(IN) :: yy(:,:) 
+        real(dp), intent(IN) :: xx(:,:) 
+        real(dp), intent(IN) :: yy(:,:) 
         real(prec), intent(IN) :: H_grnd(:,:) 
         real(prec) :: x_gl 
 
@@ -220,8 +220,8 @@ contains
 
         real(prec), intent(OUT) :: x_gl
         real(prec), intent(OUT) :: x_gl_std 
-        real(prec), intent(IN)  :: xx(:,:) 
-        real(prec), intent(IN)  :: yy(:,:) 
+        real(dp), intent(IN)  :: xx(:,:) 
+        real(dp), intent(IN)  :: yy(:,:) 
         real(prec), intent(IN)  :: f_grnd(:,:) 
         
         ! Local variables 

@@ -123,7 +123,7 @@ contains
         ! Initialize rate averages
         call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=check_mb)
 
-        allocate(pc_mask(dom%grd%nx,dom%grd%ny))
+        allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
         
         ! Calculate filtered bedrock elevations adjusted for sea level on top (ie, water depth)
         dom%tpo%now%z_bed_filt = dom%bnd%z_bed - dom%bnd%z_sl
@@ -568,7 +568,7 @@ contains
             ! Check mass conservation if desired (uncomment)
             ! call check_mass_conservation(dom%tpo%now%H_ice,dom%tpo%now%f_ice,dom%tpo%now%f_grnd,dom%tpo%now%dHidt, &
             !                 dom%tpo%now%mb_applied,dom%tpo%now%calv,dom%tpo%now%mb_dyn,dom%bnd%smb,dom%tpo%now%bmb, &
-            !                 dom%tpo%now%fmb,dom%tpo%now%mb_resid,dom%grd%dx,dom%bnd%c%sec_year,time_now,dt_max_0, &
+            !                 dom%tpo%now%fmb,dom%tpo%now%mb_resid,dom%grd%G%dx,dom%bnd%c%sec_year,time_now,dt_max_0, &
             !                 units="km^3/yr",label="final")
 
         end if 
@@ -763,13 +763,13 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%nx,dom%grd%ny,dom%par%nz_aa,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%par%dt_min,dom%par%pc_eps)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
         ! == topography ==
 
-        call ytopo_par_load(dom%tpo%par,filename,dom%par%nml_ytopo,dom%par%nml_ycalv,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
+        call ytopo_par_load(dom%tpo%par,filename,dom%par%nml_ytopo,dom%par%nml_ycalv,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
 
         call ytopo_alloc(dom%tpo%now,dom%tpo%par%nx,dom%tpo%par%ny)
         
@@ -778,7 +778,7 @@ contains
         ! == dynamics == 
 
         call ydyn_par_load(dom%dyn%par,filename,dom%par%nml_ydyn,dom%par%nml_ytill, &
-                            dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
+                            dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
 
         call ydyn_alloc(dom%dyn%now,dom%dyn%par%nx,dom%dyn%par%ny,dom%dyn%par%nz_aa,dom%dyn%par%nz_ac)
         dom%dyn%par%init_state_set = .FALSE. 
@@ -787,7 +787,7 @@ contains
         
         ! == material == 
 
-        call ymat_par_load(dom%mat%par,filename,dom%par%nml_ymat,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
+        call ymat_par_load(dom%mat%par,filename,dom%par%nml_ymat,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
 
         call ymat_alloc(dom%mat%now,dom%mat%par%nx,dom%mat%par%ny,dom%mat%par%nz_aa,dom%mat%par%nz_ac,dom%mat%par%n_iso)
         
@@ -795,7 +795,7 @@ contains
         
         ! == thermodynamics == 
         
-        call ytherm_par_load(dom%thrm%par,filename,dom%par%nml_ytherm,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%nx,dom%grd%ny,dom%grd%dx,init=.TRUE.)
+        call ytherm_par_load(dom%thrm%par,filename,dom%par%nml_ytherm,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
 
         call ytherm_alloc(dom%thrm%now,dom%thrm%par%nx,dom%thrm%par%ny,dom%thrm%par%nz_aa,dom%thrm%par%nz_ac,dom%thrm%par%nzr_aa)
 
@@ -803,7 +803,7 @@ contains
 
         ! == hydrology (fasthydrology) ==
 
-        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%nx,dom%grd%ny,dom%grd%dx,dom%grd%dy)
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp))
 
         write(*,*) "yelmo_init:: hydrology initialized."
 
@@ -903,7 +903,7 @@ contains
         ! == boundary == 
         
         ! Allocate the yelmo data objects (arrays, etc)
-        call ybound_alloc(dom%bnd,dom%grd%nx,dom%grd%ny)
+        call ybound_alloc(dom%bnd,dom%grd%G%nx,dom%grd%G%ny)
 
         ! Load region/basin masks
         call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name)
@@ -938,10 +938,10 @@ contains
         ! == data == 
         
         call ydata_par_load(dom%dta%par,filename,dom%par%nml_data,dom%par%domain,dom%par%grid_name,init=.TRUE.)
-        call ydata_alloc(dom%dta%pd,dom%grd%nx,dom%grd%ny,dom%par%nz_aa,dom%dta%par%pd_age_n_iso)
+        call ydata_alloc(dom%dta%pd,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%dta%par%pd_age_n_iso)
 
         ! Load data objects   
-        call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,dom%grd%dx,dom%tpo%par%boundaries,group=dom%par%nml_init_topo)
+        call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries,group=dom%par%nml_init_topo)
 
         ! Set H_ice_ref and z_bed_ref to present-day ice thickness by default 
         dom%bnd%H_ice_ref = dom%dta%pd%H_ice 
@@ -962,7 +962,7 @@ contains
 
         if (dom%par%log_timestep) then 
             ! Timestep file 
-            call yelmo_timestep_write_init(dom%time%log_timestep_file,time,dom%grd%xc,dom%grd%yc,dom%par%pc_eps)
+            call yelmo_timestep_write_init(dom%time%log_timestep_file,time,real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
             call yelmo_timestep_write(dom%time%log_timestep_file,time,0.0_wp,0.0_wp,dom%time%pc_dt(1), &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0)
         end if 
@@ -1010,12 +1010,12 @@ contains
         type(ytime_class)  :: tme_restart 
 
         ! Allocate local arrays
-        allocate(H_ice(dom%grd%nx,dom%grd%ny))
-        allocate(z_bed(dom%grd%nx,dom%grd%ny))
-        allocate(z_bed_sd(dom%grd%nx,dom%grd%ny))
-        allocate(z_srf(dom%grd%nx,dom%grd%ny))
-        allocate(dzb(dom%grd%nx,dom%grd%ny))
-        allocate(dzb_restart(dom%grd%nx,dom%grd%ny))
+        allocate(H_ice(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(z_bed(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(z_bed_sd(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(z_srf(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(dzb(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(dzb_restart(dom%grd%G%nx,dom%grd%G%ny))
         
         ! Set to zero to start 
         H_ice    = 0.0_wp 
@@ -1088,7 +1088,7 @@ contains
 
             ! Smooth ice thickness field, if desired 
             if (smooth_H_ice .ge. 1.0_wp) then 
-                call smooth_gauss_2D(H_ice,dx=dom%grd%dx,f_sigma=smooth_H_ice)
+                call smooth_gauss_2D(H_ice,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_H_ice)
             end if 
 
             ! Clean up ice thickness field 
@@ -1097,11 +1097,11 @@ contains
 
             ! Smooth z_bed field, if desired 
             if (smooth_z_bed .ge. 1.0_wp) then 
-                call smooth_gauss_2D(z_bed,dx=dom%grd%dx,f_sigma=smooth_z_bed)
+                call smooth_gauss_2D(z_bed,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_z_bed)
             end if 
 
             ! Adjust bedrock topography and ice thickness for smoothness
-            call adjust_topography_gradients(z_bed,H_ice,dom%tpo%par%grad_lim_zb,dom%grd%dx,dom%tpo%par%boundaries)
+            call adjust_topography_gradients(z_bed,H_ice,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries)
 
             ! Additionally modify initial topographic state 
             select case(init_topo_state)
@@ -1659,8 +1659,8 @@ contains
         end if
 
         ! Additionally check for NANs using intrinsic ieee_arithmetic module 
-        do j = 1, dom%grd%ny 
-        do i = 1, dom%grd%nx 
+        do j = 1, dom%grd%G%ny 
+        do i = 1, dom%grd%G%nx 
             
             if (ieee_is_nan(dom%dyn%now%uxy_bar(i,j))) then 
                 kill_it_nan = .TRUE. 

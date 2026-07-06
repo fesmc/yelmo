@@ -1,6 +1,6 @@
 module calving_benchmarks
 
-    use yelmo_defs, only : wp, pi
+    use yelmo_defs, only : wp, dp, pi
 
     implicit none
 
@@ -16,8 +16,8 @@ contains
 
         real(wp), intent(OUT) :: z_bed(:,:)
 
-        real(wp), intent(IN)  :: xx(:,:)
-        real(wp), intent(IN)  :: yy(:,:)
+        real(dp), intent(IN)  :: xx(:,:)
+        real(dp), intent(IN)  :: yy(:,:)
         character(len=*), intent(IN) :: domain
         
         ! Local variables
@@ -67,8 +67,8 @@ contains
         implicit none
 
         real(wp), intent(OUT) :: z_bed
-        real(wp), intent(IN)  :: xx
-        real(wp), intent(IN)  :: yy
+        real(dp), intent(IN)  :: xx
+        real(dp), intent(IN)  :: yy
         real(wp), intent(IN)  :: R0
         real(wp), intent(IN)  :: Bc
         real(wp), intent(IN)  :: Bl
@@ -93,8 +93,8 @@ contains
         implicit none
 
         real(wp), intent(OUT) :: z_bed
-        real(wp), intent(IN)  :: xx
-        real(wp), intent(IN)  :: yy
+        real(dp), intent(IN)  :: xx
+        real(dp), intent(IN)  :: yy
         real(wp), intent(IN)  :: R0
         real(wp), intent(IN)  :: Bc
         real(wp), intent(IN)  :: Bl
@@ -121,8 +121,8 @@ contains
         implicit none
 
         logical, intent(OUT) :: mask
-        real(wp), intent(IN)  :: xx
-        real(wp), intent(IN)  :: yy
+        real(dp), intent(IN)  :: xx
+        real(dp), intent(IN)  :: yy
         real(wp), intent(IN)  :: r_lim 
 
         real(wp) :: r
@@ -146,8 +146,8 @@ contains
         real(wp), intent(OUT) :: T_srf(:,:)
         real(wp), intent(OUT) :: smb(:,:)
         real(wp), intent(OUT) :: ghf(:,:)
-        real(wp), intent(IN)  :: xx(:,:)      ! [m]
-        real(wp), intent(IN)  :: yy(:,:)      ! [m]
+        real(dp), intent(IN)  :: xx(:,:)      ! [m]
+        real(dp), intent(IN)  :: yy(:,:)      ! [m]
         real(wp), intent(IN)  :: H_ice(:,:)
         character(len=*), intent(IN) :: experiment
         real(wp), intent(IN) :: time
