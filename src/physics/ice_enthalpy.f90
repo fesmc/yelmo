@@ -3,7 +3,7 @@ module ice_enthalpy
 
     use yelmo_defs, only : wp, pi  
     use solver_tridiagonal, only : solve_tridiag 
-    use thermodynamics, only : calc_bmb_grounded, calc_advec_vertical_column, &
+    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, calc_advec_vertical_column, &
                                convert_to_enthalpy, convert_from_enthalpy_column
 
     !use interp1D 
@@ -592,7 +592,12 @@ end if
         real(wp), allocatable :: Q_strn_now(:)  ! aa-nodes
         real(wp), allocatable :: enth_pmp(:)    ! aa-nodes
         
-        real(wp), parameter   :: enth_ref = 273.15_wp * 2009.0_wp    ! [K] * [J kg-1 K-1]  
+        real(wp), parameter   :: enth_ref = 273.15_wp * 2009.0_wp    ! [K] * [J kg-1 K-1]
+
+        ! Basal heat-flux discretization for Q_ice_b:
+        !   .FALSE. => temperature gradient kt*dT/dz  (default, matches calc_temp_column)
+        !   .TRUE.  => enthalpy gradient   kappa*rho*dE/dz  (for polythermal validation)
+        logical, parameter    :: enth_Q_ice_b = .FALSE.
 
         nz_aa = size(zeta_aa,1)
 
@@ -700,24 +705,35 @@ end if
         ! Finally, get enthalpy again too (to be consistent with new omega) 
         call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
 
-        ! Calculate heat flux at ice base as enthalpy gradient * rho_ice * diffusivity [J a-1 m-2]
-        if (H_ice .gt. 0.0_wp) then 
+        ! Calculate the conductive heat flux into the ice base [J a-1 m-2], positive up.
+        ! Two discretizations are available; the temperature-gradient form is the
+        ! default (matches calc_temp_column and is robust), while the enthalpy-gradient
+        ! form is kept available for validation against polythermal benchmarks, where
+        ! it carries the latent/water-content contribution the temperature form omits.
+        ! (Positive up, consistent with calc_temp_column and the Q_net sign
+        ! convention in calc_bmb_grounded_enth.)
+        if (H_ice .gt. 0.0_wp) then
             dz = H_ice * (zeta_aa(2)-zeta_aa(1))
-!             Q_ice_b = kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz    ! <== Problematic
-            Q_ice_b = kt(1) * ( T_ice(2) - T_ice(1) ) / dz
+            if (enth_Q_ice_b) then
+                Q_ice_b = -kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz
+            else
+                Q_ice_b = -kt(1) * ( T_ice(2) - T_ice(1) ) / dz
+            end if
         else
-            Q_ice_b = 0.0_wp 
-        end if 
+            Q_ice_b = 0.0_wp
+        end if
 
-        ! Calculate basal mass balance 
-        write(*,*) "calc_enth_column:: routine needs to be updated with Q_rock etc."
-        stop 
+        ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
+        ! Q_b and Q_lith arrive already in [J a-1 m-2]; Q_ice_b is positive up.
+        if (f_grnd .gt. 0.0_wp) then
+            call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
+                                            Q_ice_b,Q_b,Q_lith,rho_ice,L_ice)
+        else
+            bmb_grnd = 0.0_wp
+        end if
 
-        ! call calc_bmb_grounded(bmb_grnd,T_ice(1)-T_pmp(1),Q_ice_b,Q_b,Q_lith,f_grnd,rho_ice,L_ice) 
-!         call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),omega(1),Q_ice_b,Q_b,Q_lith,f_grnd,rho_ice,L_ice) 
-        
-        ! Include internal melting in bmb_grnd 
-        bmb_grnd = bmb_grnd - melt_internal 
+        ! Include internal melting in bmb_grnd
+        bmb_grnd = bmb_grnd - melt_internal
 
         ! Finally, calculate the CTS height 
         H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,cp,H_ice,zeta_aa)

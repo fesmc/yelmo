@@ -16,6 +16,7 @@ module thermodynamics
     private  
 
     public :: calc_bmb_grounded
+    public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
     public :: calc_advec_horizontal_3D
     public :: calc_advec_horizontal_column
@@ -78,12 +79,62 @@ contains
             bmb_grnd = 0.0_wp 
         end if 
 
-        ! Limit small values to avoid underflow errors 
-        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp 
-                  
-        return 
+        ! Limit small values to avoid underflow errors
+        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp
+
+        return
 
     end subroutine calc_bmb_grounded
+
+    subroutine calc_bmb_grounded_enth(bmb_grnd,T_prime_b,enth_b,enth_pmp_b,Q_ice_b_now,Q_b_now,Q_rock_now,rho_ice,L_ice)
+        ! Flux-based grounded basal mass balance with an enthalpy correction.
+        ! Identical energy balance to calc_bmb_grounded (Cuffey and Patterson,
+        ! 2010, Eq. 9.38), but the effective latent heat of the basal ice is
+        ! reduced by the enthalpy already stored as water content there, so that
+        ! temperate basal ice melts more readily. Reduces to calc_bmb_grounded
+        ! when the base holds no water (enth_b == enth_pmp_b).
+        !
+        ! Note: Yelmo enthalpy is per unit mass [J kg-1], so the volumetric
+        ! latent heat rho_ice*L_ice is corrected as rho_ice*(L_ice - net_enth).
+
+        implicit none
+
+        real(wp), intent(OUT) :: bmb_grnd          ! [m/a ice equiv.] Basal mass balance, grounded
+        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal ice temp relative to pmp (0 == temperate)
+        real(wp), intent(IN)  :: enth_b            ! [J kg-1] Basal ice enthalpy
+        real(wp), intent(IN)  :: enth_pmp_b        ! [J kg-1] Basal enthalpy at pressure melting point
+        real(wp), intent(IN)  :: Q_ice_b_now       ! [J a-1 m-2] Ice basal heat flux (positive up)
+        real(wp), intent(IN)  :: Q_b_now           ! [J a-1 m-2] Basal heat production from friction and strain heating
+        real(wp), intent(IN)  :: Q_rock_now        ! [J a-1 m-2] Geothermal heat flux
+        real(wp), intent(IN)  :: rho_ice           ! [kg m-3] Ice density
+        real(wp), intent(IN)  :: L_ice
+
+        ! Local variables
+        real(wp) :: Q_net
+        real(wp) :: net_enth
+        real(wp), parameter :: tol = 1e-5
+
+        ! Calculate net energy flux at the base [J a-1 m-2]
+        Q_net = Q_rock_now + Q_b_now - Q_ice_b_now
+
+        ! Basal enthalpy above the pressure melting point [J kg-1] (>= 0 if temperate)
+        net_enth = max(enth_b - enth_pmp_b, 0.0_wp)
+
+        ! Grounded basal mass balance with enthalpy-corrected effective latent heat
+        bmb_grnd = -Q_net / (rho_ice*(L_ice - net_enth))
+
+        if (T_prime_b .lt. -1.0_wp .and. bmb_grnd .lt. 0.0_wp) then
+            ! Only allow melting for a near-temperate base (safety check,
+            ! mainly relevant during initialization; matches calc_bmb_grounded).
+            bmb_grnd = 0.0_wp
+        end if
+
+        ! Limit small values to avoid underflow errors
+        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp
+
+        return
+
+    end subroutine calc_bmb_grounded_enth
 
     subroutine calc_advec_vertical_column(advecz,Q,uz,H_ice,zeta_aa)
         ! Calculate vertical advection term advecz, which enters
