@@ -4,8 +4,8 @@ Design document for switching Yelmo's production thermodynamics from the
 temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
-Status: **in progress** on branch `therm-dev` — Phases 0, 1 complete; Phase 2
-underway (Kleiner Exp A validated; Exp B next).
+Status: **in progress** on branch `therm-dev` — Phases 0, 1, 2 complete
+(Kleiner Exp A and B both validated); Phase 3 (2D/3D) next.
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
@@ -32,6 +32,18 @@ Author: thermodynamics review, 2026-07.
   −2.03 mm/a; the phase-III transient tracks Eq A15 to ~1%. Driver test **T3**
   added; re-vendored the correct −10 °C analytic reference (the previous file was
   a −5 °C variant).
+- **P2 Exp B (done):** validated against Kleiner (2015) Experiment B (steady
+  polythermal slab): 200 m, 4° incline, no geothermal flux, strain heating
+  `Ψ = 2A(ρg sinγ)⁴(H−z)⁴`, constant downward advection `vz = −0.2 m/a`, surface
+  −3 °C, β = 0, L = 3.35×10⁵. The cold region matches the analytic `T(z)`
+  (Appendix A2) to RMS 0.06 °C; the temperate layer converges to the analytic as
+  the conductivity ratio `cr → 0` (the K₀→0 limit, matching the paper's CR sweep
+  10⁻¹→10⁻⁵). At cr = 10⁻⁴, nz = 201: **CTS = 19.5 m** (analytic 19.0),
+  **base ω = 0.0205** (analytic 0.0207). Driver test **T4** added. Follow-up: an
+  intermediate cr ≈ 10⁻² shows a coarse-grid instability (stable at nz = 401);
+  the accurate/stable regime is cr ≤ 10⁻³.
+
+All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass.
 
 ---
 
