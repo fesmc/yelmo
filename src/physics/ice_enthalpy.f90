@@ -838,9 +838,26 @@ end if
             dz2 = zeta_aa(k+1)-zeta_ac(k)
             call calc_wtd_harmonic_mean(kappa_b,kappa(k),kappa(k+1),dz1,dz2)
 
-            ! Special treatment of diffusivity at the CTS
-            if (k .eq. k_cts+1) kappa_a = kappa(k-1)
-            !if (k .eq. k_cts)   kappa_b = kappa(k+1) 
+            ! Special treatment of diffusivity at the cold-temperate transition
+            ! surface (CTS), following Kleiner et al. (2015, Eq. 11): the enthalpy
+            ! flux from the cold side into a temperate LAYER is governed by the
+            ! small temperate diffusivity K0. This applies only when a genuine
+            ! temperate layer exists above the base (k_cts >= 2).
+            !
+            ! A temperate base with cold ice directly above (k_cts == 1) is not a
+            ! temperate layer but a melting boundary: the base is held at the
+            ! pressure melting point (Dirichlet) and the overlying cold ice
+            ! conducts heat to it with the cold-ice diffusivity. The basal
+            ! interface must therefore NOT be choked by K0 - otherwise the
+            ! near-base temperature gradient, and hence the diagnosed basal melt
+            ! rate, becomes spuriously dependent on the conductivity ratio cr
+            ! (in Kleiner Exp A the melt rate is cr-independent).
+            if (k_cts .ge. 2 .and. k .eq. k_cts+1) then
+                kappa_a = kappa(k-1)
+            else if (k_cts .eq. 1 .and. k .eq. 2) then
+                kappa_a = kappa(k)
+            end if
+            !if (k .eq. k_cts)   kappa_b = kappa(k+1)
             
             ! Get diffusion factors
             fac_a   = -kappa_a*dzeta_a(k)*dt/thickness**2
