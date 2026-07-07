@@ -842,25 +842,36 @@ end if
             call calc_wtd_harmonic_mean(kappa_b,kappa(k),kappa(k+1),dz1,dz2)
 
             ! Special treatment of diffusivity at the cold-temperate transition
-            ! surface (CTS), following Kleiner et al. (2015, Eq. 11): the enthalpy
-            ! flux from the cold side into a temperate LAYER is governed by the
-            ! small temperate diffusivity K0. This applies only when a genuine
-            ! temperate layer exists above the base (k_cts >= 2).
+            ! surface (CTS). The conductive enthalpy flux across the CTS is set by
+            ! the COLD-side (upper-node) diffusivity, not the small temperate K0
+            ! (Blatter & Greve 2015, Eq. 25; matches the icetemp reference, whose
+            ! comment notes the harmonic mean "doesn't work well for the CTS").
             !
-            ! A temperate base with cold ice directly above (k_cts == 1) is not a
-            ! temperate layer but a melting boundary: the base is held at the
+            ! This keeps the temperate sub-block coupled to the cold layer above:
+            ! its strain heat drains upward by cold-ice conduction toward the CTS
+            ! (the meltwater is then removed by the omega cap). Choking the CTS
+            ! interface to ~2*K0 instead (harmonic mean, or the previous
+            ! kappa_a = kappa(k-1) override) isolates the block into a near-singular
+            ! Neumann island - zero-flux base plus near-zero-flux CTS top with an
+            ! internal source - which blows up in thin, weakly-advected polythermal
+            ! margin columns (the 2D EISMINT NaN).
+            !
+            ! A temperate base with cold ice directly above (k_cts == 1) is a
+            ! melting boundary, not a temperate layer: the base is held at the
             ! pressure melting point (Dirichlet) and the overlying cold ice
-            ! conducts heat to it with the cold-ice diffusivity. The basal
-            ! interface must therefore NOT be choked by K0 - otherwise the
-            ! near-base temperature gradient, and hence the diagnosed basal melt
-            ! rate, becomes spuriously dependent on the conductivity ratio cr
-            ! (in Kleiner Exp A the melt rate is cr-independent).
-            if (k_cts .ge. 2 .and. k .eq. k_cts+1) then
-                kappa_a = kappa(k-1)
+            ! conducts to it with cold-ice diffusivity (so the diagnosed basal melt
+            ! rate stays cr-independent, as in Kleiner Exp A).
+            if (k_cts .ge. 2 .and. k .eq. k_cts) then
+                ! Upper interface of the topmost temperate node = cold kappa
+                kappa_b = kappa(k+1)
+            else if (k_cts .ge. 2 .and. k .eq. k_cts+1) then
+                ! Lower interface of the first cold node = cold kappa (same CTS
+                ! interface as above; both rows agree, conserving the flux)
+                kappa_a = kappa(k)
             else if (k_cts .eq. 1 .and. k .eq. 2) then
+                ! Melting base: cold ice conducts to the Dirichlet-pmp base
                 kappa_a = kappa(k)
             end if
-            !if (k .eq. k_cts)   kappa_b = kappa(k+1)
             
             ! Get diffusion factors
             fac_a   = -kappa_a*dzeta_a(k)*dt/thickness**2
