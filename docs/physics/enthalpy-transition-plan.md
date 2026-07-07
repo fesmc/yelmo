@@ -55,15 +55,36 @@ All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass
   margin columns:
   1. **Advection-dominated** oscillation — **fixed** by Péclet-hybrid upwinding
      of the vertical advection (Spalding 1972, as the paper prescribes).
-  2. **Tiny-K₀ ill-conditioning** — with `enth_cr = 10⁻³` the temperate-layer
-     nodes (κ = cr·κ_cold) blow up to ~−10⁷ J/kg while the cold layer stays fine;
-     here the temperate-layer advection is low-Péclet, so upwinding does not
-     engage. Confirmed the cause: `enth_cr = 1.0` (no K₀ reduction) runs stably
-     past the crash. **Open** — needs a robustness fix (candidates: regularise/
-     floor the temperate diffusivity as in Aschwanden-style models; revisit the
-     CTS zero-flux base BC and harmonic-mean interface for the temperate block;
-     or raise the production `enth_cr`). This is the gating item before the enth
-     default flip.
+  2. **Near-singular temperate block** — with `enth_cr = 10⁻³` the temperate-layer
+     nodes (κ = cr·κ_cold) blow up to ~−10⁷ J/kg while the cold layer stays fine.
+     The temperate block becomes an almost-isolated Neumann problem (near-zero
+     flux at the base via `enth(1)=enth(2)` and at the CTS top via the K₀ choke)
+     with an internal strain-heating source, so it grows unboundedly. Exp B
+     survives because its strong downward advection couples the block; the thin,
+     weakly-advected EISMINT margin column (uz ≈ 0.003) does not.
+
+  **Three candidate fixes tried, all still crash at ~13 ka** (each kept the 1D
+  benchmarks passing):
+  - **Diffusivity floor / raise `enth_cr`** (the approved Option A): cr = 10⁻²,
+    5×10⁻², 10⁻¹ all still crash (cr = 10⁻¹ crashes *earlier*, at 9 ka — the
+    failure is non-monotonic in cr, confirming it is conditioning, not magnitude).
+    Only cr = 1.0 (no temperate reduction at all) is stable.
+  - **Double-precision Thomas solve** (single precision was a suspect, given
+    enth ~ 5×10⁵ with O(10) differences): still crashes → the discretized system
+    is genuinely near-singular, not just rounding.
+  - **Pin the temperate base at the pmp** (Dirichlet instead of `enth(1)=enth(2)`):
+    still crashes → the singularity is in the block interior / CTS-top coupling,
+    not only the base.
+
+  **Assessment:** 2D robustness of the enthalpy solver at thin polythermal
+  margins is a genuine, multi-faceted problem (the Kleiner benchmarks are all
+  1-D columns; robust 3-D enthalpy is years of engineering in models like PISM).
+  Likely also involves the very large horizontal enthalpy advection at margins
+  (advecxy ~ −30, i.e. cp× the temperature-solver value). This is the gating item
+  before the enth default flip and needs a dedicated effort — candidates: adopt
+  Aschwanden et al. (2012)'s exact CTS/temperate discretization (PISM's, proven in
+  3-D); limit/clip the enthalpy solution or the horizontal enth advection at
+  margins; or special robust handling for thin margin columns.
 
 ---
 
