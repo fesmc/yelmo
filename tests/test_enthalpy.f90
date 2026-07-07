@@ -202,7 +202,11 @@ contains
         character(len=256) :: filename
         real(wp) :: time, time_end, dt, dt_out, time_out
         real(wp) :: enth_cr, omega_max, Q_lith
+        real(wp) :: ab_warm, ab_cold, ab_warm_an, ab_cold_an
         integer  :: n
+
+        ab_warm = -999.0_wp
+        ab_cold = -999.0_wp
 
 
         ! Enthalpy solver parameters
@@ -266,6 +270,12 @@ contains
             ! conversion as the solver's W_til_predicted.
             col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
 
+            ! Sample steady basal melt (as +melt, mm/a) in the warm and cold phases
+            if (trim(experiment) .eq. "kleiner-a") then
+                if (abs(time-148000.0_wp) .lt. 0.5_wp*dt) ab_warm = -col%bmb*1000.0_wp
+                if (abs(time-168000.0_wp) .lt. 0.5_wp*dt) ab_cold = -col%bmb*1000.0_wp
+            end if
+
             time = time + dt
 
             if (time - time_out .ge. dt_out - 1e-6_wp) then
@@ -277,8 +287,43 @@ contains
 
         write(*,"(a,a,a,a,a,f10.2,a,es12.4)") "  [",trim(experiment),"/",trim(solver), &
                 "] T_base = ", col%T_ice(1), " K, bmb = ", col%bmb
+
+        ! T3: compare warm/cold steady melt to the Kleiner (2015) analytic solution
+        if (trim(experiment) .eq. "kleiner-a" .and. trim(solver) .eq. "enth") then
+            ab_warm_an = analytic_ab_steady(c%T0-10.0_wp,c,col%H_ice)
+            ab_cold_an = analytic_ab_steady(c%T0-30.0_wp,c,col%H_ice)
+            write(*,*) ""
+            write(*,*) "=== Kleiner Exp A steady melt vs analytic (T3) ==="
+            write(*,"(a,f8.3,a,f8.3,a)") "  warm a_b = ", ab_warm, " mm/a  (analytic ", ab_warm_an, ")"
+            write(*,"(a,f8.3,a,f8.3,a)") "  cold a_b = ", ab_cold, " mm/a  (analytic ", ab_cold_an, ")"
+            if (abs(ab_warm-ab_warm_an) .lt. 0.05_wp*abs(ab_warm_an) .and. &
+                abs(ab_cold-ab_cold_an) .lt. 0.05_wp*abs(ab_cold_an)) then
+                write(*,*) "  PASS: within 5% of analytic (increase nz to tighten)."
+            else
+                write(*,*) "  FAIL: exceeds 5% of analytic."
+            end if
+            write(*,*) ""
+        end if
+
         return
     end subroutine run_experiment
+
+    function analytic_ab_steady(T_srf,c,H_ice) result(ab)
+        ! Kleiner (2015) Exp A analytic steady basal melt rate (Eq. A14) for a
+        ! cold slab with the base held at the pressure melting point. Returns
+        ! mm/a, positive = melt.
+        real(wp), intent(IN) :: T_srf
+        type(ybound_const_class), intent(IN) :: c
+        real(wp), intent(IN) :: H_ice
+        real(wp) :: ab
+        real(wp) :: T_pmp_b, q_i, kt_si
+        real(wp), parameter :: q_geo = 0.042_wp   ! [W m-2]
+        kt_si   = 2.1_wp                            ! [W m-1 K-1]
+        T_pmp_b = c%T0 - c%T_pmp_beta*c%rho_ice*c%g*H_ice
+        q_i     = kt_si*(T_pmp_b-T_srf)/H_ice       ! cold-ice conductive flux up [W m-2]
+        ab      = (q_geo - q_i)/(c%rho_ice*c%L_ice)*c%sec_year*1000.0_wp
+        return
+    end function analytic_ab_steady
 
     subroutine compare_cold_limit(c,nz)
         ! Re-run both solvers and compare final temperature profiles.
