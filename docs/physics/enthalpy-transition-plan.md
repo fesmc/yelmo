@@ -5,8 +5,10 @@ temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
 Status: **in progress** on branch `therm-dev` — Phases 0–2 complete (all 1D
-benchmarks pass); Phase 3 (2D/3D) **blocked** on a 2D margin-column robustness
-issue in the enthalpy solver (see log).
+benchmarks pass); Phase 3 (2D/3D) **unblocked** — the 2D margin-column
+robustness crash is fixed (CTS diffusivity, see log); 2D EISMINT-A now runs the
+full 100 ka. Remaining Phase 3: enth-vs-temp diagnostic comparison + an
+Antarctica spin-up before the default flip.
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
@@ -85,6 +87,26 @@ All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass
   Aschwanden et al. (2012)'s exact CTS/temperate discretization (PISM's, proven in
   3-D); limit/clip the enthalpy solution or the horizontal enth advection at
   margins; or special robust handling for thin margin columns.
+
+- **P3 (2D crash FIXED):** the near-singular temperate block was caused by the
+  **CTS diffusivity choke**, not the base or advection. The cold↔temperate
+  interface was forced to ~2·K0 (harmonic mean of κ_temp, κ_cold) plus an
+  explicit `kappa_a = kappa(k-1)` override at `k_cts+1`; with the zero-flux
+  temperate base this isolated the temperate sub-block into a near-singular
+  Neumann island with an internal strain source. **Fix:** conduct across the CTS
+  with the **cold-side (upper-node) κ** (Blatter & Greve 2015, Eq. 25; the
+  icetemp reference, which explicitly rejects the harmonic mean at the CTS and
+  had this half-written in a commented-out `kappa_b = kappa(k+1)` line). The
+  block now drains its strain heat upward by cold-ice conduction toward the CTS;
+  both CTS rows use the same cold κ, conserving the interface flux. Result: **2D
+  EISMINT-A `method="enth"` runs the full 100 ka** (was NaN at 13.24 ka), dome
+  H0 = 4008 m (analytic ~3990). 1D benchmarks: T2 PASS, T3 PASS, T4 PASS at
+  nz=201/401, cr=1e-4 (CTS 20.4 m vs analytic 19.0, within the 2 m gate — ~1.4 m
+  less accurate than the choke, the accuracy/robustness trade being worth it; the
+  advection-dominated Exp B is nearly insensitive to the CTS conductive flux).
+  Commit `276215c5`. **Remaining before the default flip:** quantitative
+  enth-vs-temp 2D comparison (basal temperate area, bmb, thickness) and an
+  Antarctica spin-up (Phase 3 proper).
 
 ---
 
