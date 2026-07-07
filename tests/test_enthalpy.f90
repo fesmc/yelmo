@@ -40,6 +40,7 @@ program test_enthalpy
     type(ybound_const_class) :: c
     character(len=256) :: experiment, solver, arg
     integer :: nz, narg
+    real(wp) :: cr_arg
 
     ! Load physical constants (Kleiner 2015 / EISMINT values, set directly)
     call set_constants(c)
@@ -48,22 +49,26 @@ program test_enthalpy
     experiment = "cold-limit"
     solver     = ""
     nz         = 51
+    cr_arg     = -1.0_wp        ! <0 => use solver default
     narg = command_argument_count()
     if (narg .ge. 1) call get_command_argument(1,experiment)
     if (narg .ge. 2) call get_command_argument(2,solver)
     if (narg .ge. 3) then
         call get_command_argument(3,arg); read(arg,*) nz
     end if
+    if (narg .ge. 4) then
+        call get_command_argument(4,arg); read(arg,*) cr_arg
+    end if
 
     select case(trim(experiment))
         case("cold-limit")
             if (trim(solver) .eq. "") solver = "both"
-            call run_experiment(c,"cold-limit","temp",nz)
-            call run_experiment(c,"cold-limit","enth",nz)
+            call run_experiment(c,"cold-limit","temp",nz,cr_arg)
+            call run_experiment(c,"cold-limit","enth",nz,cr_arg)
             call compare_cold_limit(c,nz)
         case("kleiner-a")
             if (trim(solver) .eq. "") solver = "enth"
-            call run_experiment(c,"kleiner-a",trim(solver),nz)
+            call run_experiment(c,"kleiner-a",trim(solver),nz,cr_arg)
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
             write(*,*) "  choose one of: cold-limit, kleiner-a"
@@ -83,7 +88,7 @@ contains
         c%rho_sw     = 1028.0_wp
         c%rho_rock   = 2000.0_wp
         c%L_ice      = 3.34e5_wp
-        c%T_pmp_beta = 9.7e-8_wp
+        c%T_pmp_beta = 7.9e-8_wp       ! Kleiner (2015) Table A1 Clausius-Clapeyron
         return
     end subroutine set_constants
 
@@ -168,10 +173,10 @@ contains
     end subroutine setup_experiment
 
     function surf_temp_kleiner_a(time,c) result(T_srf)
-        ! Kleiner (2015) Exp A surface-temperature forcing:
-        !   Ts = -30 C for 0    <= t < 100 ka
-        !   Ts = -5  C for 100  <= t < 150 ka
-        !   Ts = -30 C for t   >= 150 ka
+        ! Kleiner (2015) Exp A surface-temperature forcing (their phases I-III):
+        !   Ts = -30 C for 0    <= t < 100 ka   (initial, cold)
+        !   Ts = -10 C for 100  <= t < 150 ka   (warming)
+        !   Ts = -30 C for t   >= 150 ka        (cooling)
         real(wp), intent(IN) :: time      ! [a]
         type(ybound_const_class), intent(IN) :: c
         real(wp) :: T_srf
@@ -180,17 +185,18 @@ contains
         if (tka .lt. 100.0_wp) then
             T_srf = c%T0 - 30.0_wp
         else if (tka .lt. 150.0_wp) then
-            T_srf = c%T0 - 5.0_wp
+            T_srf = c%T0 - 10.0_wp
         else
             T_srf = c%T0 - 30.0_wp
         end if
         return
     end function surf_temp_kleiner_a
 
-    subroutine run_experiment(c,experiment,solver,nz)
+    subroutine run_experiment(c,experiment,solver,nz,cr_override)
         type(ybound_const_class), intent(IN) :: c
         character(len=*),         intent(IN) :: experiment, solver
         integer,                  intent(IN) :: nz
+        real(wp),                 intent(IN) :: cr_override   ! <0 => use solver default
 
         type(column_class) :: col
         character(len=256) :: filename
@@ -198,8 +204,6 @@ contains
         real(wp) :: enth_cr, omega_max, Q_lith
         integer  :: n
 
-        real(wp), parameter :: W_til_max = 2.0_wp
-        real(wp), parameter :: till_rate = 1.0e-3_wp   ! [m a-1] constant till drainage
 
         ! Enthalpy solver parameters
         omega_max = 0.01_wp
@@ -208,6 +212,7 @@ contains
         else
             enth_cr = 1.0e-3_wp
         end if
+        if (cr_override .ge. 0.0_wp) enth_cr = cr_override
 
         ! Time control
         select case(trim(experiment))
@@ -255,11 +260,11 @@ contains
                     write(*,*) "run_experiment:: unknown solver: ", trim(solver); stop 1
             end select
 
-            ! Simple till-water bucket: basal melt (bmb<0) adds water, a constant
-            ! till drainage rate removes it, and the layer is capped at W_til_max.
-            ! (Stand-in for FastHydrology, which owns W_til in the full model.)
-            col%W_til = col%W_til - col%bmb*dt - till_rate*dt
-            col%W_til = max(0.0_wp, min(W_til_max, col%W_til))
+            ! Basal water: accumulate freely with no drainage or cap, following
+            ! Kleiner (2015) Exp A. Basal melt (bmb<0) adds water, freeze-on
+            ! (bmb>0) removes it; floored at zero. Same water-equivalent
+            ! conversion as the solver's W_til_predicted.
+            col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
 
             time = time + dt
 
