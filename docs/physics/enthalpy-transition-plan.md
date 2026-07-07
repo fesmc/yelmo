@@ -4,8 +4,9 @@ Design document for switching Yelmo's production thermodynamics from the
 temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
-Status: **in progress** on branch `therm-dev` — Phases 0, 1, 2 complete
-(Kleiner Exp A and B both validated); Phase 3 (2D/3D) next.
+Status: **in progress** on branch `therm-dev` — Phases 0–2 complete (all 1D
+benchmarks pass); Phase 3 (2D/3D) **blocked** on a 2D margin-column robustness
+issue in the enthalpy solver (see log).
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
@@ -44,6 +45,25 @@ Author: thermodynamics review, 2026-07.
   the accurate/stable regime is cr ≤ 10⁻³.
 
 All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass.
+
+- **P3 (in progress, blocked):** the first-ever 2D enthalpy run (EISMINT-2 EXPA,
+  `method="enth"`) crashes at ~13 ka with a NaN at the base of a thin margin
+  column (temp runs the full 100 ka). Also fixed a blocker along the way: the
+  shipped benchmark par files still listed `till_rate`/`H_w_max` under `&ytherm`
+  (moved to `&fhyd`), which `nml_validate` rejected — removed from 5 configs.
+  Two enthalpy failure modes identified in thin, strain-heated, polythermal
+  margin columns:
+  1. **Advection-dominated** oscillation — **fixed** by Péclet-hybrid upwinding
+     of the vertical advection (Spalding 1972, as the paper prescribes).
+  2. **Tiny-K₀ ill-conditioning** — with `enth_cr = 10⁻³` the temperate-layer
+     nodes (κ = cr·κ_cold) blow up to ~−10⁷ J/kg while the cold layer stays fine;
+     here the temperate-layer advection is low-Péclet, so upwinding does not
+     engage. Confirmed the cause: `enth_cr = 1.0` (no K₀ reduction) runs stably
+     past the crash. **Open** — needs a robustness fix (candidates: regularise/
+     floor the temperate diffusivity as in Aschwanden-style models; revisit the
+     CTS zero-flux base BC and harmonic-mean interface for the temperate block;
+     or raise the production `enth_cr`). This is the gating item before the enth
+     default flip.
 
 ---
 
