@@ -4,8 +4,8 @@ Design document for switching Yelmo's production thermodynamics from the
 temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
-Status: **in progress** on branch `therm-dev` — Phases 0 and 1 complete; Phase 2
-(Kleiner validation) next.
+Status: **in progress** on branch `therm-dev` — Phases 0, 1 complete; Phase 2
+underway (Kleiner Exp A validated; Exp B next).
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
@@ -20,6 +20,18 @@ Author: thermodynamics review, 2026-07.
   `calc_temp_column`, so basal melt was wrong. Cold-limit equivalence (T2) now
   passes (max|ΔT| = 9.6×10⁻⁴ K) and the Kleiner-A transient shows a physical
   melt/refreeze cycle. Magnitude vs the Kleiner reference is Phase 2.
+- **P2 Exp A (done):** validated against Kleiner (2015) Experiment A. Corrected
+  the protocol (warm phase −10 °C, β = 7.9×10⁻⁸, free basal-water accumulation)
+  and **fixed a real CR-dependence bug**: the CTS diffusivity treatment choked
+  the basal interface with the temperate K₀ whenever the basal node was
+  temperate, making the diagnosed melt collapse at the nominal cr = 0.1. The K₀
+  choke now applies only to a genuine temperate *layer* (k_cts ≥ 2); a melting
+  base (k_cts = 1) conducts to the Dirichlet-pmp base with cold-ice κ. Basal melt
+  is now **cr-independent** (matching the three reference models) and converges
+  to the analytic solution (Eq A14): nz = 401 → warm 2.32 vs 2.33, cold −2.01 vs
+  −2.03 mm/a; the phase-III transient tracks Eq A15 to ~1%. Driver test **T3**
+  added; re-vendored the correct −10 °C analytic reference (the previous file was
+  a −5 °C variant).
 
 ---
 
