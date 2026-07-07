@@ -135,10 +135,12 @@ contains
 
         select case(trim(experiment))
             case("cold-limit")
-                col%H_ice  = 2000.0_wp
-                col%T_srf  = c%T0 - 30.0_wp       ! -30 C
+                ! Deliberately cold column: base stays well below pmp so no
+                ! temperate ice forms and enth must reduce exactly to temp.
+                col%H_ice  = 1500.0_wp
+                col%T_srf  = c%T0 - 40.0_wp       ! -40 C
                 col%smb    = 0.1_wp               ! [m a-1]
-                col%Q_rock = 42.0_wp              ! [mW m-2] modest geothermal -> base stays cold
+                col%Q_rock = 15.0_wp              ! [mW m-2] low geothermal -> cold base
             case("kleiner-a")
                 col%H_ice  = 1000.0_wp
                 col%T_srf  = surf_temp_kleiner_a(0.0_wp,c)
@@ -197,6 +199,7 @@ contains
         integer  :: n
 
         real(wp), parameter :: W_til_max = 2.0_wp
+        real(wp), parameter :: till_rate = 1.0e-3_wp   ! [m a-1] constant till drainage
 
         ! Enthalpy solver parameters
         omega_max = 0.01_wp
@@ -252,8 +255,11 @@ contains
                     write(*,*) "run_experiment:: unknown solver: ", trim(solver); stop 1
             end select
 
-            ! Simple till-water bucket: basal melt (bmb<0) adds water, drainage caps it
-            col%W_til = max(0.0_wp, min(W_til_max, col%W_til - col%bmb*dt))
+            ! Simple till-water bucket: basal melt (bmb<0) adds water, a constant
+            ! till drainage rate removes it, and the layer is capped at W_til_max.
+            ! (Stand-in for FastHydrology, which owns W_til in the full model.)
+            col%W_til = col%W_til - col%bmb*dt - till_rate*dt
+            col%W_til = max(0.0_wp, min(W_til_max, col%W_til))
 
             time = time + dt
 
