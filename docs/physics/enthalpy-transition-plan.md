@@ -1,0 +1,160 @@
+# Enthalpy transition plan (ytherm)
+
+Design document for switching Yelmo's production thermodynamics from the
+temperature-based solver (`method="temp"`) to the enthalpy-based solver
+(`method="enth"`) for v2.0.
+
+Status: **draft / in progress** on branch `therm-dev`.
+Author: thermodynamics review, 2026-07.
+
+---
+
+## 1. Motivation
+
+Yelmo carries a full enthalpy formulation alongside the temperature solver, but
+production has always used `temp` because `enth` "seemed less trustworthy". This
+document records what the enthalpy path actually needs, why it has never run, and
+a phased plan (with standalone validation) to make it the default.
+
+## 2. Current state of `ytherm`
+
+### 2.1 Dispatch
+
+`calc_ytherm` ([`src/yelmo_thermodynamics.f90`](../../src/yelmo_thermodynamics.f90))
+selects on `thrm%par%method ∈ {enth, temp, robin, robin-cold, linear, fixed}`.
+
+- `enth` and `temp` share one driver, `calc_ytherm_enthalpy_3D`, which loops
+  columns and calls `calc_enth_column` or `calc_temp_column`.
+- `temp` is `enth` with `enth_cr=1.0` and `omega_max=0.0` forced at par-load
+  (so temperate ice has cold-ice conductivity and zero water content).
+- Default is `method="temp"` (`input/yelmo_defaults.nml`); **every** shipped par
+  file uses `temp` or `fixed`. No shipped configuration uses `enth`.
+
+The enthalpy *scaffolding* (horizontal advection of `enth`, `convert_to/from_enthalpy`,
+CTS index, omega diagnosis, per-column enth output) is present and structurally
+exercised. Only the per-column solve is incomplete.
+
+### 2.2 The blocking defect
+
+`calc_enth_column` ([`src/physics/ice_enthalpy.f90`](../../src/physics/ice_enthalpy.f90))
+terminates the run:
+
+```fortran
+! Calculate basal mass balance
+write(*,*) "calc_enth_column:: routine needs to be updated with Q_rock etc."
+stop
+```
+
+`git blame` places this `stop` in the **original v1.15 import** — it is unfinished
+upstream code, not a regression. So `method="enth"` has never been runnable in this
+repository. The intended helper `calc_bmb_grounded_enth` does not exist in
+`thermodynamics.f90` (only referenced in a comment and by the dead poly module).
+
+### 2.3 Reference implementation exists
+
+The testbed [`github.com/alex-robinson/icetemp`](https://github.com/alex-robinson/icetemp)
+(the ancestor of this code) contains a **complete, working** `calc_enth_column` and
+`calc_bmb_grounded_enth`, and ships **Kleiner et al. (2015)** benchmark data. This is
+our reference for finishing the Yelmo routine and for validation (see §5).
+
+## 3. Gap list (temp vs enth)
+
+| # | Item | `temp` | `enth` | Action |
+|---|------|--------|--------|--------|
+| 1 | Basal mass balance | `calc_bmb_grounded` (works) | **`stop`; no bmb** | Port `calc_bmb_grounded_enth` |
+| 2 | Basal heat flux `Q_ice_b` | temperature gradient | temp gradient (enth gradient commented "Problematic") | Decide + validate discretization |
+| 3 | CTS treatment | none | post-solve `enth(1)=enth(2)` fixup; zero-flux BC; one-sided diffusivity jump at `k_cts+1` | Justify or replace vs benchmark |
+| 4 | Basal BC units/sign | `-(Q_b+Q_rock)/kt` | `(Q_b+Q_lith)/kt*cp`, pre-converted `Q_lith` | Reconcile so cold-limit ≡ temp |
+| 5 | Surface BC | raw `min(T_srf,T0)` | `min(T_srf,T0)*cp(nz)` | Reconcile |
+
+**Correctness anchor:** in the cold limit (`omega=0`, `enth_cr=1`) the enthalpy
+solver must reduce *exactly* to the temperature solver. This equivalence is the
+cheapest, strongest regression test and is currently untested.
+
+### 3.1 Reference physics for item 1 (flux-based bmb)
+
+From the icetemp testbed (`thermodynamics.f90`):
+
+```fortran
+net_enth = enth_b - enth_pmp_b            ! basal enthalpy above pmp
+Q_net    = Q_b + Q_ice_b + Q_geo_now      ! net basal energy flux [J a-1 m-2]
+bmb_grnd = -Q_net / (rho_ice*L_ice - net_enth)
+```
+
+This is the **flux-based** form (chosen for consistency with `calc_bmb_grounded`),
+with an enthalpy correction `- net_enth` in the denominator accounting for latent
+heat already stored as basal water. The Yelmo port must adapt the interface to the
+current boundary set (`Q_rock` bedrock flux, `W_til` predictor, `f_grnd` weighting).
+The design should keep the bmb closure **swappable** (flux-based default, leaving
+room to experiment with an enthalpy-state form).
+
+## 4. Standalone test harness
+
+A single-column driver already exists — `tests/test_icetemp.f90`, target
+`make icetemp` — that builds an EISMINT column, computes the Robin analytical
+solution, time-steps a solver, and writes NetCDF. **It is bit-rotted**: it calls
+`calc_enth_column`/`calc_temp_column` with old, shorter signatures and will not
+compile against the current routines. `tests/test_icetemp_poly.f90` targets the
+dead poly solver.
+
+Plan for the harness (Phase 0):
+
+1. Update calls to current signatures; drop the poly test.
+2. Add automated pass/fail assertions:
+   - **T1** temp-solver vs Robin steady state (existing comparison, made quantitative).
+   - **T2** enth ≡ temp in the cold limit (bit-for-bit or within tol).
+   - **T3** Kleiner (2015) **Experiment A** — transient basal melt rate vs
+     `data/Kleiner2015/Kleiner2015_EXPA_Fig2-IIIa-melt.txt`.
+   - **T4** Kleiner (2015) **Experiment B** — steady polythermal column: CTS
+     position, `T(z)`, `omega(z)`, basal enthalpy vs
+     `Kleiner2015_EXPB_analytic_nz401_z.dat` and `..._enth_b.txt`.
+3. Reference data vendored under `tests/data/Kleiner2015/`.
+
+## 5. Kleiner et al. (2015) benchmark
+
+Two experiments with published/analytic references (vendored from icetemp):
+
+- **Experiment A** — parabolic surface-temperature forcing over a cold slab;
+  tests the cold↔temperate base transition and basal melt onset. Reference:
+  basal melt-rate time series.
+- **Experiment B** — steady polythermal column with a temperate basal layer;
+  tests CTS position and water content. Reference: analytic profile at `nz=401`
+  and basal enthalpy series (`T_ref = 173.15 K`).
+
+These target gap items 2–3 directly (CTS discretization, enthalpy-gradient flux).
+
+## 6. Phased plan
+
+**Phase 0 — Revive the standalone harness.** Update `test_icetemp`, vendor Kleiner
+data, add tests T1–T4. De-risks everything downstream with a fast build/run loop.
+
+**Phase 1 — Finish the enthalpy column solver.** Port `calc_bmb_grounded_enth`
+(flux-based, swappable), remove the `stop`, resolve the `Q_ice_b` discretization,
+reconcile basal/surface BC units and sign so cold-limit ≡ temp (test T2).
+
+**Phase 2 — Validate CTS / polythermal.** Justify or replace the CTS fixups against
+Kleiner B (T4); confirm energy conservation.
+
+**Phase 3 — 2D/3D validation.** EISMINT (`make benchmarks`) and an Antarctica
+spin-up, `enth` vs `temp`: basal temperate area, bmb, thickness. Only then consider
+changing the default.
+
+**Phase 4 — Cleanup (lands early, incrementally).**
+- Delete dead `src/physics/ice_enthalpy_poly.f90` and `tests/test_icetemp_poly.f90`
+  (never compiled; would not compile — uses nonexistent `calc_bmb_grounded_enth`).
+- Remove dead helpers `calc_Q_bedrock`, `calc_hires_cell` (zero call sites).
+- Hoist magic numbers (`enth_ref=273.15*2009.0`, `H_ice_thin=10.0`) to constants.
+- Remove stale comments/signature cruft (`W_til` "kept for signature stability" in
+  `define_temp_robin`; "remerge into icetemp" module note).
+- Track the OpenMP-in-bedrock "leads to NaNs" note and the gated `ajr symtest` block.
+
+## 7. Open technical questions
+
+- **Q_ice_b discretization** (gap 2): testbed uses enthalpy-gradient
+  `kappa*rho_ice*(enth(2)-enth(1))/dz`; Yelmo reverted to temperature gradient and
+  flagged the enthalpy form "Problematic". Kleiner B should decide which is correct
+  and stable.
+- **CTS boundary condition** (gap 3): are the zero-flux BC and one-sided diffusivity
+  jump physical, or stability band-aids? Validate against Kleiner B.
+- **bmb closure form**: flux-based confirmed as default; keep an interface seam for
+  an alternative enthalpy-state closure.
