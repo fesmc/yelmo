@@ -4,8 +4,22 @@ Design document for switching Yelmo's production thermodynamics from the
 temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
-Status: **draft / in progress** on branch `therm-dev`.
+Status: **in progress** on branch `therm-dev` — Phases 0 and 1 complete; Phase 2
+(Kleiner validation) next.
 Author: thermodynamics review, 2026-07.
+
+## Progress log
+
+- **P4 (early cleanup, done):** removed dead `ice_enthalpy_poly.f90` + test, and
+  unused helpers `calc_Q_bedrock`, `calc_hires_cell`, `interp_bilin_pt`.
+- **P0 (done):** standalone driver `tests/test_enthalpy.f90` (`make enthalpy`)
+  with NetCDF output; Kleiner (2015) data vendored to `tests/data/Kleiner2015/`.
+- **P1 (done):** finished `calc_enth_column` — removed the upstream `stop`, added
+  flux-based `calc_bmb_grounded_enth`, made `Q_ice_b` swappable, and **fixed a
+  sign bug**: the enth path computed `Q_ice_b = +kt·(T₂−T₁)/dz`, the opposite of
+  `calc_temp_column`, so basal melt was wrong. Cold-limit equivalence (T2) now
+  passes (max|ΔT| = 9.6×10⁻⁴ K) and the Kleiner-A transient shows a physical
+  melt/refreeze cycle. Magnitude vs the Kleiner reference is Phase 2.
 
 ---
 
