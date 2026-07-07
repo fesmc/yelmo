@@ -35,7 +35,6 @@ module thermodynamics
     
     public :: define_temp_bedrock_3D
     public :: define_temp_bedrock_column
-    public :: calc_Q_bedrock
     public :: calc_Q_bedrock_column
 
     public :: calc_basal_heating_nodes
@@ -847,84 +846,6 @@ contains
  
     end subroutine calc_basal_heating_simplestagger
 
-    subroutine calc_hires_cell(var_hi,var_1,var_2,var_3,var_4)
-        ! Given the four corners of a cell in quadrants 1,2,3,4,
-        ! calculate a high resolution grid of the variable
-        ! through bilinear interpolation that covers the cell.
-
-        implicit none 
-
-        real(wp), intent(OUT) :: var_hi(:,:) 
-        real(wp), intent(IN)  :: var_1,var_2,var_3,var_4
-        
-        ! Local variables 
-        integer :: i, j, nx  
-        real(wp) :: dx 
-        real(wp) :: x(size(var_hi,1)), y(size(var_hi,2)) 
-
-        nx = size(var_hi,1)
-
-        dx = 1.0/real(nx,wp)
-
-        ! Populate x,y axes for interpolation points (between 0 and 1)
-        ! Note: x and y points are offset from values of 0 and 1 to be
-        ! sure that each mini grid box has the same area contribution
-        ! to the total grid cell.
-        do i = 1, nx 
-            !x(i) = 0.0_wp + real(i-1)/real(nx-1)
-            x(i) = 0.5_wp*dx + real(i-1)*dx 
-        end do 
-        y = x 
-
-
-        ! Calculate linear interpolation value 
-        var_hi = 0.0_wp 
-
-        do i = 1, nx 
-        do j = 1, nx 
-
-            var_hi(i,j) = interp_bilin_pt(var_1,var_2,var_3,var_4,x(i),y(j))
-
-        end do 
-        end do 
-
-        return 
-
-    end subroutine calc_hires_cell
-
-    function interp_bilin_pt(z1,z2,z3,z4,xout,yout) result(zout)
-        ! Interpolate a point given four neighbors at corners of square (0:1,0:1)
-        ! z2    z1
-        !    x,y
-        ! z3    z4 
-        ! 
-
-        implicit none 
-
-        real(wp), intent(IN) :: z1, z2, z3, z4 
-        real(wp), intent(IN) :: xout, yout 
-        real(wp) :: zout 
-
-        ! Local variables 
-        real(wp) :: x0, x1, y0, y1 
-        real(wp) :: alpha1, alpha2, p0, p1 
-
-        x0 = 0.0_wp 
-        x1 = 1.0_wp
-        y0 = 0.0_wp
-        y1 = 1.0_wp
-
-        alpha1  = (xout - x0) / (x1-x0)
-        p0      = z3 + alpha1*(z4-z3)
-        p1      = z2 + alpha1*(z1-z2)
-            
-        alpha2  = (yout - y0) / (y1-y0)
-        zout    = p0 + alpha2*(p1-p0)
-
-        return 
-
-    end function interp_bilin_pt
-
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
         implicit none 
@@ -1419,38 +1340,6 @@ contains
         return 
 
     end subroutine define_temp_bedrock_column
-
-    subroutine calc_Q_bedrock(Q_rock,T_rock,kt_rock,H_rock,zeta_aa,sec_year)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: Q_rock(:,:) 
-        real(wp), intent(IN)  :: T_rock(:,:,:) 
-        real(wp), intent(IN)  :: kt_rock
-        real(wp), intent(IN)  :: H_rock 
-        real(wp), intent(IN)  :: zeta_aa(:) 
-        real(wp), intent(IN)  :: sec_year 
-
-        ! Local variables 
-        integer  :: i, j, nx, ny  
-
-        nx    = size(Q_rock,1)
-        ny    = size(Q_rock,2) 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            call calc_Q_bedrock_column(Q_rock(i,j),T_rock(i,j,:),kt_rock,H_rock,zeta_aa,sec_year)
-
-        end do 
-        end do  
-
-        ! [J a-1 m-2] => [mW m-2] (same units as Q_geo by default)
-        Q_rock = Q_rock *1e3 / sec_year 
-
-        return 
-
-    end subroutine calc_Q_bedrock
 
     subroutine calc_Q_bedrock_column(Q_rock,T_rock,kt_rock,H_rock,zeta_aa,sec_year)
 
