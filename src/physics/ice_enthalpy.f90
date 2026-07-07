@@ -770,11 +770,14 @@ end if
         real(wp), intent(IN)    :: dt             ! [a] Time step
         integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point) 
         logical,  intent(IN)    :: is_basal_flux  ! Is basal condition flux condition (True) or Neumann (False)
-        ! Local variables 
+        ! Local variables
         integer  :: k, nz_aa
         real(wp) :: fac, fac_a, fac_b, uz_aa, dz, dzeta
         real(wp) :: h1, h2, afac_a, afac_b, afac_mid
-        real(wp) :: kappa_a, kappa_b, dz1, dz2 
+        real(wp) :: kappa_a, kappa_b, dz1, dz2
+        real(wp) :: kappa_mid, Pe, wt
+        real(wp) :: adv_lo_c, adv_hi_c, adv_mid_c
+        real(wp) :: adv_lo_u, adv_hi_u, adv_mid_u
         real(wp), allocatable :: subd(:)      ! nz_aa 
         real(wp), allocatable :: diag(:)      ! nz_aa  
         real(wp), allocatable :: supd(:)      ! nz_aa 
@@ -867,39 +870,45 @@ end if
             ! Get implicit vertical advection term, ac => aa nodes
             uz_aa   = 0.5*(uz(k)+uz(k+1))
 
-if (.TRUE.) then
-    ! Use simple centered-difference scheme for vertical advection
+            ! Vertical advection: blend the second-order centered scheme with a
+            ! first-order upwind scheme according to the local cell Peclet number,
+            ! following the hybrid scheme of Spalding (1972) used by Kleiner et al.
+            ! (2015) for the advection-dominated transport in the temperate ice
+            ! layer. wt = 0 (pure centered, second-order accurate) where diffusion
+            ! dominates (Pe <= 2); wt -> 1 (pure upwind, stable) as Pe -> inf, i.e.
+            ! in the low-diffusivity temperate limit where centered differences
+            ! oscillate. This preserves the centered solution wherever it is stable.
+            dz      = thickness * (zeta_aa(k+1)-zeta_aa(k-1))   ! centered (2-layer) span
+            dz1     = thickness * (zeta_aa(k)  -zeta_aa(k-1))   ! lower layer (upwind, uz>0)
+            dz2     = thickness * (zeta_aa(k+1)-zeta_aa(k))     ! upper layer (upwind, uz<0)
 
-            ! Vertical distance for centered difference advection scheme
-            dzeta   = (zeta_aa(k+1)-zeta_aa(k-1))
-            dz      = thickness * dzeta 
+            kappa_mid = 0.5_wp*(kappa_a+kappa_b)
+            Pe        = abs(uz_aa)*dz / max(kappa_mid,1e-12_wp)
+            wt        = max(0.0_wp, 1.0_wp - 2.0_wp/max(Pe,1e-12_wp))
 
-            subd(k) = fac_a - uz_aa * dt/dz
-            supd(k) = fac_b + uz_aa * dt/dz
-            diag(k) = 1.0_wp - fac_a - fac_b
+            ! Centered advection contributions (coeff of enth(k-1), enth(k+1), enth(k))
+            adv_lo_c  = -uz_aa*dt/dz
+            adv_hi_c  = +uz_aa*dt/dz
+            adv_mid_c =  0.0_wp
+
+            ! First-order upwind advection contributions (one-sided, sign of uz)
+            if (uz_aa .ge. 0.0_wp) then
+                adv_lo_u  = -uz_aa*dt/dz1
+                adv_hi_u  =  0.0_wp
+                adv_mid_u = +uz_aa*dt/dz1
+            else
+                adv_lo_u  =  0.0_wp
+                adv_hi_u  = +uz_aa*dt/dz2
+                adv_mid_u = -uz_aa*dt/dz2
+            end if
+
+            ! Assemble the tridiagonal row: diffusion + Peclet-blended advection
+            subd(k) = fac_a          + (1.0_wp-wt)*adv_lo_c  + wt*adv_lo_u
+            supd(k) = fac_b          + (1.0_wp-wt)*adv_hi_c  + wt*adv_hi_u
+            diag(k) = 1.0_wp - fac_a - fac_b + (1.0_wp-wt)*adv_mid_c + wt*adv_mid_u
             rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k)
-            
-else
-    ! Use centered-difference advection scheme accounting for variable layer thickness
 
-            ! Get grid spacing between neighboring points
-            h1 = thickness * (zeta_aa(k)-zeta_aa(k-1))
-            h2 = thickness * (zeta_aa(k+1)-zeta_aa(k))
-
-            ! Get advective factor terms for centered difference with 
-            ! uneven layers 
-            afac_a   = -h2/(h1*(h1+h2))
-            afac_mid = -(h1-h2)/(h1*h2)
-            afac_b   = +h1/(h2*(h1+h2))
-
-            subd(k) = fac_a + uz_aa * dt*afac_a
-            supd(k) = fac_b + uz_aa * dt*afac_b
-            diag(k) = 1.0_wp - fac_a - fac_b + uz_aa * dt*afac_mid
-            rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k)
-            
-end if 
-
-        end do 
+        end do
 
         ! == Ice surface ==
 
