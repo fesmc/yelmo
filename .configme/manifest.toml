@@ -1,6 +1,6 @@
 # configme manifest for yelmo.
 package = "yelmo"
 deps = [
-    "fesm-utils:1.2-beta",
-    "FastHydrology:0.3-beta",
+    "fesm-utils:v1.2-beta",
+    "FastHydrology:v0.3-beta",
 ]
