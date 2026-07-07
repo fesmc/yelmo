@@ -60,6 +60,12 @@ program test_enthalpy
         call get_command_argument(4,arg); read(arg,*) cr_arg
     end if
 
+    ! Experiment-specific physical constants (Kleiner 2015 Table A1)
+    if (trim(experiment) .eq. "kleiner-b") then
+        c%T_pmp_beta = 0.0_wp          ! no pressure-melting dependence
+        c%L_ice      = 3.35e5_wp       ! Exp B latent heat
+    end if
+
     select case(trim(experiment))
         case("cold-limit")
             if (trim(solver) .eq. "") solver = "both"
@@ -69,9 +75,12 @@ program test_enthalpy
         case("kleiner-a")
             if (trim(solver) .eq. "") solver = "enth"
             call run_experiment(c,"kleiner-a",trim(solver),nz,cr_arg)
+        case("kleiner-b")
+            if (trim(solver) .eq. "") solver = "enth"
+            call run_experiment(c,"kleiner-b",trim(solver),nz,cr_arg)
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
-            write(*,*) "  choose one of: cold-limit, kleiner-a"
+            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b"
             stop 1
     end select
 
@@ -114,6 +123,9 @@ contains
 
         integer :: k, nz_ac
         real(wp), allocatable :: zeta_aa(:), zeta_ac(:)
+        real(wp) :: T_init, z, sin_gam, tau_gam
+        real(wp), parameter :: A_glen = 5.3e-24_wp             ! [Pa-3 s-1] Exp B rate factor
+        real(wp), parameter :: deg2rad = 3.14159265358979_wp/180.0_wp
 
         call column_alloc(col,nz)
 
@@ -151,6 +163,23 @@ contains
                 col%T_srf  = surf_temp_kleiner_a(0.0_wp,c)
                 col%smb    = 0.0_wp
                 col%Q_rock = 42.0_wp              ! [mW m-2] (0.042 W m-2)
+            case("kleiner-b")
+                ! Steady polythermal column: 200 m slab inclined 4 deg, driven by
+                ! strain heating with constant downward advection (Kleiner Exp B).
+                col%H_ice  = 200.0_wp
+                col%T_srf  = c%T0 - 3.0_wp
+                col%smb    = 0.2_wp
+                col%Q_rock = 0.0_wp               ! no geothermal flux
+                ! Constant downward velocity vz = -a_s = -0.2 m/a (ac-nodes)
+                col%uz = -0.2_wp
+                ! Strain heating Psi(z) = 2 A (rho g sin gamma)^4 (H-z)^4 [W m-3]
+                ! (from Eq 16-17); passed to the solver in [J a-1 m-3].
+                sin_gam = sin(4.0_wp*deg2rad)
+                tau_gam = c%rho_ice*c%g*sin_gam                ! [Pa m-1]
+                do k = 1, nz
+                    z = col%zeta_aa(k)*col%H_ice
+                    col%Q_strn(k) = 2.0_wp*A_glen*tau_gam**4*(col%H_ice-z)**4 * c%sec_year
+                end do
             case DEFAULT
                 stop "setup_experiment:: unknown experiment"
         end select
@@ -160,9 +189,14 @@ contains
             col%T_pmp(k) = calc_T_pmp(col%H_ice,col%zeta_aa(k),c%T0,c%T_pmp_beta,c%rho_ice,c%g)
         end do
 
-        ! Initial state: cold, linear T from surface to a cold base
+        ! Initial state: uniform temperature (Exp B starts at -1.5 C; others cold)
+        if (trim(experiment) .eq. "kleiner-b") then
+            T_init = c%T0 - 1.5_wp
+        else
+            T_init = col%T_srf
+        end if
         do k = 1, nz
-            col%T_ice(k) = col%T_srf
+            col%T_ice(k) = T_init
         end do
         col%omega = 0.0_wp
         call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,col%cp,c%L_ice)
@@ -216,6 +250,14 @@ contains
         else
             enth_cr = 1.0e-3_wp
         end if
+        ! Exp B holds a temperate layer with omega up to ~2%; do not clip it
+        ! (Kleiner applies no water-content restriction). The analytic solution is
+        ! the K0 -> 0 limit, so use a small conductivity ratio by default; the
+        ! solution converges to the analytic as cr decreases (paper: CR 1e-1..1e-5).
+        if (trim(experiment) .eq. "kleiner-b") then
+            omega_max = 1.0_wp
+            enth_cr   = 1.0e-4_wp
+        end if
         if (cr_override .ge. 0.0_wp) enth_cr = cr_override
 
         ! Time control
@@ -224,6 +266,8 @@ contains
                 time_end = 50000.0_wp;  dt = 5.0_wp;  dt_out = 1000.0_wp
             case("kleiner-a")
                 time_end = 300000.0_wp; dt = 1.0_wp;  dt_out = 100.0_wp
+            case("kleiner-b")
+                time_end = 50000.0_wp;  dt = 2.0_wp;  dt_out = 500.0_wp
             case DEFAULT
                 time_end = 50000.0_wp;  dt = 5.0_wp;  dt_out = 1000.0_wp
         end select
@@ -287,6 +331,22 @@ contains
 
         write(*,"(a,a,a,a,a,f10.2,a,es12.4)") "  [",trim(experiment),"/",trim(solver), &
                 "] T_base = ", col%T_ice(1), " K, bmb = ", col%bmb
+
+        ! T4: compare steady polythermal structure to the Kleiner (2015) Exp B
+        ! analytic solution (CTS at 19 m, base water content 2.07%).
+        if (trim(experiment) .eq. "kleiner-b" .and. trim(solver) .eq. "enth") then
+            write(*,*) ""
+            write(*,*) "=== Kleiner Exp B polythermal structure vs analytic (T4) ==="
+            write(*,"(a,f7.2,a)")   "  CTS height = ", col%H_cts,   " m     (analytic 19.0 m)"
+            write(*,"(a,f8.4,a)")   "  base omega = ", col%omega(1), "      (analytic 0.0207)"
+            if (abs(col%H_cts-19.0_wp) .lt. 2.0_wp .and. &
+                abs(col%omega(1)-0.0207_wp) .lt. 0.10_wp*0.0207_wp) then
+                write(*,*) "  PASS: CTS within 2 m and base omega within 10% of analytic."
+            else
+                write(*,*) "  FAIL: exceeds tolerance (try larger nz / smaller cr)."
+            end if
+            write(*,*) ""
+        end if
 
         ! T3: compare warm/cold steady melt to the Kleiner (2015) analytic solution
         if (trim(experiment) .eq. "kleiner-a" .and. trim(solver) .eq. "enth") then
