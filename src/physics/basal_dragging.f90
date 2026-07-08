@@ -504,8 +504,8 @@ contains
 
             case("infinite","mask")
 
-                beta(1,:)  = beta(nx-1,:)
-                beta(nx,:) = beta(2,:)
+                beta(1,:)  = beta(2,:)
+                beta(nx,:) = beta(nx-1,:)
                 beta(:,1)  = beta(:,2)
                 beta(:,ny) = beta(:,ny-1)
 
@@ -983,7 +983,7 @@ contains
                 uxyn      = sqrt(uxn**2 + uyn**2 + ub_sq_min)
 
                 ! Calculate basal friction
-                betan     = c_bed(i,j) * (uxyn / u_0)**q * (1.0_wp / uxyn)
+                betan     = cbn * (uxyn / u_0)**q * (1.0_wp / uxyn)
                 beta(i,j) = sum(betan*gq2D%wt)/gq2D%wt_tot
             else
                 ! Assign minimum velocity value, no staggering for simplicity
@@ -1144,8 +1144,8 @@ contains
         end if 
        
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
-        do j = 1, ny 
-        do i = 1, nx-1
+        do j = 1, ny
+        do i = 1, nx
 
             im1 = max(1, i-1)
             ip1 = min(nx,i+1)
@@ -1712,8 +1712,10 @@ contains
             ! Add to total 
             uu_tot = uu_tot + q_now 
 
-            ! If in grounded region, add to grounded total 
-            if (lambda .lt. f_grnd_ac) then 
+            ! If in grounded region, add to grounded total
+            ! (grounded node 'a' is at lambda=1, so the grounded fraction
+            !  f_grnd_ac of the cell adjoins the lambda=1 end)
+            if (lambda .gt. (1.0_wp - f_grnd_ac)) then
                 uu_grnd = uu_grnd + q_now 
             end if 
 
