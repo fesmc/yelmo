@@ -361,17 +361,17 @@ contains
         ! Apply boundary conditions as needed 
         if (trim(boundaries) .eq. "periodic") then
 
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:) 
-            visc_eff_int(nx-1,:) = visc_eff_int(2,:) 
+            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
+            visc_eff_int(nx,:)   = visc_eff_int(2,:)
             visc_eff_int(:,1)    = visc_eff_int(:,ny-1)
-            visc_eff_int(:,ny)   = visc_eff_int(:,2) 
+            visc_eff_int(:,ny)   = visc_eff_int(:,2)
 
         else if (trim(boundaries) .eq. "periodic-x") then 
             
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:) 
-            visc_eff_int(nx-1,:) = visc_eff_int(2,:) 
+            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
+            visc_eff_int(nx,:)   = visc_eff_int(2,:)
             visc_eff_int(:,1)    = visc_eff_int(:,2)
-            visc_eff_int(:,ny)   = visc_eff_int(:,ny-1) 
+            visc_eff_int(:,ny)   = visc_eff_int(:,ny-1)
 
         else if (trim(boundaries) .eq. "infinite") then 
             
@@ -412,9 +412,9 @@ contains
 
         ! Limit T_prime to avoid under/overflows 
         T_prime = max(T_prime,220.0_wp)
-        T_prime = min(T_prime,T_pmp)
-        
-        if (T_prime <= T_prime_lim) then 
+        T_prime = min(T_prime,T0)
+
+        if (T_prime <= T_prime_lim) then
             ATT = enh * A0_1 * exp(-Q_1/(R*T_prime))
         else 
             ATT = enh * A0_2 * exp(-Q_2/(R*T_prime))
@@ -753,7 +753,7 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
                     if (jm1 .gt. 1) then
                         jm2 = jm1-1
-                        if (f_ice(i,jm1) .eq. 1.0) then 
+                        if (f_ice(i,jm2) .eq. 1.0) then
                             jvel%dyy(i,j,k) = (1.0*uy(i,jm2,k)-4.0*uy(i,jm1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,j,k)-uy(i,jm1,k))/dy
@@ -768,9 +768,11 @@ end if
                             jvel%dyy(i,j,k) = -(1.0*uy(i,jp2,k)-4.0*uy(i,jp1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,j,k))/dy
-                        end if 
+                        end if
+                    else
+                        jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,j,k))/dy
                     end if
-                end if 
+                end if
 
                 ! Note: do not treat special cases for cross derivatives like dxy or dyx. 
                 ! It is too complicated to check neighbors in this case, and multiple
