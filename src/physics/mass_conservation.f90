@@ -708,8 +708,8 @@ contains
                 ! This is not fully handled by ytopo.solver="impl-lis", since
                 ! subsequently the mb forcing is applied.
                 
-                H_ice_new(1,:)    = H_ice_new(2,:)          ! x=0, Symmetry 
-                H_ice_new(nx,:)   = 0.0                     ! x=max, no ice
+                H_ice_new(1,:)    = H_ice_new(2,:)          ! x=0, copy inner neighbor
+                H_ice_new(nx,:)   = H_ice_new(nx-1,:)       ! x=max, copy inner neighbor
                 H_ice_new(:,1)  = H_ice_new(:,2)
                 H_ice_new(:,ny) = H_ice_new(:,ny-1)
 
