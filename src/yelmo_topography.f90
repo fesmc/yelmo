@@ -412,17 +412,29 @@ end if
             end select
 
             ! Determine rates of change
-            tpo%now%dHidt  = (tpo%now%H_ice - tpo%now%H_ice_n) / dt 
-            tpo%now%dzsdt  = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
+            ! Note: dzsdt is deferred until after calc_ytopo_diagnostic below,
+            ! because z_srf is only refreshed from the updated H_ice/f_ice there
+            ! (calc_z_srf_max). Computing it here would difference the stale
+            ! previous-step surface against z_srf_n, giving dzsdt ~ 0 and
+            ! corrupting the uz basal kinematic term (dzbdt = dzsdt - dHdt).
+            tpo%now%dHidt  = (tpo%now%H_ice - tpo%now%H_ice_n) / dt
             tpo%now%dlsfdt = (tpo%now%lsf   - tpo%now%lsf_n) / dt
 
             ! Determine mass balance error by comparing mass_in - mass_out to dHidt
             tpo%now%mb_err = tpo%now%dHidt - (tpo%now%mb_net + tpo%now%cmb)
 
-        end if 
+        end if
 
-        ! Update fields and masks
+        ! Update fields and masks (refreshes z_srf from the current H_ice/f_ice)
         call calc_ytopo_diagnostic(tpo,dyn,mat,thrm,bnd)
+
+        ! Surface-elevation rate: now that calc_ytopo_diagnostic has refreshed
+        ! z_srf, difference it against the start-of-step snapshot z_srf_n.
+        ! Same guard as the other rates; z_srf_n is set at step start (predictor)
+        ! and is not modified by calc_ytopo_diagnostic.
+        if ( .not. topo_fixed .and. dt .gt. 0.0 ) then
+            tpo%now%dzsdt = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
+        end if
 
         
         if (trim(pc_step) .eq. "advance") then 

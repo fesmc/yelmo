@@ -11,11 +11,32 @@ module thermodynamics
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
 
-    implicit none 
+    implicit none
 
-    private  
+    private
+
+    ! Reference (constant) ice heat capacity for the enthalpy formulation.
+    ! The enthalpy solver represents cold ice as enth = cp_ref*T (linear in T),
+    ! so diffusing enth with kappa = kt/(rho*cp_ref) reproduces true heat
+    ! conduction kt*grad(T). Using the T-dependent cp here instead makes enth a
+    ! nonlinear function of T (cp = 146.3+7.253*T) and biases the conducted heat
+    ! flux (~30 C too-cold base on initmip-grl). Standard enthalpy-method choice
+    ! (Aschwanden et al. 2012; Blatter & Greve 2015). Future refinement (A2):
+    ! the exact integral enthalpy E = int cp dT would match the T-dependent-cp
+    ! temperature solver to machine precision.
+    real(wp), parameter, public :: cp_ref = 2009.0_wp    ! [J kg-1 K-1]
+
+    ! Temperature-dependent ice heat capacity cp(T) = cp_a + cp_b*T
+    ! (Greve & Blatter 2009, Eq. 4.39; Ritz 1987). Used by the integral
+    ! enthalpy option (A2): E(T) = int_0^T cp dT' = cp_a*T + cp_b/2*T^2, whose
+    ! inverse and derivative (= cp(T)) let the enth solver reproduce the
+    ! T-dependent-cp temperature solver exactly. The default enthalpy option
+    ! (A1) instead uses the constant cp_ref above.
+    real(wp), parameter, public :: cp_a = 146.3_wp       ! [J kg-1 K-1]
+    real(wp), parameter, public :: cp_b = 7.253_wp       ! [J kg-1 K-2]
 
     public :: calc_bmb_grounded
+    public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
     public :: calc_advec_horizontal_3D
     public :: calc_advec_horizontal_column
@@ -35,7 +56,6 @@ module thermodynamics
     
     public :: define_temp_bedrock_3D
     public :: define_temp_bedrock_column
-    public :: calc_Q_bedrock
     public :: calc_Q_bedrock_column
 
     public :: calc_basal_heating_nodes
@@ -43,6 +63,10 @@ module thermodynamics
 
     public :: convert_to_enthalpy
     public :: convert_from_enthalpy_column
+    public :: convert_to_enthalpy_ice
+    public :: convert_from_enthalpy_ice
+    public :: enth_int_from_temp
+    public :: temp_from_enth_int
 
 contains
 
@@ -79,12 +103,62 @@ contains
             bmb_grnd = 0.0_wp 
         end if 
 
-        ! Limit small values to avoid underflow errors 
-        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp 
-                  
-        return 
+        ! Limit small values to avoid underflow errors
+        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp
+
+        return
 
     end subroutine calc_bmb_grounded
+
+    subroutine calc_bmb_grounded_enth(bmb_grnd,T_prime_b,enth_b,enth_pmp_b,Q_ice_b_now,Q_b_now,Q_rock_now,rho_ice,L_ice)
+        ! Flux-based grounded basal mass balance with an enthalpy correction.
+        ! Identical energy balance to calc_bmb_grounded (Cuffey and Patterson,
+        ! 2010, Eq. 9.38), but the effective latent heat of the basal ice is
+        ! reduced by the enthalpy already stored as water content there, so that
+        ! temperate basal ice melts more readily. Reduces to calc_bmb_grounded
+        ! when the base holds no water (enth_b == enth_pmp_b).
+        !
+        ! Note: Yelmo enthalpy is per unit mass [J kg-1], so the volumetric
+        ! latent heat rho_ice*L_ice is corrected as rho_ice*(L_ice - net_enth).
+
+        implicit none
+
+        real(wp), intent(OUT) :: bmb_grnd          ! [m/a ice equiv.] Basal mass balance, grounded
+        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal ice temp relative to pmp (0 == temperate)
+        real(wp), intent(IN)  :: enth_b            ! [J kg-1] Basal ice enthalpy
+        real(wp), intent(IN)  :: enth_pmp_b        ! [J kg-1] Basal enthalpy at pressure melting point
+        real(wp), intent(IN)  :: Q_ice_b_now       ! [J a-1 m-2] Ice basal heat flux (positive up)
+        real(wp), intent(IN)  :: Q_b_now           ! [J a-1 m-2] Basal heat production from friction and strain heating
+        real(wp), intent(IN)  :: Q_rock_now        ! [J a-1 m-2] Geothermal heat flux
+        real(wp), intent(IN)  :: rho_ice           ! [kg m-3] Ice density
+        real(wp), intent(IN)  :: L_ice
+
+        ! Local variables
+        real(wp) :: Q_net
+        real(wp) :: net_enth
+        real(wp), parameter :: tol = 1e-5
+
+        ! Calculate net energy flux at the base [J a-1 m-2]
+        Q_net = Q_rock_now + Q_b_now - Q_ice_b_now
+
+        ! Basal enthalpy above the pressure melting point [J kg-1] (>= 0 if temperate)
+        net_enth = max(enth_b - enth_pmp_b, 0.0_wp)
+
+        ! Grounded basal mass balance with enthalpy-corrected effective latent heat
+        bmb_grnd = -Q_net / (rho_ice*(L_ice - net_enth))
+
+        if (T_prime_b .lt. -1.0_wp .and. bmb_grnd .lt. 0.0_wp) then
+            ! Only allow melting for a near-temperate base (safety check,
+            ! mainly relevant during initialization; matches calc_bmb_grounded).
+            bmb_grnd = 0.0_wp
+        end if
+
+        ! Limit small values to avoid underflow errors
+        if (abs(bmb_grnd) .lt. tol) bmb_grnd = 0.0_wp
+
+        return
+
+    end subroutine calc_bmb_grounded_enth
 
     subroutine calc_advec_vertical_column(advecz,Q,uz,H_ice,zeta_aa)
         ! Calculate vertical advection term advecz, which enters
@@ -249,7 +323,7 @@ contains
 
     end subroutine calc_advec_horizontal_column_quick
     
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,i,j,boundaries)
+    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
         ! Newly implemented advection algorithms (ajr)
         ! Output: [K a-1]
 
@@ -257,22 +331,24 @@ contains
 
         implicit none
 
-        real(wp), intent(OUT) :: advecxy(:)       ! nz_aa 
+        real(wp), intent(OUT) :: advecxy(:)       ! nz_aa
         real(wp), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny 
-        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny 
+        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny
+        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny
         real(wp), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz_aa
-        real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa 
-        real(wp), intent(IN)  :: dx  
-        integer,    intent(IN)  :: i, j 
-        character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: dx
+        integer,  intent(IN)  :: advecxy_order    ! 1=upwind, 2=flux-limited 2nd-order upwind
+        integer,    intent(IN)  :: i, j
+        character(len=*), intent(IN) :: boundaries
 
-        ! Local variables 
-        integer  :: k, nx, ny, nz_aa 
+        ! Local variables
+        integer  :: k, nx, ny, nz_aa
         integer  :: im1, ip1, jm1, jp1
-        real(wp) :: ux_aa, uy_aa 
+        real(wp) :: ux_aa, uy_aa
         real(wp) :: dx_inv, dx_inv2
-        real(wp) :: advecx, advecy, advec_rev 
+        real(wp) :: advecx, advecy, advec_rev
+        real(wp) :: a1, a2
         integer  :: BC
 
         ! Define some constants 
@@ -300,130 +376,169 @@ contains
             ux_aa = 0.5_wp*(ux(i,j,k)+ux(im1,j,k))
             uy_aa = 0.5_wp*(uy(i,j,k)+uy(i,jm1,k))
             
-            ! Explicit form (to test different order approximations)
-            if (ux(im1,j,k) .gt. 0.0_wp .and. ux(i,j,k) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then 
-                ! Convergent flow - take the mean 
+            ! === x-direction advection (u . d(var)/dx) ===
+            ! 2nd order uses the one-sided 3-point (Beam-Warming) upwind stencil
+            !   d/dx var|_i ~ (3 var_i - 4 var_{i-1} + var_{i-2}) / (2 dx)   (u>0)
+            !   d/dx var|_i ~ (-3 var_i + 4 var_{i+1} - var_{i+2}) / (2 dx)  (u<0)
+            ! blended toward 1st-order upwind by a van Leer flux limiter (flux_limited)
+            ! so the scheme stays TVD/monotone near sharp gradients. 1st-order fallback
+            ! at the border points (i=2, nx-1).
+            if (ux(im1,j,k) .gt. 0.0_wp .and. ux(i,j,k) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then
+                ! Convergent flow - mean of the two one-sided (limited) derivatives
+                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
+                else
+                    advecx = a1
+                end if
+                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2        = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
+                    advec_rev = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
+                else
+                    advec_rev = a1
+                end if
+                advecx = 0.5_wp * (advecx + advec_rev)
 
-                ! 2nd order
-                !advecx    = dx_inv2 * ux(i-1,j,k)*(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
-                !advec_rev = dx_inv2 * ux(i,j,k)*((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-                ! 1st order
-                advecx    = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                advec_rev = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-                advecx    = 0.5_wp * (advecx + advec_rev) 
-
-            else if (ux_aa .gt. 0.0 .and. i .ge. 3) then  
+            else if (ux_aa .gt. 0.0 .and. i .ge. 3) then
                 ! Flow to the right - inner points
+                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
+                else
+                    advecx = a1
+                end if
 
-                ! 2nd order
-                !advecx = dx_inv2 * ux(i-1,j,k)*(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
+            else if (ux_aa .gt. 0.0 .and. i .eq. 2) then
+                ! Flow to the right - border points (1st order)
+                advecx = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
 
-                ! 1st order
-                advecx = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .gt. 0.0 .and. i .eq. 2) then  
-                ! Flow to the right - border points
+            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then
+                ! Flow to the left - inner points
+                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
+                else
+                    advecx = a1
+                end if
 
-                ! 1st order
-                advecx = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then 
-                ! Flow to the left
+            else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then
+                ! Flow to the left - border points (1st order)
+                advecx = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
 
-                ! 2nd order
-                !advecx = dx_inv2 * ux(i,j,k)*((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-                ! 1st order 
-                advecx = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then 
-                ! Flow to the left
-
-                ! 1st order 
-                advecx = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-            else 
-                ! No flow or divergent 
-
+            else
+                ! No flow or divergent
                 advecx = 0.0
 
-            end if 
+            end if
 
-            if (uy(i,j-1,k) .gt. 0.0_wp .and. uy(i,j,k) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then 
-                ! Convergent flow - take the mean 
+            ! === y-direction advection (v . d(var)/dy), mirror image of x ===
+            if (uy(i,j-1,k) .gt. 0.0_wp .and. uy(i,j,k) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then
+                ! Convergent flow - mean of the two one-sided (limited) derivatives
+                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
+                else
+                    advecy = a1
+                end if
+                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2        = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
+                    advec_rev = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
+                else
+                    advec_rev = a1
+                end if
+                advecy = 0.5_wp * (advecy + advec_rev)
 
-                ! 2nd order
-                !advecy    = dx_inv2 * uy(i,j-1,k)*(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
-                !advec_rev = dx_inv2 * uy(i,j,k)*((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-                
-                ! 1st order
-                advecy    = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                advec_rev = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                
-                advecy    = 0.5_wp * (advecy + advec_rev) 
-
-            else if (uy_aa .gt. 0.0 .and. j .ge. 3) then   
+            else if (uy_aa .gt. 0.0 .and. j .ge. 3) then
                 ! Flow to the right  - inner points
+                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
+                else
+                    advecy = a1
+                end if
 
-                ! 2nd order
-                !advecy = dx_inv2 * uy(i,j-1,k)*(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
+            else if (uy_aa .gt. 0.0 .and. j .eq. 2) then
+                ! Flow to the right - border points (1st order)
+                advecy = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
 
-                ! 1st order
-                advecy = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .gt. 0.0 .and. j .eq. 2) then   
-                ! Flow to the right - border points
+            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then
+                ! Flow to the left - inner points
+                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
+                else
+                    advecy = a1
+                end if
 
-                ! 1st order
-                advecy = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then 
-                ! Flow to the left
+            else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then
+                ! Flow to the left - border points (1st order)
+                advecy = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
 
-                ! 2nd order
-                !advecy = dx_inv2 * uy(i,j,k)*((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-                
-                ! 1st order
-                advecy = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then 
-                ! Flow to the left
-
-                ! 1st order
-                advecy = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                  
             else
-                ! No flow 
-                advecy = 0.0 
+                ! No flow
+                advecy = 0.0
 
-            end if 
+            end if
             
             ! Combine advection terms for total contribution 
             advecxy(k) = (advecx+advecy)
 
         end do 
 
-        return 
+        return
 
     end subroutine calc_advec_horizontal_column
-    
-    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,beta1,beta2,boundaries)
 
-        implicit none 
+    function flux_limited(a1,a2,d_loc,d_up) result(a)
+        ! van Leer flux-limited blend between the 1st-order (a1) and 2nd-order (a2)
+        ! advection estimates. r = ratio of the upwind gradient (d_up) to the local
+        ! gradient (d_loc); phi(r) in [0,2] with phi(r<=0)=0 (revert to 1st order at
+        ! extrema, TVD) and phi(1)=1 (full 2nd order where the field is smooth).
 
-        real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa 
+        implicit none
+
+        real(wp), intent(IN) :: a1, a2, d_loc, d_up
+        real(wp) :: a
+        real(wp) :: r, phi
+
+        if (abs(d_loc) .lt. TOL_UNDERFLOW) then
+            ! Local extremum / flat: no anti-diffusive correction
+            phi = 0.0_wp
+        else
+            r   = d_up / d_loc
+            phi = (r + abs(r)) / (1.0_wp + abs(r))    ! van Leer limiter
+        end if
+
+        a = a1 + phi*(a2 - a1)
+
+        return
+
+    end function flux_limited
+
+    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,advecxy_order,beta1,beta2,boundaries)
+
+        implicit none
+
+        real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa
         real(wp), intent(IN)    :: var(:,:,:)         ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny 
-        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny 
+        real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny
+        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny
         real(wp), intent(IN)    :: ux(:,:,:)          ! nx,ny,nz_aa
         real(wp), intent(IN)    :: uy(:,:,:)          ! nx,ny,nz_aa
-        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa 
-        real(wp), intent(IN)    :: dx  
+        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa
+        real(wp), intent(IN)    :: dx
+        integer,  intent(IN)    :: advecxy_order      ! 1=upwind, 2=flux-limited 2nd-order upwind
         real(wp), intent(IN)    :: beta1              ! Weighting term for multistep advection scheme
         real(wp), intent(IN)    :: beta2              ! Weighting term for multistep advection scheme
-        character(len=*), intent(IN) :: boundaries 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j 
@@ -444,10 +559,10 @@ contains
         advecxy = 0.0_wp 
          
         do j = 2, ny-1
-        do i = 2, nx-1 
-            call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,i,j,boundaries)
-        end do 
-        end do 
+        do i = 2, nx-1
+            call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+        end do
+        end do
 
         ! Set boundaries 
         call set_boundaries_3D_aa(advecxy,boundaries)
@@ -847,84 +962,6 @@ contains
  
     end subroutine calc_basal_heating_simplestagger
 
-    subroutine calc_hires_cell(var_hi,var_1,var_2,var_3,var_4)
-        ! Given the four corners of a cell in quadrants 1,2,3,4,
-        ! calculate a high resolution grid of the variable
-        ! through bilinear interpolation that covers the cell.
-
-        implicit none 
-
-        real(wp), intent(OUT) :: var_hi(:,:) 
-        real(wp), intent(IN)  :: var_1,var_2,var_3,var_4
-        
-        ! Local variables 
-        integer :: i, j, nx  
-        real(wp) :: dx 
-        real(wp) :: x(size(var_hi,1)), y(size(var_hi,2)) 
-
-        nx = size(var_hi,1)
-
-        dx = 1.0/real(nx,wp)
-
-        ! Populate x,y axes for interpolation points (between 0 and 1)
-        ! Note: x and y points are offset from values of 0 and 1 to be
-        ! sure that each mini grid box has the same area contribution
-        ! to the total grid cell.
-        do i = 1, nx 
-            !x(i) = 0.0_wp + real(i-1)/real(nx-1)
-            x(i) = 0.5_wp*dx + real(i-1)*dx 
-        end do 
-        y = x 
-
-
-        ! Calculate linear interpolation value 
-        var_hi = 0.0_wp 
-
-        do i = 1, nx 
-        do j = 1, nx 
-
-            var_hi(i,j) = interp_bilin_pt(var_1,var_2,var_3,var_4,x(i),y(j))
-
-        end do 
-        end do 
-
-        return 
-
-    end subroutine calc_hires_cell
-
-    function interp_bilin_pt(z1,z2,z3,z4,xout,yout) result(zout)
-        ! Interpolate a point given four neighbors at corners of square (0:1,0:1)
-        ! z2    z1
-        !    x,y
-        ! z3    z4 
-        ! 
-
-        implicit none 
-
-        real(wp), intent(IN) :: z1, z2, z3, z4 
-        real(wp), intent(IN) :: xout, yout 
-        real(wp) :: zout 
-
-        ! Local variables 
-        real(wp) :: x0, x1, y0, y1 
-        real(wp) :: alpha1, alpha2, p0, p1 
-
-        x0 = 0.0_wp 
-        x1 = 1.0_wp
-        y0 = 0.0_wp
-        y1 = 1.0_wp
-
-        alpha1  = (xout - x0) / (x1-x0)
-        p0      = z3 + alpha1*(z4-z3)
-        p1      = z2 + alpha1*(z1-z2)
-            
-        alpha2  = (yout - y0) / (y1-y0)
-        zout    = p0 + alpha2*(p1-p0)
-
-        return 
-
-    end function interp_bilin_pt
-
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
         implicit none 
@@ -933,11 +970,31 @@ contains
         real(wp) :: cp 
 
         ! Specific heat capacity (Greve and Blatter, 2009, Eq. 4.39; Ritz, 1987)
-        cp = (146.3 +7.253*T_ice)    ! [J kg-1 K-1]
+        cp = cp_a + cp_b*T_ice    ! [J kg-1 K-1]
 
-        return 
+        return
 
     end function calc_specific_heat_capacity
+
+    elemental function enth_int_from_temp(T_ice) result(enth)
+        ! Integral (A2) cold-ice enthalpy E(T) = int_0^T cp(T') dT'
+        ! with cp(T)=cp_a+cp_b*T, so dE/dT = cp(T) exactly and grad(E) = cp*grad(T).
+        implicit none
+        real(wp), intent(IN) :: T_ice
+        real(wp) :: enth
+        enth = cp_a*T_ice + 0.5_wp*cp_b*T_ice*T_ice    ! [J kg-1]
+        return
+    end function enth_int_from_temp
+
+    elemental function temp_from_enth_int(enth) result(T_ice)
+        ! Inverse of enth_int_from_temp: solve (cp_b/2)T^2 + cp_a*T - E = 0
+        ! for the physical (positive) root.
+        implicit none
+        real(wp), intent(IN) :: enth
+        real(wp) :: T_ice
+        T_ice = (-cp_a + sqrt(cp_a*cp_a + 2.0_wp*cp_b*enth)) / cp_b    ! [K]
+        return
+    end function temp_from_enth_int
 
     elemental function calc_thermal_conductivity(T_ice,sec_year) result(ct)
 
@@ -1087,27 +1144,32 @@ contains
 
     end function calc_T_base_shlf_approx
     
-    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g)
+    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral)
         ! Define a linear vertical temperature profile
-       
+
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy
         real(wp), intent(OUT) :: T_ice(:,:,:)         ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)         ! [--] Water content
         real(wp), intent(IN)  :: cp(:,:,:)            ! Heat capacity
         real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: T_srf(:,:) 
+        real(wp), intent(IN)  :: T_srf(:,:)
         real(wp), intent(IN)  :: zeta_aa(:)
-        real(wp), intent(IN)  :: T0 
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: L_ice 
-        real(wp), intent(IN)  :: T_pmp_beta 
+        real(wp), intent(IN)  :: T0
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: L_ice
+        real(wp), intent(IN)  :: T_pmp_beta
         real(wp), intent(IN)  :: g
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
 
         ! Local variables
-        integer :: i, j, k, nx, ny, nz_aa   
-        real(wp) :: T_base, T_pmp  
+        integer :: i, j, k, nx, ny, nz_aa
+        real(wp) :: T_base, T_pmp
+        logical  :: use_int
+
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
 
         nx    = size(T_ice,1)
         ny    = size(T_ice,2)
@@ -1131,13 +1193,13 @@ contains
             ! Assume zero water content 
             omega = 0.0_wp 
 
-            ! Calculate enthalpy too
-            call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
-        
-        end do 
-        end do  
-        
-        return 
+            ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+            call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+
+        end do
+        end do
+
+        return
 
     end subroutine define_temp_linear_3D
 
@@ -1168,11 +1230,11 @@ contains
     end function define_temp_linear_column
 
     subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
-                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold)
-        ! Robin solution for thermodynamics for a given column of ice 
-        ! Note zeta=height, k=1 base, k=nz surface 
+                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral)
+        ! Robin solution for thermodynamics for a given column of ice
+        ! Note zeta=height, k=1 base, k=nz surface
 
-        implicit none 
+        implicit none
 
         real(wp), intent(OUT) :: enth(:,:,:)      ! [J m-3] Enthalpy 
         real(wp), intent(OUT) :: T_ice(:,:,:)     ! [K] Temperature
@@ -1191,11 +1253,13 @@ contains
         real(wp), intent(IN)  :: rho_ice 
         real(wp), intent(IN)  :: L_ice 
         real(wp), intent(IN)  :: sec_year
-        logical,    intent(IN)  :: cold             ! False: robin as normal, True: ensure cold base 
+        logical,    intent(IN)  :: cold             ! False: robin as normal, True: ensure cold base
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
 
         ! Local variable
-        integer :: i, j, k, nx, ny, nz_aa  
-        logical :: is_float 
+        integer :: i, j, k, nx, ny, nz_aa
+        logical :: is_float
+        logical :: use_int
         
         real(wp), allocatable :: T1(:) 
 
@@ -1203,10 +1267,13 @@ contains
         ny    = size(T_ice,2)
         nz_aa = size(zeta_aa)
 
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
+
         allocate(T1(nz_aa))
 
         do j = 1, ny
-        do i = 1, nx 
+        do i = 1, nx
 
             is_float = (f_grnd(i,j) .eq. 0.0)
 
@@ -1229,13 +1296,13 @@ contains
         end do 
         end do 
 
-        ! Assume zero water content 
-        omega = 0.0_wp 
+        ! Assume zero water content
+        omega = 0.0_wp
 
-        ! Calculate enthalpy too
-        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
+        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
 
-        return 
+        return
 
     end subroutine define_temp_robin_3D
 
@@ -1420,38 +1487,6 @@ contains
 
     end subroutine define_temp_bedrock_column
 
-    subroutine calc_Q_bedrock(Q_rock,T_rock,kt_rock,H_rock,zeta_aa,sec_year)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: Q_rock(:,:) 
-        real(wp), intent(IN)  :: T_rock(:,:,:) 
-        real(wp), intent(IN)  :: kt_rock
-        real(wp), intent(IN)  :: H_rock 
-        real(wp), intent(IN)  :: zeta_aa(:) 
-        real(wp), intent(IN)  :: sec_year 
-
-        ! Local variables 
-        integer  :: i, j, nx, ny  
-
-        nx    = size(Q_rock,1)
-        ny    = size(Q_rock,2) 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            call calc_Q_bedrock_column(Q_rock(i,j),T_rock(i,j,:),kt_rock,H_rock,zeta_aa,sec_year)
-
-        end do 
-        end do  
-
-        ! [J a-1 m-2] => [mW m-2] (same units as Q_geo by default)
-        Q_rock = Q_rock *1e3 / sec_year 
-
-        return 
-
-    end subroutine calc_Q_bedrock
-
     subroutine calc_Q_bedrock_column(Q_rock,T_rock,kt_rock,H_rock,zeta_aa,sec_year)
 
         implicit none 
@@ -1612,5 +1647,64 @@ contains
         return 
 
     end subroutine convert_from_enthalpy_column
-    
+
+    elemental subroutine convert_to_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
+        ! Ice enthalpy from (temp,omega). Selects the enthalpy definition:
+        !   integral=.FALSE. (A1): cold enth = cp_ref*temp   (constant cp)
+        !   integral=.TRUE.  (A2): cold enth = int_0^T cp dT  (T-dependent cp)
+        ! Temperate ice (omega>0, temp=T_pmp): enth = enth_pmp + omega*L.
+        implicit none
+        real(wp), intent(OUT) :: enth
+        real(wp), intent(IN)  :: temp, omega, T_pmp, L
+        logical,  intent(IN)  :: integral
+        real(wp) :: e_cold, e_pmp
+        if (integral) then
+            e_cold = enth_int_from_temp(temp)
+            e_pmp  = enth_int_from_temp(T_pmp)
+        else
+            e_cold = cp_ref*temp
+            e_pmp  = cp_ref*T_pmp
+        end if
+        enth = (1.0_wp-omega)*e_cold + omega*(e_pmp + L)
+        return
+    end subroutine convert_to_enthalpy_ice
+
+    subroutine convert_from_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
+        ! Inverse of convert_to_enthalpy_ice for a column (mirrors
+        ! convert_from_enthalpy_column, with the A1/A2 enthalpy definition).
+        implicit none
+        real(wp), intent(INOUT) :: enth(:)
+        real(wp), intent(OUT)   :: temp(:)
+        real(wp), intent(OUT)   :: omega(:)
+        real(wp), intent(IN)    :: T_pmp(:)
+        real(wp), intent(IN)    :: L
+        logical,  intent(IN)    :: integral
+        integer  :: k, nz_aa
+        real(wp) :: e_pmp
+
+        nz_aa = size(enth,1)
+
+        ! Column interior and basal layer
+        do k = 1, nz_aa-1
+            if (integral) then; e_pmp = enth_int_from_temp(T_pmp(k)); else; e_pmp = cp_ref*T_pmp(k); end if
+            if (enth(k) .gt. e_pmp) then
+                ! Temperate ice
+                temp(k)  = T_pmp(k)
+                omega(k) = (enth(k) - e_pmp) / L
+            else
+                ! Cold ice
+                if (integral) then; temp(k) = temp_from_enth_int(enth(k)); else; temp(k) = enth(k)/cp_ref; end if
+                omega(k) = 0.0_wp
+            end if
+        end do
+
+        ! Surface layer: clamp any temperate surface back to the pmp enthalpy
+        if (integral) then; e_pmp = enth_int_from_temp(T_pmp(nz_aa)); else; e_pmp = cp_ref*T_pmp(nz_aa); end if
+        if (enth(nz_aa) .ge. e_pmp) enth(nz_aa) = e_pmp
+        if (integral) then; temp(nz_aa) = temp_from_enth_int(enth(nz_aa)); else; temp(nz_aa) = enth(nz_aa)/cp_ref; end if
+        omega(nz_aa) = 0.0_wp
+
+        return
+    end subroutine convert_from_enthalpy_ice
+
 end module thermodynamics

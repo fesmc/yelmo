@@ -643,11 +643,12 @@ module yelmo_defs
 
     !ytherm parameters 
     type ytherm_param_class
-        character(len=256)  :: method  
+        character(len=256)  :: method
         integer             :: qb_method
-        character(len=256)  :: dt_method  
-        character(len=256)  :: solver_advec 
-        integer             :: nx, ny 
+        character(len=256)  :: dt_method
+        character(len=256)  :: solver_advec
+        integer             :: advecxy_order   ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        integer             :: nx, ny
         real(wp)            :: dx, dy  
         integer             :: nz_aa     ! Number of vertical points in ice (layer centers, plus base and surface)
         integer             :: nz_ac     ! Number of vertical points in ice (layer boundaries)
@@ -659,8 +660,10 @@ module yelmo_defs
         real(wp)            :: const_cp 
         logical             :: use_const_kt 
         real(wp)            :: const_kt 
-        real(wp)            :: enth_cr  
+        real(wp)            :: enth_cr
         real(wp)            :: omega_max
+        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
+        logical             :: enth_integral    ! derived: enth_cp_method == "integral"
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
         ! component as par%bucket%till_rate and par%W_til_max.

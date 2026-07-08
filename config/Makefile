@@ -136,6 +136,13 @@ icetemp : yelmo-static
 		@echo "    test_icetemp.x is ready."
 		@echo " "
 
+enthalpy : yelmo-static
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_enthalpy.x tests/test_enthalpy.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_enthalpy.x is ready."
+		@echo " "
+
 roots : tests/test_roots.f90
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -o $(bindir)/test_roots.x tests/test_roots.f90 \
 			$(LFLAGS)

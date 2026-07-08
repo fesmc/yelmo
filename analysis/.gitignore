@@ -1,0 +1,6 @@
+# Generated comparison figures are not tracked.
+figures/
+results_eismint.csv
+
+# Julia environment manifest (pins a machine-local IceColumnSolutions dev path)
+Manifest.toml

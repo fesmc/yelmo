@@ -79,7 +79,9 @@
     cf_time_init    = 0.0               ! [yr] When should optimization of basal friction start?
     cf_time_end     = 15e3              ! [yr] When should optimization of basal friction stop?
     cf_init         = 0.8               ! Initial value of cf_ref everywhere (negative uses cb_tgt) if not using restart file
-    tau_c           = 500.0             ! [yr] L21: Optimization relaxation timescale 
+    use_yelmo_cf_min = True             ! Use yelmo's internal till_cf_min as the cf_ref floor?
+    opt_cf_min      = 1e-4              ! [--] cf_ref floor used when use_yelmo_cf_min=False
+    tau_c           = 500.0             ! [yr] L21: Optimization relaxation timescale
     H0              = 0.0               ! [m]  L21: Optimization ice-thickness error scaling 
 
     sigma_err       = 50e3              ! [m] Smoothing radius for error to calculate correction in cf_ref
@@ -346,6 +348,7 @@
     const_kt        = 6.62e7            ! [J a-1 m-1 K-1] Thermal conductivity [W m-1 K-1 * sec_year] => [J a-1 m-1 K-1]
     enth_cr         = 1e-3              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
+    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref, A1) or "integral" (int cp(T) dT, A2)
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock) or "active"
