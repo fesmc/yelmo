@@ -644,11 +644,12 @@ module yelmo_defs
 
     !ytherm parameters 
     type ytherm_param_class
-        character(len=256)  :: method  
+        character(len=256)  :: method
         integer             :: qb_method
-        character(len=256)  :: dt_method  
-        character(len=256)  :: solver_advec 
-        integer             :: nx, ny 
+        character(len=256)  :: dt_method
+        character(len=256)  :: solver_advec
+        integer             :: advecxy_order   ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        integer             :: nx, ny
         real(wp)            :: dx, dy  
         integer             :: nz_aa     ! Number of vertical points in ice (layer centers, plus base and surface)
         integer             :: nz_ac     ! Number of vertical points in ice (layer boundaries)

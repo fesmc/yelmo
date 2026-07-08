@@ -11,9 +11,9 @@ module thermodynamics
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
 
-    implicit none 
+    implicit none
 
-    private  
+    private
 
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
@@ -299,7 +299,7 @@ contains
 
     end subroutine calc_advec_horizontal_column_quick
     
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,i,j,boundaries)
+    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
         ! Newly implemented advection algorithms (ajr)
         ! Output: [K a-1]
 
@@ -307,22 +307,24 @@ contains
 
         implicit none
 
-        real(wp), intent(OUT) :: advecxy(:)       ! nz_aa 
+        real(wp), intent(OUT) :: advecxy(:)       ! nz_aa
         real(wp), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny 
-        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny 
+        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny
+        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny
         real(wp), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz_aa
-        real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa 
-        real(wp), intent(IN)  :: dx  
-        integer,    intent(IN)  :: i, j 
-        character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: dx
+        integer,  intent(IN)  :: advecxy_order    ! 1=upwind, 2=flux-limited 2nd-order upwind
+        integer,    intent(IN)  :: i, j
+        character(len=*), intent(IN) :: boundaries
 
-        ! Local variables 
-        integer  :: k, nx, ny, nz_aa 
+        ! Local variables
+        integer  :: k, nx, ny, nz_aa
         integer  :: im1, ip1, jm1, jp1
-        real(wp) :: ux_aa, uy_aa 
+        real(wp) :: ux_aa, uy_aa
         real(wp) :: dx_inv, dx_inv2
-        real(wp) :: advecx, advecy, advec_rev 
+        real(wp) :: advecx, advecy, advec_rev
+        real(wp) :: a1, a2
         integer  :: BC
 
         ! Define some constants 
@@ -350,130 +352,169 @@ contains
             ux_aa = 0.5_wp*(ux(i,j,k)+ux(im1,j,k))
             uy_aa = 0.5_wp*(uy(i,j,k)+uy(i,jm1,k))
             
-            ! Explicit form (to test different order approximations)
-            if (ux(im1,j,k) .gt. 0.0_wp .and. ux(i,j,k) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then 
-                ! Convergent flow - take the mean 
+            ! === x-direction advection (u . d(var)/dx) ===
+            ! 2nd order uses the one-sided 3-point (Beam-Warming) upwind stencil
+            !   d/dx var|_i ~ (3 var_i - 4 var_{i-1} + var_{i-2}) / (2 dx)   (u>0)
+            !   d/dx var|_i ~ (-3 var_i + 4 var_{i+1} - var_{i+2}) / (2 dx)  (u<0)
+            ! blended toward 1st-order upwind by a van Leer flux limiter (flux_limited)
+            ! so the scheme stays TVD/monotone near sharp gradients. 1st-order fallback
+            ! at the border points (i=2, nx-1).
+            if (ux(im1,j,k) .gt. 0.0_wp .and. ux(i,j,k) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then
+                ! Convergent flow - mean of the two one-sided (limited) derivatives
+                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
+                else
+                    advecx = a1
+                end if
+                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2        = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
+                    advec_rev = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
+                else
+                    advec_rev = a1
+                end if
+                advecx = 0.5_wp * (advecx + advec_rev)
 
-                ! 2nd order
-                !advecx    = dx_inv2 * ux(i-1,j,k)*(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
-                !advec_rev = dx_inv2 * ux(i,j,k)*((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-                ! 1st order
-                advecx    = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                advec_rev = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-                advecx    = 0.5_wp * (advecx + advec_rev) 
-
-            else if (ux_aa .gt. 0.0 .and. i .ge. 3) then  
+            else if (ux_aa .gt. 0.0 .and. i .ge. 3) then
                 ! Flow to the right - inner points
+                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
+                else
+                    advecx = a1
+                end if
 
-                ! 2nd order
-                !advecx = dx_inv2 * ux(i-1,j,k)*(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
+            else if (ux_aa .gt. 0.0 .and. i .eq. 2) then
+                ! Flow to the right - border points (1st order)
+                advecx = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
 
-                ! 1st order
-                advecx = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .gt. 0.0 .and. i .eq. 2) then  
-                ! Flow to the right - border points
+            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then
+                ! Flow to the left - inner points
+                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
+                    advecx = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
+                else
+                    advecx = a1
+                end if
 
-                ! 1st order
-                advecx = dx_inv * ux(im1,j,k)*(-(var_ice(im1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then 
-                ! Flow to the left
+            else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then
+                ! Flow to the left - border points (1st order)
+                advecx = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
 
-                ! 2nd order
-                !advecx = dx_inv2 * ux(i,j,k)*((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-                ! 1st order 
-                advecx = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-            else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then 
-                ! Flow to the left
-
-                ! 1st order 
-                advecx = dx_inv * ux(i,j,k)*((var_ice(ip1,j,k)-var_ice(i,j,k)))
-                
-            else 
-                ! No flow or divergent 
-
+            else
+                ! No flow or divergent
                 advecx = 0.0
 
-            end if 
+            end if
 
-            if (uy(i,j-1,k) .gt. 0.0_wp .and. uy(i,j,k) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then 
-                ! Convergent flow - take the mean 
+            ! === y-direction advection (v . d(var)/dy), mirror image of x ===
+            if (uy(i,j-1,k) .gt. 0.0_wp .and. uy(i,j,k) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then
+                ! Convergent flow - mean of the two one-sided (limited) derivatives
+                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
+                else
+                    advecy = a1
+                end if
+                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2        = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
+                    advec_rev = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
+                else
+                    advec_rev = a1
+                end if
+                advecy = 0.5_wp * (advecy + advec_rev)
 
-                ! 2nd order
-                !advecy    = dx_inv2 * uy(i,j-1,k)*(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
-                !advec_rev = dx_inv2 * uy(i,j,k)*((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-                
-                ! 1st order
-                advecy    = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                advec_rev = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                
-                advecy    = 0.5_wp * (advecy + advec_rev) 
-
-            else if (uy_aa .gt. 0.0 .and. j .ge. 3) then   
+            else if (uy_aa .gt. 0.0 .and. j .ge. 3) then
                 ! Flow to the right  - inner points
+                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
+                else
+                    advecy = a1
+                end if
 
-                ! 2nd order
-                !advecy = dx_inv2 * uy(i,j-1,k)*(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
+            else if (uy_aa .gt. 0.0 .and. j .eq. 2) then
+                ! Flow to the right - border points (1st order)
+                advecy = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
 
-                ! 1st order
-                advecy = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .gt. 0.0 .and. j .eq. 2) then   
-                ! Flow to the right - border points
+            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then
+                ! Flow to the left - inner points
+                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
+                if (advecxy_order .eq. 2) then
+                    a2     = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
+                    advecy = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
+                else
+                    advecy = a1
+                end if
 
-                ! 1st order
-                advecy = dx_inv * uy(i,jm1,k)*(-(var_ice(i,jm1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then 
-                ! Flow to the left
+            else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then
+                ! Flow to the left - border points (1st order)
+                advecy = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
 
-                ! 2nd order
-                !advecy = dx_inv2 * uy(i,j,k)*((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-                
-                ! 1st order
-                advecy = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                
-            else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then 
-                ! Flow to the left
-
-                ! 1st order
-                advecy = dx_inv * uy(i,j,k)*((var_ice(i,jp1,k)-var_ice(i,j,k)))
-                  
             else
-                ! No flow 
-                advecy = 0.0 
+                ! No flow
+                advecy = 0.0
 
-            end if 
+            end if
             
             ! Combine advection terms for total contribution 
             advecxy(k) = (advecx+advecy)
 
         end do 
 
-        return 
+        return
 
     end subroutine calc_advec_horizontal_column
-    
-    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,beta1,beta2,boundaries)
 
-        implicit none 
+    function flux_limited(a1,a2,d_loc,d_up) result(a)
+        ! van Leer flux-limited blend between the 1st-order (a1) and 2nd-order (a2)
+        ! advection estimates. r = ratio of the upwind gradient (d_up) to the local
+        ! gradient (d_loc); phi(r) in [0,2] with phi(r<=0)=0 (revert to 1st order at
+        ! extrema, TVD) and phi(1)=1 (full 2nd order where the field is smooth).
 
-        real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa 
+        implicit none
+
+        real(wp), intent(IN) :: a1, a2, d_loc, d_up
+        real(wp) :: a
+        real(wp) :: r, phi
+
+        if (abs(d_loc) .lt. TOL_UNDERFLOW) then
+            ! Local extremum / flat: no anti-diffusive correction
+            phi = 0.0_wp
+        else
+            r   = d_up / d_loc
+            phi = (r + abs(r)) / (1.0_wp + abs(r))    ! van Leer limiter
+        end if
+
+        a = a1 + phi*(a2 - a1)
+
+        return
+
+    end function flux_limited
+
+    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,advecxy_order,beta1,beta2,boundaries)
+
+        implicit none
+
+        real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa
         real(wp), intent(IN)    :: var(:,:,:)         ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny 
-        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny 
+        real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny
+        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny
         real(wp), intent(IN)    :: ux(:,:,:)          ! nx,ny,nz_aa
         real(wp), intent(IN)    :: uy(:,:,:)          ! nx,ny,nz_aa
-        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa 
-        real(wp), intent(IN)    :: dx  
+        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa
+        real(wp), intent(IN)    :: dx
+        integer,  intent(IN)    :: advecxy_order      ! 1=upwind, 2=flux-limited 2nd-order upwind
         real(wp), intent(IN)    :: beta1              ! Weighting term for multistep advection scheme
         real(wp), intent(IN)    :: beta2              ! Weighting term for multistep advection scheme
-        character(len=*), intent(IN) :: boundaries 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j 
@@ -494,10 +535,10 @@ contains
         advecxy = 0.0_wp 
          
         do j = 2, ny-1
-        do i = 2, nx-1 
-            call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,i,j,boundaries)
-        end do 
-        end do 
+        do i = 2, nx-1
+            call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+        end do
+        end do
 
         ! Set boundaries 
         call set_boundaries_3D_aa(advecxy,boundaries)
