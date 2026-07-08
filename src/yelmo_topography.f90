@@ -100,8 +100,7 @@ contains
                     ! Store dynamic rate of change from previous timestep,
                     ! along with ice thickness and surface elevation
                     ! (the latter only for calculating rate of change later)
-                    tpo%now%dHidt_dyn_n = tpo%now%dHidt_dyn
-                    tpo%now%H_ice_n     = tpo%now%H_ice 
+                    tpo%now%H_ice_n     = tpo%now%H_ice
                     tpo%now%z_srf_n     = tpo%now%z_srf
                     tpo%now%lsf_n       = tpo%now%lsf
 
@@ -116,11 +115,15 @@ else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
                                                  bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
-end if 
-                    
-                    ! Calculate rate of change using weighted advective rates of change 
-                    ! depending on timestepping method chosen 
-                    tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_n 
+end if
+
+                    ! Store raw advective rate at current state (f_n) for the
+                    ! corrector and for shifting at advance
+                    tpo%now%dHidt_dyn_raw = dHidt_now
+
+                    ! Calculate rate of change using weighted advective rates of change
+                    ! depending on timestepping method chosen
+                    tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_raw_n
 
                     ! Apply rate and update ice thickness (predicted)
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
@@ -147,7 +150,7 @@ end if
 
                     ! Calculate rate of change using weighted advective rates of change 
                     ! depending on timestepping method chosen 
-                    tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_n 
+                    tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
                     ! Apply rate and update ice thickness (corrected)
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
@@ -398,10 +401,14 @@ end if
                         tpo%now%cmb         = tpo%now%corr%cmb 
                         tpo%now%cmb_flt     = tpo%now%corr%cmb_flt
                         tpo%now%cmb_grnd    = tpo%now%corr%cmb_grnd
-                        tpo%now%lsf         = tpo%now%corr%lsf 
-                        
+                        tpo%now%lsf         = tpo%now%corr%lsf
+
                     end if
-                    
+
+                    ! Shift raw advective rate f_n -> f_{n-1} for the next step.
+                    ! Done once here, regardless of the use_H_pred branch above.
+                    tpo%now%dHidt_dyn_raw_n = tpo%now%dHidt_dyn_raw
+
             end select
 
             ! Determine rates of change
@@ -1520,7 +1527,8 @@ end if
         allocate(now%mask_grz(nx,ny))
         allocate(now%mask_frnt(nx,ny))
         
-        allocate(now%dHidt_dyn_n(nx,ny))
+        allocate(now%dHidt_dyn_raw(nx,ny))
+        allocate(now%dHidt_dyn_raw_n(nx,ny))
         allocate(now%H_ice_n(nx,ny))
         allocate(now%z_srf_n(nx,ny))
         allocate(now%lsf_n(nx,ny))
@@ -1609,8 +1617,9 @@ end if
         now%mask_grz    = 0 
         now%mask_frnt   = 0
 
-        now%dHidt_dyn_n = 0.0  
-        now%H_ice_n     = 0.0 
+        now%dHidt_dyn_raw   = 0.0
+        now%dHidt_dyn_raw_n = 0.0
+        now%H_ice_n     = 0.0
         now%z_srf_n     = 0.0
         now%lsf_n     = 0.0 
 
@@ -1718,7 +1727,8 @@ end if
         if (allocated(now%mask_grz))    deallocate(now%mask_grz)
         if (allocated(now%mask_frnt))   deallocate(now%mask_frnt)
         
-        if (allocated(now%dHidt_dyn_n)) deallocate(now%dHidt_dyn_n)
+        if (allocated(now%dHidt_dyn_raw))   deallocate(now%dHidt_dyn_raw)
+        if (allocated(now%dHidt_dyn_raw_n)) deallocate(now%dHidt_dyn_raw_n)
         if (allocated(now%H_ice_n))     deallocate(now%H_ice_n)
         if (allocated(now%z_srf_n))     deallocate(now%z_srf_n)
         if (allocated(now%lsf_n))       deallocate(now%lsf_n)

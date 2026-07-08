@@ -305,7 +305,8 @@ module yelmo_defs
         integer,  allocatable   :: mask_grz(:,:)    ! Multi-valued mask for the grounding-line zone
         integer,  allocatable   :: mask_frnt(:,:)   ! Multi-valued mask of ice fronts
 
-        real(wp), allocatable   :: dHidt_dyn_n(:,:) ! [m/a] Ice thickness change due to advection only
+        real(wp), allocatable   :: dHidt_dyn_raw(:,:)   ! [m/a] Raw advective rate at current state (f_n), set each predictor
+        real(wp), allocatable   :: dHidt_dyn_raw_n(:,:) ! [m/a] Raw advective rate at previous step (f_{n-1})
         real(wp), allocatable   :: H_ice_n(:,:)     ! [m] Ice thickness from the previous timestep 
         real(wp), allocatable   :: z_srf_n(:,:)     ! [m] Surface elevation from the previous timestep 
         real(wp), allocatable   :: lsf_n(:,:)       ! [-] LSF mask from previous timestep 
