@@ -387,8 +387,8 @@ contains
                 end if 
 
                 T_ice(i,j,:)  = define_temp_linear_column(T_srf(i,j),T_base,T_pmp(i,j,nz_aa),zeta_aa)
-                omega(i,j,:)  = 0.0_wp 
-                call convert_to_enthalpy(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),T_pmp(i,j,:),cp(i,j,:),L_ice)
+                omega(i,j,:)  = 0.0_wp
+                call convert_to_enthalpy(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),T_pmp(i,j,:),cp_ref,L_ice)
                 bmb_grnd(i,j) = 0.0_wp
                 Q_ice_b(i,j)  = 0.0_wp 
                 H_cts(i,j)    = 0.0_wp

@@ -15,6 +15,17 @@ module thermodynamics
 
     private
 
+    ! Reference (constant) ice heat capacity for the enthalpy formulation.
+    ! The enthalpy solver represents cold ice as enth = cp_ref*T (linear in T),
+    ! so diffusing enth with kappa = kt/(rho*cp_ref) reproduces true heat
+    ! conduction kt*grad(T). Using the T-dependent cp here instead makes enth a
+    ! nonlinear function of T (cp = 146.3+7.253*T) and biases the conducted heat
+    ! flux (~30 C too-cold base on initmip-grl). Standard enthalpy-method choice
+    ! (Aschwanden et al. 2012; Blatter & Greve 2015). Future refinement (A2):
+    ! the exact integral enthalpy E = int cp dT would match the T-dependent-cp
+    ! temperature solver to machine precision.
+    real(wp), parameter, public :: cp_ref = 2009.0_wp    ! [J kg-1 K-1]
+
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
@@ -1144,8 +1155,8 @@ contains
             ! Assume zero water content 
             omega = 0.0_wp 
 
-            ! Calculate enthalpy too
-            call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
+            ! Calculate enthalpy too (constant cp_ref, consistent with the enth solver)
+            call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
         
         end do 
         end do  
@@ -1242,11 +1253,11 @@ contains
         end do 
         end do 
 
-        ! Assume zero water content 
-        omega = 0.0_wp 
+        ! Assume zero water content
+        omega = 0.0_wp
 
-        ! Calculate enthalpy too
-        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
+        ! Calculate enthalpy too (constant cp_ref, consistent with the enth solver)
+        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
 
         return 
 

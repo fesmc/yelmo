@@ -21,7 +21,7 @@ program test_enthalpy
     use yelmo_defs,     only : wp, prec, ybound_const_class
     use ncio
     use yelmo_grid,     only : calc_zeta
-    use thermodynamics, only : convert_to_enthalpy, calc_T_pmp, &
+    use thermodynamics, only : convert_to_enthalpy, calc_T_pmp, cp_ref, &
                                calc_specific_heat_capacity, calc_thermal_conductivity
     use ice_enthalpy,   only : calc_temp_column, calc_enth_column, calc_dzeta_terms
 
@@ -86,9 +86,14 @@ program test_enthalpy
             ! amplitude for both solvers to localize the defect. cr_arg (4th
             ! arg, >=0) overrides the enth conductivity ratio.
             call run_thin_margin(c,nz,cr_arg)
+        case("robin-column")
+            ! Ground-truth vertical-physics check vs the Robin (1955) analytic
+            ! basal temperature; run both solvers and compare. Settles whether
+            ! enth (cold bias) or temp (warm bias) is off on a clean column.
+            call run_robin_column(c,nz,cr_arg)
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
-            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b, thin-margin"
+            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b, thin-margin, robin-column"
             stop 1
     end select
 
@@ -207,7 +212,7 @@ contains
             col%T_ice(k) = T_init
         end do
         col%omega = 0.0_wp
-        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,col%cp,c%L_ice)
+        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,cp_ref,c%L_ice)
 
         col%T_shlf = col%T_pmp(1)
 
@@ -442,6 +447,200 @@ contains
         return
     end subroutine compare_cold_limit
 
+    function robin_Tbase(c,H_ice,T_srf,smb,Q_geo_mW) result(T_base)
+        ! Robin (1955) steady-state basal temperature for a frozen-base column
+        ! with linear vertical velocity w(z) = -smb*(z/H), pure vertical
+        ! advection-diffusion, no strain heat. T'(z)=T'(0)exp(-beta z^2) with
+        ! beta = smb/(2 kappa H); integrating gives the erf form below. Result
+        ! is capped at the basal pmp (a warmer Robin base means temperate ice).
+        type(ybound_const_class), intent(IN) :: c
+        real(wp), intent(IN) :: H_ice, T_srf, smb, Q_geo_mW
+        real(wp) :: T_base
+        real(wp) :: kt_si, kappa, a_s, beta, sb, T_pmp_b, Q_si
+        kt_si  = 2.1_wp                              ! [W m-1 K-1]
+        kappa  = kt_si/(c%rho_ice*2009.0_wp)         ! [m2 s-1] thermal diffusivity
+        a_s    = smb/c%sec_year                      ! [m s-1] accumulation
+        beta   = a_s/(2.0_wp*kappa*H_ice)            ! [m-2]
+        sb     = sqrt(beta)
+        Q_si   = Q_geo_mW*1e-3_wp                    ! [W m-2]
+        T_base = T_srf + (Q_si/kt_si)*(sqrt(4.0_wp*atan(1.0_wp))/(2.0_wp*sb))*erf(sb*H_ice)
+        T_pmp_b = c%T0 - c%T_pmp_beta*c%rho_ice*c%g*H_ice
+        if (T_base .gt. T_pmp_b) T_base = T_pmp_b
+        return
+    end function robin_Tbase
+
+    subroutine run_robin_column(c,nz,cr_override)
+        ! Ground-truth check: a clean Greenland-interior column (thick, cold
+        ! surface, downward advection, NO horizontal advection or basal
+        ! friction) run to steady state by both solvers and compared against
+        ! the Robin (1955) analytic basal temperature, across a geothermal
+        ! sweep. Isolates which solver (if either) is biased in the vertical.
+        type(ybound_const_class), intent(IN) :: c
+        integer,                  intent(IN) :: nz
+        real(wp),                 intent(IN) :: cr_override
+
+        type(column_class) :: col
+        integer, parameter :: nQ = 6
+        real(wp) :: Qs(nQ)
+        real(wp) :: enth_cr, omega_max, Q_lith, dt, time, time_end
+        real(wp) :: Tb_t, Tb_e, Tb_r
+        integer  :: iq, isolv, k
+        character(len=4) :: solv
+        real(wp), parameter :: H_ice = 2000.0_wp, T_srf = 273.15_wp-25.0_wp, smb = 0.3_wp
+
+        Qs = [20.0_wp,30.0_wp,42.0_wp,50.0_wp,60.0_wp,70.0_wp]   ! [mW m-2]
+        omega_max = 0.01_wp
+        time_end  = 200000.0_wp                                  ! to steady state
+        dt        = 10.0_wp
+
+        col%nz_aa = nz; col%nz_ac = nz+1
+        allocate(col%zeta_aa(nz),col%dzeta_a(nz),col%dzeta_b(nz),col%zeta_ac(nz+1))
+        allocate(col%enth(nz),col%T_ice(nz),col%omega(nz),col%T_pmp(nz))
+        allocate(col%cp(nz),col%kt(nz),col%advecxy(nz),col%Q_strn(nz),col%uz(nz+1))
+
+        write(*,*) ""
+        write(*,*) "=== Robin ground-truth: basal T (deg C) at steady state ==="
+        write(*,*) "  H=2000 m, T_srf=-25 C, smb=0.3 m/a, no horiz advec, no friction"
+        write(*,*) "  Q_geo | temp base | enth base | Robin base | temp-Robin  enth-Robin"
+
+        do iq = 1, nQ
+            Tb_r = robin_Tbase(c,H_ice,T_srf,smb,Qs(iq)) - c%T0
+            do isolv = 1, 2
+                if (isolv .eq. 1) then
+                    solv = "temp"; enth_cr = 1.0_wp
+                else
+                    solv = "enth"; enth_cr = 1.0e-3_wp
+                    if (cr_override .ge. 0.0_wp) enth_cr = cr_override
+                end if
+                call setup_robin_column(col,c,H_ice,T_srf,smb,Qs(iq))
+                time = 0.0_wp
+                do while (time .lt. time_end - 1e-6_wp)
+                    ! Recompute T-dependent cp and kt each step, exactly as the
+                    ! 2D driver does (cp,kt vary through the column with T).
+                    col%cp = calc_specific_heat_capacity(col%T_ice)
+                    col%kt = calc_thermal_conductivity(col%T_ice,c%sec_year)
+                    if (solv .eq. "temp") then
+                        call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    else
+                        Q_lith = col%Q_rock
+                        call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    end if
+                    ! basal water bookkeeping (as in run_experiment)
+                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
+                    time = time + dt
+                end do
+                if (isolv .eq. 1) then; Tb_t = col%T_ice(1)-c%T0; else; Tb_e = col%T_ice(1)-c%T0; end if
+            end do
+            write(*,"(a,f5.1,a,f9.3,a,f9.3,a,f9.3,a,f9.3,3x,f9.3)") &
+                "  ",Qs(iq)," | ",Tb_t," | ",Tb_e," | ",Tb_r," | ",Tb_t-Tb_r,Tb_e-Tb_r
+        end do
+        write(*,*) ""
+
+        ! --- Consistent horizontal-advection test -------------------------
+        ! Apply the SAME physical horizontal advection to both solvers: in
+        ! temperature units (K a-1) for temp, and cp x that for enth (since
+        ! enth = cp T). If the solvers stay equal the advection handling is
+        ! consistent; if enth's base diverges, its horizontal-advection term
+        ! is the bias source. Q_geo fixed at 50 mW m-2.
+        write(*,*) "=== consistent horizontal advection (Q_geo=50): basal T (deg C) ==="
+        write(*,*) "  advec_T [K/a] | temp base | enth base | (enth-temp)"
+        block
+          integer :: ia2
+          real(wp) :: advT(5), Tb_t2, Tb_e2
+          advT = [0.0_wp, -0.05_wp, -0.2_wp, 0.05_wp, 0.2_wp]
+          do ia2 = 1, 5
+            do isolv = 1, 2
+                if (isolv .eq. 1) then; solv = "temp"; enth_cr = 1.0_wp
+                else; solv = "enth"; enth_cr = 1.0e-3_wp
+                    if (cr_override .ge. 0.0_wp) enth_cr = cr_override
+                end if
+                call setup_robin_column(col,c,H_ice,T_srf,smb,50.0_wp)
+                if (solv .eq. "temp") then
+                    col%advecxy = advT(ia2)
+                else
+                    col%advecxy = advT(ia2)*2009.0_wp     ! cp x, enth units
+                end if
+                time = 0.0_wp
+                do while (time .lt. time_end - 1e-6_wp)
+                    if (solv .eq. "temp") then
+                        call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    else
+                        Q_lith = col%Q_rock
+                        call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    end if
+                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
+                    time = time + dt
+                end do
+                if (isolv .eq. 1) then; Tb_t2 = col%T_ice(1)-c%T0; else; Tb_e2 = col%T_ice(1)-c%T0; end if
+            end do
+            write(*,"(a,f9.3,a,f9.3,a,f9.3,a,f9.3)") &
+                "  ",advT(ia2)," | ",Tb_t2," | ",Tb_e2," | ",Tb_e2-Tb_t2
+          end do
+        end block
+        write(*,*) ""
+        return
+    end subroutine run_robin_column
+
+    subroutine setup_robin_column(col,c,H_ice,T_srf,smb,Q_geo_mW)
+        ! Thick interior column: cold surface, geothermal base, linear downward
+        ! advection w(z)=-smb*(z/H), no strain, no horizontal advection.
+        type(column_class),       intent(INOUT) :: col
+        type(ybound_const_class), intent(IN)    :: c
+        real(wp),                 intent(IN)    :: H_ice, T_srf, smb, Q_geo_mW
+        integer :: k, nz, nz_ac
+        real(wp), allocatable :: zeta_aa(:), zeta_ac(:)
+
+        nz = col%nz_aa
+        call calc_zeta(zeta_aa,zeta_ac,nz_ac,nz,zeta_scale="linear",zeta_exp=1.0_wp)
+        col%zeta_aa = zeta_aa; col%zeta_ac = zeta_ac
+        call calc_dzeta_terms(col%dzeta_a,col%dzeta_b,col%zeta_aa,col%zeta_ac)
+
+        col%H_ice   = H_ice
+        col%f_grnd  = 1.0_wp
+        col%W_til   = 0.0_wp
+        col%bmb     = 0.0_wp
+        col%Q_ice_b = 0.0_wp
+        col%H_cts   = 0.0_wp
+        col%cp      = 2009.0_wp
+        col%kt      = 2.1_wp * c%sec_year
+        col%T_srf   = T_srf
+        col%smb     = smb
+        col%Q_rock  = Q_geo_mW
+        col%Q_b     = 0.0_wp
+        col%advecxy = 0.0_wp
+        ! Linear downward velocity w(z) = -smb * z/H  (ac-nodes)
+        do k = 1, nz+1
+            col%uz(k) = -smb * col%zeta_ac(k)
+        end do
+        col%Q_strn  = 0.0_wp
+        do k = 1, nz
+            col%T_pmp(k) = calc_T_pmp(col%H_ice,col%zeta_aa(k),c%T0,c%T_pmp_beta,c%rho_ice,c%g)
+        end do
+        do k = 1, nz
+            col%T_ice(k) = T_srf              ! start cold, let it warm from base
+        end do
+        col%omega  = 0.0_wp
+        col%T_shlf = col%T_pmp(1)
+        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,cp_ref,c%L_ice)
+        return
+    end subroutine setup_robin_column
+
     subroutine setup_thin_column(col,c,H_ice)
         ! Build a thin polythermal margin column: cold surface, geothermal +
         ! shear heat driving a temperate/melting base, uniform downward
@@ -495,7 +694,7 @@ contains
         end do
         col%omega   = 0.0_wp
         col%T_shlf  = col%T_pmp(1)
-        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,col%cp,c%L_ice)
+        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,cp_ref,c%L_ice)
 
         return
     end subroutine setup_thin_column

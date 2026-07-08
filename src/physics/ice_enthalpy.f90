@@ -4,7 +4,7 @@ module ice_enthalpy
     use yelmo_defs, only : wp, pi  
     use solver_tridiagonal, only : solve_tridiag 
     use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, calc_advec_vertical_column, &
-                               convert_to_enthalpy, convert_from_enthalpy_column
+                               convert_to_enthalpy, convert_from_enthalpy_column, cp_ref
 
     !use interp1D 
 
@@ -199,8 +199,8 @@ contains
         omega = 0.0 
 !             where (T_ice .ge. T_pmp) omega = omega_max 
 
-        ! Finally, get enthalpy too 
-        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
+        ! Finally, get enthalpy too (constant cp_ref, consistent enth definition)
+        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
 
         ! Calculate heat flux at ice base as temperature gradient * conductivity [J a-1 m-2]
         if (H_ice .gt. 0.0_wp) then 
@@ -241,7 +241,7 @@ contains
         end if
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,cp,H_ice,zeta_aa)
+        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa)
 
         return 
 
@@ -614,22 +614,22 @@ end if
         Q_b_now    = Q_b    * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
         Q_lith_now = Q_lith * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
 
-        ! Get enthalpy of the pressure melting point
-        enth_pmp = T_pmp*cp 
-        
-        ! Find height of CTS - highest temperate layer 
+        ! Get enthalpy of the pressure melting point (constant cp_ref definition)
+        enth_pmp = T_pmp*cp_ref
+
+        ! Find height of CTS - highest temperate layer
         k_cts = get_cts_index(enth,enth_pmp)
 
         ! Calculate diffusivity on cell centers (aa-nodes)
-!         kappa_aa = kt / (rho_ice*cp)
-        call calc_enth_diffusivity(kappa_aa,enth,enth_pmp,cp,kt,cr,rho_ice)
+!         kappa_aa = kt / (rho_ice*cp_ref)
+        call calc_enth_diffusivity(kappa_aa,enth,enth_pmp,kt,cr,rho_ice)
 
         ! Convert units of Q_strn [J a-1 m-3] => [J kg a-1]
         Q_strn_now = Q_strn/(rho_ice)
 
         ! === Surface boundary condition =====================
 
-        val_srf =  min(T_srf,T0) * cp(nz_aa)  
+        val_srf =  min(T_srf,T0) * cp_ref
 
         ! === Basal boundary condition =====================
 
@@ -659,7 +659,7 @@ end if
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition
-                val_base = (Q_b_now + Q_lith_now) / kt(1) * cp(1)
+                val_base = (Q_b_now + Q_lith_now) / kt(1) * cp_ref
                 is_basal_flux = .TRUE.
                 
             else 
@@ -684,8 +684,8 @@ end if
         ! This should come out of routine, but it helps ensure stability to check it here
         if (enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
         
-        ! Get temperature and water content
-        call convert_from_enthalpy_column(enth,T_ice,omega,T_pmp,cp,L_ice)
+        ! Get temperature and water content (constant cp_ref definition)
+        call convert_from_enthalpy_column(enth,T_ice,omega,T_pmp,spread(cp_ref,1,nz_aa),L_ice)
 
         ! Clamp unphysical cold excursions to a floor, mirroring the
         ! T_min_lim guard in calc_temp_column. Without it the enth solver has
@@ -717,8 +717,8 @@ end if
         ! Also limit basal omega to omega_max (even though it doesn't have thickness)
         if (omega(1) .gt. omega_max) omega(1) = omega_max 
 
-        ! Finally, get enthalpy again too (to be consistent with new omega) 
-        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp,L_ice)
+        ! Finally, get enthalpy again too (to be consistent with new omega)
+        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
 
         ! Calculate the conductive heat flux into the ice base [J a-1 m-2], positive up.
         ! Two discretizations are available; the temperature-gradient form is the
@@ -751,7 +751,7 @@ end if
         bmb_grnd = bmb_grnd - melt_internal
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,cp,H_ice,zeta_aa)
+        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa)
 
         return 
 
@@ -957,33 +957,34 @@ end if
 
     ! ========== ENTHALPY ==========================================
 
-    subroutine calc_enth_diffusivity(kappa,enth,enth_pmp,cp,kt,cr,rho_ice)
+    subroutine calc_enth_diffusivity(kappa,enth,enth_pmp,kt,cr,rho_ice)
         ! Calculate the enthalpy vertical diffusivity for use with the diffusion solver:
-        ! When water is present in the layer, set kappa=kappa_therm, else kappa=kappa_cold 
+        ! When water is present in the layer, set kappa=kappa_therm, else kappa=kappa_cold
+        ! Note: uses the constant cp_ref (enth = cp_ref*T), so kappa_cold =
+        ! kt/(rho*cp_ref) reproduces true heat conduction kt*grad(T).
 
-        implicit none 
+        implicit none
 
         real(wp), intent(OUT) :: kappa(:)         ! [nz_aa]
         real(wp), intent(IN)  :: enth(:)          ! [nz_aa]
         real(wp), intent(IN)  :: enth_pmp(:)      ! [nz_aa]
-        real(wp), intent(IN)  :: cp(:)
-        real(wp), intent(IN)  :: kt(:)  
-        real(wp), intent(IN)  :: cr 
+        real(wp), intent(IN)  :: kt(:)
+        real(wp), intent(IN)  :: cr
         real(wp), intent(IN)  :: rho_ice
-        
+
         ! Local variables
         integer   :: k, nz
-        real(wp)  :: kappa_cold       ! Cold diffusivity 
-        real(wp)  :: kappa_temp       ! Temperate diffusivity 
-        
+        real(wp)  :: kappa_cold       ! Cold diffusivity
+        real(wp)  :: kappa_temp       ! Temperate diffusivity
+
         nz = size(enth)
 
-        kappa = 0.0 
+        kappa = 0.0
 
         do k = 1, nz
 
-            ! Determine kappa_cold and kappa_temp for this level 
-            kappa_cold = kt(k) / (rho_ice*cp(k))
+            ! Determine kappa_cold and kappa_temp for this level
+            kappa_cold = kt(k) / (rho_ice*cp_ref)
             kappa_temp = cr * kappa_cold 
 
             if (enth(k) .ge. enth_pmp(k)) then
@@ -998,20 +999,20 @@ end if
 
     end subroutine calc_enth_diffusivity
     
-    function calc_cts_height(enth,T_ice,omega,T_pmp,cp,H_ice,zeta) result(H_cts)
+    function calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta) result(H_cts)
         ! Calculate the height of the cold-temperate transition surface (m)
-        ! within the ice sheet. 
+        ! within the ice sheet. Uses cp_ref (enth = cp_ref*T) for enth_pmp,
+        ! consistent with the enthalpy field definition.
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(IN) :: enth(:) 
-        real(wp), intent(IN) :: T_ice(:) 
-        real(wp), intent(IN) :: omega(:) 
-        real(wp), intent(IN) :: T_pmp(:) 
-        real(wp), intent(IN) :: cp(:)
-        real(wp), intent(IN) :: H_ice  
-        real(wp), intent(IN) :: zeta(:) 
-        real(wp) :: H_cts 
+        real(wp), intent(IN) :: enth(:)
+        real(wp), intent(IN) :: T_ice(:)
+        real(wp), intent(IN) :: omega(:)
+        real(wp), intent(IN) :: T_pmp(:)
+        real(wp), intent(IN) :: H_ice
+        real(wp), intent(IN) :: zeta(:)
+        real(wp) :: H_cts
 
         ! Local variables 
         integer  :: k, k_cts, nz 
@@ -1028,9 +1029,9 @@ end if
         allocate(enth_prime(nz)) 
 
         ! Get enthalpy at the pressure melting point (no water content)
-        enth_pmp = T_pmp * cp
+        enth_pmp = T_pmp * cp_ref
 
-        enth_prime = enth - enth_pmp 
+        enth_prime = enth - enth_pmp
 
         ! Determine height of CTS as highest temperate layer
         k_cts = get_cts_index(enth,enth_pmp)  
