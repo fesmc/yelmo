@@ -276,13 +276,12 @@ contains
         real(wp), parameter :: d1_nudge = 1.1e-5_wp
         real(wp), parameter :: d2_nudge = 1.0e-5_wp
 
-        h  = dt 
+        h  = dt
         d1 = dt_nm1 / h
-        d2 = dt_nm2 / h
+        d2 = (dt_nm1 + dt_nm2) / h    ! cumulative distance back to node n-2
 
         if (d1 .eq. 0.0_wp) d1 = d1_nudge
         if (d2 .eq. 0.0_wp) d2 = d2_nudge
-        if (d1 .eq. d2) d2 = d2+d2_nudge
 
         ! Equation 4.4, simplified for numerical testing 
 
