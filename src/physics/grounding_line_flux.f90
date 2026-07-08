@@ -171,16 +171,13 @@ contains
         end do 
         end do 
 
-        ! acy-nodes 
-        do j = 1, ny 
-        do i = 1, nx
+        ! acy-nodes
+        ! The acy-node grounding-line flux diagnosis is not implemented.
+        ! Rather than silently returning zeros for qq_gl_acy, fail loudly so
+        ! callers do not rely on an unimplemented flux field.
+        error stop "calc_grounding_line_flux: acy-node grounding-line flux is not implemented"
 
-        end do 
-        end do 
-
-
-
-        return 
+        return
 
     end subroutine calc_grounding_line_flux
 
