@@ -100,8 +100,7 @@ contains
                     ! Store dynamic rate of change from previous timestep,
                     ! along with ice thickness and surface elevation
                     ! (the latter only for calculating rate of change later)
-                    tpo%now%dHidt_dyn_n = tpo%now%dHidt_dyn
-                    tpo%now%H_ice_n     = tpo%now%H_ice 
+                    tpo%now%H_ice_n     = tpo%now%H_ice
                     tpo%now%z_srf_n     = tpo%now%z_srf
                     tpo%now%lsf_n       = tpo%now%lsf
 
@@ -110,17 +109,21 @@ contains
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                 tpo%now%mask_adv,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
-end if 
-                    
-                    ! Calculate rate of change using weighted advective rates of change 
-                    ! depending on timestepping method chosen 
-                    tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_n 
+end if
+
+                    ! Store raw advective rate at current state (f_n) for the
+                    ! corrector and for shifting at advance
+                    tpo%now%dHidt_dyn_raw = dHidt_now
+
+                    ! Calculate rate of change using weighted advective rates of change
+                    ! depending on timestepping method chosen
+                    tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_raw_n
 
                     ! Apply rate and update ice thickness (predicted)
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
@@ -138,16 +141,16 @@ end if
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
 end if
 
                     ! Calculate rate of change using weighted advective rates of change 
                     ! depending on timestepping method chosen 
-                    tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_n 
+                    tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
                     ! Apply rate and update ice thickness (corrected)
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
@@ -398,10 +401,14 @@ end if
                         tpo%now%cmb         = tpo%now%corr%cmb 
                         tpo%now%cmb_flt     = tpo%now%corr%cmb_flt
                         tpo%now%cmb_grnd    = tpo%now%corr%cmb_grnd
-                        tpo%now%lsf         = tpo%now%corr%lsf 
-                        
+                        tpo%now%lsf         = tpo%now%corr%lsf
+
                     end if
-                    
+
+                    ! Shift raw advective rate f_n -> f_{n-1} for the next step.
+                    ! Done once here, regardless of the use_H_pred branch above.
+                    tpo%now%dHidt_dyn_raw_n = tpo%now%dHidt_dyn_raw
+
             end select
 
             ! Determine rates of change
@@ -791,7 +798,7 @@ end if
         ! #34 follow-up). Matches Yelmo.jl, whose Oceananigans `:bounded`
         ! BC zeros only the halo, leaving edge cells free.
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       tpo%now%mask_adv,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+                       bnd%mask_ice,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
 
         ! LSF should not affect grounded land points, i.e. points whose bed
         ! is at or above sea level. The comparison is inclusive (.ge.) so that
@@ -934,7 +941,11 @@ end if
         type(ybound_class), intent(IN)    :: bnd 
 
         ! Local variables
-        character(len=256) :: bcx, bcy 
+        character(len=256) :: bcx, bcy
+        integer  :: gz_nx, gz_ny
+        logical  :: gz_perx, gz_pery
+        integer,  allocatable :: mask_src(:,:)
+        real(wp), allocatable :: dist_cells(:,:)
 
         ! Final update of ice fraction mask (or define it now for fixed topography)
         call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
@@ -1033,42 +1044,67 @@ end if
         call calc_f_grnd_pinning_points(tpo%now%f_grnd_pin,tpo%now%H_ice,tpo%now%f_ice, &
                                                 bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
 
-if (.FALSE.) then
-        if (tpo%par%dmb_method .gt. 0) then
-            ! Calculate the grounding-line distance
-            call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%dx, &
-                                                        tpo%par%boundaries,calc_distances=.TRUE.)
+        ! === Grounding-zone and ice-margin distances (signed, in km) ===========
+        ! Strategy: use calc_distance_to_*(calc_distances=.FALSE.) only to locate
+        ! the grounding line / ice margin (0 at location, signed sentinel
+        ! elsewhere: negative floating/ice-free, positive grounded/ice-covered),
+        ! then compute the actual signed distance field with an (optionally
+        ! periodic) chamfer transform via compute_distance_to_mask.
 
-            ! Define the grounding-zone mask too 
-            call calc_grounding_line_zone(tpo%now%mask_grz,tpo%now%dist_grline,tpo%par%dist_grz)
+        gz_nx = size(tpo%now%dist_grline,1)
+        gz_ny = size(tpo%now%dist_grline,2)
 
-            ! Calculate distance to the ice margin
-            call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dx, &
-                                                        tpo%par%boundaries,calc_distances=.TRUE.)
-        else
-            ! Calculate the grounding-line distance
-            call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%dx, &
-                                                        tpo%par%boundaries,calc_distances=.FALSE.)
+        allocate(mask_src(gz_nx,gz_ny))
+        allocate(dist_cells(gz_nx,gz_ny))
 
-            ! Define the grounding-zone mask too 
-            call calc_grounding_line_zone(tpo%now%mask_grz,tpo%now%dist_grline,tpo%par%dist_grz)
+        ! Derive periodic flags from the boundary condition string.
+        ! (bcs mapping per solver_advection.f90: MISMIP3D/TROUGH => y-periodic.)
+        select case(trim(tpo%par%boundaries))
+            case("periodic","periodic-xy")
+                gz_perx = .TRUE.  ; gz_pery = .TRUE.
+            case("periodic-x")
+                gz_perx = .TRUE.  ; gz_pery = .FALSE.
+            case("MISMIP3D","TROUGH")
+                gz_perx = .FALSE. ; gz_pery = .TRUE.
+            case DEFAULT
+                gz_perx = .FALSE. ; gz_pery = .FALSE.
+        end select
 
-                ! Calculate distance to the ice margin
-            call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dx, &
-                                                        tpo%par%boundaries,calc_distances=.FALSE.)
+        ! --- Grounding-line distance ---
 
-        end if
-else
-        ! Calculate the grounding-line distance
+        ! Locate grounding line: 0 at GL, -sentinel floating, +sentinel grounded
         call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%dx, &
                                                     tpo%par%boundaries,calc_distances=.FALSE.)
 
-        ! Define the grounding-zone mask too 
+        ! Build source mask for chamfer: -1 floating (inside), 0 at GL, +1 grounded (outside)
+        mask_src = 0
+        where(tpo%now%dist_grline < 0.0_wp) mask_src = -1
+        where(tpo%now%dist_grline > 0.0_wp) mask_src =  1
+
+        ! Signed distance in grid cells, then convert to km
+        call compute_distance_to_mask(dist_cells,mask_src,periodic_x=gz_perx,periodic_y=gz_pery)
+        tpo%now%dist_grline = dist_cells * (tpo%par%dx*1.0e-3_wp)
+
+        ! Define the grounding-zone mask from the signed km distance
         call calc_grounding_line_zone(tpo%now%mask_grz,tpo%now%dist_grline,tpo%par%dist_grz)
 
-        call compute_distance_to_mask(tpo%now%dist_grline, tpo%now%mask_grz)
+        ! --- Ice-margin distance ---
 
-end if
+        ! Locate ice margin: 0 at margin, -sentinel ice-free, +sentinel ice-covered
+        call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dx, &
+                                                    tpo%par%boundaries,calc_distances=.FALSE.)
+
+        ! Build source mask: -1 ice-free (inside), 0 at margin, +1 ice-covered (outside)
+        mask_src = 0
+        where(tpo%now%dist_margin < 0.0_wp) mask_src = -1
+        where(tpo%now%dist_margin > 0.0_wp) mask_src =  1
+
+        ! Signed distance in grid cells, then convert to km
+        call compute_distance_to_mask(dist_cells,mask_src,periodic_x=gz_perx,periodic_y=gz_pery)
+        tpo%now%dist_margin = dist_cells * (tpo%par%dx*1.0e-3_wp)
+
+        deallocate(mask_src)
+        deallocate(dist_cells)
 
         ! Calculate the general bed mask
         call gen_mask_bed(tpo%now%mask_bed,tpo%now%f_ice,thrm%now%f_pmp, &
@@ -1480,8 +1516,6 @@ end if
         allocate(now%fmb_ref(nx,ny))
         allocate(now%dmb_ref(nx,ny))
 
-        allocate(now%mask_adv(nx,ny))
-        
         allocate(now%eps_eff(nx,ny))
         allocate(now%tau_eff(nx,ny))
         
@@ -1522,7 +1556,8 @@ end if
         allocate(now%mask_grz(nx,ny))
         allocate(now%mask_frnt(nx,ny))
         
-        allocate(now%dHidt_dyn_n(nx,ny))
+        allocate(now%dHidt_dyn_raw(nx,ny))
+        allocate(now%dHidt_dyn_raw_n(nx,ny))
         allocate(now%H_ice_n(nx,ny))
         allocate(now%z_srf_n(nx,ny))
         allocate(now%lsf_n(nx,ny))
@@ -1573,8 +1608,6 @@ end if
         now%bmb_ref     = 0.0  
         now%fmb_ref     = 0.0
         now%dmb_ref     = 0.0
-        
-        now%mask_adv    = 0
 
         now%eps_eff     = 0.0
         now%tau_eff     = 0.0
@@ -1613,8 +1646,9 @@ end if
         now%mask_grz    = 0 
         now%mask_frnt   = 0
 
-        now%dHidt_dyn_n = 0.0  
-        now%H_ice_n     = 0.0 
+        now%dHidt_dyn_raw   = 0.0
+        now%dHidt_dyn_raw_n = 0.0
+        now%H_ice_n     = 0.0
         now%z_srf_n     = 0.0
         now%lsf_n     = 0.0 
 
@@ -1682,9 +1716,7 @@ end if
         if (allocated(now%bmb_ref))     deallocate(now%bmb_ref)
         if (allocated(now%fmb_ref))     deallocate(now%fmb_ref)
         if (allocated(now%dmb_ref))     deallocate(now%dmb_ref)
-        
-        if (allocated(now%mask_adv))    deallocate(now%mask_adv)
-        
+
         if (allocated(now%eps_eff))     deallocate(now%eps_eff)
         if (allocated(now%tau_eff))     deallocate(now%tau_eff)
         
@@ -1724,7 +1756,8 @@ end if
         if (allocated(now%mask_grz))    deallocate(now%mask_grz)
         if (allocated(now%mask_frnt))   deallocate(now%mask_frnt)
         
-        if (allocated(now%dHidt_dyn_n)) deallocate(now%dHidt_dyn_n)
+        if (allocated(now%dHidt_dyn_raw))   deallocate(now%dHidt_dyn_raw)
+        if (allocated(now%dHidt_dyn_raw_n)) deallocate(now%dHidt_dyn_raw_n)
         if (allocated(now%H_ice_n))     deallocate(now%H_ice_n)
         if (allocated(now%z_srf_n))     deallocate(now%z_srf_n)
         if (allocated(now%lsf_n))       deallocate(now%lsf_n)
@@ -1796,6 +1829,7 @@ end if
         if (allocated(pc%smb))          deallocate(pc%smb)
         if (allocated(pc%bmb))          deallocate(pc%bmb)
         if (allocated(pc%fmb))          deallocate(pc%fmb)
+        if (allocated(pc%dmb))          deallocate(pc%dmb)
         if (allocated(pc%cmb))          deallocate(pc%cmb)
         if (allocated(pc%cmb_flt))      deallocate(pc%cmb_flt)
         if (allocated(pc%cmb_grnd))     deallocate(pc%cmb_grnd)

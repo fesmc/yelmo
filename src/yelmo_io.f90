@@ -782,7 +782,7 @@ contains
         call nc_read_interp(filename,"dist_grline", tpo%now%dist_grline,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"mask_bed",    tpo%now%mask_bed,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"mask_grz",    tpo%now%mask_grz,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"dHidt_dyn_n", tpo%now%dHidt_dyn_n,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        call nc_read_interp(filename,"dHidt_dyn_raw_n", tpo%now%dHidt_dyn_raw_n,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"H_ice_n",     tpo%now%H_ice_n,    ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"z_srf_n",     tpo%now%z_srf_n,    ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"H_ice_dyn",   tpo%now%H_ice_dyn,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -1176,9 +1176,6 @@ contains
             case("dzsdt")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%dzsdt(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("mask_adv")
-                call nc_write(filename,trim(v%varname),ylmo%tpo%now%mask_adv(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("eps_eff")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%eps_eff(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -1257,8 +1254,8 @@ contains
             case("mask_frnt")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mask_frnt(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("dHidt_dyn_n")
-                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dHidt_dyn_n(i1:i2,j1:j2), &
+            case("dHidt_dyn_raw_n")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dHidt_dyn_raw_n(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("H_ice_n")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%H_ice_n(i1:i2,j1:j2), &

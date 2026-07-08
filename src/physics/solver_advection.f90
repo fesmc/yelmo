@@ -1,6 +1,7 @@
 module solver_advection
     
-    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err
+    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err, &
+                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     
     use solver_linear
@@ -15,7 +16,7 @@ module solver_advection
 
 contains 
 
-    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_adv,dx,dy,dt,solver,boundaries)
+    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `var_dot`. Various solvers are possible
 
@@ -25,7 +26,7 @@ contains
         real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
         real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
-        integer,        intent(IN)    :: mask_adv(:,:)          ! Advection mask
+        integer,        intent(IN)    :: mask_ice(:,:)          ! Per-cell ice mask (bnd%mask_ice)
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
@@ -89,7 +90,7 @@ contains
                 call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
                 ! Populate advection matrices Ax=b
-                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_adv,dx,dy,dt,boundaries)
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
                 adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
@@ -327,8 +328,8 @@ contains
 
             ! Handle special cases first, otherwise populate with normal inner discretization
 
-            if (mask(i,j) .eq. 0) then 
-                ! Zero thickness imposed 
+            if (mask(i,j) .eq. MASK_ICE_NONE) then
+                ! Zero thickness imposed
 
                 k = k+1
                 lgs%a_index(k) = nr
@@ -337,14 +338,14 @@ contains
                 lgs%b_value(nr) = 0.0_wp
                 lgs%x_value(nr) = 0.0_wp
 
-            else if (mask(i,j) .eq. -1) then 
-                ! Prescribed ice thickness imposed 
+            else if (mask(i,j) .eq. MASK_ICE_FIXED) then
+                ! Prescribed ice thickness imposed
 
                 k = k+1
                 lgs%a_index(k) = nr
                 lgs%a_value(k) = 1.0_wp   ! diagonal element only
-                
-                lgs%b_value(nr) = 0.0_wp
+
+                lgs%b_value(nr) = H(i,j)
                 lgs%x_value(nr) = H(i,j)
             
             else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
@@ -763,7 +764,7 @@ end if
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             ! Get the ice thickness on ab-nodes
-            call stagger_nodes_aa_ab_ice(H_ab,H_ice,f_ice_now,i,j)
+            call stagger_nodes_aa_ab_ice(H_ab,H_ice,f_ice_now,i,j,BC)
 
             ! Calculate the flux across each boundary [m^2 a^-1]
             flux_xr = ux(i,j)   * 0.5*(H_ab(1)+H_ab(4))
@@ -1119,32 +1120,32 @@ end if
     ! Routines imported from yelmo_tools as they are only used in this module now,
     ! and should eventually be replaced! ajr, 2025-07-21
 
-    subroutine stagger_nodes_aa_ab_ice(u_ab,u_aa,f_ice,i,j,check_underflow)
+    subroutine stagger_nodes_aa_ab_ice(u_ab,u_aa,f_ice,i,j,BC,check_underflow)
         ! Stagger from aca nodes to ab node for index [i,j]
 
-        implicit none 
+        implicit none
 
         real(wp), intent(OUT) :: u_ab(4)
-        real(wp), intent(IN)  :: u_aa(:,:) 
-        real(wp), intent(IN)  :: f_ice(:,:) 
-        integer,  intent(IN)  :: i 
+        real(wp), intent(IN)  :: u_aa(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        integer,  intent(IN)  :: i
         integer,  intent(IN)  :: j
+        integer,  intent(IN)  :: BC
         logical, optional :: check_underflow
 
-        ! Local variables 
-        integer  :: nx, ny 
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: wt 
+        ! Local variables
+        integer  :: nx, ny
+        integer  :: im1, jm1, ip1, jp1
+        real(wp) :: wt
 
-        nx = size(f_ice,1) 
-        ny = size(f_ice,2) 
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
 
-        ! Define neighbor indices
-        im1 = max(i-1,1)
-        ip1 = min(i+1,nx)
-        jm1 = max(j-1,1)
-        jp1 = min(j+1,ny)
-        
+        ! Define neighbor indices, wrapping consistently with the flux stencil
+        ! for periodic boundaries. For non-periodic edges (zeros/infinite) this
+        ! reduces to the same edge-clamping used previously (audit #19).
+        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
         ! Initialize to zero 
         u_ab = 0.0_wp 
 

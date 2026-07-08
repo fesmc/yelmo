@@ -117,11 +117,6 @@ $(objdir)/velocity_diva.o: $(srcdir)/physics/velocity_diva.f90 \
 						  	$(objdir)/velocity_general.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/velocity_l1l2.o: $(srcdir)/physics/velocity_l1l2.f90 \
-						  	$(objdir)/yelmo_defs.o $(objdir)/yelmo_tools.o $(objdir)/basal_dragging.o \
-						  	$(objdir)/solver_ssa_ac.o $(objdir)/velocity_general.o
-	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
-
 ## YELMO BASE ###############################################
 
 $(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90
@@ -153,7 +148,6 @@ $(objdir)/yelmo_dynamics.o: $(srcdir)/yelmo_dynamics.f90 $(objdir)/yelmo_defs.o 
 							$(objdir)/velocity_sia.o \
 							$(objdir)/velocity_ssa.o \
 							$(objdir)/velocity_diva.o \
-							$(objdir)/velocity_l1l2.o \
 							$(objdir)/basal_dragging.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -246,10 +240,9 @@ yelmo_physics =  	   $(objdir)/basal_dragging.o \
 					   $(objdir)/velocity_general.o \
 					   $(objdir)/velocity_sia.o \
 					   $(objdir)/velocity_ssa.o \
-					   $(objdir)/velocity_diva.o \
-					   $(objdir)/velocity_l1l2.o
+					   $(objdir)/velocity_diva.o
 
-yelmo_base = 		   $(objdir)/yelmo_defs.o \
+yelmo_base =		   $(objdir)/yelmo_defs.o \
 					   $(objdir)/yelmo_grid.o \
 					   $(objdir)/yelmo_regridding.o \
 	                   $(objdir)/yelmo_tools.o \

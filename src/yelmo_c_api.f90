@@ -347,7 +347,7 @@ contains
       case("tpo_f_grnd_pin");    v2D = real(ylmo%tpo%now%f_grnd_pin,    c_double)
       case("tpo_dist_margin");   v2D = real(ylmo%tpo%now%dist_margin,   c_double)
       case("tpo_dist_grline");   v2D = real(ylmo%tpo%now%dist_grline,   c_double)
-      case("tpo_dHidt_dyn_n");   v2D = real(ylmo%tpo%now%dHidt_dyn_n,   c_double)
+      case("tpo_dHidt_dyn_raw_n");   v2D = real(ylmo%tpo%now%dHidt_dyn_raw_n,   c_double)
       case("tpo_H_ice_n");       v2D = real(ylmo%tpo%now%H_ice_n,       c_double)
       case("tpo_z_srf_n");       v2D = real(ylmo%tpo%now%z_srf_n,       c_double)
       case("tpo_lsf_n");         v2D = real(ylmo%tpo%now%lsf_n,         c_double)
@@ -355,7 +355,6 @@ contains
       case("tpo_f_ice_dyn");     v2D = real(ylmo%tpo%now%f_ice_dyn,     c_double)
       case("tpo_tau_relax");     v2D = real(ylmo%tpo%now%tau_relax,     c_double)
       ! integer masks cast to double
-      case("tpo_mask_adv");      v2D = real(ylmo%tpo%now%mask_adv,      c_double)
       case("tpo_mask_bed");      v2D = real(ylmo%tpo%now%mask_bed,      c_double)
       case("tpo_mask_grz");      v2D = real(ylmo%tpo%now%mask_grz,      c_double)
       case("tpo_mask_frnt");     v2D = real(ylmo%tpo%now%mask_frnt,     c_double)

@@ -448,8 +448,9 @@ contains
         now%strn2D%dxz   = 0.0
         now%strn2D%dyz   = 0.0
         now%strn2D%div   = 0.0
-        now%strn2D%de    = 0.0 
-        now%strn2D%eps_eig_1 = 0.0 
+        now%strn2D%de    = 0.0
+        now%strn2D%f_shear = 0.0
+        now%strn2D%eps_eig_1 = 0.0
         now%strn2D%eps_eig_2 = 0.0 
         
         now%strs%txx     = 0.0 
@@ -508,6 +509,7 @@ contains
         if (allocated(now%strn2D%dyz))      deallocate(now%strn2D%dyz)
         if (allocated(now%strn2D%div))      deallocate(now%strn2D%div)
         if (allocated(now%strn2D%de))       deallocate(now%strn2D%de)
+        if (allocated(now%strn2D%f_shear))  deallocate(now%strn2D%f_shear)
         if (allocated(now%strn2D%eps_eig_1)) deallocate(now%strn2D%eps_eig_1)
         if (allocated(now%strn2D%eps_eig_2)) deallocate(now%strn2D%eps_eig_2)
         
