@@ -272,7 +272,7 @@
 /
 
 &ytherm
-    method          = "temp"
+    method          = "enth"
     qb_method       = 2
     dt_method       = "FE"
     solver_advec    = "impl-upwind"

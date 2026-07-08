@@ -261,7 +261,7 @@
 /
 
 &ytherm
-    method          = "temp"            ! "fixed", "robin", "temp", "enth"
+    method          = "enth"            ! "fixed", "robin", "temp", "enth"
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
