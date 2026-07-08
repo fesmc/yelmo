@@ -1144,8 +1144,8 @@ contains
         end if 
        
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
-        do j = 1, ny 
-        do i = 1, nx-1
+        do j = 1, ny
+        do i = 1, nx
 
             im1 = max(1, i-1)
             ip1 = min(nx,i+1)
