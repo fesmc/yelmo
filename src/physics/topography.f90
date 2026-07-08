@@ -2427,7 +2427,7 @@ end if
       
     end if
     
-    if (pi < -0.01_wp .OR. phi > 1.01_wp .OR. phi /= phi) then
+    if (phi < -0.01_wp .OR. phi > 1.01_wp .OR. phi /= phi) then
       write(io_unit_err,*) 'calc_fraction_above_zero - ERROR: phi = ', phi
       write(io_unit_err,*) 'scen = ', scen
       write(io_unit_err,*) 'f = [', f_NWp, ',', f_NEp, ',', f_SWp, ',', f_SEp, ']'
