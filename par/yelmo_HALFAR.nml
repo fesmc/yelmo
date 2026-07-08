@@ -16,7 +16,9 @@
 
     ! Settings for transient EISMINT1 experiments 
     period       = 0.0                  ! [yr] for transient experiments (normally 0.0 yr or 20e3 yr)
-    dT_test      = 0.0                  ! [K]  to test an imposed constant temperature anomaly 
+    dT_test      = 0.0                  ! [K]  to test an imposed constant temperature anomaly
+
+    symmetry_check = .FALSE.            ! Symmetry regression check not applicable to HALFAR
 /
 
 &yelmo
