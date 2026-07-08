@@ -175,7 +175,7 @@ contains
             dzeta = zeta_aa(k) - zeta_aa(k-1) 
 
             ! First calculate sia factor on aa nodes for this layer
-            !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,tau_xz_n_up,tau_xz_n_dn,tau_xz_n,tau_yz_n_up,tau_yz_n_dn,tau_yz_n,tau_eff_sq_n) &
+            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,tau_xz_n_up,tau_xz_n_dn,tau_xz_n,tau_yz_n_up,tau_yz_n_dn,tau_yz_n,tau_eff_sq_n) &
             !$omp& private(ATT_n_up,ATT_n_dn,ATT_n,H_ice_n,fact_n)
             do j = 1, ny 
             do i = 1, nx 
@@ -184,11 +184,11 @@ contains
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                 
                 tau_xz_n_up = 0.5_wp*(tau_xz(i,j,k)+tau_xz(i,jp1,k))
-                tau_xz_n_dn = 0.5_wp*(tau_xz(i,j,k)+tau_xz(i,jp1,k-1))
+                tau_xz_n_dn = 0.5_wp*(tau_xz(i,j,k-1)+tau_xz(i,jp1,k-1))
                 tau_xz_n    = 0.5_wp*(tau_xz_n_up+tau_xz_n_dn)
 
                 tau_yz_n_up = 0.5_wp*(tau_yz(i,j,k)+tau_yz(ip1,j,k))
-                tau_yz_n_dn = 0.5_wp*(tau_yz(i,j,k)+tau_yz(ip1,j,k-1))
+                tau_yz_n_dn = 0.5_wp*(tau_yz(i,j,k-1)+tau_yz(ip1,j,k-1))
                 tau_yz_n    = 0.5_wp*(tau_yz_n_up+tau_yz_n_dn)
 
                 ! Calculate effective stress
