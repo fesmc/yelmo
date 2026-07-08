@@ -764,7 +764,7 @@ end if
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             ! Get the ice thickness on ab-nodes
-            call stagger_nodes_aa_ab_ice(H_ab,H_ice,f_ice_now,i,j)
+            call stagger_nodes_aa_ab_ice(H_ab,H_ice,f_ice_now,i,j,BC)
 
             ! Calculate the flux across each boundary [m^2 a^-1]
             flux_xr = ux(i,j)   * 0.5*(H_ab(1)+H_ab(4))
@@ -1120,32 +1120,32 @@ end if
     ! Routines imported from yelmo_tools as they are only used in this module now,
     ! and should eventually be replaced! ajr, 2025-07-21
 
-    subroutine stagger_nodes_aa_ab_ice(u_ab,u_aa,f_ice,i,j,check_underflow)
+    subroutine stagger_nodes_aa_ab_ice(u_ab,u_aa,f_ice,i,j,BC,check_underflow)
         ! Stagger from aca nodes to ab node for index [i,j]
 
-        implicit none 
+        implicit none
 
         real(wp), intent(OUT) :: u_ab(4)
-        real(wp), intent(IN)  :: u_aa(:,:) 
-        real(wp), intent(IN)  :: f_ice(:,:) 
-        integer,  intent(IN)  :: i 
+        real(wp), intent(IN)  :: u_aa(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        integer,  intent(IN)  :: i
         integer,  intent(IN)  :: j
+        integer,  intent(IN)  :: BC
         logical, optional :: check_underflow
 
-        ! Local variables 
-        integer  :: nx, ny 
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: wt 
+        ! Local variables
+        integer  :: nx, ny
+        integer  :: im1, jm1, ip1, jp1
+        real(wp) :: wt
 
-        nx = size(f_ice,1) 
-        ny = size(f_ice,2) 
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
 
-        ! Define neighbor indices
-        im1 = max(i-1,1)
-        ip1 = min(i+1,nx)
-        jm1 = max(j-1,1)
-        jp1 = min(j+1,ny)
-        
+        ! Define neighbor indices, wrapping consistently with the flux stencil
+        ! for periodic boundaries. For non-periodic edges (zeros/infinite) this
+        ! reduces to the same edge-clamping used previously (audit #19).
+        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
         ! Initialize to zero 
         u_ab = 0.0_wp 
 
