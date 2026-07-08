@@ -910,9 +910,7 @@ contains
         
         ! Update the mask_ice mask based on domain definition
         call ybound_define_mask_ice(dom%bnd,dom%par%domain)
-        
-        ! Define the advection mask (by default, for now allow advection everywhere)
-        dom%tpo%now%mask_adv = 1
+
 
         write(*,*) "yelmo_init:: boundary initialized (loaded masks, set ref. topography)."
         

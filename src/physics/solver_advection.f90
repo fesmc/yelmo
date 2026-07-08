@@ -1,6 +1,7 @@
 module solver_advection
     
-    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err
+    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err, &
+                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     
     use solver_linear
@@ -15,7 +16,7 @@ module solver_advection
 
 contains 
 
-    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_adv,dx,dy,dt,solver,boundaries)
+    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `var_dot`. Various solvers are possible
 
@@ -25,7 +26,7 @@ contains
         real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
         real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
-        integer,        intent(IN)    :: mask_adv(:,:)          ! Advection mask
+        integer,        intent(IN)    :: mask_ice(:,:)          ! Per-cell ice mask (bnd%mask_ice)
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
@@ -89,7 +90,7 @@ contains
                 call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
                 ! Populate advection matrices Ax=b
-                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_adv,dx,dy,dt,boundaries)
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
                 adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
@@ -327,8 +328,8 @@ contains
 
             ! Handle special cases first, otherwise populate with normal inner discretization
 
-            if (mask(i,j) .eq. 0) then 
-                ! Zero thickness imposed 
+            if (mask(i,j) .eq. MASK_ICE_NONE) then
+                ! Zero thickness imposed
 
                 k = k+1
                 lgs%a_index(k) = nr
@@ -337,14 +338,14 @@ contains
                 lgs%b_value(nr) = 0.0_wp
                 lgs%x_value(nr) = 0.0_wp
 
-            else if (mask(i,j) .eq. -1) then 
-                ! Prescribed ice thickness imposed 
+            else if (mask(i,j) .eq. MASK_ICE_FIXED) then
+                ! Prescribed ice thickness imposed
 
                 k = k+1
                 lgs%a_index(k) = nr
                 lgs%a_value(k) = 1.0_wp   ! diagonal element only
-                
-                lgs%b_value(nr) = 0.0_wp
+
+                lgs%b_value(nr) = H(i,j)
                 lgs%x_value(nr) = H(i,j)
             
             else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then

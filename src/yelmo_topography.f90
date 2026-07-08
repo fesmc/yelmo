@@ -110,11 +110,11 @@ contains
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                 tpo%now%mask_adv,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
 end if 
                     
@@ -138,10 +138,10 @@ end if
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                                tpo%now%mask_adv,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
 end if
 
@@ -791,7 +791,7 @@ end if
         ! #34 follow-up). Matches Yelmo.jl, whose Oceananigans `:bounded`
         ! BC zeros only the halo, leaving edge cells free.
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       tpo%now%mask_adv,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+                       bnd%mask_ice,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
 
         ! LSF should not affect grounded land points, i.e. points whose bed
         ! is at or above sea level. The comparison is inclusive (.ge.) so that
@@ -1480,8 +1480,6 @@ end if
         allocate(now%fmb_ref(nx,ny))
         allocate(now%dmb_ref(nx,ny))
 
-        allocate(now%mask_adv(nx,ny))
-        
         allocate(now%eps_eff(nx,ny))
         allocate(now%tau_eff(nx,ny))
         
@@ -1573,8 +1571,6 @@ end if
         now%bmb_ref     = 0.0  
         now%fmb_ref     = 0.0
         now%dmb_ref     = 0.0
-        
-        now%mask_adv    = 0
 
         now%eps_eff     = 0.0
         now%tau_eff     = 0.0
@@ -1682,9 +1678,7 @@ end if
         if (allocated(now%bmb_ref))     deallocate(now%bmb_ref)
         if (allocated(now%fmb_ref))     deallocate(now%fmb_ref)
         if (allocated(now%dmb_ref))     deallocate(now%dmb_ref)
-        
-        if (allocated(now%mask_adv))    deallocate(now%mask_adv)
-        
+
         if (allocated(now%eps_eff))     deallocate(now%eps_eff)
         if (allocated(now%tau_eff))     deallocate(now%tau_eff)
         

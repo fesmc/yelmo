@@ -64,7 +64,7 @@ contains
 
     end subroutine LSFinit
 
-    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,mask_adv,dx,dy,dt,solver,boundaries)
+    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,mask_ice,dx,dy,dt,solver,boundaries)
 
         implicit none
 
@@ -73,7 +73,7 @@ contains
         real(wp),       intent(INOUT) :: cr_acx(:,:),cr_acy(:,:) ! [m/yr] calving rate (vertical)
         real(wp),       intent(IN)    :: u_acx(:,:)              ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: v_acy(:,:)              ! [m/a] 2D velocity, y-direction (ac-nodes)
-        integer,        intent(IN)    :: mask_adv(:,:)           ! Advection mask
+        integer,        intent(IN)    :: mask_ice(:,:)           ! Advection mask
         real(wp),       intent(IN)    :: dx                      ! [m] Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                      ! [m] Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                      ! [a]   Timestep
@@ -108,7 +108,7 @@ contains
 
         ! Compute the advected LSF field
         call calc_advec2D(dlsf,lsf,mask_lsf,wx,wy,var_dot, &
-                            mask_adv,dx,dy,dt,solver,boundaries)
+                            mask_ice,dx,dy,dt,solver,boundaries)
         call apply_tendency_lsf(lsf,dlsf,dt,adjust_lsf=.FALSE.)
 
         ! Saturate to [-1, 1] as a guardrail against upwind diffusion.

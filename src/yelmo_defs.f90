@@ -258,10 +258,8 @@ module yelmo_defs
         real(wp), allocatable   :: dlsfdt(:,:)      ! LSF rate of change 
         
         real(wp), allocatable   :: z_srf(:,:)       ! Surface elevation [m]
-        real(wp), allocatable   :: dzsdt(:,:)       ! Surface elevation rate of change [m/a] 
-        
-        integer,  allocatable   :: mask_adv(:,:)    ! Advection mask 
-        
+        real(wp), allocatable   :: dzsdt(:,:)       ! Surface elevation rate of change [m/a]
+
         real(wp), allocatable   :: eps_eff(:,:)     ! Effective strain [1/yr]
         real(wp), allocatable   :: tau_eff(:,:)     ! Effective stress [Pa]
         

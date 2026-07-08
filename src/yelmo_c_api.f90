@@ -355,7 +355,6 @@ contains
       case("tpo_f_ice_dyn");     v2D = real(ylmo%tpo%now%f_ice_dyn,     c_double)
       case("tpo_tau_relax");     v2D = real(ylmo%tpo%now%tau_relax,     c_double)
       ! integer masks cast to double
-      case("tpo_mask_adv");      v2D = real(ylmo%tpo%now%mask_adv,      c_double)
       case("tpo_mask_bed");      v2D = real(ylmo%tpo%now%mask_bed,      c_double)
       case("tpo_mask_grz");      v2D = real(ylmo%tpo%now%mask_grz,      c_double)
       case("tpo_mask_frnt");     v2D = real(ylmo%tpo%now%mask_frnt,     c_double)
