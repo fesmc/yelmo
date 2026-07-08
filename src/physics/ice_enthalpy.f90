@@ -9,7 +9,7 @@ module ice_enthalpy
     !use interp1D 
 
     implicit none
-    
+
     private
     public :: calc_temp_column
     public :: calc_temp_bedrock_column
@@ -585,8 +585,9 @@ end if
         real(wp) :: dz 
         real(wp) :: omega_excess
         real(wp) :: melt_internal
-        real(wp) :: val_base, val_srf 
-        logical  :: is_basal_flux  
+        real(wp) :: val_base, val_srf
+        real(wp) :: Q_b_now, Q_lith_now
+        logical  :: is_basal_flux
 
         real(wp), allocatable :: kappa_aa(:)    ! aa-nodes
         real(wp), allocatable :: Q_strn_now(:)  ! aa-nodes
@@ -605,10 +606,14 @@ end if
         allocate(Q_strn_now(nz_aa))
         allocate(enth_pmp(nz_aa))
 
-        ! Get geothermal heat flux in proper units 
-        ! Q_geo_now = Q_geo*1e-3*sec_year   ! [mW m-2] => [J m-2 a-1]
+        ! Get basal frictional and bedrock heat fluxes in proper units.
+        ! Q_b and Q_lith arrive in [mW m-2]; convert to [J m-2 a-1], exactly as
+        ! calc_temp_column does for Q_b/Q_rock. (Previously omitted here, which
+        ! left the enthalpy base with ~zero geothermal heating in the 2D driver.)
+        Q_b_now    = Q_b    * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
+        Q_lith_now = Q_lith * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
 
-        ! Get enthalpy of the pressure melting point 
+        ! Get enthalpy of the pressure melting point
         enth_pmp = T_pmp*cp 
         
         ! Find height of CTS - highest temperate layer 
@@ -653,8 +658,8 @@ end if
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition
-                val_base = (Q_b + Q_lith) / kt(1) * cp(1)
-                is_basal_flux = .TRUE. 
+                val_base = (Q_b_now + Q_lith_now) / kt(1) * cp(1)
+                is_basal_flux = .TRUE.
                 
             else 
                 ! Temperate at bed 
@@ -724,10 +729,10 @@ end if
         end if
 
         ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
-        ! Q_b and Q_lith arrive already in [J a-1 m-2]; Q_ice_b is positive up.
+        ! Q_b_now/Q_lith_now are in [J a-1 m-2] (converted above); Q_ice_b is positive up.
         if (f_grnd .gt. 0.0_wp) then
             call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
-                                            Q_ice_b,Q_b,Q_lith,rho_ice,L_ice)
+                                            Q_ice_b,Q_b_now,Q_lith_now,rho_ice,L_ice)
         else
             bmb_grnd = 0.0_wp
         end if

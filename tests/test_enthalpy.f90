@@ -297,8 +297,8 @@ contains
                             col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                 case("enth")
-                    ! enth solver takes basal fluxes pre-converted to [J a-1 m-2]
-                    Q_lith = col%Q_rock*1e-3_wp*c%sec_year
+                    ! enth solver takes basal fluxes in [mW m-2] and converts internally
+                    Q_lith = col%Q_rock
                     call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                             col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
@@ -408,7 +408,7 @@ contains
                     cold_t%zeta_aa,cold_t%zeta_ac,cold_t%dzeta_a,cold_t%dzeta_b,omega_max,c%T0, &
                     c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
 
-            Q_lith = cold_e%Q_rock*1e-3_wp*c%sec_year
+            Q_lith = cold_e%Q_rock
             call calc_enth_column(cold_e%enth,cold_e%T_ice,cold_e%omega,cold_e%bmb,cold_e%Q_ice_b, &
                     cold_e%H_cts,cold_e%T_pmp,cold_e%cp,cold_e%kt,cold_e%advecxy,cold_e%uz,cold_e%Q_strn, &
                     cold_e%Q_b,Q_lith,cold_e%T_srf,cold_e%T_shlf,cold_e%H_ice,cold_e%W_til,cold_e%f_grnd, &
