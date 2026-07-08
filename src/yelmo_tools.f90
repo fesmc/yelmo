@@ -423,27 +423,27 @@ contains
                 jp1 = 1
             end if
 
-            k = 0 
-            ustag(i,j) = 0.0 
-            if (f_ice(i,j) .eq. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(i,j) 
+            k = 0
+            ustag(i,j) = 0.0
+            if (f_ice(i,j) .gt. 0.0) then
+                ustag(i,j) = ustag(i,j) + u(i,j)
                 k = k+1
-            end if 
+            end if
 
-            if (f_ice(ip1,j) .eq. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(ip1,j) 
-                k = k+1 
-            end if 
-            
-            if (f_ice(i,jp1) .eq. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(i,jp1) 
-                k = k+1 
-            end if 
-            
-            if (f_ice(ip1,jp1) .eq. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(ip1,jp1) 
-                k = k+1 
-            end if 
+            if (f_ice(ip1,j) .gt. 0.0) then
+                ustag(i,j) = ustag(i,j) + u(ip1,j)
+                k = k+1
+            end if
+
+            if (f_ice(i,jp1) .gt. 0.0) then
+                ustag(i,j) = ustag(i,j) + u(i,jp1)
+                k = k+1
+            end if
+
+            if (f_ice(ip1,jp1) .gt. 0.0) then
+                ustag(i,j) = ustag(i,j) + u(ip1,jp1)
+                k = k+1
+            end if
             
             if (k .gt. 0) then 
                 ustag(i,j) = ustag(i,j) / real(k,wp)
