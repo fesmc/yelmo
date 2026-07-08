@@ -2,11 +2,12 @@
 
 program yelmo_benchmarks
 
-    use nml 
-    use ncio  
-    use yelmo 
+    use nml
+    use ncio
+    use yelmo
+    use yelmo_symmetry
 
-    use deformation 
+    use deformation
 
     use ice_benchmarks 
     use mismip3D 
@@ -23,7 +24,10 @@ program yelmo_benchmarks
     character(len=256) :: file_restart
     character(len=512) :: path_par 
     character(len=56)  :: experiment
-    logical    :: with_bumps, low_z_sl 
+    logical    :: with_bumps, low_z_sl
+    logical    :: symmetry_check
+    type(sym_metrics_class) :: sym_met
+    logical    :: sym_pass
     real(wp) :: time_init, time_end, dtt, dt2D_out, dt1D_out
     real(wp) :: period, dt_test, alpha, omega, L, amp 
     real(wp) :: bumps_L, bumps_A 
@@ -69,8 +73,12 @@ program yelmo_benchmarks
     dt1D_out = dtt  ! Set 1D output to frequency of main loop timestep 
 
     ! Settings for transient EISMINT1 experiments 
-    call nml_read(path_par,"ctrl","period",       period)        ! [yr] for transient experiments 
-    call nml_read(path_par,"ctrl","dT_test",      dT_test)       ! [K] for test experiments  
+    call nml_read(path_par,"ctrl","period",       period)        ! [yr] for transient experiments
+    call nml_read(path_par,"ctrl","dT_test",      dT_test)       ! [K] for test experiments
+
+    ! Symmetry regression gate (default .FALSE.); enabled for symmetric benchmarks
+    symmetry_check = .FALSE.
+    call nml_read(path_par,"ctrl","symmetry_check", symmetry_check)  ! Run end-of-run symmetry check?
     
     ! call nml_read(path_par,"ctrl","with_bumps",with_bumps)       ! Bedrock with sin bumps?
     ! call nml_read(path_par,"ctrl","bumps_L",bumps_L)             ! [km] Length scale of bumps
@@ -502,6 +510,20 @@ end if
         ! Pass- not a bueler test... 
     end select 
 
+
+    ! == SYMMETRY REGRESSION CHECK ==========================================
+    ! For symmetric benchmark configurations (e.g. EISMINT moving/expa/expf),
+    ! verify that the final ice thickness field preserved its symmetry.
+    ! A failure turns the run into a hard regression gate (nonzero exit).
+    ! (Placed before the restart write, which can stop early on unsupported vars.)
+    if (symmetry_check) then
+        call calc_symmetry_metrics(yelmo1%tpo%now%H_ice,1.0e-3_wp,sym_met,sym_pass)
+        call report_symmetry(trim(domain)//"-"//trim(experiment),sym_met,1.0e-3_wp,sym_pass)
+        if (.not. sym_pass) then
+            write(*,*) "yelmo_benchmarks:: symmetry regression check FAILED."
+            stop 1
+        end if
+    end if
 
     ! Write a restart file too
     call yelmo_restart_write(yelmo1,file_restart,time=ts%time)

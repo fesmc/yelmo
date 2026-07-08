@@ -101,6 +101,13 @@ calving : yelmo-static
 		@echo "    yelmo_calving.x is ready."
 		@echo " "
 
+symmetry : yelmo-static
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_symmetry.x tests/test_symmetry.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_symmetry.x is ready."
+		@echo " "
+
 mismip : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_mismip.x tests/yelmo_mismip.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)

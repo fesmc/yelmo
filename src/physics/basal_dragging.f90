@@ -1658,7 +1658,7 @@ contains
         ! is scaled by u_g / u_tot, where u_g is sum of vel. for grounded segments 
         ! in cell between aa-nodes a and b, and u_tot is the sum of 
         ! all segments. Then:
-        ! beta_ac = beta_a * (1-u_g/u_tot)
+        ! beta_ac = beta_a * (u_g/u_tot)
 
         ! Following "B2" approach proposed by Gladstone et al. (2010), 
         ! Eqs. 29, 30 & 31. 
