@@ -6,9 +6,10 @@ temperature-based solver (`method="temp"`) to the enthalpy-based solver
 
 Status: **in progress** on branch `therm-dev` — Phases 0–2 complete (all 1D
 benchmarks pass); Phase 3 (2D/3D) **unblocked** — the 2D margin-column
-robustness crash is fixed (CTS diffusivity, see log); 2D EISMINT-A now runs the
-full 100 ka. Remaining Phase 3: enth-vs-temp diagnostic comparison + an
-Antarctica spin-up before the default flip.
+robustness crash is fixed (CTS diffusivity) and a geothermal-flux units bug that
+made the enthalpy base spuriously cold is fixed; enth now matches temp on
+EISMINT-2 A and F (see log). Remaining Phase 3: an Antarctica spin-up before the
+default flip.
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
@@ -104,9 +105,30 @@ All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass
   nz=201/401, cr=1e-4 (CTS 20.4 m vs analytic 19.0, within the 2 m gate — ~1.4 m
   less accurate than the choke, the accuracy/robustness trade being worth it; the
   advection-dominated Exp B is nearly insensitive to the CTS conductive flux).
-  Commit `276215c5`. **Remaining before the default flip:** quantitative
-  enth-vs-temp 2D comparison (basal temperate area, bmb, thickness) and an
-  Antarctica spin-up (Phase 3 proper).
+  Commit `276215c5`.
+
+- **P3 (EISMINT-2 A+F comparison + geothermal-flux bug FIXED):** the
+  enth-vs-temp comparison (`analysis/compare_enth_temp.jl`, EISMINT-2 A and F,
+  100 ka) first exposed a large enth cold-base bias: summit basal homologous
+  temperature enth −32.6 °C vs temp −16.0 (EISMINT-A), a near-isothermal cold
+  divide column, with a thicker dome and strongly amplified grid-aligned basal-
+  temperature spokes (T′_b azimuthal-asymmetry RMS enth 6.6 vs temp 1.4 in F).
+  **Root cause:** `calc_enth_column` used the basal/bedrock heat fluxes
+  (`Q_b`, `Q_lith`) raw in [mW m⁻²], while `calc_temp_column` converts them to
+  [J m⁻² a⁻¹] (`×1e-3·sec_year`). Both 2D-driver callers pass raw [mW m⁻²], so
+  the enthalpy base got ~3.15×10⁴× too little geothermal heat. (The Kleiner 1D
+  tests hid it: the standalone driver pre-converted `Q_lith` and used `Q_b=0`.)
+  The Péclet upwinding was ruled out first (centered advection gave the same
+  −32.6). **Fix:** convert `Q_b`/`Q_lith` inside `calc_enth_column` like the
+  temp path, and pass raw `Q_rock` from the standalone driver — unifying the
+  units contract ([mW m⁻²] in). Commit `e7cde320`. **Result:** enth now matches
+  temp on both experiments — summit T′_b −16.0 vs −16.0 (A), −29.7 vs −29.7 (F);
+  domes, volumes, melt fractions agree; the spoke asymmetry collapsed to temp's
+  level (A 0.28 vs 0.30; F 1.46 vs 1.36). enth and temp now differ from the pure-
+  SIA no-slip EISMINT reference identically (that offset is the Yelmo hybrid+
+  sliding config, not the solver). All three 1D benchmarks (T2/T3/T4) unchanged.
+  **Remaining before the default flip:** an Antarctica spin-up, enth vs temp
+  (Phase 3 proper).
 
 ---
 
