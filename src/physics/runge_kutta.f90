@@ -120,9 +120,9 @@ contains
         rk4%tau = dt*(-5.0_wp*k1/72.0_wp + k2/12.0_wp + k3/9.0_wp - k4/8.0_wp)
         !rk4%tau = (-5.0_wp*k1/72.0_wp + k2/12.0_wp + k3/9.0_wp - k4/8.0_wp)
 
-        ! Store 2nd or 3rd order solution as current solution
-        !var = y_new_2
-        var = y_new_3
+        ! Advance the solution using the 2nd-order estimate (Bogacki-Shampine)
+        var = y_new_2
+        !var = y_new_3
 
         ! Notes on error
         ! E = norm(err,Inf)                         # error estimate
