@@ -4,12 +4,15 @@ Design document for switching Yelmo's production thermodynamics from the
 temperature-based solver (`method="temp"`) to the enthalpy-based solver
 (`method="enth"`) for v2.0.
 
-Status: **in progress** on branch `therm-dev` — Phases 0–2 complete (all 1D
-benchmarks pass); Phase 3 (2D/3D) **unblocked** — the 2D margin-column
+Status: **default flipped to `enth`** on branch `therm-dev` (`input/yelmo_defaults.nml`).
+Phases 0–2 complete (all 1D benchmarks pass); Phase 3 (2D/3D): the 2D margin-column
 robustness crash is fixed (CTS diffusivity) and a geothermal-flux units bug that
 made the enthalpy base spuriously cold is fixed; enth now matches temp on
-EISMINT-2 A and F (see log). Remaining Phase 3: an Antarctica spin-up before the
-default flip.
+EISMINT-2 A and F, and horizontal advection was upgraded to a flux-limited
+2nd-order scheme (`advecxy_order`, default 2) that reduces the EISMINT spoke
+asymmetry ~23% while staying TVD/margin-safe (see log). **Post-flip validation
+still pending: a Greenland (initmip, 16 km) and an Antarctica spin-up**, enth vs
+temp, on real geometry.
 Author: thermodynamics review, 2026-07.
 
 ## Progress log
