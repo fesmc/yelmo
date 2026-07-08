@@ -1977,18 +1977,26 @@ end if
                     do j = 1, ny
                     do i = 1, nx
 
+                            ! x-direction contribution (acx-node, own mask)
                             if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
                                 tmpx = ux(i,j)-ux_prev(i,j)
-                                tmpy = uy(i,j)-uy_prev(i,j)
                                 if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res1 = res1 + tmpx*tmpx + tmpy*tmpy
+                                res1 = res1 + tmpx*tmpx
 
                                 tmpx = ux_prev(i,j)
-                                tmpy = uy_prev(i,j)
                                 if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                                res2 = res2 + tmpx*tmpx
+                            end if
+
+                            ! y-direction contribution (acy-node, own mask)
+                            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
+                                tmpy = uy(i,j)-uy_prev(i,j)
                                 if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res2 = res2 + tmpx*tmpx + tmpy*tmpy
+                                res1 = res1 + tmpy*tmpy
+
+                                tmpy = uy_prev(i,j)
+                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                                res2 = res2 + tmpy*tmpy
                             end if
                     end do
                     end do
@@ -1998,6 +2006,9 @@ end if
 
                     ! res2 = sqrt( sum((ux_prev)*(ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
                     !            + sum((uy_prev)*(uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
+
+                    res1 = sqrt(res1)
+                    res2 = sqrt(res2)
 
                     resid = res1/(res2+du_reg)
 
