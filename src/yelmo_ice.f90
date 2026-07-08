@@ -328,9 +328,15 @@ contains
 
                         case("AB-SAM")
 
-                            ! AB-SAM truncation error 
-                            call calc_pc_tau_ab_sam(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now, &
-                                                                                                dom%tpo%par%dt_zeta)
+                            if (.not. dom%time%pc_active) then
+                                ! Only FE-SBE is available (matches the FE-SBE
+                                ! fallback used for the beta coefficients above)
+                                call calc_pc_tau_fe_sbe(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now)
+                            else
+                                ! AB-SAM truncation error
+                                call calc_pc_tau_ab_sam(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now, &
+                                                                                                    dom%tpo%par%dt_zeta)
+                            end if
 
                         case("HEUN")
 
