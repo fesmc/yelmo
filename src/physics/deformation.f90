@@ -412,9 +412,9 @@ contains
 
         ! Limit T_prime to avoid under/overflows 
         T_prime = max(T_prime,220.0_wp)
-        T_prime = min(T_prime,T_pmp)
-        
-        if (T_prime <= T_prime_lim) then 
+        T_prime = min(T_prime,T0)
+
+        if (T_prime <= T_prime_lim) then
             ATT = enh * A0_1 * exp(-Q_1/(R*T_prime))
         else 
             ATT = enh * A0_2 * exp(-Q_2/(R*T_prime))
