@@ -143,13 +143,6 @@ enthalpy : yelmo-static
 		@echo "    test_enthalpy.x is ready."
 		@echo " "
 
-roots : tests/test_roots.f90
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -o $(bindir)/test_roots.x tests/test_roots.f90 \
-			$(LFLAGS)
-		@echo " "
-		@echo "    test_roots.x is ready."
-		@echo " "
-
 variables : tests/test_variables.f90
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -o $(bindir)/test_variables.x tests/test_variables.f90 \
 			$(LFLAGS)
