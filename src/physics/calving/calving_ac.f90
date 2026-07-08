@@ -53,7 +53,10 @@ contains
         integer  :: BC
 
         nx = size(eps_eff,1)
-        ny = size(eps_eff,2) 
+        ny = size(eps_eff,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,eps_eff_neighb)
         do j = 1, ny 
@@ -217,7 +220,10 @@ contains
         integer  :: BC
 
         nx = size(u_acx,1)
-        ny = size(u_acx,2) 
+        ny = size(u_acx,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,H_acx,H_acy,wv_acx,wv_acy)
         do j = 1, ny
@@ -278,7 +284,10 @@ contains
         integer  :: BC
 
         nx = size(u_acx,1)
-        ny = size(u_acx,2) 
+        ny = size(u_acx,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,tau1_acx,tau1_acy,wv_acx,wv_acy)
         do j = 1, ny
@@ -362,8 +371,8 @@ contains
 
         !$omp parallel do collapse(2) private(i,j,calv_ref,calv_now)
         do j = 1, ny
-        do i = 1, nx  
-            ! Calculate lateral calving rate 
+        do i = 1, nx
+            ! Calculate lateral calving rate
             calv_ref = max( k2*eps_eff(i,j), 0.0_wp )
 
             ! Apply calving limit
@@ -376,7 +385,7 @@ contains
         end do
         !$omp end parallel do
 
-        return 
+        return
 
     end subroutine calc_calving_rate_eigen
      
@@ -430,7 +439,10 @@ contains
                 (MAX(0.0_wp, TF - 273.15)**beta) ! is in m/yr
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,BC)        
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy)
         do j = 1, ny
             do i = 1, nx
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -632,14 +644,17 @@ contains
         integer  :: BC
 
         nx = size(u_acx,1)
-        ny = size(u_acx,2) 
+        ny = size(u_acx,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         do j = 1, ny
         do i = 1, nx
 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Stagger ice thickness into ac-nodes                        
+            ! Stagger ice thickness into ac-nodes
             if(f_ice(i,j) .gt. 0.0_wp) then
                 H_acx = 0.5*(H_ice(i,j)+H_ice(ip1,j))
                 H_acy = 0.5*(H_ice(i,j)+H_ice(i,jp1))
