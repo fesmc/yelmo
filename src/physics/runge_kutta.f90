@@ -120,9 +120,9 @@ contains
         rk4%tau = dt*(-5.0_wp*k1/72.0_wp + k2/12.0_wp + k3/9.0_wp - k4/8.0_wp)
         !rk4%tau = (-5.0_wp*k1/72.0_wp + k2/12.0_wp + k3/9.0_wp - k4/8.0_wp)
 
-        ! Store 2nd or 3rd order solution as current solution
-        !var = y_new_2
-        var = y_new_3
+        ! Advance the solution using the 2nd-order estimate (Bogacki-Shampine)
+        var = y_new_2
+        !var = y_new_3
 
         ! Notes on error
         ! E = norm(err,Inf)                         # error estimate
@@ -276,13 +276,12 @@ contains
         real(wp), parameter :: d1_nudge = 1.1e-5_wp
         real(wp), parameter :: d2_nudge = 1.0e-5_wp
 
-        h  = dt 
+        h  = dt
         d1 = dt_nm1 / h
-        d2 = dt_nm2 / h
+        d2 = (dt_nm1 + dt_nm2) / h    ! cumulative distance back to node n-2
 
         if (d1 .eq. 0.0_wp) d1 = d1_nudge
         if (d2 .eq. 0.0_wp) d2 = d2_nudge
-        if (d1 .eq. d2) d2 = d2+d2_nudge
 
         ! Equation 4.4, simplified for numerical testing 
 

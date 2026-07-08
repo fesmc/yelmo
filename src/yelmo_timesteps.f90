@@ -60,9 +60,9 @@ contains
             select case(trim(pc_method))
 
                 case("FE-SBE")
-                    
-                    ! Order of the method 
-                    pc_k = 2 
+
+                    ! Order of the method
+                    pc_k = 1
 
                     beta(1) = 1.0_wp 
                     beta(2) = 0.0_wp 
@@ -429,7 +429,7 @@ end if
         real(wp), intent(IN)  :: ux_bar(:,:)          ! [m/yr]
         real(wp), intent(IN)  :: uy_bar(:,:)          ! [m/yr]
         real(wp), intent(IN)  :: dx                   ! [m]
-        integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=2 for FE-SBE, pc_k=3 for AB-SAM)
+        integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
 
         ! Local variables
@@ -791,12 +791,15 @@ end if
 
                 dt = dt_half_lim*dtmax
 
-            else if (dt/dtmax .lt. dt_half_lim) then 
-                ! Round-off extra digits for neatness
+            else if (dt/dtmax .lt. dt_half_lim) then
+                ! Round-off extra digits for neatness.
+                ! Use a 64-bit floor to avoid integer overflow for large
+                ! dt*10^n_decimal, and clamp to at least one unit so that
+                ! rounding can never drive dt to zero.
 
-                dt = real(floor(dt*10.0_wp**n_decimal)*10.0_wp**(-n_decimal), wp)
-                
-            end if 
+                dt = real(max(1_8,floor(dt*10.0_wp**n_decimal, kind=8))*10.0_wp**(-n_decimal), wp)
+
+            end if
 
         else 
             ! dt is simply zero 
