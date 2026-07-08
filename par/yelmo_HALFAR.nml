@@ -163,6 +163,7 @@
     ssa_iter_conv       = 1e-2            ! [--] L2 relative error convergence limit to exit ssa iterations
     taud_lim            = 1e6             ! [Pa] Maximum allowed driving stress 
     cb_sia              = 0.0             ! [m a-1 Pa-1] Bed roughness coefficient for SIA sliding
+    neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
     
 /
 
@@ -252,6 +253,7 @@
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
+    advecxy_order   = 2                 ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
     gamma           = 1.0               ! [K] Scalar for the pressure melting point decay function 
     use_strain_sia  = False             ! True: calculate strain heating from SIA approx.
     use_const_cp    = True              ! Use specified constant value of heat capacity?
@@ -260,6 +262,7 @@
     const_kt        = 6.62e7            ! [J a-1 m-1 K-1] Thermal conductivity [W m-1 K-1 * sec_year] => [J a-1 m-1 K-1]
     enth_cr         = 1e-2              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
     omega_max       = 0.02              ! [--] Maximum allowed water content fraction 
+    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
 
     rock_method     = "equil"           ! "equil" (not active bedrock) or "active"
     nzr_aa          = 5                 ! Number of vertical points in bedrock 

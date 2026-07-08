@@ -248,6 +248,7 @@
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
+    advecxy_order   = 2                 ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
     gamma           = 1.0               ! [K] Scalar for the pressure melting point decay function 
     use_strain_sia  = False             ! True: calculate strain heating from SIA approx.
     use_const_cp    = True              ! Use specified constant value of heat capacity?
@@ -256,6 +257,7 @@
     const_kt        = 6.62e7            ! [J a-1 m-1 K-1] Thermal conductivity [W m-1 K-1 * sec_year] => [J a-1 m-1 K-1]
     enth_cr         = 1e-3              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
+    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock) or "active"

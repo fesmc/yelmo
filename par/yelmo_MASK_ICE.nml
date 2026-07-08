@@ -276,6 +276,7 @@
     qb_method       = 2
     dt_method       = "FE"
     solver_advec    = "impl-upwind"
+    advecxy_order   = 2
     gamma           = 1.0
     use_strain_sia  = False
     use_const_cp    = True
@@ -284,6 +285,7 @@
     const_kt        = 6.62e7
     enth_cr         = 1e-3
     omega_max       = 0.01
+    enth_cp_method  = "integral"
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"
