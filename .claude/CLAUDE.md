@@ -10,8 +10,14 @@ ln -s /Users/alrobi001/models/ice_data ice_data
 ln -s /Users/alrobi001/models/fesm-utils fesm-utils
 ln -s /Users/alrobi001/models/fasthydrology FastHydrology
 runme --config                              # creates .runme_config from .runme/runme_config
-python config.py config/macbook_gfortran   # or whichever host config applies
+configme config yelmo -m macbook -c gfortran  # generates Makefiles (yelmo + fesm-utils + FastHydrology), auto-detects netCDF
 ```
+
+`configme` is the current build-config tool: it regenerates the Makefiles for
+all present packages and auto-detects the netCDF paths (`nf-config`/`nc-config`),
+so no `NC_FROOT`/`NC_CROOT` env vars are required. The old
+`python config.py config/legacy/<host>` path is legacy — it relies on
+`NC_FROOT`/`NC_CROOT` being exported in `.zshrc` and only configures yelmo.
 
 After that, `make <target>` and `runme ...` work the same as in the main tree.
 `runme` is installed system-wide via pip (`pip install git+https://github.com/fesmc/runme`), not a local script.
