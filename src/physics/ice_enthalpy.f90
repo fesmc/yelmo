@@ -594,6 +594,7 @@ end if
         real(wp), allocatable :: enth_pmp(:)    ! aa-nodes
         
         real(wp), parameter   :: enth_ref = 273.15_wp * 2009.0_wp    ! [K] * [J kg-1 K-1]
+        real(wp), parameter   :: T_min_lim = 200.00_wp   ! [K] Cold-side floor (matches calc_temp_column)
 
         ! Basal heat-flux discretization for Q_ice_b:
         !   .FALSE. => temperature gradient kt*dT/dz  (default, matches calc_temp_column)
@@ -683,11 +684,20 @@ end if
         ! This should come out of routine, but it helps ensure stability to check it here
         if (enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
         
-        ! Get temperature and water content 
+        ! Get temperature and water content
         call convert_from_enthalpy_column(enth,T_ice,omega,T_pmp,cp,L_ice)
 
-        ! Set internal melt to zero 
-        melt_internal = 0.0 
+        ! Clamp unphysical cold excursions to a floor, mirroring the
+        ! T_min_lim guard in calc_temp_column. Without it the enth solver has
+        ! no cold-side bound (only the warm side is capped, via omega_max
+        ! below), so a large horizontal-advection excursion at a thin margin
+        ! drives enth arbitrarily negative and the column rings to NaN
+        ! (the initmip-grl-16km 2D failure). enth is made consistent with the
+        ! clamped T_ice by the convert_to_enthalpy call at the end.
+        where (T_ice(:) .lt. T_min_lim) T_ice(:) = T_min_lim
+
+        ! Set internal melt to zero
+        melt_internal = 0.0
 
         do k = nz_aa-1, 2, -1 
             ! Descend from surface to base layer (center of layer)

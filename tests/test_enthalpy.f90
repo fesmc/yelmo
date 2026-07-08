@@ -78,9 +78,17 @@ program test_enthalpy
         case("kleiner-b")
             if (trim(solver) .eq. "") solver = "enth"
             call run_experiment(c,"kleiner-b",trim(solver),nz,cr_arg)
+        case("thin-margin")
+            ! Reproduce the initmip-grl-16km 2D failure in a single column:
+            ! a thin polythermal margin column (temperate/melting base, cold
+            ! surface) is where the enth solver rings while the temp solver is
+            ! stable. The driver sweeps thickness x horizontal-advection
+            ! amplitude for both solvers to localize the defect. cr_arg (4th
+            ! arg, >=0) overrides the enth conductivity ratio.
+            call run_thin_margin(c,nz,cr_arg)
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
-            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b"
+            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b, thin-margin"
             stop 1
     end select
 
@@ -433,6 +441,154 @@ contains
         write(*,*) ""
         return
     end subroutine compare_cold_limit
+
+    subroutine setup_thin_column(col,c,H_ice)
+        ! Build a thin polythermal margin column: cold surface, geothermal +
+        ! shear heat driving a temperate/melting base, uniform downward
+        ! advection. Mirrors the H~90 m grounded-margin cells that kill the
+        ! 2D enth solver on initmip-grl-16km (temp stays stable there).
+        type(column_class),       intent(INOUT) :: col
+        type(ybound_const_class), intent(IN)    :: c
+        real(wp),                 intent(IN)    :: H_ice
+        integer :: k, nz, nz_ac
+        real(wp), allocatable :: zeta_aa(:), zeta_ac(:)
+        real(wp) :: z, T_lin
+
+        nz = col%nz_aa
+        call calc_zeta(zeta_aa,zeta_ac,nz_ac,nz,zeta_scale="linear",zeta_exp=1.0_wp)
+        col%zeta_aa = zeta_aa
+        col%zeta_ac = zeta_ac
+        call calc_dzeta_terms(col%dzeta_a,col%dzeta_b,col%zeta_aa,col%zeta_ac)
+
+        col%H_ice   = H_ice
+        col%f_grnd  = 1.0_wp
+        col%W_til   = 0.0_wp
+        col%bmb     = 0.0_wp
+        col%Q_ice_b = 0.0_wp
+        col%H_cts   = 0.0_wp
+        col%cp      = 2009.0_wp
+        col%kt      = 2.1_wp * c%sec_year
+        col%T_srf   = c%T0 - 6.0_wp              ! cold surface (~ real margin cell)
+        col%smb     = 0.23_wp
+        col%Q_rock  = 60.0_wp                    ! [mW m-2] geothermal, melts base
+        col%Q_b     = 40.0_wp                    ! [mW m-2] basal shear heat (sliding margin)
+
+        ! Uniform downward advection (real cell: uz ~ -0.23 m a-1 at all levels)
+        col%uz      = -0.23_wp
+        col%advecxy = 0.0_wp                     ! horizontal term applied by caller
+
+        ! Pressure melting point profile
+        do k = 1, nz
+            col%T_pmp(k) = calc_T_pmp(col%H_ice,col%zeta_aa(k),c%T0,c%T_pmp_beta,c%rho_ice,c%g)
+        end do
+
+        ! Modest interior strain heat (shear-margin scale), concentrated at base
+        do k = 1, nz
+            col%Q_strn(k) = 2.0e-2_wp * (1.0_wp-col%zeta_aa(k))**2   ! [J kg-1 a-1]
+        end do
+
+        ! Initial profile: linear from a temperate base to the cold surface
+        do k = 1, nz
+            z            = col%zeta_aa(k)
+            T_lin        = col%T_pmp(1)*(1.0_wp-z) + col%T_srf*z
+            col%T_ice(k) = min(T_lin,col%T_pmp(k))
+        end do
+        col%omega   = 0.0_wp
+        col%T_shlf  = col%T_pmp(1)
+        call convert_to_enthalpy(col%enth,col%T_ice,col%omega,col%T_pmp,col%cp,c%L_ice)
+
+        return
+    end subroutine setup_thin_column
+
+    subroutine run_thin_margin(c,nz,cr_override)
+        ! Sweep column thickness x horizontal-advection amplitude for both
+        ! solvers, reporting the peak |T_ice| reached (a blow-up diagnostic).
+        ! A stable column stays near the pmp/surface range (~250-273 K); a
+        ! ringing column runs to thousands of K or NaN.
+        type(ybound_const_class), intent(IN) :: c
+        integer,                  intent(IN) :: nz
+        real(wp),                 intent(IN) :: cr_override
+
+        type(column_class) :: col
+        integer, parameter :: nH = 8, nA = 3
+        real(wp) :: Hs(nH), amps(nA)
+        real(wp) :: enth_cr, omega_max, Q_lith, dt, time, time_end, tmax
+        integer  :: ih, ia, isolv, k
+        character(len=4) :: solv
+        character(len=8) :: status
+
+        Hs   = [400.0_wp,250.0_wp,150.0_wp,100.0_wp,87.0_wp,70.0_wp,55.0_wp,40.0_wp]
+        amps = [0.0_wp, 5.0e3_wp, 3.0e4_wp]     ! horizontal enth advection [J kg-1 a-1]
+
+        omega_max = 0.01_wp
+        time_end  = 2000.0_wp
+        dt        = 1.0_wp
+
+        col%nz_aa = nz
+        col%nz_ac = nz+1
+        allocate(col%zeta_aa(nz),col%dzeta_a(nz),col%dzeta_b(nz),col%zeta_ac(nz+1))
+        allocate(col%enth(nz),col%T_ice(nz),col%omega(nz),col%T_pmp(nz))
+        allocate(col%cp(nz),col%kt(nz),col%advecxy(nz),col%Q_strn(nz),col%uz(nz+1))
+
+        write(*,*) ""
+        write(*,*) "=== thin-margin stability sweep (peak |T_ice| over 2 ka) ==="
+        write(*,*) "  advecxy [J/kg/a]:   0        5e3       3e4     (per solver)"
+        write(*,*) "  H [m] | solver |  peak|T| K  status | peak|T| K  status | peak|T| K  status"
+
+        do ih = 1, nH
+        do isolv = 1, 2
+            if (isolv .eq. 1) then
+                solv = "temp"; enth_cr = 1.0_wp
+            else
+                solv = "enth"; enth_cr = 1.0e-3_wp
+                if (cr_override .ge. 0.0_wp) enth_cr = cr_override
+            end if
+            write(*,"(a,f6.1,a,a4,a)",advance="no") "  ",Hs(ih)," | ",solv," | "
+            do ia = 1, nA
+                call setup_thin_column(col,c,Hs(ih))
+                col%advecxy = amps(ia)
+                time = 0.0_wp
+                tmax = 0.0_wp
+                do while (time .lt. time_end - 1e-6_wp)
+                    if (solv .eq. "temp") then
+                        call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    else
+                        Q_lith = col%Q_rock
+                        call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                    end if
+                    do k = 1, nz
+                        if (col%T_ice(k) .eq. col%T_ice(k)) tmax = max(tmax,abs(col%T_ice(k)))
+                    end do
+                    if (tmax .gt. 1.0e6_wp) exit
+                    do k = 1, nz
+                        if (col%T_ice(k) .ne. col%T_ice(k)) tmax = 1.0e30_wp
+                    end do
+                    if (tmax .ge. 1.0e30_wp) exit
+                    time = time + dt
+                end do
+                if (tmax .ge. 1.0e30_wp) then
+                    status = "NaN "
+                else if (tmax .gt. 1.0e3_wp) then
+                    status = "BLOWUP"
+                else
+                    status = "ok  "
+                end if
+                write(*,"(a,es10.2,1x,a6,a)",advance="no") " ",tmax,status," |"
+            end do
+            write(*,*) ""
+        end do
+        end do
+        write(*,*) ""
+        return
+    end subroutine run_thin_margin
 
     subroutine write_init(col,filename)
         type(column_class), intent(IN) :: col
