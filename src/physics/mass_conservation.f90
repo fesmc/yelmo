@@ -165,6 +165,7 @@ contains
                 call minmax(mb_dot_now,mb_limit)
                 if (.not. is_equal(mb_dot_now,mb_dot(i,j),TOL)) then
                     n_lim = n_lim+1
+                    ! Note: no abs() on mb_dot is intentional — only positive (accumulation) tendencies are tracked here.
                     if (mb_dot(i,j) .gt. abs(mb_max)) then
                         mb_max = mb_dot(i,j)
                     end if
