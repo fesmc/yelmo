@@ -175,7 +175,7 @@ contains
             dzeta = zeta_aa(k) - zeta_aa(k-1) 
 
             ! First calculate sia factor on aa nodes for this layer
-            !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,tau_xz_n_up,tau_xz_n_dn,tau_xz_n,tau_yz_n_up,tau_yz_n_dn,tau_yz_n,tau_eff_sq_n) &
+            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,tau_xz_n_up,tau_xz_n_dn,tau_xz_n,tau_yz_n_up,tau_yz_n_dn,tau_yz_n,tau_eff_sq_n) &
             !$omp& private(ATT_n_up,ATT_n_dn,ATT_n,H_ice_n,fact_n)
             do j = 1, ny 
             do i = 1, nx 
