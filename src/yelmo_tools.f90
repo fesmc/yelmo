@@ -1195,17 +1195,17 @@ end if
 
             case("periodic","periodic-xy") 
 
-                var(1:2,:)     = var(nx-3:nx-2,:) 
-                var(nx-1:nx,:) = var(2:3,:) 
+                var(1:2,:)     = var(nx-3:nx-2,:)
+                var(nx-1:nx,:) = var(3:4,:)
 
-                var(:,1:2)     = var(:,ny-3:ny-2) 
-                var(:,ny-1:ny) = var(:,2:3) 
-            
-            case("periodic-x") 
+                var(:,1:2)     = var(:,ny-3:ny-2)
+                var(:,ny-1:ny) = var(:,3:4)
 
-                ! Periodic x 
-                var(1:2,:)     = var(nx-3:nx-2,:) 
-                var(nx-1:nx,:) = var(2:3,:) 
+            case("periodic-x")
+
+                ! Periodic x
+                var(1:2,:)     = var(nx-3:nx-2,:)
+                var(nx-1:nx,:) = var(3:4,:)
                 
                 ! Infinite (free-slip too)
                 var(:,1)  = var(:,2)
