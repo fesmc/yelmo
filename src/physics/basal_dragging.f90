@@ -504,8 +504,8 @@ contains
 
             case("infinite","mask")
 
-                beta(1,:)  = beta(nx-1,:)
-                beta(nx,:) = beta(2,:)
+                beta(1,:)  = beta(2,:)
+                beta(nx,:) = beta(nx-1,:)
                 beta(:,1)  = beta(:,2)
                 beta(:,ny) = beta(:,ny-1)
 
