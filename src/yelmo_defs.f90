@@ -661,8 +661,10 @@ module yelmo_defs
         real(wp)            :: const_cp 
         logical             :: use_const_kt 
         real(wp)            :: const_kt 
-        real(wp)            :: enth_cr  
+        real(wp)            :: enth_cr
         real(wp)            :: omega_max
+        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
+        logical             :: enth_integral    ! derived: enth_cp_method == "integral"
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
         ! component as par%bucket%till_rate and par%W_til_max.

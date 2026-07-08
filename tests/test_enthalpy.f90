@@ -21,7 +21,7 @@ program test_enthalpy
     use yelmo_defs,     only : wp, prec, ybound_const_class
     use ncio
     use yelmo_grid,     only : calc_zeta
-    use thermodynamics, only : convert_to_enthalpy, calc_T_pmp, cp_ref, &
+    use thermodynamics, only : convert_to_enthalpy, convert_to_enthalpy_ice, calc_T_pmp, cp_ref, &
                                calc_specific_heat_capacity, calc_thermal_conductivity
     use ice_enthalpy,   only : calc_temp_column, calc_enth_column, calc_dzeta_terms
 
@@ -483,8 +483,9 @@ contains
         integer, parameter :: nQ = 6
         real(wp) :: Qs(nQ)
         real(wp) :: enth_cr, omega_max, Q_lith, dt, time, time_end
-        real(wp) :: Tb_t, Tb_e, Tb_r
+        real(wp) :: Tb_t, Tb_e, Tb_ea2, Tb_r
         integer  :: iq, isolv, k
+        logical  :: use_int2
         character(len=4) :: solv
         real(wp), parameter :: H_ice = 2000.0_wp, T_srf = 273.15_wp-25.0_wp, smb = 0.3_wp
 
@@ -501,18 +502,23 @@ contains
         write(*,*) ""
         write(*,*) "=== Robin ground-truth: basal T (deg C) at steady state ==="
         write(*,*) "  H=2000 m, T_srf=-25 C, smb=0.3 m/a, no horiz advec, no friction"
-        write(*,*) "  Q_geo | temp base | enth base | Robin base | temp-Robin  enth-Robin"
+        write(*,*) "  variable cp/kt each step. enth-A1=const cp_ref, enth-A2=integral cp(T)."
+        write(*,*) "  Q_geo |  temp   | enth-A1 | enth-A2 |  Robin  | (A1-Rob) (A2-Rob) (A2-temp)"
 
         do iq = 1, nQ
             Tb_r = robin_Tbase(c,H_ice,T_srf,smb,Qs(iq)) - c%T0
-            do isolv = 1, 2
+            do isolv = 1, 3
+                use_int2 = .false.
                 if (isolv .eq. 1) then
                     solv = "temp"; enth_cr = 1.0_wp
                 else
                     solv = "enth"; enth_cr = 1.0e-3_wp
                     if (cr_override .ge. 0.0_wp) enth_cr = cr_override
+                    use_int2 = (isolv .eq. 3)          ! isolv=3: A2 integral enthalpy
                 end if
                 call setup_robin_column(col,c,H_ice,T_srf,smb,Qs(iq))
+                ! Initialize enth in the form the solver expects (A1 const or A2 integral)
+                call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,use_int2)
                 time = 0.0_wp
                 do while (time .lt. time_end - 1e-6_wp)
                     ! Recompute T-dependent cp and kt each step, exactly as the
@@ -531,16 +537,19 @@ contains
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
-                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                                c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=use_int2)
                     end if
                     ! basal water bookkeeping (as in run_experiment)
                     col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
                     time = time + dt
                 end do
-                if (isolv .eq. 1) then; Tb_t = col%T_ice(1)-c%T0; else; Tb_e = col%T_ice(1)-c%T0; end if
+                if (isolv .eq. 1) then; Tb_t = col%T_ice(1)-c%T0
+                else if (isolv .eq. 2) then; Tb_e = col%T_ice(1)-c%T0
+                else; Tb_ea2 = col%T_ice(1)-c%T0; end if
             end do
-            write(*,"(a,f5.1,a,f9.3,a,f9.3,a,f9.3,a,f9.3,3x,f9.3)") &
-                "  ",Qs(iq)," | ",Tb_t," | ",Tb_e," | ",Tb_r," | ",Tb_t-Tb_r,Tb_e-Tb_r
+            write(*,"(a,f5.1,4(a,f8.3),3(a,f8.3))") &
+                "  ",Qs(iq)," | ",Tb_t," | ",Tb_e," | ",Tb_ea2," | ",Tb_r, &
+                " | ",Tb_e-Tb_r,"  ",Tb_ea2-Tb_r,"  ",Tb_ea2-Tb_t
         end do
         write(*,*) ""
 

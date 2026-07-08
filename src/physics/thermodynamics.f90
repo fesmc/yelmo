@@ -26,6 +26,15 @@ module thermodynamics
     ! temperature solver to machine precision.
     real(wp), parameter, public :: cp_ref = 2009.0_wp    ! [J kg-1 K-1]
 
+    ! Temperature-dependent ice heat capacity cp(T) = cp_a + cp_b*T
+    ! (Greve & Blatter 2009, Eq. 4.39; Ritz 1987). Used by the integral
+    ! enthalpy option (A2): E(T) = int_0^T cp dT' = cp_a*T + cp_b/2*T^2, whose
+    ! inverse and derivative (= cp(T)) let the enth solver reproduce the
+    ! T-dependent-cp temperature solver exactly. The default enthalpy option
+    ! (A1) instead uses the constant cp_ref above.
+    real(wp), parameter, public :: cp_a = 146.3_wp       ! [J kg-1 K-1]
+    real(wp), parameter, public :: cp_b = 7.253_wp       ! [J kg-1 K-2]
+
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
@@ -54,6 +63,10 @@ module thermodynamics
 
     public :: convert_to_enthalpy
     public :: convert_from_enthalpy_column
+    public :: convert_to_enthalpy_ice
+    public :: convert_from_enthalpy_ice
+    public :: enth_int_from_temp
+    public :: temp_from_enth_int
 
 contains
 
@@ -957,11 +970,31 @@ contains
         real(wp) :: cp 
 
         ! Specific heat capacity (Greve and Blatter, 2009, Eq. 4.39; Ritz, 1987)
-        cp = (146.3 +7.253*T_ice)    ! [J kg-1 K-1]
+        cp = cp_a + cp_b*T_ice    ! [J kg-1 K-1]
 
-        return 
+        return
 
     end function calc_specific_heat_capacity
+
+    elemental function enth_int_from_temp(T_ice) result(enth)
+        ! Integral (A2) cold-ice enthalpy E(T) = int_0^T cp(T') dT'
+        ! with cp(T)=cp_a+cp_b*T, so dE/dT = cp(T) exactly and grad(E) = cp*grad(T).
+        implicit none
+        real(wp), intent(IN) :: T_ice
+        real(wp) :: enth
+        enth = cp_a*T_ice + 0.5_wp*cp_b*T_ice*T_ice    ! [J kg-1]
+        return
+    end function enth_int_from_temp
+
+    elemental function temp_from_enth_int(enth) result(T_ice)
+        ! Inverse of enth_int_from_temp: solve (cp_b/2)T^2 + cp_a*T - E = 0
+        ! for the physical (positive) root.
+        implicit none
+        real(wp), intent(IN) :: enth
+        real(wp) :: T_ice
+        T_ice = (-cp_a + sqrt(cp_a*cp_a + 2.0_wp*cp_b*enth)) / cp_b    ! [K]
+        return
+    end function temp_from_enth_int
 
     elemental function calc_thermal_conductivity(T_ice,sec_year) result(ct)
 
@@ -1111,27 +1144,32 @@ contains
 
     end function calc_T_base_shlf_approx
     
-    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g)
+    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral)
         ! Define a linear vertical temperature profile
-       
+
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy
         real(wp), intent(OUT) :: T_ice(:,:,:)         ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)         ! [--] Water content
         real(wp), intent(IN)  :: cp(:,:,:)            ! Heat capacity
         real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: T_srf(:,:) 
+        real(wp), intent(IN)  :: T_srf(:,:)
         real(wp), intent(IN)  :: zeta_aa(:)
-        real(wp), intent(IN)  :: T0 
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: L_ice 
-        real(wp), intent(IN)  :: T_pmp_beta 
+        real(wp), intent(IN)  :: T0
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: L_ice
+        real(wp), intent(IN)  :: T_pmp_beta
         real(wp), intent(IN)  :: g
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
 
         ! Local variables
-        integer :: i, j, k, nx, ny, nz_aa   
-        real(wp) :: T_base, T_pmp  
+        integer :: i, j, k, nx, ny, nz_aa
+        real(wp) :: T_base, T_pmp
+        logical  :: use_int
+
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
 
         nx    = size(T_ice,1)
         ny    = size(T_ice,2)
@@ -1155,13 +1193,13 @@ contains
             ! Assume zero water content 
             omega = 0.0_wp 
 
-            ! Calculate enthalpy too (constant cp_ref, consistent with the enth solver)
-            call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
-        
-        end do 
-        end do  
-        
-        return 
+            ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+            call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+
+        end do
+        end do
+
+        return
 
     end subroutine define_temp_linear_3D
 
@@ -1192,11 +1230,11 @@ contains
     end function define_temp_linear_column
 
     subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
-                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold)
-        ! Robin solution for thermodynamics for a given column of ice 
-        ! Note zeta=height, k=1 base, k=nz surface 
+                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral)
+        ! Robin solution for thermodynamics for a given column of ice
+        ! Note zeta=height, k=1 base, k=nz surface
 
-        implicit none 
+        implicit none
 
         real(wp), intent(OUT) :: enth(:,:,:)      ! [J m-3] Enthalpy 
         real(wp), intent(OUT) :: T_ice(:,:,:)     ! [K] Temperature
@@ -1215,11 +1253,13 @@ contains
         real(wp), intent(IN)  :: rho_ice 
         real(wp), intent(IN)  :: L_ice 
         real(wp), intent(IN)  :: sec_year
-        logical,    intent(IN)  :: cold             ! False: robin as normal, True: ensure cold base 
+        logical,    intent(IN)  :: cold             ! False: robin as normal, True: ensure cold base
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
 
         ! Local variable
-        integer :: i, j, k, nx, ny, nz_aa  
-        logical :: is_float 
+        integer :: i, j, k, nx, ny, nz_aa
+        logical :: is_float
+        logical :: use_int
         
         real(wp), allocatable :: T1(:) 
 
@@ -1227,10 +1267,13 @@ contains
         ny    = size(T_ice,2)
         nz_aa = size(zeta_aa)
 
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
+
         allocate(T1(nz_aa))
 
         do j = 1, ny
-        do i = 1, nx 
+        do i = 1, nx
 
             is_float = (f_grnd(i,j) .eq. 0.0)
 
@@ -1256,10 +1299,10 @@ contains
         ! Assume zero water content
         omega = 0.0_wp
 
-        ! Calculate enthalpy too (constant cp_ref, consistent with the enth solver)
-        call convert_to_enthalpy(enth,T_ice,omega,T_pmp,cp_ref,L_ice)
+        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
 
-        return 
+        return
 
     end subroutine define_temp_robin_3D
 
@@ -1604,5 +1647,64 @@ contains
         return 
 
     end subroutine convert_from_enthalpy_column
-    
+
+    elemental subroutine convert_to_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
+        ! Ice enthalpy from (temp,omega). Selects the enthalpy definition:
+        !   integral=.FALSE. (A1): cold enth = cp_ref*temp   (constant cp)
+        !   integral=.TRUE.  (A2): cold enth = int_0^T cp dT  (T-dependent cp)
+        ! Temperate ice (omega>0, temp=T_pmp): enth = enth_pmp + omega*L.
+        implicit none
+        real(wp), intent(OUT) :: enth
+        real(wp), intent(IN)  :: temp, omega, T_pmp, L
+        logical,  intent(IN)  :: integral
+        real(wp) :: e_cold, e_pmp
+        if (integral) then
+            e_cold = enth_int_from_temp(temp)
+            e_pmp  = enth_int_from_temp(T_pmp)
+        else
+            e_cold = cp_ref*temp
+            e_pmp  = cp_ref*T_pmp
+        end if
+        enth = (1.0_wp-omega)*e_cold + omega*(e_pmp + L)
+        return
+    end subroutine convert_to_enthalpy_ice
+
+    subroutine convert_from_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
+        ! Inverse of convert_to_enthalpy_ice for a column (mirrors
+        ! convert_from_enthalpy_column, with the A1/A2 enthalpy definition).
+        implicit none
+        real(wp), intent(INOUT) :: enth(:)
+        real(wp), intent(OUT)   :: temp(:)
+        real(wp), intent(OUT)   :: omega(:)
+        real(wp), intent(IN)    :: T_pmp(:)
+        real(wp), intent(IN)    :: L
+        logical,  intent(IN)    :: integral
+        integer  :: k, nz_aa
+        real(wp) :: e_pmp
+
+        nz_aa = size(enth,1)
+
+        ! Column interior and basal layer
+        do k = 1, nz_aa-1
+            if (integral) then; e_pmp = enth_int_from_temp(T_pmp(k)); else; e_pmp = cp_ref*T_pmp(k); end if
+            if (enth(k) .gt. e_pmp) then
+                ! Temperate ice
+                temp(k)  = T_pmp(k)
+                omega(k) = (enth(k) - e_pmp) / L
+            else
+                ! Cold ice
+                if (integral) then; temp(k) = temp_from_enth_int(enth(k)); else; temp(k) = enth(k)/cp_ref; end if
+                omega(k) = 0.0_wp
+            end if
+        end do
+
+        ! Surface layer: clamp any temperate surface back to the pmp enthalpy
+        if (integral) then; e_pmp = enth_int_from_temp(T_pmp(nz_aa)); else; e_pmp = cp_ref*T_pmp(nz_aa); end if
+        if (enth(nz_aa) .ge. e_pmp) enth(nz_aa) = e_pmp
+        if (integral) then; temp(nz_aa) = temp_from_enth_int(enth(nz_aa)); else; temp(nz_aa) = enth(nz_aa)/cp_ref; end if
+        omega(nz_aa) = 0.0_wp
+
+        return
+    end subroutine convert_from_enthalpy_ice
+
 end module thermodynamics
