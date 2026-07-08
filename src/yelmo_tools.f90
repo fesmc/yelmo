@@ -1667,16 +1667,20 @@ end if
         ! Calculate default 2D Gaussian smoothing kernel
         filter0 = gauss_values(dx,dx,sigma=sigma,n=n)
 
-        var_old = 0.0 
-        var_old(n2+1:n2+nx,n2+1:n2+ny) = var 
-        var_old(1:n2,n2+1:n2+ny)       = var(n2:1:-1,:)
-        var_old(nx+1:nx+n2,n2+1:n2+ny) = var((nx-n2+1):nx,:)
-        var_old(n2+1:n2+nx,1:n2)       = var(:,n2:1:-1)
-        var_old(n2+1:n2+nx,ny+1:ny+n2) = var(:,(ny-n2+1):ny)
-        var_old(1:n2,n2+1:n2+ny)       = var(n2:1:-1,:)
-        var_old(nx+1:nx+n2,n2+1:n2+ny) = var((nx-n2+1):nx,:)
-        var_old(n2+1:n2+nx,1:n2)       = var(:,n2:1:-1)
-        var_old(n2+1:n2+nx,ny+1:ny+n2) = var(:,(ny-n2+1):ny)
+        var_old = 0.0
+        var_old(n2+1:n2+nx,n2+1:n2+ny) = var
+
+        ! Fill edge halos by mirror reflection about each border
+        var_old(1:n2,n2+1:n2+ny)            = var(n2:1:-1,:)
+        var_old(n2+nx+1:nx+2*n2,n2+1:n2+ny) = var(nx:nx-n2+1:-1,:)
+        var_old(n2+1:n2+nx,1:n2)            = var(:,n2:1:-1)
+        var_old(n2+1:n2+nx,n2+ny+1:ny+2*n2) = var(:,ny:ny-n2+1:-1)
+
+        ! Fill corner halos by double mirror reflection
+        var_old(1:n2,1:n2)                       = var(n2:1:-1,n2:1:-1)
+        var_old(n2+nx+1:nx+2*n2,1:n2)            = var(nx:nx-n2+1:-1,n2:1:-1)
+        var_old(1:n2,n2+ny+1:ny+2*n2)            = var(n2:1:-1,ny:ny-n2+1:-1)
+        var_old(n2+nx+1:nx+2*n2,n2+ny+1:ny+2*n2) = var(nx:nx-n2+1:-1,ny:ny-n2+1:-1)
         
         !$omp parallel do collapse(2) private(i,j,filter)
         do j = n2+1, n2+ny 
