@@ -753,7 +753,7 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
                     if (jm1 .gt. 1) then
                         jm2 = jm1-1
-                        if (f_ice(i,jm1) .eq. 1.0) then 
+                        if (f_ice(i,jm2) .eq. 1.0) then
                             jvel%dyy(i,j,k) = (1.0*uy(i,jm2,k)-4.0*uy(i,jm1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,j,k)-uy(i,jm1,k))/dy
@@ -768,9 +768,11 @@ end if
                             jvel%dyy(i,j,k) = -(1.0*uy(i,jp2,k)-4.0*uy(i,jp1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,j,k))/dy
-                        end if 
+                        end if
+                    else
+                        jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,j,k))/dy
                     end if
-                end if 
+                end if
 
                 ! Note: do not treat special cases for cross derivatives like dxy or dyx. 
                 ! It is too complicated to check neighbors in this case, and multiple
