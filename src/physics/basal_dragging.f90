@@ -1712,8 +1712,10 @@ contains
             ! Add to total 
             uu_tot = uu_tot + q_now 
 
-            ! If in grounded region, add to grounded total 
-            if (lambda .lt. f_grnd_ac) then 
+            ! If in grounded region, add to grounded total
+            ! (grounded node 'a' is at lambda=1, so the grounded fraction
+            !  f_grnd_ac of the cell adjoins the lambda=1 end)
+            if (lambda .gt. (1.0_wp - f_grnd_ac)) then
                 uu_grnd = uu_grnd + q_now 
             end if 
 
