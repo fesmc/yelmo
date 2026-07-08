@@ -1790,6 +1790,7 @@ end if
         if (allocated(pc%smb))          deallocate(pc%smb)
         if (allocated(pc%bmb))          deallocate(pc%bmb)
         if (allocated(pc%fmb))          deallocate(pc%fmb)
+        if (allocated(pc%dmb))          deallocate(pc%dmb)
         if (allocated(pc%cmb))          deallocate(pc%cmb)
         if (allocated(pc%cmb_flt))      deallocate(pc%cmb_flt)
         if (allocated(pc%cmb_grnd))     deallocate(pc%cmb_grnd)
