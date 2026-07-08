@@ -369,21 +369,10 @@ contains
 
         mb_calv = 0.0_wp
 
-        !$omp parallel do collapse(2) private(i,j,calv_ref,calv_now)
-        do j = 1, ny
-        do i = 1, nx
-            ! Calculate lateral calving rate
-            calv_ref = max( k2*eps_eff(i,j), 0.0_wp )
-
-            ! Apply calving limit
-            calv_now = min(calv_now,calv_lim)
-
-            ! Get calving mass balance rate
-            mb_calv(i,j) = -calv_now
-
-        end do
-        end do
-        !$omp end parallel do
+        ! NOTE: Eigen calving (Levermann et al., 2012) is not fully implemented here.
+        ! The lateral calving rate (calv_ref) is computed but never used, and calv_now
+        ! was previously applied uninitialized. Fail loudly rather than return garbage.
+        error stop "calc_calving_rate_eigen: Eigen calving is not implemented"
 
         return
 
