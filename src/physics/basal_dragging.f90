@@ -983,7 +983,7 @@ contains
                 uxyn      = sqrt(uxn**2 + uyn**2 + ub_sq_min)
 
                 ! Calculate basal friction
-                betan     = c_bed(i,j) * (uxyn / u_0)**q * (1.0_wp / uxyn)
+                betan     = cbn * (uxyn / u_0)**q * (1.0_wp / uxyn)
                 beta(i,j) = sum(betan*gq2D%wt)/gq2D%wt_tot
             else
                 ! Assign minimum velocity value, no staggering for simplicity
