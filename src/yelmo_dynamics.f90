@@ -22,8 +22,6 @@ module yelmo_dynamics
     ! use velocity_ssa_aa
     ! use solver_ssa_aa
 
-    use velocity_l1l2 
-
     use velocity_diva
     ! use velocity_diva_ab 
     ! use solver_ssa_ab
@@ -191,13 +189,8 @@ contains
                     ! Depth-integrated variational approximation (DIVA) - Goldberg (2011); Lipscomb et al. (2019)
 
                     call calc_ydyn_diva(dyn,tpo,mat,thrm,bnd)
-                
-                case("l1l2","l1l2-noslip")
-                    ! L1L2 solver
 
-                    call calc_ydyn_l1l2(dyn,tpo,mat,thrm,bnd)
-                
-                case DEFAULT 
+                case DEFAULT
 
                     write(*,*) "calc_ydyn:: Error: ydyn solver not recognized." 
                     write(*,*) "solver should be one of: ['fixed','hybrid','diva']"
@@ -559,94 +552,6 @@ contains
 
     end subroutine calc_ydyn_diva
 
-    subroutine calc_ydyn_l1l2(dyn,tpo,mat,thrm,bnd)
-        ! Velocity is a steady-state solution to a given set of boundary conditions (topo, material, etc)
-
-        implicit none
-        
-        type(ydyn_class),   intent(INOUT) :: dyn
-        type(ytopo_class),  intent(IN)    :: tpo 
-        type(ymat_class),   intent(IN)    :: mat
-        type(ytherm_class), intent(IN)    :: thrm 
-        type(ybound_class), intent(IN)    :: bnd   
-
-        ! Local variables
-        integer :: iter, n_iter
-        integer :: i, j, k, nx, ny, nz_aa, nz_ac   
-        logical :: no_slip 
-
-        type(l1l2_param_class) :: l1l2_par 
-
-        ! For vertical velocity calculation 
-        real(wp), allocatable :: bmb(:,:)
-
-        ! Determine whether basal sliding is allowed 
-        if (trim(dyn%par%solver) .eq. "l1l2-noslip") then 
-            no_slip = .TRUE. 
-        else 
-            no_slip = .FALSE. 
-        end if 
-        
-        nx    = dyn%par%nx 
-        ny    = dyn%par%ny 
-        nz_aa = dyn%par%nz_aa 
-        nz_ac = dyn%par%nz_ac 
-        
-        allocate(bmb(nx,ny))
-        
-        ! ===== Calculate 3D horizontal velocity solution via DIVA algorithm ===================
-
-        ! Define grid points with ssa active (uses beta from previous timestep)
-        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice,tpo%now%f_ice, &
-                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc)
-
-        ! Set diva parameters from Yelmo settings
-        ! Note: L1L2 always uses the residual SSA assembler for now (energy form is SSA-only).
-        l1l2_par%ssa_lis_opt    = dyn%par%ssa_lis_opt_residual
-        l1l2_par%ssa_lateral_bc = dyn%par%ssa_lat_bc
-        l1l2_par%boundaries     = dyn%par%boundaries 
-        l1l2_par%no_slip        = no_slip 
-        l1l2_par%visc_method    = dyn%par%visc_method 
-        l1l2_par%visc_const     = dyn%par%visc_const 
-        l1l2_par%beta_method    = dyn%par%beta_method 
-        l1l2_par%beta_const     = dyn%par%beta_const 
-        l1l2_par%beta_q         = dyn%par%beta_q 
-        l1l2_par%beta_u0        = dyn%par%beta_u0 
-        l1l2_par%beta_gl_scale  = dyn%par%beta_gl_scale 
-        l1l2_par%beta_gl_stag   = dyn%par%beta_gl_stag 
-        l1l2_par%beta_gl_f      = dyn%par%beta_gl_f 
-        l1l2_par%H_grnd_lim     = dyn%par%H_grnd_lim 
-        l1l2_par%beta_min       = dyn%par%beta_min 
-        l1l2_par%eps_0          = dyn%par%eps_0 
-        l1l2_par%ssa_vel_max    = dyn%par%ssa_vel_max 
-        l1l2_par%ssa_iter_max   = dyn%par%ssa_iter_max 
-        l1l2_par%ssa_iter_rel   = dyn%par%ssa_iter_rel 
-        l1l2_par%ssa_iter_conv  = dyn%par%ssa_iter_conv 
-        l1l2_par%ssa_write_log  = yelmo_log
-
-        l1l2_par%rho_ice        = bnd%c%rho_ice 
-        l1l2_par%rho_sw         = bnd%c%rho_sw 
-        l1l2_par%g              = bnd%c%g 
-            
-        call calc_velocity_l1l2(dyn%now%ux,dyn%now%uy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                dyn%now%ux_b,dyn%now%uy_b,dyn%now%ux_i,dyn%now%uy_i, &
-                                dyn%now%taub_acx,dyn%now%taub_acy,dyn%now%beta,dyn%now%beta_acx, &
-                                dyn%now%beta_acy,dyn%now%visc_eff,dyn%now%visc_eff_int, &
-                                dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,dyn%now%ssa_err_acx, &
-                                dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%now%c_bed, &
-                                dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
-                                tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd, &
-                                tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%mask_frnt,mat%now%ATT, &
-                                dyn%par%zeta_aa,dyn%par%zeta_ac,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,l1l2_par)
-        
-        ! Integrate from 3D shear velocity field to get depth-averaged field
-        dyn%now%ux_i_bar = calc_vertical_integrated_2D(dyn%now%ux_i,dyn%par%zeta_aa)
-        dyn%now%uy_i_bar = calc_vertical_integrated_2D(dyn%now%uy_i,dyn%par%zeta_aa)
-        
-        return
-
-    end subroutine calc_ydyn_l1l2
-
 !     subroutine calc_ydyn_ssa(dyn,tpo,thrm,mat,bnd)
 !         ! Calculate the ssa solution via a linearized Picard iteration
 !         ! over beta, visc and velocity
@@ -998,7 +903,7 @@ contains
 
         ! === Validate parameter values ======
         call yelmo_check_enum(group_ydyn,"solver",     par%solver,     &
-                              "fixed|sia|ssa|hybrid|diva|diva-noslip|l1l2|l1l2-noslip")
+                              "fixed|sia|ssa|hybrid|diva|diva-noslip")
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
         call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none|slab|slab-ext")
 
