@@ -1,4 +1,5 @@
 &ctrl    
+    symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
     time_init       = 0.0               ! [yr] Starting time 
     time_end        = 50e3              ! [yr] Ending time
     time_equil      = 0.0               ! [yr] Equilibration time 

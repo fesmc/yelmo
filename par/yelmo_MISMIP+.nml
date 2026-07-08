@@ -1,4 +1,5 @@
 &ctrl
+    symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
 
     domain       = "MISMIP+"            ! "TROUGH-F17", "MISMIP+"
     
