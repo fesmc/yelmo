@@ -361,10 +361,10 @@ contains
         ! Apply boundary conditions as needed 
         if (trim(boundaries) .eq. "periodic") then
 
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:) 
-            visc_eff_int(nx-1,:) = visc_eff_int(2,:) 
+            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
+            visc_eff_int(nx,:)   = visc_eff_int(2,:)
             visc_eff_int(:,1)    = visc_eff_int(:,ny-1)
-            visc_eff_int(:,ny)   = visc_eff_int(:,2) 
+            visc_eff_int(:,ny)   = visc_eff_int(:,2)
 
         else if (trim(boundaries) .eq. "periodic-x") then 
             
