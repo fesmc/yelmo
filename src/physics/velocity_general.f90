@@ -1218,12 +1218,8 @@ end if
                         ! Get the driving stress
                         taud_old = taud_acx(i,j) 
                         taud_acx(i,j) = rhog * H_gl * dzsdx
-                        
-                        if (j .eq. 6) then 
-                            write(*,"(a,i3,12g12.3)") "taud: ", i, f_grnd_acx(i,j), taud_old, taud_acx(i,j)
-                        end if 
 
-                    end if 
+                    end if
 
                 end do 
                 end do 
@@ -1282,12 +1278,8 @@ end if
                         ! Get the driving stress
                         taud_old = taud_acx(i,j) 
                         taud_acx(i,j) = rhog * H_gl * dzsdx
-                        
-                        if (j .eq. 6) then 
-                            write(*,"(a,i3,12g12.3)") "taud: ", i, f_grnd_acx(i,j), taud_old, taud_acx(i,j)
-                        end if 
 
-                    end if 
+                    end if
 
                 end do 
                 end do 
