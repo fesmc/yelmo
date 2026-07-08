@@ -60,9 +60,9 @@ contains
             select case(trim(pc_method))
 
                 case("FE-SBE")
-                    
-                    ! Order of the method 
-                    pc_k = 2 
+
+                    ! Order of the method
+                    pc_k = 1
 
                     beta(1) = 1.0_wp 
                     beta(2) = 0.0_wp 
@@ -429,7 +429,7 @@ end if
         real(wp), intent(IN)  :: ux_bar(:,:)          ! [m/yr]
         real(wp), intent(IN)  :: uy_bar(:,:)          ! [m/yr]
         real(wp), intent(IN)  :: dx                   ! [m]
-        integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=2 for FE-SBE, pc_k=3 for AB-SAM)
+        integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
 
         ! Local variables
