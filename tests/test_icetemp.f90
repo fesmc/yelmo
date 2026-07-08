@@ -4,11 +4,12 @@ program test_icetemp
     use ncio  
     
     use yelmo_defs
-    use thermodynamics 
-    use ice_enthalpy  
+    use yelmo_boundaries, only : ybound_define_physical_constants
+    use thermodynamics
+    use ice_enthalpy
     use ice_tracer
 
-    use interp1D 
+    use interp1D
 
     implicit none 
 
@@ -68,10 +69,13 @@ program test_icetemp
 
     ! Define different icesheet objects for use in proram
     type(icesheet) :: ice1
-    type(icesheet) :: robin 
-    type(icesheet) :: diff 
-    
-    character(len=56)  :: rock_method   
+    type(icesheet) :: diff
+
+    ! Physical constants, loaded from yelmo_phys_const.nml into the derived-type
+    ! struct `c`. The host-associated aliases below let the rest of the program
+    ! (and the contained init routines) keep using bare constant names.
+    type(ybound_const_class) :: c
+    real(prec) :: T0, sec_year, rho_ice, rho_w, rho_rock, L_ice, g, T_pmp_beta
 
     ! Local variables
     real(prec)         :: t_start, t_end, dt, time  
@@ -93,34 +97,41 @@ program test_icetemp
     character(len=12)  :: enth_solver  
     real(prec)         :: enth_cr
     real(prec)         :: omega_max 
-    character(len=56)  :: experiment 
+    character(len=56)  :: experiment
 
-    character(len=56)  :: rock_method_default 
+    real(prec)         :: T0_ref
 
-    real(prec)         :: T0_ref 
-
-    integer            :: narg 
+    integer            :: narg
     character(len=12)  :: arg_nz, arg_cr
+    character(len=56)  :: arg_str
+    real(prec)         :: arg_smb, arg_qgeo
     character(len=32)  :: nz_str, nzr_str, cr_str, prec_str 
     character(len=32)  :: H_rock_str 
 
     integer :: iter, n_iter 
 
-    ! General initialization of yelmo constants (used globally)
-    call yelmo_global_init("par/yelmo_const_EISMINT.nml")
-    
-    ! ===============================================================
-    ! User options 
+    ! Load physical constants (EISMINT group) into `c` and set host aliases
+    call ybound_define_physical_constants(c,"EISMINT","EISMINT","none")
+    T0         = c%T0
+    sec_year   = c%sec_year
+    rho_ice    = c%rho_ice
+    rho_w      = c%rho_w
+    rho_rock   = c%rho_rock
+    L_ice      = c%L_ice
+    g          = c%g
+    T_pmp_beta = c%T_pmp_beta
 
-    experiment     = "r21a"         ! "eismint", "k15expa", "k15expb", "bg15a"
-    
+    ! ===============================================================
+    ! User options
+
+    experiment     = "r21a"         ! "eismint","k15expa","k15expb","bg15a","ics"
+
     ! General options
     nz              = 22            ! [--] Number of ice sheet points (aa-nodes + base + surface)
     zeta_scale      = "exp"         ! "linear", "exp", "tanh"
-    is_celcius      = .FALSE. 
+    is_celcius      = .FALSE.
 
-    rock_method     = "active"      ! "equil" or "active" bedrock 
-    nzr             = 5 
+    nzr             = 5
     zeta_scale_rock = "exp-inv" 
     H_rock          = 5000.0         ! [m] Bedrock thickness 
 
@@ -139,18 +150,46 @@ program test_icetemp
         read(arg_nz,*)  nz
     end if 
 
-    if (narg .gt. 1) then 
+    if (narg .gt. 1) then
         call get_command_argument(2,arg_cr)
         read(arg_cr,*)  enth_cr
-    end if 
+    end if
+
+    ! Optional: select solver ("temp"/"enth") and experiment from arguments
+    if (narg .gt. 2) then
+        call get_command_argument(3,arg_str)
+        read(arg_str,*) enth_solver
+    end if
+
+    if (narg .gt. 3) then
+        call get_command_argument(4,arg_str)
+        experiment = trim(adjustl(arg_str))
+    end if
+
+    ! Optional (ics bench): override accumulation [m/a] and geothermal flux
+    ! [mW/m2] to sweep the Peclet number and gamma. Negative => use defaults.
+    arg_smb  = -1.0
+    arg_qgeo = -1.0
+    if (narg .gt. 4) then
+        call get_command_argument(5,arg_str)
+        read(arg_str,*) arg_smb
+    end if
+    if (narg .gt. 5) then
+        call get_command_argument(6,arg_str)
+        read(arg_str,*) arg_qgeo
+    end if
 
     ! ===============================================================
 
     T0_ref = T0 
     if (is_celcius) T0_ref = 0.0 
 
-    ! Initialize icesheet object 
-    call icesheet_allocate(ice1,nz,nzr,zeta_scale,zeta_scale_rock) 
+    ! Analytic bench uses a uniform vertical grid so the Yelmo nodes coincide
+    ! with the IceColumnSolutions grid (clean convergence-order measurement)
+    if (trim(experiment) .eq. "ics") zeta_scale = "linear"
+
+    ! Initialize icesheet object
+    call icesheet_allocate(ice1,nz,nzr,zeta_scale,zeta_scale_rock)
 
     select case(trim(experiment))
 
@@ -205,8 +244,32 @@ program test_icetemp
             !call init_eismint_summit(ice1,smb=0.5_prec,H_rock=H_rock)
 
             call init_r21a(ice1,smb,T_srf,H_ice,H_rock)
-                
-        case DEFAULT 
+
+        case("ics")
+            ! IceColumnSolutions.jl analytic bench: constant properties, linear
+            ! vertical velocity, no strain heating, cold column. Steady-state
+            ! T(zeta) is refereed against the exact advection-diffusion solution.
+
+            t_start = 0.0       ! [yr]
+            t_end   = 1e6       ! [yr] >> diffusion time so the steady state is
+                                !      reached even for the pure-diffusion (Pe=0) limit
+            dt      = 20.0      ! [yr] (implicit solver: large dt is stable)
+            dt_out  = 1e5       ! [yr]
+
+            T_pmp_beta = 0.0    ! [K Pa^-1] no pressure-melting dependence
+
+            H_ice      = 2000.0 ! [m]
+            smb        = 0.1    ! [m/yr] surface accumulation (sets Peclet number)
+            T_srf      = -30.0  ! [degC] surface temperature (kept cold)
+            ice1%Q_geo = 42.0   ! [mW/m2] geothermal flux (sets gamma) [overridable]
+
+            ! Optional sweep overrides (args 5,6)
+            if (arg_smb  .ge. 0.0) smb        = arg_smb
+            if (arg_qgeo .ge. 0.0) ice1%Q_geo = arg_qgeo
+
+            call init_ics(ice1,smb,T_srf,H_ice,ice1%Q_geo)
+
+        case DEFAULT
             ! EISMINT 
 
             t_start = 0.0       ! [yr]
@@ -244,17 +307,18 @@ program test_icetemp
     write(file1D,*) "output/test_"//trim(experiment)//"_nz",trim(nz_str),   &
                                         "_cr",trim(cr_str),"_",trim(prec_str),".nc"
     
-    ! Specify r21a output filename here 
-    if (trim(experiment) .eq. "r21a") then 
+    ! Specify r21a output filename here
+    if (trim(experiment) .eq. "r21a") then
 
-        if (trim(rock_method) .eq. "equil") then 
-            write(file1D,*) "output/test_"//trim(experiment)//"_nz",trim(nz_str),".nc"
-        else 
-            write(file1D,*) "output/test_"//trim(experiment)//"_nz",trim(nz_str),   &
-                                        "_nzr",trim(nzr_str),"_Hr",trim(H_rock_str),".nc"
-        end if 
+        write(file1D,*) "output/test_"//trim(experiment)//"_nz",trim(nz_str),   &
+                                    "_nzr",trim(nzr_str),"_Hr",trim(H_rock_str),".nc"
 
-    end if 
+    end if
+
+    ! Analytic-bench filename: encode solver and nz for the Julia referee
+    if (trim(experiment) .eq. "ics") then
+        write(file1D,*) "output/test_ics_"//trim(enth_solver)//"_nz",trim(nz_str),".nc"
+    end if
 
     ! Initialize time and calculate number of time steps to iterate and 
     time = t_start 
@@ -264,15 +328,7 @@ program test_icetemp
     ice1%age_method     = age_method 
     ice1%age_impl_kappa = age_impl_kappa
 
-    ! Calculate the robin solution for comparison 
-    robin = ice1  
-    robin%vec%T_ice = calc_temp_robin_column(robin%z%zeta,robin%vec%T_pmp,robin%vec%kt,robin%vec%cp,rho_ice, &
-                                       robin%H_ice,robin%T_srf,robin%smb,robin%Q_geo,is_float=robin%f_grnd.eq.0.0)
-
-    ! Calculate initial enthalpy (robin)
-    call convert_to_enthalpy(robin%vec%enth,robin%vec%T_ice,robin%vec%omega,robin%vec%T_pmp,robin%vec%cp,L_ice)
-
-    ! Ensure zero basal water thickness to start 
+    ! Ensure zero basal water thickness to start
     ice1%H_w = 0.0 
 
     ! Assume H_cts is also zero to start
@@ -283,28 +339,20 @@ program test_icetemp
                                                 zeta_r=ice1%zr%zeta,time_init=time)
     call write_step(ice1,ice1%vec,filename=file1D,time=time)
 
-    rock_method_default = rock_method 
-
     ! Loop over time steps and perform thermodynamic calculations
     do n = 1, ntot 
 
         ! Get current time 
         time = t_start + n*dt 
 
-        if (trim(experiment) .eq. "r21a") then 
-
-            if (time .le. 50e3) then 
-                rock_method = "equil"
-            else 
-                rock_method = rock_method_default
-            end if 
+        if (trim(experiment) .eq. "r21a") then
 
             if (time .le. 100e3) then
                 ice1%T_srf = T_srf + T0
-            else 
-                ice1%T_srf = T_srf + T0 + T_anom 
-            end if 
-        end if 
+            else
+                ice1%T_srf = T_srf + T0 + T_anom
+            end if
+        end if
 
         if (trim(experiment) .eq. "k15expa") then 
             if (time .le. 100e3) then 
@@ -346,14 +394,15 @@ program test_icetemp
 
                 call calc_temp_column(ice1%vec%enth,ice1%vec%T_ice,ice1%vec%omega,ice1%bmb,ice1%Q_ice_b,ice1%H_cts,ice1%vec%T_pmp, &
                         ice1%vec%cp,ice1%vec%kt,ice1%vec%advecxy,ice1%vec%uz,ice1%vec%Q_strn,ice1%Q_b,ice1%Q_rock,ice1%T_srf,ice1%T_shlf, &
-                        ice1%H_ice,ice1%H_w,ice1%f_grnd,ice1%z%zeta,ice1%z%zeta_ac,ice1%z%dzeta_a,ice1%z%dzeta_b,omega_max,T0_ref,dt)
+                        ice1%H_ice,ice1%H_w,ice1%f_grnd,ice1%z%zeta,ice1%z%zeta_ac,ice1%z%dzeta_a,ice1%z%dzeta_b, &
+                        omega_max,T0_ref,rho_ice,rho_w,L_ice,sec_year,dt)
 
             case("enth")
 
                 call calc_enth_column(ice1%vec%enth,ice1%vec%T_ice,ice1%vec%omega,ice1%bmb,ice1%Q_ice_b,ice1%H_cts,ice1%vec%T_pmp, &
                         ice1%vec%cp,ice1%vec%kt,ice1%vec%advecxy,ice1%vec%uz,ice1%vec%Q_strn,ice1%Q_b,ice1%Q_geo,ice1%T_srf,ice1%T_shlf, &
                         ice1%H_ice,ice1%H_w,ice1%f_grnd,ice1%z%zeta,ice1%z%zeta_ac,ice1%z%dzeta_a,ice1%z%dzeta_b, &
-                        enth_cr,omega_max,T0_ref,dt)
+                        enth_cr,omega_max,T0_ref,rho_ice,rho_w,L_ice,sec_year,dt)
 
             case DEFAULT 
 
@@ -361,28 +410,16 @@ program test_icetemp
 
         end select 
 
-        select case(trim(rock_method))
-
-            case("equil")
-
-                ! Define temperature profile in bedrock too 
-                call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                        ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
-
-                call convert_to_enthalpy(ice1%vec%enth_rock,ice1%vec%T_rock,0.0_wp,1e8_wp,ice1%cp_rock,0.0_wp)
-
-
-            case("active")
-
-                call calc_temp_column_bedrock(ice1%vec%enth_rock,ice1%vec%T_rock,ice1%Q_rock, &
-                            ice1%cp_rock,ice1%kt_rock,ice1%Q_ice_b,ice1%Q_geo,ice1%vec%T_ice(1),ice1%H_rock, &
-                            ice1%zr%zeta,ice1%zr%zeta_ac,ice1%zr%dzeta_a,ice1%zr%dzeta_b,dt)
-
-            case DEFAULT 
-
-                write(*,*) "rock method not recognized: ", trim(rock_method)
-
-        end select 
+        if (trim(experiment) .eq. "ics") then
+            ! Prescribe the geothermal flux directly at the ice base to match the
+            ! analytic column BC (dtheta/dxi = gamma); no bedrock column is solved.
+            ice1%Q_rock = ice1%Q_geo
+        else
+            ! Prognostic (active) bedrock column; supplies Q_rock to the ice base
+            call calc_temp_bedrock_column(ice1%vec%enth_rock,ice1%vec%T_rock,ice1%Q_rock, &
+                        ice1%cp_rock,ice1%kt_rock,ice1%Q_ice_b,ice1%Q_geo,ice1%vec%T_ice(1),ice1%H_rock, &
+                        ice1%zr%zeta,ice1%zr%zeta_ac,ice1%zr%dzeta_a,ice1%zr%dzeta_b,rho_rock,sec_year,dt)
+        end if
 
         ! Update basal water thickness [m/a i.e.] => [m/a w.e.]
         ice1%H_w = max(ice1%H_w - (ice1%bmb*rho_ice/rho_w)*dt, 0.0_prec)
@@ -395,9 +432,9 @@ program test_icetemp
             call calc_tracer_column_expl(ice1%vec%t_dep,ice1%vec%uz,ice1%vec%advecxy*0.0,time,ice1%bmb,ice1%H_ice,ice1%z%zeta,ice1%z%zeta_ac,dt)
         end if 
 
-        if (mod(time,dt_out)==0) then 
-            call write_step(ice1,ice1%vec,filename=file1D,time=time,T_robin=robin%vec%T_ice)
-        end if 
+        if (mod(time,dt_out)==0) then
+            call write_step(ice1,ice1%vec,filename=file1D,time=time)
+        end if
 
         if (mod(time,50.0)==0) then
             write(*,"(a,f14.4)") "time = ", time
@@ -454,7 +491,7 @@ contains
         ice%vec%advecxy = 0.0       ! [] No horizontal advection 
 
         ! Calculate pressure melting point 
-        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta) 
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
 
         if (is_celcius) then 
             ice%T_srf     = ice%T_srf     - T0
@@ -479,9 +516,8 @@ contains
         ! Calculate initial enthalpy (ice1)
         call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
         
-        ! Define temperature profile in bedrock too 
-        call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                    ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
 
         call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
@@ -524,7 +560,7 @@ contains
         ice%vec%advecxy = 0.0           ! [] No horizontal advection 
 
         ! Calculate pressure melting point 
-        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta) 
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
 
         if (is_celcius) then 
             ice%T_srf     = ice%T_srf     - T0
@@ -548,9 +584,8 @@ contains
         ! Calculate initial enthalpy (ice1)
         call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
         
-        ! Define temperature profile in bedrock too 
-        call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                    ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
 
         call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
@@ -622,7 +657,7 @@ contains
         !end do 
 
         ! Calculate pressure melting point 
-        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta) 
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
 
         if (is_celcius) then 
             ice%T_srf     = ice%T_srf     - T0
@@ -646,9 +681,8 @@ contains
         ! Calculate initial enthalpy (ice1)
         call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
         
-        ! Define temperature profile in bedrock too 
-        call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                    ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
 
         call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
@@ -715,7 +749,7 @@ contains
 !         end do 
 
         ! Calculate pressure melting point 
-        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta) 
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
 
         if (is_celcius) then 
             ice%T_srf     = ice%T_srf     - T0
@@ -739,9 +773,8 @@ contains
         ! Calculate initial enthalpy (ice1)
         call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
         
-        ! Define temperature profile in bedrock too 
-        call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                    ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
 
         call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
@@ -817,7 +850,7 @@ contains
         !end do 
 
         ! Calculate pressure melting point 
-        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta) 
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
 
         if (is_celcius) then 
             ice%T_srf     = ice%T_srf     - T0
@@ -842,16 +875,89 @@ contains
         ! Calculate initial enthalpy (ice1)
         call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
         
-        ! Define temperature profile in bedrock too 
-        call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%kt_rock,rho_rock, &
-                                    ice1%H_rock,ice1%vec%T_ice(1),ice1%Q_geo,ice1%zr%zeta)
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
 
         call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
     end subroutine init_r21a
-    
+
+    subroutine init_ics(ice,smb,T_srf,H_ice,Q_geo)
+        ! IceColumnSolutions.jl analytic bench.
+        ! Constant material properties, linear vertical velocity uz=-smb*zeta,
+        ! no strain heating, cold column, geothermal flux prescribed at the base.
+        ! Steady-state T(zeta) is refereed against the exact advection-diffusion
+        ! solution (Moreno-Parada et al., 2024).
+
+        implicit none
+
+        type(icesheet), intent(INOUT) :: ice
+        real(prec),     intent(IN)    :: smb
+        real(prec),     intent(IN)    :: T_srf   ! [degrees Celcius]
+        real(prec),     intent(IN)    :: H_ice
+        real(prec),     intent(IN)    :: Q_geo   ! [mW m-2]
+
+        ! Local variables
+        integer :: k, nz
+
+        nz = size(ice%z%zeta)
+
+        ! Assign point values
+        ice%T_srf    = T_srf + T0       ! [K]
+        ice%T_shlf   = T0               ! [K] not used in this setup
+        ice%smb      = smb              ! [m/a]
+        ice%bmb      = 0.0              ! [m/a]
+        ice%Q_geo    = Q_geo            ! [mW/m2] geothermal flux (sets gamma)
+        ice%H_ice    = H_ice            ! [m]
+        ice%H_w      = 0.0              ! [m] no basal water
+        ice%Q_b      = 0.0              ! no basal frictional heating
+        ice%f_grnd   = 1.0              ! grounded point
+
+        ice%cp_rock  = 1000.0           ! [J kg-1 K-1] (bedrock unused: base flux prescribed)
+        ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
+        ice%H_rock   = 5000.0           ! [m]
+        ice%Q_rock   = ice%Q_geo        ! prescribe geothermal flux at the ice base
+
+        ! Constant material properties (EISMINT1 values)
+        ice%vec%cp      = 2009.0        ! [J kg-1 K-1]
+        ice%vec%kt      = 6.6269e7      ! [J a-1 m-1 K-1] == 2.1 W m-1 K-1
+
+        ice%vec%Q_strn  = 0.0           ! no internal strain heating
+        ice%vec%advecxy = 0.0           ! no horizontal advection
+
+        ! Pressure melting point (T_pmp_beta=0 => constant T0)
+        ice%vec%T_pmp = calc_T_pmp(ice%H_ice,ice%z%zeta,T0,T_pmp_beta,rho_ice,g)
+
+        if (is_celcius) then
+            ice%T_srf     = ice%T_srf     - T0
+            ice%T_shlf    = ice%T_shlf    - T0
+            ice%vec%T_pmp = ice%vec%T_pmp - T0
+        end if
+
+        ! Initial temperature profile: linear from surface to base
+        ice%vec%T_ice(nz) = ice%T_srf
+        ice%vec%T_ice(1)  = ice%T_srf
+        do k = 2, nz-1
+            ice%vec%T_ice(k) = ice%vec%T_ice(1)+ice%z%zeta(k)*(ice%vec%T_ice(nz)-ice%vec%T_ice(1))
+        end do
+
+        ! Linear vertical velocity profile (required to match the analytic
+        ! advection term Pe*xi*dtheta/dxi)
+        ice%vec%uz = -ice%smb*ice%z%zeta_ac
+
+        ! Initial enthalpy
+        call convert_to_enthalpy(ice%vec%enth,ice%vec%T_ice,ice%vec%omega,ice%vec%T_pmp,ice%vec%cp,L_ice)
+
+        ! Initialize bedrock column uniformly at the ice-base temperature
+        ice%vec%T_rock = ice%vec%T_ice(1)
+        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
+
+        return
+
+    end subroutine init_ics
+
     subroutine icesheet_allocate(ice,nz,nzr,zeta_scale,zeta_scale_rock)
         ! Allocate the ice sheet object 
 

@@ -1,0 +1,4 @@
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+IceColumnSolutions = "0ea515b4-5d8c-4262-8c88-cbce37f5e8a3"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"

@@ -92,3 +92,48 @@ Committed and stable: cold-floor clamp, A1 (`cp_ref`), A2 (`enth_cp_method`,
 default `integral`), `dzsdt`→`uz` fix, `analysis/compare_grl.jl`. enth ≈ temp to
 0.46 K RMS on initmip-grl. This residual is the subject of the investigation
 above and does **not** block using the enth solver.
+
+## Session update (2026-07-08): IceColumnSolutions.jl bench (plan step 1)
+
+Step 1 of the plan is implemented and the constant-property regime is validated.
+
+- **Harness.** The standalone column driver `tests/test_icetemp.f90` was
+  resurrected against the current API (constants moved into `ybound_const_class`;
+  new `calc_temp_column`/`calc_enth_column`/`calc_T_pmp`/bedrock signatures;
+  dropped the removed `calc_temp_robin_column` and active-bedrock
+  `calc_temp_column_bedrock`). A new `"ics"` experiment was added: constant
+  cp/kt, linear vertical velocity, no strain heating, cold column, geothermal
+  flux prescribed at the base, uniform ζ grid. It is driven via CLI args
+  (`nz cr solver experiment [smb] [Qgeo]`).
+- **Referee.** `analysis/compare_column_analytic.jl` orchestrates the harness and
+  compares the steady T(ζ) to `IceColumnSolutions.solve_stationary`, over an nz
+  refinement sweep and a (Pe, γ) grid. Env in `analysis/Project.toml`
+  (devs IceColumnSolutions).
+- **Result.** Both solvers reproduce the exact advection–diffusion solution to
+  **0.003–0.06 K RMS** across Pe ∈ [0, 22], γ from Q_geo ∈ {15,30,45} mW m⁻².
+  **temp ≈ enth everywhere** (differences ~1–2 %), confirming they agree at
+  constant properties against a far broader exact solution than the hand-rolled
+  Robin. In the pure-diffusion limit (Pe=0) enth is ~2× less accurate than temp
+  (e.g. 6.0e-3 vs 2.8e-3 K at Q_geo=30) — a faint but consistent signal.
+- **Convergence order could NOT be measured.** Yelmo is built single precision
+  (`wp = sp`); the error floors at the sp round-off level (~0.05–0.1 K), so RMS is
+  flat vs nz (order ≈ 0.0–0.3) across the whole sweep. Measuring the true order
+  needs a double-precision toolchain.
+- **Why dp is not a quick flip.** Setting `wp = dp` cascades into the *external*
+  `fesm-utils` library (shared by all models): its public routines are locked to
+  `wp = sp`, so a dp Yelmo hits interface type mismatches. `fesm-utils/src/subgrid.f90`
+  was made precision-generic (generic interface → `_dp` worker + `_sp` wrapper;
+  committed/pushed on `fesm-utils:dev`), but `gaussian_quadrature`, `derivatives`,
+  `distances`, … need the same treatment (dozens of routines). The cheaper route
+  for a future dp bench is to build a separate dp `fesm-utils` variant and link
+  Yelmo's dp build against it, rather than genericizing every routine.
+- **IceColumnSolutions gotcha (filed).** Its `w0` sign convention is inverted vs
+  its docstring: accumulation is `Pe > 0` (real-`erf` branch); the documented
+  "negative = downward" lands on an ill-conditioned imaginary-`erf` path and
+  gives unphysical results. The referee therefore maps `w0 = +smb`. See
+  fesmc/IceColumnSolutions.jl#6 (proposes adopting negative = downward, matching
+  Yelmo, and fixing the sign so downward is the well-conditioned branch).
+
+**Still open:** step 2 (variable-property MMS / fine-solver referee) — the actual
+`cp(T)` divergence — is untouched and remains the crux. Step 1's analytic bench
+can only validate that reference in the constant-property limit.
