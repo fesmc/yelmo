@@ -791,12 +791,15 @@ end if
 
                 dt = dt_half_lim*dtmax
 
-            else if (dt/dtmax .lt. dt_half_lim) then 
-                ! Round-off extra digits for neatness
+            else if (dt/dtmax .lt. dt_half_lim) then
+                ! Round-off extra digits for neatness.
+                ! Use a 64-bit floor to avoid integer overflow for large
+                ! dt*10^n_decimal, and clamp to at least one unit so that
+                ! rounding can never drive dt to zero.
 
-                dt = real(floor(dt*10.0_wp**n_decimal)*10.0_wp**(-n_decimal), wp)
-                
-            end if 
+                dt = real(max(1_8,floor(dt*10.0_wp**n_decimal, kind=8))*10.0_wp**(-n_decimal), wp)
+
+            end if
 
         else 
             ! dt is simply zero 
