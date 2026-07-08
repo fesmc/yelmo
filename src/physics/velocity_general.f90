@@ -1185,75 +1185,10 @@ end if
         select case(method)
 
             case(-1)
-                ! One-sided choice
-                ! between upstream or downstream driving stress 
-                ! at grounding line
+                ! Unsupported option: hard failure
 
-                if (beta_gl_stag .eq. 1) then 
-                    ! Upstream beta assigned at gl (ie, beta=beta_upstream)
-
-if (.FALSE.) then 
-                    ! x-direction 
-                    do j = 1, ny 
-                    do i = 2, nx-1 
-
-                        if (f_grnd(i,j) .eq. 0.0 .and. f_grnd(i+1,j) .gt. 0.0) then 
-                            taud_acx(i,j) = taud_acx(i+1,j) 
-                        else if (f_grnd(i,j) .gt. 0.0 .and. f_grnd(i+1,j) .eq. 0.0) then  
-                            taud_acx(i,j) = taud_acx(i-1,j)
-                        end if 
-
-                    end do 
-                    end do 
-
-                    ! y-direction 
-                    do j = 2, ny-1 
-                    do i = 1, nx 
-
-                        if (f_grnd(i,j) .eq. 0.0 .and. f_grnd(i,j+1) .gt. 0.0) then 
-                            taud_acy(i,j) = taud_acy(i,j+1) 
-                        else if (f_grnd(i,j) .gt. 0.0 .and. f_grnd(i,j+1) .eq. 0.0) then  
-                            taud_acy(i,j) = taud_acy(i,j-1)
-                        end if 
-
-                    end do 
-                    end do 
-end if 
-                else if (beta_gl_stag .eq. 2) then 
-                    ! Downstream beta assigned at gl (ie, beta=0)
-
-                    ! x-direction 
-                    do j = 1, ny 
-                    do i = 2, nx-1 
-
-                        if (f_grnd(i,j) .eq. 0.0 .and. f_grnd(i+1,j) .gt. 0.0) then 
-                            taud_acx(i,j) = taud_acx(i-1,j) 
-                        else if (f_grnd(i,j) .gt. 0.0 .and. f_grnd(i+1,j) .eq. 0.0) then  
-                            taud_acx(i,j) = taud_acx(i+1,j)
-                        end if 
-
-                    end do 
-                    end do 
-
-                    ! y-direction 
-                    do j = 2, ny-1 
-                    do i = 1, nx 
-
-                        if (f_grnd(i,j) .eq. 0.0 .and. f_grnd(i,j+1) .gt. 0.0) then 
-                            taud_acy(i,j) = taud_acy(i,j-1) 
-                        else if (f_grnd(i,j) .gt. 0.0 .and. f_grnd(i,j+1) .eq. 0.0) then  
-                            taud_acy(i,j) = taud_acy(i,j+1)
-                        end if 
-
-                    end do 
-                    end do 
-
-                else 
-
-                    write(*,*) "calc_driving_stress_gl:: Error: Wrong choice of beta_gl_stag for this method."
-                    stop 
-
-                end if 
+                write(*,*) "calc_driving_stress_gl:: Error: taud_gl_method=-1 not supported."
+                error stop "taud_gl_method=-1 not supported"
 
             case(1)
                 ! Weighted average using the grounded fraction (ac-nodes)
@@ -1283,12 +1218,8 @@ end if
                         ! Get the driving stress
                         taud_old = taud_acx(i,j) 
                         taud_acx(i,j) = rhog * H_gl * dzsdx
-                        
-                        if (j .eq. 6) then 
-                            write(*,"(a,i3,12g12.3)") "taud: ", i, f_grnd_acx(i,j), taud_old, taud_acx(i,j)
-                        end if 
 
-                    end if 
+                    end if
 
                 end do 
                 end do 
@@ -1347,12 +1278,8 @@ end if
                         ! Get the driving stress
                         taud_old = taud_acx(i,j) 
                         taud_acx(i,j) = rhog * H_gl * dzsdx
-                        
-                        if (j .eq. 6) then 
-                            write(*,"(a,i3,12g12.3)") "taud: ", i, f_grnd_acx(i,j), taud_old, taud_acx(i,j)
-                        end if 
 
-                    end if 
+                    end if
 
                 end do 
                 end do 
@@ -1977,18 +1904,26 @@ end if
                     do j = 1, ny
                     do i = 1, nx
 
+                            ! x-direction contribution (acx-node, own mask)
                             if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
                                 tmpx = ux(i,j)-ux_prev(i,j)
-                                tmpy = uy(i,j)-uy_prev(i,j)
                                 if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res1 = res1 + tmpx*tmpx + tmpy*tmpy
+                                res1 = res1 + tmpx*tmpx
 
                                 tmpx = ux_prev(i,j)
-                                tmpy = uy_prev(i,j)
                                 if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                                res2 = res2 + tmpx*tmpx
+                            end if
+
+                            ! y-direction contribution (acy-node, own mask)
+                            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
+                                tmpy = uy(i,j)-uy_prev(i,j)
                                 if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res2 = res2 + tmpx*tmpx + tmpy*tmpy
+                                res1 = res1 + tmpy*tmpy
+
+                                tmpy = uy_prev(i,j)
+                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                                res2 = res2 + tmpy*tmpy
                             end if
                     end do
                     end do
@@ -1998,6 +1933,9 @@ end if
 
                     ! res2 = sqrt( sum((ux_prev)*(ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
                     !            + sum((uy_prev)*(uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
+
+                    res1 = sqrt(res1)
+                    res2 = sqrt(res2)
 
                     resid = res1/(res2+du_reg)
 
