@@ -69,7 +69,7 @@ contains
             mask_tracers = .TRUE. 
             where (dyn%now%uxy_bar .gt. 500.0_wp) mask_tracers = .FALSE. 
 
-            call calc_tracer_3D(mat%now%dep_time,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz, &
+            call calc_tracer_3D(mat%now%dep_time,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
                 tpo%now%H_ice,tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
                 mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
 
@@ -171,7 +171,7 @@ contains
                     mask_tracers = .TRUE. 
                     where (dyn%now%uxy_bar .gt. mat%par%enh_umax) mask_tracers = .FALSE. 
 
-                    call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz,tpo%now%H_ice, &
+                    call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
                                         mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
 

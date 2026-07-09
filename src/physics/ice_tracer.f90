@@ -31,8 +31,8 @@ contains
         real(prec), intent(IN)    :: X_srf(:,:)     ! [units] Surface boundary variable field
         real(prec), intent(IN)    :: ux(:,:,:)      ! [m a-1] Horizontal x-velocity 
         real(prec), intent(IN)    :: uy(:,:,:)      ! [m a-1] Horizontal y-velocity 
-        real(prec), intent(IN)    :: uz(:,:,:)      ! [m a-1] Vertical velocity 
-        real(prec), intent(IN)    :: H_ice(:,:)     ! [m] Ice thickness 
+        real(prec), intent(IN)    :: uz(:,:,:)      ! [m a-1] Sigma-coordinate advective vertical velocity (uz_star), to pair with constant-sigma horizontal advection
+        real(prec), intent(IN)    :: H_ice(:,:)     ! [m] Ice thickness
         real(prec), intent(IN)    :: bmb(:,:)       ! [m a-1] Basal mass balance (melting is negative)
         real(prec), intent(IN)    :: zeta_aa(:)     ! [--] Vertical sigma coordinates (zeta==height), aa-nodes
         real(prec), intent(IN)    :: zeta_ac(:)     ! [--] Vertical sigma coordinates (zeta==height), ac-nodes
