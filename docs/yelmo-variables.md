@@ -7,5 +7,6 @@ These tables are used directly in the code for output writing routines, to selec
 - [Yelmo dynamics](yelmo-variables-ydyn.md)
 - [Yelmo material](yelmo-variables-ymat.md)
 - [Yelmo thermodynamics](yelmo-variables-ytherm.md)
+- [Yelmo hydrology](yelmo-variables-yhyd.md)
 - [Yelmo boundaries](yelmo-variables-ybound.md)
 - [Yelmo data](yelmo-variables-ydata.md)

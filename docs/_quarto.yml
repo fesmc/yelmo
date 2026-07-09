@@ -59,6 +59,7 @@ website:
           - yelmo-variables-ydyn.md
           - yelmo-variables-ymat.md
           - yelmo-variables-ytherm.md
+          - yelmo-variables-yhyd.md
           - yelmo-variables-ydata.md
       - section: "Notes"
         href: notes.md
