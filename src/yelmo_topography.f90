@@ -436,7 +436,19 @@ end if
             tpo%now%dzsdt = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
         end if
 
-        
+        ! When the ice is not advanced this step -- initialization (pc_step="none")
+        ! or any topo_fixed step -- the mass-balance block above is skipped, so the
+        ! applied-mb diagnostics (smb/bmb/fmb) would otherwise stay zero. Diagnose
+        ! them from the current boundary forcing so the held/initial state carries a
+        ! meaningful mass balance in the output. dt=0 => calc_G_mbal returns the
+        ! forcing masked to the current ice, nothing is applied and H_ice is left
+        ! untouched. mb_net stays zero (nothing applied) and bmb_grnd may still be
+        ! zero at initialization (thermodynamics not yet computed); both expected.
+        if ( topo_fixed .or. dt .le. 0.0 ) then
+            call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
+        end if
+
+
         if (trim(pc_step) .eq. "advance") then 
             ! Advance timestep here whether topo_fixed was true or not...
             
@@ -448,6 +460,57 @@ end if
         return
 
     end subroutine calc_ytopo_pc
+
+    subroutine calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
+        ! Diagnose the applied mass-balance fields (smb, combined bmb, fmb) from the
+        ! current boundary forcing and geometry WITHOUT advancing the ice. Used by
+        ! calc_ytopo_pc when the ice is not evolved this step (initialization via
+        ! pc_step="none", or any topo_fixed step): the main mass-balance block there
+        ! is gated on (.not. topo_fixed .and. dt>0), so without this the output
+        ! smb/bmb/fmb would remain zero at the initial time. The calls mirror the
+        ! diagnostic half of that block (calc_G_mbal etc.) but omit apply_tendency,
+        ! and use dt=0 so calc_G_mbal returns the forcing masked to the current ice
+        ! (no melt-limiting, H_ice untouched). mb_net is deliberately left unchanged
+        ! (nothing is applied); bmb_grnd may still be zero at init (thermodynamics
+        ! not yet computed), which only zeroes the grounded part of the combined bmb.
+
+        implicit none
+
+        type(ytopo_class),  intent(INOUT) :: tpo
+        type(ytherm_class), intent(IN)    :: thrm
+        type(ybound_class), intent(IN)    :: bnd
+
+        ! Diagnostic-only: no timestep is taken, so nothing is applied to H_ice.
+        real(wp), parameter :: dt = 0.0_wp
+
+        ! === smb ===
+        call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt)
+
+        ! === bmb (combined grounded + shelf) ===
+        call determine_grounded_fractions(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
+                                                            boundaries=tpo%par%boundaries)
+        call calc_bmb_total(tpo%now%bmb_ref,thrm%now%bmb_grnd,bnd%bmb_shlf,tpo%now%H_ice, &
+                            tpo%now%H_grnd,tpo%now%f_grnd_bmb,tpo%par%gz_Hg0,tpo%par%gz_Hg1, &
+                            tpo%par%gz_nx,tpo%par%bmb_gl_method,tpo%par%boundaries)
+        if (tpo%par%use_bmb) then
+            call calc_G_mbal(tpo%now%bmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%bmb_ref,dt)
+        else
+            tpo%now%bmb = 0.0
+        end if
+
+        ! === fmb ===
+        call calc_fmb_total(tpo%now%fmb_ref,bnd%fmb_shlf,bnd%bmb_shlf,tpo%now%H_ice, &
+                        tpo%now%H_grnd,tpo%now%f_ice,tpo%par%fmb_method,tpo%par%fmb_scale, &
+                        bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%dx,tpo%par%boundaries)
+        if (tpo%par%use_bmb) then
+            call calc_G_mbal(tpo%now%fmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%fmb_ref,dt)
+        else
+            tpo%now%fmb = 0.0
+        end if
+
+        return
+
+    end subroutine calc_ytopo_mb_diagnostic
 
     subroutine calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
 
