@@ -277,6 +277,8 @@
     dt_method       = "FE"
     solver_advec    = "impl-upwind"
     advecxy_order   = 2
+    advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
+    advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
     gamma           = 1.0
     use_strain_sia  = False
     use_const_cp    = True

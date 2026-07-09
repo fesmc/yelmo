@@ -139,15 +139,15 @@ contains
 
                         ! Calculate the explicit horizontal advection term using enthalpy from previous timestep
                         call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,thrm%par%advecxy_order, &
-                                            thrm%par%dt_beta(1),thrm%par%dt_beta(2),thrm%par%boundaries)
+                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                                            thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
 
                     else
 
                         ! Calculate the explicit horizontal advection term using temperature from previous timestep
                         call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,thrm%par%advecxy_order, &
-                                            thrm%par%dt_beta(1),thrm%par%dt_beta(2),thrm%par%boundaries)
+                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                                            thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
                     
                     end if 
 
@@ -643,6 +643,8 @@ end if
         call nml_read(filename,group,"dt_method",      par%dt_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"solver_advec",   par%solver_advec,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"advecxy_order",   par%advecxy_order,    init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"advecxy_cfl",     par%advecxy_cfl,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"advecxy_nmax",    par%advecxy_nmax,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"gamma",          par%gamma,            init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"use_strain_sia", par%use_strain_sia,   init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"use_const_cp",   par%use_const_cp,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
@@ -679,6 +681,16 @@ end if
 
         if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
+            stop "Program stopped."
+        end if
+
+        if (par%advecxy_cfl .le. 0.0_wp) then
+            write(io_unit_err,*) "ytherm_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
+            stop "Program stopped."
+        end if
+
+        if (par%advecxy_nmax .lt. 1) then
+            write(io_unit_err,*) "ytherm_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
             stop "Program stopped."
         end if
 

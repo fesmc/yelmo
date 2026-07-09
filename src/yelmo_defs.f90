@@ -648,6 +648,8 @@ module yelmo_defs
         character(len=256)  :: dt_method
         character(len=256)  :: solver_advec
         integer             :: advecxy_order   ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        real(wp)            :: advecxy_cfl     ! Target Courant number per horizontal-advection sub-step (CFL_safe)
+        integer             :: advecxy_nmax    ! Max horizontal-advection sub-steps (safety cap)
         integer             :: nx, ny
         real(wp)            :: dx, dy  
         integer             :: nz_aa     ! Number of vertical points in ice (layer centers, plus base and surface)

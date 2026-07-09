@@ -4,7 +4,7 @@ module thermodynamics
     ! Note: once icetemp is working well, this module could be 
     ! remerged into icetemp as one module. 
 
-    use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW 
+    use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW, io_unit_err
 
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, set_boundaries_3D_aa
     
@@ -448,7 +448,25 @@ contains
 
     end function muscl_face
 
-    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,advecxy_order,beta1,beta2,boundaries)
+    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
+        ! Explicit horizontal advection u.grad(var), returned as the source term consumed
+        ! by the implicit vertical enthalpy/temperature solve.
+        !
+        ! The explicit term is CFL-limited, and in fast shelf/stream flow the thermal
+        ! Courant number over the thermodynamics timestep dt can exceed 1. To keep it
+        ! stable, the horizontal transport is sub-cycled: the field is advanced through
+        ! nsub forward-Euler sub-steps of dt/nsub, recomputing the flux-form advection
+        ! from the intermediate field each sub-step, and the per-sub-step tendencies are
+        ! averaged into the effective source handed to the vertical solve. This is exactly
+        ! equivalent to a Godunov operator split (advect over dt, then one vertical solve),
+        ! because the vertical-solve RHS is linear in advecxy:
+        !     var* = var - dt*advecxy_eff ;  (var^{n+1}-var*) = dt*(L_vert + Q_strn).
+        !
+        ! nsub is a single (global) value = max(1, ceil(cfl/cfl_safe)), with cfl the
+        ! domain-max per-layer horizontal Courant number over ice-covered cells. Slow
+        ! grounded runs get nsub=1 (a single flux-form pass, no extra cost). No multistep
+        ! (AB/SAM) extrapolation is applied to the advection term: the sub-cycling is the
+        ! time integration, and forward-Euler transport is stable for cfl_safe < 1.
 
         implicit none
 
@@ -460,45 +478,130 @@ contains
         real(wp), intent(IN)    :: uy(:,:,:)          ! nx,ny,nz_aa
         real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa
         real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dt                 ! [a] thermodynamics time step
         integer,  intent(IN)    :: advecxy_order      ! 1=upwind, 2=flux-limited 2nd-order upwind
-        real(wp), intent(IN)    :: beta1              ! Weighting term for multistep advection scheme
-        real(wp), intent(IN)    :: beta2              ! Weighting term for multistep advection scheme
+        real(wp), intent(IN)    :: cfl_safe           ! target Courant number per sub-step
+        integer,  intent(IN)    :: nmax               ! max sub-steps (safety cap)
         character(len=*), intent(IN) :: boundaries
 
-        ! Local variables 
-        integer :: i, j 
-        integer :: nx, ny, nz  
-
-        real(wp), allocatable   :: advecxy_nm1(:,:,:) ! nz_aa, advective term from previous timestep
+        ! Local variables
+        integer :: i, j, m
+        integer :: nx, ny, nz
+        integer :: nsub
+        real(wp) :: cfl, dts
+        real(wp), allocatable :: var_work(:,:,:)      ! working field advanced through the sub-steps
+        real(wp), allocatable :: a_sub(:,:,:)         ! per-sub-step advection tendency
 
         nx = size(advecxy,1)
-        ny = size(advecxy,2) 
-        nz = size(advecxy,3) 
+        ny = size(advecxy,2)
+        nz = size(advecxy,3)
 
-        allocate(advecxy_nm1(nx,ny,nz))
+        ! Determine number of sub-steps from the domain-max horizontal Courant number
+        cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt)
+        nsub = max(1, ceiling(cfl/cfl_safe))
+        if (nsub .gt. nmax) then
+            write(io_unit_err,"(a,i0,a,g12.4,a,g12.4)") &
+                "calc_advec_horizontal_3D:: warning: thermal-advection sub-steps capped at nmax=",nmax, &
+                "; cfl=",cfl,", dt=",dt
+            nsub = nmax
+        end if
 
-        ! Store previous solution for later use 
-        advecxy_nm1 = advecxy 
+        if (nsub .eq. 1) then
+            ! Single flux-form pass, no sub-cycling needed (CFL-safe timestep)
 
-        ! Reset current solution to zero 
-        advecxy = 0.0_wp 
-         
-        do j = 2, ny-1
-        do i = 2, nx-1
-            call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
-        end do
-        end do
+            advecxy = 0.0_wp
 
-        ! Set boundaries 
-        call set_boundaries_3D_aa(advecxy,boundaries)
+            do j = 2, ny-1
+            do i = 2, nx-1
+                call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+            end do
+            end do
 
-        ! Calculate weighted average between current and previous solution following 
-        ! timestepping method desired 
-        advecxy = beta1*advecxy + beta2*advecxy_nm1 
-         
-        return 
+            call set_boundaries_3D_aa(advecxy,boundaries)
+
+        else
+            ! Sub-cycle the explicit horizontal transport and average the tendencies
+
+            allocate(var_work(nx,ny,nz))
+            allocate(a_sub(nx,ny,nz))
+
+            var_work = var
+            advecxy  = 0.0_wp
+            dts      = dt / real(nsub,wp)
+
+            do m = 1, nsub
+
+                a_sub = 0.0_wp
+
+                do j = 2, ny-1
+                do i = 2, nx-1
+                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+                end do
+                end do
+
+                call set_boundaries_3D_aa(a_sub,boundaries)
+
+                ! Accumulate the tendency; advance the working field explicitly (except after the last sub-step)
+                advecxy = advecxy + a_sub
+                if (m .lt. nsub) var_work = var_work - dts*a_sub
+
+            end do
+
+            ! Time-averaged effective advection source over dt
+            advecxy = advecxy / real(nsub,wp)
+
+            deallocate(var_work)
+            deallocate(a_sub)
+
+        end if
+
+        return
 
     end subroutine calc_advec_horizontal_3D
+
+    function calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt) result(cfl)
+        ! Domain-max horizontal Courant number of the explicit thermal advection over dt.
+        ! Uses the per-layer ac-node face velocities the flux-form scheme actually sees
+        ! (the larger of the two bounding faces in each direction, as in
+        ! calc_adv2D_timestep1). Vertical velocity is excluded, since the vertical solve
+        ! is implicit and unconditionally stable. Masked to ice-covered cells so thin
+        ! ice-free margins cannot inflate the estimate.
+
+        implicit none
+
+        real(wp), intent(IN) :: ux(:,:,:)     ! nx,ny,nz  acx-nodes
+        real(wp), intent(IN) :: uy(:,:,:)     ! nx,ny,nz  acy-nodes
+        real(wp), intent(IN) :: H_ice(:,:)    ! nx,ny     aa-nodes
+        real(wp), intent(IN) :: dx
+        real(wp), intent(IN) :: dt
+        real(wp) :: cfl
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, nz
+        real(wp) :: ux_now, uy_now, c
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+        nz = size(ux,3)
+
+        cfl = 0.0_wp
+
+        do j = 2, ny-1
+        do i = 2, nx-1
+            if (H_ice(i,j) .gt. 0.0_wp) then
+                do k = 1, nz
+                    ux_now = max(abs(ux(i-1,j,k)),abs(ux(i,j,k)))
+                    uy_now = max(abs(uy(i,j-1,k)),abs(uy(i,j,k)))
+                    c = dt * (ux_now/dx + uy_now/dx)
+                    if (c .gt. cfl) cfl = c
+                end do
+            end if
+        end do
+        end do
+
+        return
+
+    end function calc_advecxy_cfl_number
 
     subroutine calc_strain_heating(Q_strn,de,visc,cp,rho_ice,beta1,beta2)
         ! Calculate the general 3D internal strain heating
