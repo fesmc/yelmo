@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>sia – Yelmo</title>
+<title>yelmo-variables-yhyd – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -26,25 +26,25 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
-<script src="../../site_libs/clipboard/clipboard.min.js"></script>
-<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="../../site_libs/quarto-search/fuse.min.js"></script>
-<script src="../../site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="../../">
-<link href="../../physics/momentum/solvers.html" rel="next">
-<link href="../../physics/momentum/ssa.html" rel="prev">
-<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="../../site_libs/quarto-html/popper.min.js"></script>
-<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="../../site_libs/quarto-html/anchor.min.js"></script>
-<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./yelmo-variables-ydata.html" rel="next">
+<link href="./yelmo-variables-ytherm.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -73,49 +73,6 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
-  <script>document.addEventListener("DOMContentLoaded", function () {
- var mathElements = document.getElementsByClassName("math");
- var macros = [];
- for (var i = 0; i < mathElements.length; i++) {
-  var texText = mathElements[i].firstChild;
-  if (mathElements[i].tagName == "SPAN") {
-   katex.render(texText.data, mathElements[i], {
-    displayMode: mathElements[i].classList.contains('display'),
-    throwOnError: false,
-    macros: macros,
-    fleqn: false
-   });
-}}});
-  </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
-
-<script type="text/javascript">
-const typesetMath = (el) => {
-  if (window.MathJax) {
-    // MathJax Typeset
-    window.MathJax.typeset([el]);
-  } else if (window.katex) {
-    // KaTeX Render
-    var mathElements = el.getElementsByClassName("math");
-    var macros = [];
-    for (var i = 0; i < mathElements.length; i++) {
-      var texText = mathElements[i].firstChild;
-      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
-        window.katex.render(texText.data, mathElements[i], {
-          displayMode: mathElements[i].classList.contains('display'),
-          throwOnError: false,
-          macros: macros,
-          fleqn: false
-        });
-      }
-    }
-  }
-}
-window.Quarto = {
-  typesetMath
-};
-</script>
 
 </head>
 
@@ -126,7 +83,7 @@ window.Quarto = {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="../../index.html">
+    <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Yelmo</span>
     </a>
   </div>
@@ -137,19 +94,19 @@ window.Quarto = {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="../../getting-started.html" aria-current="page"> 
+    <a class="nav-link active" href="./getting-started.html" aria-current="page"> 
 <span class="menu-text">Installation</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../physics/index.html"> 
+    <a class="nav-link" href="./physics/index.html"> 
 <span class="menu-text">Physics</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../yelmo-variables.html"> 
+    <a class="nav-link" href="./yelmo-variables.html"> 
 <span class="menu-text">Variables</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../benchmarks.html"> 
+    <a class="nav-link" href="./benchmarks.html"> 
 <span class="menu-text">Benchmarks</span></a>
   </li>  
 </ul>
@@ -163,7 +120,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/diva.html">Momentum balance</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/sia.html">SIA — Shallow Ice Approximation</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-yhyd.html">yhyd</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -177,7 +134,7 @@ window.Quarto = {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../getting-started.html" class="sidebar-item-text sidebar-link">
+            <a href="./getting-started.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -186,7 +143,7 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../hpc-notes.html" class="sidebar-item-text sidebar-link">
+  <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
 </li>
@@ -194,25 +151,25 @@ window.Quarto = {
   </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../benchmarks.html" class="sidebar-item-text sidebar-link">
+  <a href="./benchmarks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Benchmarks</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../parameters.html" class="sidebar-item-text sidebar-link">
+  <a href="./parameters.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parameters</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-config.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-config.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
+            <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Physics</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -221,34 +178,34 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
  <span class="menu-text">Momentum balance</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/sia.html" class="sidebar-item-text sidebar-link active">
+  <a href="./physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
   </div>
 </li>
@@ -265,13 +222,13 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Mass conservation — continuity equation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of the continuity equation</span></a>
   </div>
 </li>
@@ -279,19 +236,19 @@ window.Quarto = {
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
 </li>
@@ -299,7 +256,7 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../yelmo-variables.html" class="sidebar-item-text sidebar-link">
+            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -308,43 +265,43 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ybound</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytopo</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydyn</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ymat</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">yhyd</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydata</span></a>
   </div>
 </li>
@@ -352,7 +309,7 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../notes.html" class="sidebar-item-text sidebar-link">
+            <a href="./notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Notes</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -361,19 +318,19 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-io.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-io.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Yelmo IO</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../remapping.html" class="sidebar-item-text sidebar-link">
+  <a href="./remapping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Remapping</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
@@ -389,77 +346,110 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#sia-shallow-ice-approximation" id="toc-sia-shallow-ice-approximation" class="nav-link active" data-scroll-target="#sia-shallow-ice-approximation">SIA — Shallow Ice Approximation</a>
-  <ul class="collapse">
-  <li><a href="#continuum-equations" id="toc-continuum-equations" class="nav-link" data-scroll-target="#continuum-equations">Continuum equations</a></li>
-  <li><a href="#velocity-from-glens-flow-law" id="toc-velocity-from-glens-flow-law" class="nav-link" data-scroll-target="#velocity-from-glens-flow-law">Velocity from Glen’s flow law</a></li>
-  <li><a href="#relationship-to-the-textbook-sia" id="toc-relationship-to-the-textbook-sia" class="nav-link" data-scroll-target="#relationship-to-the-textbook-sia">Relationship to the textbook SIA</a></li>
-  </ul></li>
+  <li><a href="#yhyd" id="toc-yhyd" class="nav-link active" data-scroll-target="#yhyd">yhyd</a></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/momentum/sia.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-yhyd.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/diva.html">Momentum balance</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/sia.html">SIA — Shallow Ice Approximation</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-yhyd.html">yhyd</a></li></ol></nav></header>
 
 
 
 
-<section id="sia-shallow-ice-approximation" class="level1">
-<h1>SIA — Shallow Ice Approximation</h1>
-<p>The SIA is the complementary limit to SSA: membrane stresses are neglected and the horizontal stress balance is dominated by the basal drag exerted by vertical shear. Yelmo’s SIA solver is implemented in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_sia.f90"><code>src/physics/velocity_sia.f90</code></a> and is used to provide the vertical-shear contribution to the velocity field in the hybrid SIA + SSA mode and as a diagnostic on its own.</p>
-<p>Crucially, Yelmo formulates SIA in <strong>stress form</strong>: the shear stress and the basal stress are computed <em>from the driving stress</em> <span class="math inline">\boldsymbol\tau_d</span> exactly as in DIVA, and the velocity is then obtained by integrating Glen’s flow law vertically. This is mathematically equivalent to the familiar closed-form SIA expression in terms of <span class="math inline">\nabla s</span>, but it keeps the link to the Stokes balance explicit, uses the same <span class="math inline">\boldsymbol\tau_d</span> field as DIVA/SSA (including the same lateral and grounding-line treatments), and makes the SIA → DIVA limit transparent.</p>
-<section id="continuum-equations" class="level2">
-<h2 class="anchored" data-anchor-id="continuum-equations">Continuum equations</h2>
-<p>The horizontal momentum balance, neglecting membrane stresses and vertical accelerations, reduces to a balance between the vertical gradient of horizontal shear stress and the horizontal pressure gradient of the gravitational driving:</p>
-<p><span class="math display">
-\frac{\partial \tau_{xz}}{\partial z} \;=\; \rho_i\, g\, \frac{\partial s}{\partial x},
-\qquad
-\frac{\partial \tau_{yz}}{\partial z} \;=\; \rho_i\, g\, \frac{\partial s}{\partial y}.
-</span></p>
-<p>Integrating from <span class="math inline">z</span> upward to the stress-free surface and writing the result in terms of the same driving stress as DIVA/SSA gives the linear-with-depth profile</p>
-<p><span class="math display">
-\tau_{xz}(z) \;=\; -\,\frac{s-z}{H}\,\tau_{d,x},
-\qquad
-\tau_{yz}(z) \;=\; -\,\frac{s-z}{H}\,\tau_{d,y},
-</span></p>
-<p>with the driving stress</p>
-<p><span class="math display">
-\tau_{d,x} \;=\; \rho_i\, g\, H\, \frac{\partial s}{\partial x},
-\qquad
-\tau_{d,y} \;=\; \rho_i\, g\, H\, \frac{\partial s}{\partial y},
-</span></p>
-<p>evaluated on ac-faces by the <em>same</em> <code>calc_driving_stress</code> routine used by DIVA and SSA (see <a href="../../physics/momentum/diva.html">DIVA</a>). The basal stress is recovered at <span class="math inline">z = b</span>: <span class="math inline">(\tau_{xz}, \tau_{yz})\big|_{z=b} = -\boldsymbol\tau_d</span>, i.e.&nbsp;all of the driving stress is balanced at the bed, as expected when membrane stresses are dropped. The shear stress profile is built by <code>calc_shear_stress_3D</code>.</p>
-</section>
-<section id="velocity-from-glens-flow-law" class="level2">
-<h2 class="anchored" data-anchor-id="velocity-from-glens-flow-law">Velocity from Glen’s flow law</h2>
-<p>With the shear-stress field in hand, the horizontal shear strain rates follow directly from Glen’s law,</p>
-<p><span class="math display">
-\dot\varepsilon_{xz}
-\;=\; A(T'(z))\, \tau_e^{\,n-1}\,\tau_{xz},
-\qquad
-\dot\varepsilon_{yz}
-\;=\; A(T'(z))\, \tau_e^{\,n-1}\,\tau_{yz},
-</span></p>
-<p>where the effective stress under SIA assumptions is <span class="math inline">\tau_e^{\,2} = \tau_{xz}^{\,2} + \tau_{yz}^{\,2}</span>. Since <span class="math inline">\dot\varepsilon_{xz} = \frac{1}{2}\frac{\partial u}{\partial z}</span> in the SIA limit, the horizontal velocity is obtained by integrating from the bed upward:</p>
-<p><span class="math display">
-u(z) \;=\; u_b \,+\, 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
-</span></p>
-<p>and analogously for <span class="math inline">v</span>. The integral is evaluated layer-by-layer with the trapezoidal rule (routine <code>calc_uxy_sia_3D</code>). The depth-averaged velocity <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> is obtained by trapezoidal integration over <span class="math inline">z</span>.</p>
-<p>In hybrid mode, Yelmo uses <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> to provide the shearing contribution that is added to the basal velocity produced by the membrane (DIVA/SSA) solve. In a pure-SIA configuration, the basal velocity is either zero (frozen bed) or comes from a sliding law of choice (not the default in current Yelmo versions).</p>
-</section>
-<section id="relationship-to-the-textbook-sia" class="level2">
-<h2 class="anchored" data-anchor-id="relationship-to-the-textbook-sia">Relationship to the textbook SIA</h2>
-<p>Substituting the closed-form <span class="math inline">\tau_{xz} = -\rho_i\,g\,(s-z)\,\frac{\partial s}{\partial x}</span> into the integral above and assuming <span class="math inline">A</span> constant with <span class="math inline">z</span> recovers the familiar SIA velocity</p>
-<p><span class="math display">
-u(z) \;=\; u_b
-\,-\, \frac{2\,(\rho_i g)^n\,A}{n+1}\,
-       H^{n+1}\,|\nabla s|^{\,n-1}\,\frac{\partial s}{\partial x}\,
-       \bigl[\,1 - (1 - (z-b)/H)^{n+1}\,\bigr],
-</span></p>
-<p>but Yelmo does not collapse to that form internally. Keeping the stress-form integral is what allows the SIA solver to share <span class="math inline">\boldsymbol\tau_d</span>, <span class="math inline">A(T'(z))</span> and the discretisation conventions with the DIVA solver and the rest of the model.</p>
+<section id="yhyd" class="level1">
+<h1>yhyd</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 3%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 13%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>id</th>
+<th>variable</th>
+<th>dimensions</th>
+<th>units</th>
+<th>long_name</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>hyd_W_til</td>
+<td>xc, yc</td>
+<td>m</td>
+<td>Till water storage thickness (bucket)</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>hyd_W_til_max</td>
+<td>xc, yc</td>
+<td>m</td>
+<td>Per-cell cap on till water storage</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>hyd_dW_til_dt</td>
+<td>xc, yc</td>
+<td>m/s</td>
+<td>Rate of change of till water storage</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>hyd_overflow</td>
+<td>xc, yc</td>
+<td>m/s</td>
+<td>Till-saturation spill rate (K24 source)</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>hyd_W</td>
+<td>xc, yc</td>
+<td>m</td>
+<td>K24 distributed sheet thickness</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>hyd_p_w</td>
+<td>xc, yc</td>
+<td>Pa</td>
+<td>Basal water pressure</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>hyd_q_x</td>
+<td>xc, yc</td>
+<td>m^2/s</td>
+<td>Basal water flux, x-component</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>hyd_q_y</td>
+<td>xc, yc</td>
+<td>m^2/s</td>
+<td>Basal water flux, y-component</td>
+</tr>
+<tr class="odd">
+<td>9</td>
+<td>hyd_N</td>
+<td>xc, yc</td>
+<td>Pa</td>
+<td>Effective pressure at the bed</td>
+</tr>
+<tr class="even">
+<td>10</td>
+<td>hyd_kappa</td>
+<td>xc, yc</td>
+<td>-</td>
+<td>K24 hydraulic transmissivity field</td>
+</tr>
+</tbody>
+</table>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -870,13 +860,13 @@ u(z) \;=\; u_b
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../../physics/momentum/ssa.html" class="pagination-link" aria-label="SSA — Shallow Shelf Approximation">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">SSA — Shallow Shelf Approximation</span>
+      <a href="./yelmo-variables-ytherm.html" class="pagination-link" aria-label="ytherm">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ytherm</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../../physics/momentum/solvers.html" class="pagination-link" aria-label="Numerical solution of DIVA / SSA">
-        <span class="nav-page-text">Numerical solution of DIVA / SSA</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./yelmo-variables-ydata.html" class="pagination-link" aria-label="ydata">
+        <span class="nav-page-text">ydata</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -885,4 +875,4 @@ u(z) \;=\; u_b
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/momentum/sia.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-yhyd.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

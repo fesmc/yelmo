@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>calving – Yelmo</title>
+<title>enthalpy-transition-plan – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../yelmo-variables.html" rel="next">
-<link href="../physics/enthalpy-transition-plan.html" rel="prev">
+<link href="../physics/calving.html" rel="next">
+<link href="../physics/thermodynamics.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -108,49 +108,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   }
 }</script>
 
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
-  <script>document.addEventListener("DOMContentLoaded", function () {
- var mathElements = document.getElementsByClassName("math");
- var macros = [];
- for (var i = 0; i < mathElements.length; i++) {
-  var texText = mathElements[i].firstChild;
-  if (mathElements[i].tagName == "SPAN") {
-   katex.render(texText.data, mathElements[i], {
-    displayMode: mathElements[i].classList.contains('display'),
-    throwOnError: false,
-    macros: macros,
-    fleqn: false
-   });
-}}});
-  </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
-
-<script type="text/javascript">
-const typesetMath = (el) => {
-  if (window.MathJax) {
-    // MathJax Typeset
-    window.MathJax.typeset([el]);
-  } else if (window.katex) {
-    // KaTeX Render
-    var mathElements = el.getElementsByClassName("math");
-    var macros = [];
-    for (var i = 0; i < mathElements.length; i++) {
-      var texText = mathElements[i].firstChild;
-      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
-        window.katex.render(texText.data, mathElements[i], {
-          displayMode: mathElements[i].classList.contains('display'),
-          throwOnError: false,
-          macros: macros,
-          fleqn: false
-        });
-      }
-    }
-  }
-}
-window.Quarto = {
-  typesetMath
-};
-</script>
 
 </head>
 
@@ -198,7 +155,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/enthalpy-transition-plan.html">Enthalpy transition plan (ytherm)</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -320,13 +277,13 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link active">
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
 </li>
@@ -424,48 +381,202 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link active" data-scroll-target="#calving-schemes">Calving schemes</a>
+  <li><a href="#enthalpy-transition-plan-ytherm" id="toc-enthalpy-transition-plan-ytherm" class="nav-link active" data-scroll-target="#enthalpy-transition-plan-ytherm">Enthalpy transition plan (ytherm)</a>
   <ul class="collapse">
-  <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
+  <li><a href="#progress-log" id="toc-progress-log" class="nav-link" data-scroll-target="#progress-log">Progress log</a></li>
+  <li><a href="#motivation" id="toc-motivation" class="nav-link" data-scroll-target="#motivation">1. Motivation</a></li>
+  <li><a href="#current-state-of-ytherm" id="toc-current-state-of-ytherm" class="nav-link" data-scroll-target="#current-state-of-ytherm">2. Current state of <code>ytherm</code></a>
+  <ul class="collapse">
+  <li><a href="#dispatch" id="toc-dispatch" class="nav-link" data-scroll-target="#dispatch">2.1 Dispatch</a></li>
+  <li><a href="#the-blocking-defect" id="toc-the-blocking-defect" class="nav-link" data-scroll-target="#the-blocking-defect">2.2 The blocking defect</a></li>
+  <li><a href="#reference-implementation-exists" id="toc-reference-implementation-exists" class="nav-link" data-scroll-target="#reference-implementation-exists">2.3 Reference implementation exists</a></li>
+  </ul></li>
+  <li><a href="#gap-list-temp-vs-enth" id="toc-gap-list-temp-vs-enth" class="nav-link" data-scroll-target="#gap-list-temp-vs-enth">3. Gap list (temp vs enth)</a>
+  <ul class="collapse">
+  <li><a href="#reference-physics-for-item-1-flux-based-bmb" id="toc-reference-physics-for-item-1-flux-based-bmb" class="nav-link" data-scroll-target="#reference-physics-for-item-1-flux-based-bmb">3.1 Reference physics for item 1 (flux-based bmb)</a></li>
+  </ul></li>
+  <li><a href="#standalone-test-harness" id="toc-standalone-test-harness" class="nav-link" data-scroll-target="#standalone-test-harness">4. Standalone test harness</a></li>
+  <li><a href="#kleiner-et-al.-2015-benchmark" id="toc-kleiner-et-al.-2015-benchmark" class="nav-link" data-scroll-target="#kleiner-et-al.-2015-benchmark">5. Kleiner et al.&nbsp;(2015) benchmark</a></li>
+  <li><a href="#phased-plan" id="toc-phased-plan" class="nav-link" data-scroll-target="#phased-plan">6. Phased plan</a></li>
+  <li><a href="#open-technical-questions" id="toc-open-technical-questions" class="nav-link" data-scroll-target="#open-technical-questions">7. Open technical questions</a></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/enthalpy-transition-plan.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/enthalpy-transition-plan.html">Enthalpy transition plan (ytherm)</a></li></ol></nav></header>
 
 
 
 
-<section id="calving-schemes" class="level1">
-<h1>Calving schemes</h1>
-<p>Here is a summary of calving schemes.</p>
-<section id="lipscomb-et-al.-2019" class="level2">
-<h2 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h2>
-<p><span class="math display">
-c = k_\tau \tau_{\rm ec}
-</span></p>
-<p>where <span class="math inline">k_\tau</span> (m yr<span class="math inline">^{-1}</span> Pa<span class="math inline">^{-1}</span>) is an empirical constant and <span class="math inline">\tau_{\rm ec}</span> (Pa) is the effective calving stress, which is defined by:</p>
-<p><span class="math display">
-\tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
-</span></p>
-<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
-<p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
-<p><span class="math display">
-a \lambda^2 + b \lambda + c = 0
-</span></p>
-<p>where</p>
-<p><span class="math display">
-a = 1.0 \\
-b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
-c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
-</span></p>
-<p>glissade_velo_higher.F90:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="enthalpy-transition-plan-ytherm" class="level1">
+<h1>Enthalpy transition plan (ytherm)</h1>
+<p>Design document for switching Yelmo’s production thermodynamics from the temperature-based solver (<code>method="temp"</code>) to the enthalpy-based solver (<code>method="enth"</code>) for v2.0.</p>
+<p>Status: <strong>default flipped to <code>enth</code></strong> on branch <code>therm-dev</code> (<code>input/yelmo_defaults.nml</code>). Phases 0–2 complete (all 1D benchmarks pass); Phase 3 (2D/3D): the 2D margin-column robustness crash is fixed (CTS diffusivity) and a geothermal-flux units bug that made the enthalpy base spuriously cold is fixed; enth now matches temp on EISMINT-2 A and F, and horizontal advection was upgraded to a flux-limited 2nd-order scheme (<code>advecxy_order</code>, default 2) that reduces the EISMINT spoke asymmetry ~23% while staying TVD/margin-safe (see log). <strong>Post-flip validation still pending: a Greenland (initmip, 16 km) and an Antarctica spin-up</strong>, enth vs temp, on real geometry. Author: thermodynamics review, 2026-07.</p>
+<section id="progress-log" class="level2">
+<h2 class="anchored" data-anchor-id="progress-log">Progress log</h2>
+<ul>
+<li><strong>P4 (early cleanup, done):</strong> removed dead <code>ice_enthalpy_poly.f90</code> + test, and unused helpers <code>calc_Q_bedrock</code>, <code>calc_hires_cell</code>, <code>interp_bilin_pt</code>.</li>
+<li><strong>P0 (done):</strong> standalone driver <code>tests/test_enthalpy.f90</code> (<code>make enthalpy</code>) with NetCDF output; Kleiner (2015) data vendored to <code>tests/data/Kleiner2015/</code>.</li>
+<li><strong>P1 (done):</strong> finished <code>calc_enth_column</code> — removed the upstream <code>stop</code>, added flux-based <code>calc_bmb_grounded_enth</code>, made <code>Q_ice_b</code> swappable, and <strong>fixed a sign bug</strong>: the enth path computed <code>Q_ice_b = +kt·(T₂−T₁)/dz</code>, the opposite of <code>calc_temp_column</code>, so basal melt was wrong. Cold-limit equivalence (T2) now passes (max|ΔT| = 9.6×10⁻⁴ K) and the Kleiner-A transient shows a physical melt/refreeze cycle. Magnitude vs the Kleiner reference is Phase 2.</li>
+<li><strong>P2 Exp A (done):</strong> validated against Kleiner (2015) Experiment A. Corrected the protocol (warm phase −10 °C, β = 7.9×10⁻⁸, free basal-water accumulation) and <strong>fixed a real CR-dependence bug</strong>: the CTS diffusivity treatment choked the basal interface with the temperate K₀ whenever the basal node was temperate, making the diagnosed melt collapse at the nominal cr = 0.1. The K₀ choke now applies only to a genuine temperate <em>layer</em> (k_cts ≥ 2); a melting base (k_cts = 1) conducts to the Dirichlet-pmp base with cold-ice κ. Basal melt is now <strong>cr-independent</strong> (matching the three reference models) and converges to the analytic solution (Eq A14): nz = 401 → warm 2.32 vs 2.33, cold −2.01 vs −2.03 mm/a; the phase-III transient tracks Eq A15 to ~1%. Driver test <strong>T3</strong> added; re-vendored the correct −10 °C analytic reference (the previous file was a −5 °C variant).</li>
+<li><strong>P2 Exp B (done):</strong> validated against Kleiner (2015) Experiment B (steady polythermal slab): 200 m, 4° incline, no geothermal flux, strain heating <code>Ψ = 2A(ρg sinγ)⁴(H−z)⁴</code>, constant downward advection <code>vz = −0.2 m/a</code>, surface −3 °C, β = 0, L = 3.35×10⁵. The cold region matches the analytic <code>T(z)</code> (Appendix A2) to RMS 0.06 °C; the temperate layer converges to the analytic as the conductivity ratio <code>cr → 0</code> (the K₀→0 limit, matching the paper’s CR sweep 10⁻¹→10⁻⁵). At cr = 10⁻⁴, nz = 201: <strong>CTS = 19.5 m</strong> (analytic 19.0), <strong>base ω = 0.0205</strong> (analytic 0.0207). Driver test <strong>T4</strong> added. Follow-up: an intermediate cr ≈ 10⁻² shows a coarse-grid instability (stable at nz = 401); the accurate/stable regime is cr ≤ 10⁻³.</li>
+</ul>
+<p>All three standalone benchmarks (<strong>T2 cold-limit, T3 Exp A, T4 Exp B</strong>) now pass.</p>
+<ul>
+<li><p><strong>P3 (in progress, blocked):</strong> the first-ever 2D enthalpy run (EISMINT-2 EXPA, <code>method="enth"</code>) crashes at ~13 ka with a NaN at the base of a thin margin column (temp runs the full 100 ka). Also fixed a blocker along the way: the shipped benchmark par files still listed <code>till_rate</code>/<code>H_w_max</code> under <code>&amp;ytherm</code> (moved to <code>&amp;fhyd</code>), which <code>nml_validate</code> rejected — removed from 5 configs. Two enthalpy failure modes identified in thin, strain-heated, polythermal margin columns:</p>
+<ol type="1">
+<li><strong>Advection-dominated</strong> oscillation — <strong>fixed</strong> by Péclet-hybrid upwinding of the vertical advection (Spalding 1972, as the paper prescribes).</li>
+<li><strong>Near-singular temperate block</strong> — with <code>enth_cr = 10⁻³</code> the temperate-layer nodes (κ = cr·κ_cold) blow up to ~−10⁷ J/kg while the cold layer stays fine. The temperate block becomes an almost-isolated Neumann problem (near-zero flux at the base via <code>enth(1)=enth(2)</code> and at the CTS top via the K₀ choke) with an internal strain-heating source, so it grows unboundedly. Exp B survives because its strong downward advection couples the block; the thin, weakly-advected EISMINT margin column (uz ≈ 0.003) does not.</li>
+</ol>
+<p><strong>Three candidate fixes tried, all still crash at ~13 ka</strong> (each kept the 1D benchmarks passing):</p>
+<ul>
+<li><strong>Diffusivity floor / raise <code>enth_cr</code></strong> (the approved Option A): cr = 10⁻², 5×10⁻², 10⁻¹ all still crash (cr = 10⁻¹ crashes <em>earlier</em>, at 9 ka — the failure is non-monotonic in cr, confirming it is conditioning, not magnitude). Only cr = 1.0 (no temperate reduction at all) is stable.</li>
+<li><strong>Double-precision Thomas solve</strong> (single precision was a suspect, given enth ~ 5×10⁵ with O(10) differences): still crashes → the discretized system is genuinely near-singular, not just rounding.</li>
+<li><strong>Pin the temperate base at the pmp</strong> (Dirichlet instead of <code>enth(1)=enth(2)</code>): still crashes → the singularity is in the block interior / CTS-top coupling, not only the base.</li>
+</ul>
+<p><strong>Assessment:</strong> 2D robustness of the enthalpy solver at thin polythermal margins is a genuine, multi-faceted problem (the Kleiner benchmarks are all 1-D columns; robust 3-D enthalpy is years of engineering in models like PISM). Likely also involves the very large horizontal enthalpy advection at margins (advecxy ~ −30, i.e.&nbsp;cp× the temperature-solver value). This is the gating item before the enth default flip and needs a dedicated effort — candidates: adopt Aschwanden et al.&nbsp;(2012)’s exact CTS/temperate discretization (PISM’s, proven in 3-D); limit/clip the enthalpy solution or the horizontal enth advection at margins; or special robust handling for thin margin columns.</p></li>
+<li><p><strong>P3 (2D crash FIXED):</strong> the near-singular temperate block was caused by the <strong>CTS diffusivity choke</strong>, not the base or advection. The cold↔︎temperate interface was forced to ~2·K0 (harmonic mean of κ_temp, κ_cold) plus an explicit <code>kappa_a = kappa(k-1)</code> override at <code>k_cts+1</code>; with the zero-flux temperate base this isolated the temperate sub-block into a near-singular Neumann island with an internal strain source. <strong>Fix:</strong> conduct across the CTS with the <strong>cold-side (upper-node) κ</strong> (Blatter &amp; Greve 2015, Eq. 25; the icetemp reference, which explicitly rejects the harmonic mean at the CTS and had this half-written in a commented-out <code>kappa_b = kappa(k+1)</code> line). The block now drains its strain heat upward by cold-ice conduction toward the CTS; both CTS rows use the same cold κ, conserving the interface flux. Result: <strong>2D EISMINT-A <code>method="enth"</code> runs the full 100 ka</strong> (was NaN at 13.24 ka), dome H0 = 4008 m (analytic ~3990). 1D benchmarks: T2 PASS, T3 PASS, T4 PASS at nz=201/401, cr=1e-4 (CTS 20.4 m vs analytic 19.0, within the 2 m gate — ~1.4 m less accurate than the choke, the accuracy/robustness trade being worth it; the advection-dominated Exp B is nearly insensitive to the CTS conductive flux). Commit <code>276215c5</code>.</p></li>
+<li><p><strong>P3 (EISMINT-2 A+F comparison + geothermal-flux bug FIXED):</strong> the enth-vs-temp comparison (<code>analysis/compare_enth_temp.jl</code>, EISMINT-2 A and F, 100 ka) first exposed a large enth cold-base bias: summit basal homologous temperature enth −32.6 °C vs temp −16.0 (EISMINT-A), a near-isothermal cold divide column, with a thicker dome and strongly amplified grid-aligned basal- temperature spokes (T′_b azimuthal-asymmetry RMS enth 6.6 vs temp 1.4 in F). <strong>Root cause:</strong> <code>calc_enth_column</code> used the basal/bedrock heat fluxes (<code>Q_b</code>, <code>Q_lith</code>) raw in [mW m⁻²], while <code>calc_temp_column</code> converts them to [J m⁻² a⁻¹] (<code>×1e-3·sec_year</code>). Both 2D-driver callers pass raw [mW m⁻²], so the enthalpy base got ~3.15×10⁴× too little geothermal heat. (The Kleiner 1D tests hid it: the standalone driver pre-converted <code>Q_lith</code> and used <code>Q_b=0</code>.) The Péclet upwinding was ruled out first (centered advection gave the same −32.6). <strong>Fix:</strong> convert <code>Q_b</code>/<code>Q_lith</code> inside <code>calc_enth_column</code> like the temp path, and pass raw <code>Q_rock</code> from the standalone driver — unifying the units contract ([mW m⁻²] in). Commit <code>e7cde320</code>. <strong>Result:</strong> enth now matches temp on both experiments — summit T′_b −16.0 vs −16.0 (A), −29.7 vs −29.7 (F); domes, volumes, melt fractions agree; the spoke asymmetry collapsed to temp’s level (A 0.28 vs 0.30; F 1.46 vs 1.36). enth and temp now differ from the pure- SIA no-slip EISMINT reference identically (that offset is the Yelmo hybrid+ sliding config, not the solver). All three 1D benchmarks (T2/T3/T4) unchanged. <strong>Remaining before the default flip:</strong> an Antarctica spin-up, enth vs temp (Phase 3 proper).</p></li>
+</ul>
+<hr>
+</section>
+<section id="motivation" class="level2">
+<h2 class="anchored" data-anchor-id="motivation">1. Motivation</h2>
+<p>Yelmo carries a full enthalpy formulation alongside the temperature solver, but production has always used <code>temp</code> because <code>enth</code> “seemed less trustworthy”. This document records what the enthalpy path actually needs, why it has never run, and a phased plan (with standalone validation) to make it the default.</p>
+</section>
+<section id="current-state-of-ytherm" class="level2">
+<h2 class="anchored" data-anchor-id="current-state-of-ytherm">2. Current state of <code>ytherm</code></h2>
+<section id="dispatch" class="level3">
+<h3 class="anchored" data-anchor-id="dispatch">2.1 Dispatch</h3>
+<p><code>calc_ytherm</code> (<a href="../../src/yelmo_thermodynamics.f90"><code>src/yelmo_thermodynamics.f90</code></a>) selects on <code>thrm%par%method ∈ {enth, temp, robin, robin-cold, linear, fixed}</code>.</p>
+<ul>
+<li><code>enth</code> and <code>temp</code> share one driver, <code>calc_ytherm_enthalpy_3D</code>, which loops columns and calls <code>calc_enth_column</code> or <code>calc_temp_column</code>.</li>
+<li><code>temp</code> is <code>enth</code> with <code>enth_cr=1.0</code> and <code>omega_max=0.0</code> forced at par-load (so temperate ice has cold-ice conductivity and zero water content).</li>
+<li>Default is <code>method="temp"</code> (<code>input/yelmo_defaults.nml</code>); <strong>every</strong> shipped par file uses <code>temp</code> or <code>fixed</code>. No shipped configuration uses <code>enth</code>.</li>
+</ul>
+<p>The enthalpy <em>scaffolding</em> (horizontal advection of <code>enth</code>, <code>convert_to/from_enthalpy</code>, CTS index, omega diagnosis, per-column enth output) is present and structurally exercised. Only the per-column solve is incomplete.</p>
+</section>
+<section id="the-blocking-defect" class="level3">
+<h3 class="anchored" data-anchor-id="the-blocking-defect">2.2 The blocking defect</h3>
+<p><code>calc_enth_column</code> (<a href="../../src/physics/ice_enthalpy.f90"><code>src/physics/ice_enthalpy.f90</code></a>) terminates the run:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">! Calculate basal mass balance</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write(*</span>,<span class="fu">*)</span> <span class="st">"calc_enth_column:: routine needs to be updated with Q_rock etc."</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">stop</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>git blame</code> places this <code>stop</code> in the <strong>original v1.15 import</strong> — it is unfinished upstream code, not a regression. So <code>method="enth"</code> has never been runnable in this repository. The intended helper <code>calc_bmb_grounded_enth</code> does not exist in <code>thermodynamics.f90</code> (only referenced in a comment and by the dead poly module).</p>
+</section>
+<section id="reference-implementation-exists" class="level3">
+<h3 class="anchored" data-anchor-id="reference-implementation-exists">2.3 Reference implementation exists</h3>
+<p>The testbed <a href="https://github.com/alex-robinson/icetemp"><code>github.com/alex-robinson/icetemp</code></a> (the ancestor of this code) contains a <strong>complete, working</strong> <code>calc_enth_column</code> and <code>calc_bmb_grounded_enth</code>, and ships <strong>Kleiner et al.&nbsp;(2015)</strong> benchmark data. This is our reference for finishing the Yelmo routine and for validation (see §5).</p>
+</section>
+</section>
+<section id="gap-list-temp-vs-enth" class="level2">
+<h2 class="anchored" data-anchor-id="gap-list-temp-vs-enth">3. Gap list (temp vs enth)</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 18%">
+<col style="width: 24%">
+<col style="width: 24%">
+<col style="width: 24%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Item</th>
+<th><code>temp</code></th>
+<th><code>enth</code></th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Basal mass balance</td>
+<td><code>calc_bmb_grounded</code> (works)</td>
+<td><strong><code>stop</code>; no bmb</strong></td>
+<td>Port <code>calc_bmb_grounded_enth</code></td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Basal heat flux <code>Q_ice_b</code></td>
+<td>temperature gradient</td>
+<td>temp gradient (enth gradient commented “Problematic”)</td>
+<td>Decide + validate discretization</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>CTS treatment</td>
+<td>none</td>
+<td>post-solve <code>enth(1)=enth(2)</code> fixup; zero-flux BC; one-sided diffusivity jump at <code>k_cts+1</code></td>
+<td>Justify or replace vs benchmark</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Basal BC units/sign</td>
+<td><code>-(Q_b+Q_rock)/kt</code></td>
+<td><code>(Q_b+Q_lith)/kt*cp</code>, pre-converted <code>Q_lith</code></td>
+<td>Reconcile so cold-limit ≡ temp</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>Surface BC</td>
+<td>raw <code>min(T_srf,T0)</code></td>
+<td><code>min(T_srf,T0)*cp(nz)</code></td>
+<td>Reconcile</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Correctness anchor:</strong> in the cold limit (<code>omega=0</code>, <code>enth_cr=1</code>) the enthalpy solver must reduce <em>exactly</em> to the temperature solver. This equivalence is the cheapest, strongest regression test and is currently untested.</p>
+<section id="reference-physics-for-item-1-flux-based-bmb" class="level3">
+<h3 class="anchored" data-anchor-id="reference-physics-for-item-1-flux-based-bmb">3.1 Reference physics for item 1 (flux-based bmb)</h3>
+<p>From the icetemp testbed (<code>thermodynamics.f90</code>):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>net_enth <span class="kw">=</span> enth_b <span class="kw">-</span> enth_pmp_b            <span class="co">! basal enthalpy above pmp</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>Q_net    <span class="kw">=</span> Q_b <span class="kw">+</span> Q_ice_b <span class="kw">+</span> Q_geo_now      <span class="co">! net basal energy flux [J a-1 m-2]</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>bmb_grnd <span class="kw">=</span> <span class="kw">-</span>Q_net <span class="kw">/</span> (rho_ice<span class="kw">*</span>L_ice <span class="kw">-</span> net_enth)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This is the <strong>flux-based</strong> form (chosen for consistency with <code>calc_bmb_grounded</code>), with an enthalpy correction <code>- net_enth</code> in the denominator accounting for latent heat already stored as basal water. The Yelmo port must adapt the interface to the current boundary set (<code>Q_rock</code> bedrock flux, <code>W_til</code> predictor, <code>f_grnd</code> weighting). The design should keep the bmb closure <strong>swappable</strong> (flux-based default, leaving room to experiment with an enthalpy-state form).</p>
+</section>
+</section>
+<section id="standalone-test-harness" class="level2">
+<h2 class="anchored" data-anchor-id="standalone-test-harness">4. Standalone test harness</h2>
+<p>A single-column driver already exists — <code>tests/test_icetemp.f90</code>, target <code>make icetemp</code> — that builds an EISMINT column, computes the Robin analytical solution, time-steps a solver, and writes NetCDF. <strong>It is bit-rotted</strong>: it calls <code>calc_enth_column</code>/<code>calc_temp_column</code> with old, shorter signatures and will not compile against the current routines. <code>tests/test_icetemp_poly.f90</code> targets the dead poly solver.</p>
+<p>Plan for the harness (Phase 0):</p>
+<ol type="1">
+<li>Update calls to current signatures; drop the poly test.</li>
+<li>Add automated pass/fail assertions:
+<ul>
+<li><strong>T1</strong> temp-solver vs Robin steady state (existing comparison, made quantitative).</li>
+<li><strong>T2</strong> enth ≡ temp in the cold limit (bit-for-bit or within tol).</li>
+<li><strong>T3</strong> Kleiner (2015) <strong>Experiment A</strong> — transient basal melt rate vs <code>data/Kleiner2015/Kleiner2015_EXPA_Fig2-IIIa-melt.txt</code>.</li>
+<li><strong>T4</strong> Kleiner (2015) <strong>Experiment B</strong> — steady polythermal column: CTS position, <code>T(z)</code>, <code>omega(z)</code>, basal enthalpy vs <code>Kleiner2015_EXPB_analytic_nz401_z.dat</code> and <code>..._enth_b.txt</code>.</li>
+</ul></li>
+<li>Reference data vendored under <code>tests/data/Kleiner2015/</code>.</li>
+</ol>
+</section>
+<section id="kleiner-et-al.-2015-benchmark" class="level2">
+<h2 class="anchored" data-anchor-id="kleiner-et-al.-2015-benchmark">5. Kleiner et al.&nbsp;(2015) benchmark</h2>
+<p>Two experiments with published/analytic references (vendored from icetemp):</p>
+<ul>
+<li><strong>Experiment A</strong> — parabolic surface-temperature forcing over a cold slab; tests the cold↔︎temperate base transition and basal melt onset. Reference: basal melt-rate time series.</li>
+<li><strong>Experiment B</strong> — steady polythermal column with a temperate basal layer; tests CTS position and water content. Reference: analytic profile at <code>nz=401</code> and basal enthalpy series (<code>T_ref = 173.15 K</code>).</li>
+</ul>
+<p>These target gap items 2–3 directly (CTS discretization, enthalpy-gradient flux).</p>
+</section>
+<section id="phased-plan" class="level2">
+<h2 class="anchored" data-anchor-id="phased-plan">6. Phased plan</h2>
+<p><strong>Phase 0 — Revive the standalone harness.</strong> Update <code>test_icetemp</code>, vendor Kleiner data, add tests T1–T4. De-risks everything downstream with a fast build/run loop.</p>
+<p><strong>Phase 1 — Finish the enthalpy column solver.</strong> Port <code>calc_bmb_grounded_enth</code> (flux-based, swappable), remove the <code>stop</code>, resolve the <code>Q_ice_b</code> discretization, reconcile basal/surface BC units and sign so cold-limit ≡ temp (test T2).</p>
+<p><strong>Phase 2 — Validate CTS / polythermal.</strong> Justify or replace the CTS fixups against Kleiner B (T4); confirm energy conservation.</p>
+<p><strong>Phase 3 — 2D/3D validation.</strong> EISMINT (<code>make benchmarks</code>) and an Antarctica spin-up, <code>enth</code> vs <code>temp</code>: basal temperate area, bmb, thickness. Only then consider changing the default.</p>
+<p><strong>Phase 4 — Cleanup (lands early, incrementally).</strong> - Delete dead <code>src/physics/ice_enthalpy_poly.f90</code> and <code>tests/test_icetemp_poly.f90</code> (never compiled; would not compile — uses nonexistent <code>calc_bmb_grounded_enth</code>). - Remove dead helpers <code>calc_Q_bedrock</code>, <code>calc_hires_cell</code> (zero call sites). - Hoist magic numbers (<code>enth_ref=273.15*2009.0</code>, <code>H_ice_thin=10.0</code>) to constants. - Remove stale comments/signature cruft (<code>W_til</code> “kept for signature stability” in <code>define_temp_robin</code>; “remerge into icetemp” module note). - Track the OpenMP-in-bedrock “leads to NaNs” note and the gated <code>ajr symtest</code> block.</p>
+</section>
+<section id="open-technical-questions" class="level2">
+<h2 class="anchored" data-anchor-id="open-technical-questions">7. Open technical questions</h2>
+<ul>
+<li><strong>Q_ice_b discretization</strong> (gap 2): testbed uses enthalpy-gradient <code>kappa*rho_ice*(enth(2)-enth(1))/dz</code>; Yelmo reverted to temperature gradient and flagged the enthalpy form “Problematic”. Kleiner B should decide which is correct and stable.</li>
+<li><strong>CTS boundary condition</strong> (gap 3): are the zero-flux BC and one-sided diffusivity jump physical, or stability band-aids? Validate against Kleiner B.</li>
+<li><strong>bmb closure form</strong>: flux-based confirmed as default; keep an interface seam for an alternative enthalpy-state closure.</li>
+</ul>
 
 
 </section>
@@ -879,13 +990,13 @@ c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../physics/enthalpy-transition-plan.html" class="pagination-link" aria-label="Enthalpy transition plan (ytherm)">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Enthalpy transition plan (ytherm)</span>
+      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Thermodynamics</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../yelmo-variables.html" class="pagination-link" aria-label="Variables">
-        <span class="nav-page-text">Variables</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../physics/calving.html" class="pagination-link" aria-label="Calving schemes">
+        <span class="nav-page-text">Calving schemes</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -894,4 +1005,4 @@ c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/enthalpy-transition-plan.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

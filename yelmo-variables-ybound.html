@@ -242,6 +242,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
@@ -285,6 +291,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">yhyd</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -352,7 +364,7 @@ ul.task-list li input[type="checkbox"] {
 <col style="width: 18%">
 <col style="width: 12%">
 <col style="width: 12%">
-<col style="width: 51%">
+<col style="width: 53%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -471,31 +483,31 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>16</td>
-<td>ice_allowed</td>
-<td>xc, yc</td>
-<td>-</td>
-<td>Locations where ice thickness can be greater than zero</td>
-</tr>
-<tr class="odd">
-<td>17</td>
 <td>calv_mask</td>
 <td>xc, yc</td>
 <td>-</td>
 <td>Locations where calving is not allowed</td>
 </tr>
-<tr class="even">
-<td>18</td>
+<tr class="odd">
+<td>17</td>
 <td>H_ice_ref</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Reference ice thickness for relaxation routines</td>
 </tr>
-<tr class="odd">
-<td>19</td>
+<tr class="even">
+<td>18</td>
 <td>z_bed_ref</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Reference bedrock elevation for relaxation routines</td>
+</tr>
+<tr class="odd">
+<td>19</td>
+<td>mask_ice</td>
+<td>xc, yc</td>
+<td>-</td>
+<td>Ice mask (0=none, 1=fixed, 2=dynamic)</td>
 </tr>
 </tbody>
 </table>

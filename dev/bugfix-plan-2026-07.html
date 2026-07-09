@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>sia – Yelmo</title>
+<title>bugfix-plan-2026-07 – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -26,25 +26,23 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
-<script src="../../site_libs/clipboard/clipboard.min.js"></script>
-<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="../../site_libs/quarto-search/fuse.min.js"></script>
-<script src="../../site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="../../">
-<link href="../../physics/momentum/solvers.html" rel="next">
-<link href="../../physics/momentum/ssa.html" rel="prev">
-<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="../../site_libs/quarto-html/popper.min.js"></script>
-<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="../../site_libs/quarto-html/anchor.min.js"></script>
-<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -73,49 +71,6 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
-  <script>document.addEventListener("DOMContentLoaded", function () {
- var mathElements = document.getElementsByClassName("math");
- var macros = [];
- for (var i = 0; i < mathElements.length; i++) {
-  var texText = mathElements[i].firstChild;
-  if (mathElements[i].tagName == "SPAN") {
-   katex.render(texText.data, mathElements[i], {
-    displayMode: mathElements[i].classList.contains('display'),
-    throwOnError: false,
-    macros: macros,
-    fleqn: false
-   });
-}}});
-  </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
-
-<script type="text/javascript">
-const typesetMath = (el) => {
-  if (window.MathJax) {
-    // MathJax Typeset
-    window.MathJax.typeset([el]);
-  } else if (window.katex) {
-    // KaTeX Render
-    var mathElements = el.getElementsByClassName("math");
-    var macros = [];
-    for (var i = 0; i < mathElements.length; i++) {
-      var texText = mathElements[i].firstChild;
-      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
-        window.katex.render(texText.data, mathElements[i], {
-          displayMode: mathElements[i].classList.contains('display'),
-          throwOnError: false,
-          macros: macros,
-          fleqn: false
-        });
-      }
-    }
-  }
-}
-window.Quarto = {
-  typesetMath
-};
-</script>
 
 </head>
 
@@ -126,7 +81,7 @@ window.Quarto = {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a class="navbar-brand" href="../../index.html">
+    <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Yelmo</span>
     </a>
   </div>
@@ -137,19 +92,19 @@ window.Quarto = {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="../../getting-started.html" aria-current="page"> 
+    <a class="nav-link active" href="../getting-started.html" aria-current="page"> 
 <span class="menu-text">Installation</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../physics/index.html"> 
+    <a class="nav-link" href="../physics/index.html"> 
 <span class="menu-text">Physics</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../yelmo-variables.html"> 
+    <a class="nav-link" href="../yelmo-variables.html"> 
 <span class="menu-text">Variables</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../benchmarks.html"> 
+    <a class="nav-link" href="../benchmarks.html"> 
 <span class="menu-text">Benchmarks</span></a>
   </li>  
 </ul>
@@ -163,7 +118,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/diva.html">Momentum balance</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/sia.html">SIA — Shallow Ice Approximation</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -177,7 +132,7 @@ window.Quarto = {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../getting-started.html" class="sidebar-item-text sidebar-link">
+            <a href="../getting-started.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Installation</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -186,7 +141,7 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../hpc-notes.html" class="sidebar-item-text sidebar-link">
+  <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
 </li>
@@ -194,25 +149,25 @@ window.Quarto = {
   </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../benchmarks.html" class="sidebar-item-text sidebar-link">
+  <a href="../benchmarks.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Benchmarks</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../parameters.html" class="sidebar-item-text sidebar-link">
+  <a href="../parameters.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parameters</span></a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-config.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-config.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
+            <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Physics</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -221,34 +176,34 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
  <span class="menu-text">Momentum balance</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/sia.html" class="sidebar-item-text sidebar-link active">
+  <a href="../physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
   </div>
 </li>
@@ -265,13 +220,13 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Mass conservation — continuity equation</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical solution of the continuity equation</span></a>
   </div>
 </li>
@@ -279,19 +234,19 @@ window.Quarto = {
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
 </li>
@@ -299,7 +254,7 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../yelmo-variables.html" class="sidebar-item-text sidebar-link">
+            <a href="../yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -308,43 +263,43 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ybound</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytopo</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydyn</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ymat</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">yhyd</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydata</span></a>
   </div>
 </li>
@@ -352,7 +307,7 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../../notes.html" class="sidebar-item-text sidebar-link">
+            <a href="../notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Notes</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -361,19 +316,19 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../yelmo-io.html" class="sidebar-item-text sidebar-link">
+  <a href="../yelmo-io.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Yelmo IO</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../remapping.html" class="sidebar-item-text sidebar-link">
+  <a href="../remapping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Remapping</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
@@ -389,74 +344,158 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#sia-shallow-ice-approximation" id="toc-sia-shallow-ice-approximation" class="nav-link active" data-scroll-target="#sia-shallow-ice-approximation">SIA — Shallow Ice Approximation</a>
+  <li><a href="#yelmo-dev-branch-bug-fix-plan-2026-07" id="toc-yelmo-dev-branch-bug-fix-plan-2026-07" class="nav-link active" data-scroll-target="#yelmo-dev-branch-bug-fix-plan-2026-07">Yelmo dev-branch bug-fix plan (2026-07)</a>
   <ul class="collapse">
-  <li><a href="#continuum-equations" id="toc-continuum-equations" class="nav-link" data-scroll-target="#continuum-equations">Continuum equations</a></li>
-  <li><a href="#velocity-from-glens-flow-law" id="toc-velocity-from-glens-flow-law" class="nav-link" data-scroll-target="#velocity-from-glens-flow-law">Velocity from Glen’s flow law</a></li>
-  <li><a href="#relationship-to-the-textbook-sia" id="toc-relationship-to-the-textbook-sia" class="nav-link" data-scroll-target="#relationship-to-the-textbook-sia">Relationship to the textbook SIA</a></li>
+  <li><a href="#decisions-taken" id="toc-decisions-taken" class="nav-link" data-scroll-target="#decisions-taken">Decisions taken</a></li>
+  <li><a href="#parallelization-strategy" id="toc-parallelization-strategy" class="nav-link" data-scroll-target="#parallelization-strategy">Parallelization strategy</a>
+  <ul class="collapse">
+  <li><a href="#wave-1-leaf-files-fully-parallel-no-shared-files" id="toc-wave-1-leaf-files-fully-parallel-no-shared-files" class="nav-link" data-scroll-target="#wave-1-leaf-files-fully-parallel-no-shared-files">Wave 1 — leaf files, fully parallel (no shared files)</a></li>
+  <li><a href="#wave-2-integration-single-agent-hotglue-files-after-wave-1-merges" id="toc-wave-2-integration-single-agent-hotglue-files-after-wave-1-merges" class="nav-link" data-scroll-target="#wave-2-integration-single-agent-hotglue-files-after-wave-1-merges">Wave 2 — integration (single agent, hot/glue files) — after Wave 1 merges</a></li>
+  </ul></li>
+  <li><a href="#merge-order-gating" id="toc-merge-order-gating" class="nav-link" data-scroll-target="#merge-order-gating">Merge order &amp; gating</a></li>
+  <li><a href="#verification" id="toc-verification" class="nav-link" data-scroll-target="#verification">Verification</a></li>
+  <li><a href="#open-questions" id="toc-open-questions" class="nav-link" data-scroll-target="#open-questions">Open questions</a></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/momentum/sia.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/dev/bugfix-plan-2026-07.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/diva.html">Momentum balance</a></li><li class="breadcrumb-item"><a href="../../physics/momentum/sia.html">SIA — Shallow Ice Approximation</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
 
 
 
 
-<section id="sia-shallow-ice-approximation" class="level1">
-<h1>SIA — Shallow Ice Approximation</h1>
-<p>The SIA is the complementary limit to SSA: membrane stresses are neglected and the horizontal stress balance is dominated by the basal drag exerted by vertical shear. Yelmo’s SIA solver is implemented in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_sia.f90"><code>src/physics/velocity_sia.f90</code></a> and is used to provide the vertical-shear contribution to the velocity field in the hybrid SIA + SSA mode and as a diagnostic on its own.</p>
-<p>Crucially, Yelmo formulates SIA in <strong>stress form</strong>: the shear stress and the basal stress are computed <em>from the driving stress</em> <span class="math inline">\boldsymbol\tau_d</span> exactly as in DIVA, and the velocity is then obtained by integrating Glen’s flow law vertically. This is mathematically equivalent to the familiar closed-form SIA expression in terms of <span class="math inline">\nabla s</span>, but it keeps the link to the Stokes balance explicit, uses the same <span class="math inline">\boldsymbol\tau_d</span> field as DIVA/SSA (including the same lateral and grounding-line treatments), and makes the SIA → DIVA limit transparent.</p>
-<section id="continuum-equations" class="level2">
-<h2 class="anchored" data-anchor-id="continuum-equations">Continuum equations</h2>
-<p>The horizontal momentum balance, neglecting membrane stresses and vertical accelerations, reduces to a balance between the vertical gradient of horizontal shear stress and the horizontal pressure gradient of the gravitational driving:</p>
-<p><span class="math display">
-\frac{\partial \tau_{xz}}{\partial z} \;=\; \rho_i\, g\, \frac{\partial s}{\partial x},
-\qquad
-\frac{\partial \tau_{yz}}{\partial z} \;=\; \rho_i\, g\, \frac{\partial s}{\partial y}.
-</span></p>
-<p>Integrating from <span class="math inline">z</span> upward to the stress-free surface and writing the result in terms of the same driving stress as DIVA/SSA gives the linear-with-depth profile</p>
-<p><span class="math display">
-\tau_{xz}(z) \;=\; -\,\frac{s-z}{H}\,\tau_{d,x},
-\qquad
-\tau_{yz}(z) \;=\; -\,\frac{s-z}{H}\,\tau_{d,y},
-</span></p>
-<p>with the driving stress</p>
-<p><span class="math display">
-\tau_{d,x} \;=\; \rho_i\, g\, H\, \frac{\partial s}{\partial x},
-\qquad
-\tau_{d,y} \;=\; \rho_i\, g\, H\, \frac{\partial s}{\partial y},
-</span></p>
-<p>evaluated on ac-faces by the <em>same</em> <code>calc_driving_stress</code> routine used by DIVA and SSA (see <a href="../../physics/momentum/diva.html">DIVA</a>). The basal stress is recovered at <span class="math inline">z = b</span>: <span class="math inline">(\tau_{xz}, \tau_{yz})\big|_{z=b} = -\boldsymbol\tau_d</span>, i.e.&nbsp;all of the driving stress is balanced at the bed, as expected when membrane stresses are dropped. The shear stress profile is built by <code>calc_shear_stress_3D</code>.</p>
+<section id="yelmo-dev-branch-bug-fix-plan-2026-07" class="level1">
+<h1>Yelmo dev-branch bug-fix plan (2026-07)</h1>
+<p>Derived from the 4-agent audit of dyn / tpo / mat / timestepping. Thermodynamics excluded (handled on <code>therm-dev</code> / enthalpy transition).</p>
+<section id="decisions-taken" class="level2">
+<h2 class="anchored" data-anchor-id="decisions-taken">Decisions taken</h2>
+<ul>
+<li><strong>dzsdt (audit #1): IN SCOPE — important.</strong> <code>dzsdt</code> is computed at <code>yelmo_topography.f90:409</code> from a <code>z_srf</code> not yet updated for the new <code>H_ice</code> (refreshed only later in <code>calc_ytopo_diagnostic</code>, L418), so it is ~0 where <code>calc_ydyn</code>→<code>calc_uz_3D*</code> consume it, corrupting vertical velocity every step. Fix: refresh <code>z_srf</code> from current <code>H_ice</code> before computing rates, in the predictor and advance paths. <strong>Coordinate with therm-dev</strong> (vertical-velocity / advection rework) to avoid a double-patch.</li>
+<li><strong>L1L2 solver (audit #5): DELETE ENTIRELY</strong> — obsolete, broken, superseded by DIVA. Removes the membrane-stress bug and the L1L2 periodic-BC bug outright.</li>
+<li><strong>mask_adv → retire, use <code>bnd%mask_ice</code> directly.</strong> <code>mask_adv</code> is hardwired to <code>1</code> everywhere (<code>yelmo_ice.f90:915</code>) and carries no information. The advection solver’s internal convention <code>{-1=fixed, 0=none, 1=dynamic}</code> is migrated to the <code>MASK_ICE_*</code> convention <code>{NONE=0, FIXED=1, DYNAMIC=2}</code> (yelmo_defs.f90:50-52), <code>bnd%mask_ice</code> is threaded through <code>calc_G_advec_simple</code>/rk/lsf, and the <code>mask_adv</code> field is removed (type, alloc/dealloc, io output, c_api). This subsumes the <code>mask==-1</code> <code>b_value=H</code> fix. <strong>Must be atomic</strong> (see WS-GLUE).</li>
+<li><strong>T_prime rate-factor clamp (audit #6): OPEN — see §Open q.1.</strong> Recommend ceiling <code>T0</code> (or remove); currently <code>min(T_prime,T_pmp)</code>. Not scheduled until decided.</li>
+<li>All other verified findings: proceed.</li>
+</ul>
 </section>
-<section id="velocity-from-glens-flow-law" class="level2">
-<h2 class="anchored" data-anchor-id="velocity-from-glens-flow-law">Velocity from Glen’s flow law</h2>
-<p>With the shear-stress field in hand, the horizontal shear strain rates follow directly from Glen’s law,</p>
-<p><span class="math display">
-\dot\varepsilon_{xz}
-\;=\; A(T'(z))\, \tau_e^{\,n-1}\,\tau_{xz},
-\qquad
-\dot\varepsilon_{yz}
-\;=\; A(T'(z))\, \tau_e^{\,n-1}\,\tau_{yz},
-</span></p>
-<p>where the effective stress under SIA assumptions is <span class="math inline">\tau_e^{\,2} = \tau_{xz}^{\,2} + \tau_{yz}^{\,2}</span>. Since <span class="math inline">\dot\varepsilon_{xz} = \frac{1}{2}\frac{\partial u}{\partial z}</span> in the SIA limit, the horizontal velocity is obtained by integrating from the bed upward:</p>
-<p><span class="math display">
-u(z) \;=\; u_b \,+\, 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
-</span></p>
-<p>and analogously for <span class="math inline">v</span>. The integral is evaluated layer-by-layer with the trapezoidal rule (routine <code>calc_uxy_sia_3D</code>). The depth-averaged velocity <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> is obtained by trapezoidal integration over <span class="math inline">z</span>.</p>
-<p>In hybrid mode, Yelmo uses <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> to provide the shearing contribution that is added to the basal velocity produced by the membrane (DIVA/SSA) solve. In a pure-SIA configuration, the basal velocity is either zero (frozen bed) or comes from a sliding law of choice (not the default in current Yelmo versions).</p>
+<section id="parallelization-strategy" class="level2">
+<h2 class="anchored" data-anchor-id="parallelization-strategy">Parallelization strategy</h2>
+<p>Each workstream owns a <strong>disjoint set of files</strong> → parallel agents in separate worktrees, no merge conflicts. Hot “glue” files + the mask-migration + PC-history + dzsdt are consolidated into a <strong>single Wave-2 integration workstream</strong> (they are interdependent and share files), run after the Wave-1 leaf workstreams merge.</p>
+<p>Worktree discipline (CLAUDE.md): <code>git worktree add .claude/worktrees/&lt;ws&gt; dev</code>, build-verify there, commit, merge to <code>dev</code> sequentially. No merges while batch experiments run on <code>dev</code>.</p>
+<section id="wave-1-leaf-files-fully-parallel-no-shared-files" class="level3">
+<h3 class="anchored" data-anchor-id="wave-1-leaf-files-fully-parallel-no-shared-files">Wave 1 — leaf files, fully parallel (no shared files)</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 54%">
+<col style="width: 29%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>WS</th>
+<th>Files owned</th>
+<th>Fixes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>WS-SIA</strong></td>
+<td><code>physics/velocity_sia.f90</code></td>
+<td>#3 remove <code>k</code> from OMP <code>private</code> (L178); #4 <code>tau_*z_n_dn</code> first index → <code>k-1</code> (L187,191)</td>
+</tr>
+<tr class="even">
+<td><strong>WS-BDRAG</strong></td>
+<td><code>physics/basal_dragging.f90</code></td>
+<td>#7 power-plastic uses <code>cbn</code> not <code>c_bed(i,j)</code> (L986); #12 <code>infinite/mask</code> BC → zero-gradient in x (L507-508); scale_beta_gl_fraction x-loop <code>1,nx-1</code>→<code>1,nx</code> (L1147); gl_flux_weight grounded-end test (L1699-1718)</td>
+</tr>
+<tr class="odd">
+<td><strong>WS-DEFORM</strong></td>
+<td><code>physics/deformation.f90</code></td>
+<td>#10 dyy margin check <code>f_ice(i,jm2)</code> + add missing <code>else</code> (L756,764-772); #11 <code>calc_visc_int</code> periodic writes col <code>nx</code> not <code>nx-1</code> (L364-372); strain-reset for ice-free (low)</td>
+</tr>
+<tr class="even">
+<td><strong>WS-TOOLS</strong></td>
+<td><code>yelmo_tools.f90</code></td>
+<td>#9 <code>stagger_aa_ab_ice</code> invert to iced-corner avg (L428) <strong>+ re-verify <code>stagger_ab_aa_ice</code> L520 self-composition still correct after the flip</strong>; #15 periodic <code>set_boundaries_2D_aa</code> single convention (L1198-1208); #16 <code>smooth_gauss_2D</code> reverse right/top halo + fill corners (L1670-1679)</td>
+</tr>
+<tr class="odd">
+<td><strong>WS-VGEN</strong></td>
+<td><code>physics/velocity_general.f90</code></td>
+<td>#8 Picard <code>norm_method=1</code>: add <code>sqrt</code>, accumulate x/y under own masks (L1977-2002); <code>taud_gl_method=-1</code> no-op (decide: honor <code>beta_gl_stag</code> or <code>error stop</code>); remove <code>if(j==6) write</code> debug (L1287,1351)</td>
+</tr>
+<tr class="even">
+<td><strong>WS-MASSCALV</strong></td>
+<td><code>physics/mass_conservation.f90</code>, <code>physics/calving/calving_ac.f90</code>, <code>physics/grounding_line_flux.f90</code>, <code>physics/topography.f90</code></td>
+<td>#13 <code>infinite</code> border <code>H(nx,:)=H(nx-1,:)</code> (mass_cons L712); #14 uninitialized <code>BC</code> in 3 live LSF routines + 2 unused (calving_ac); #17 <code>pi</code>→<code>phi</code> typo (topography L2430); <code>qq_gl_acy</code> empty loop (implement mirror or <code>error stop</code>); <code>calv_now</code> uninit stub (delete or port); mb-limiter diagnostic (mass_cons L168)</td>
+</tr>
+<tr class="odd">
+<td><strong>WS-TIME</strong></td>
+<td><code>yelmo_timesteps.f90</code>, <code>physics/runge_kutta.f90</code></td>
+<td>floor-rounding can zero dt + int overflow (L794-799); <code>pc_k=1</code> for FE-SBE + docstring (L432); rk23 advance with 2nd-order soln + labels (L106-125); rk4 tau <code>d2</code> cumulative + drop nudge (L279-300)</td>
+</tr>
+</tbody>
+</table>
+<p><em>Note:</em> <code>physics/solver_advection.f90</code> is intentionally <strong>not</strong> in Wave 1 — its BC fixes (#18 periodic-x, #19 expl) are bundled into WS-GLUE with the mask migration so the file has a single owner and the convention change lands atomically.</p>
 </section>
-<section id="relationship-to-the-textbook-sia" class="level2">
-<h2 class="anchored" data-anchor-id="relationship-to-the-textbook-sia">Relationship to the textbook SIA</h2>
-<p>Substituting the closed-form <span class="math inline">\tau_{xz} = -\rho_i\,g\,(s-z)\,\frac{\partial s}{\partial x}</span> into the integral above and assuming <span class="math inline">A</span> constant with <span class="math inline">z</span> recovers the familiar SIA velocity</p>
-<p><span class="math display">
-u(z) \;=\; u_b
-\,-\, \frac{2\,(\rho_i g)^n\,A}{n+1}\,
-       H^{n+1}\,|\nabla s|^{\,n-1}\,\frac{\partial s}{\partial x}\,
-       \bigl[\,1 - (1 - (z-b)/H)^{n+1}\,\bigr],
-</span></p>
-<p>but Yelmo does not collapse to that form internally. Keeping the stress-form integral is what allows the SIA solver to share <span class="math inline">\boldsymbol\tau_d</span>, <span class="math inline">A(T'(z))</span> and the discretisation conventions with the DIVA solver and the rest of the model.</p>
+<section id="wave-2-integration-single-agent-hotglue-files-after-wave-1-merges" class="level3">
+<h3 class="anchored" data-anchor-id="wave-2-integration-single-agent-hotglue-files-after-wave-1-merges">Wave 2 — integration (single agent, hot/glue files) — after Wave 1 merges</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 54%">
+<col style="width: 29%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>WS</th>
+<th>Files owned</th>
+<th>Fixes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>WS-GLUE</strong></td>
+<td><code>yelmo_dynamics.f90</code>, <code>yelmo_ice.f90</code>, <code>yelmo_topography.f90</code>, <code>yelmo_material.f90</code>, <code>yelmo_defs.f90</code>, <code>physics/solver_advection.f90</code>, <code>yelmo_io.f90</code>, <code>yelmo_c_api.f90</code>, <code>config/Makefile_yelmo.mk</code>, <strong>delete</strong> <code>physics/velocity_l1l2.f90</code></td>
+<td>See below</td>
+</tr>
+</tbody>
+</table>
+<p>WS-GLUE tasks (one coherent change set, keep dispatch + timestepping consistent):</p>
+<ol type="1">
+<li><strong>L1L2 deletion</strong>: rm <code>physics/velocity_l1l2.f90</code>; rm <code>use</code>/dispatch (L195-198)/ <code>calc_ydyn_l1l2</code> (L562-648)/option-string (L1001) in <code>yelmo_dynamics.f90</code>; rm 3 lines in <code>config/Makefile_yelmo.mk</code> (120,156,250).</li>
+<li><strong>mask migration (atomic)</strong>: in <code>solver_advection.f90</code>, replace the <code>{-1,0,1}</code> mask logic with <code>{MASK_ICE_NONE=0 → zero row, MASK_ICE_FIXED=1 → b_value=H row, MASK_ICE_DYNAMIC=2 → inner discretization}</code> across <strong>all</strong> solver variants; thread <code>bnd%mask_ice</code> through <code>calc_G_advec_simple</code>/<code>rk*_2D_step</code>/ <code>LSFupdate</code> in place of <code>tpo%now%mask_adv</code>; delete the <code>mask_adv</code> field from the ytopo type + alloc/dealloc/init, <code>yelmo_io</code> output, <code>yelmo_c_api</code>. Also fold in #18 (impl-lis <code>periodic-x</code> matrix BC) and #19 (<code>expl</code> periodic mass-conservation: pass BC into the ab-node stagger). Subsumes the <code>mask==-1</code> <code>b_value</code> fix.</li>
+<li><strong>dzsdt (#1): MOVED to <code>therm-dev</code> (2026-07-08).</strong> Excluded from WS-GLUE — the <code>dzsdt</code>→<code>uz</code> correction is coupled to the vertical-velocity/enthalpy work and will be handled on the <code>therm-dev</code> (ytherm) branch to avoid a double-patch.</li>
+<li><strong>PC history (#2)</strong>: store raw predictor <code>dHidt_now</code> as a new field; corrector uses <code>β₃·f*_{n+1} + β₄·f_n</code>; shift raw <code>f_n→f_{n-1}</code> at advance (<code>yelmo_topography.f90</code> L103,123,150,340-403).</li>
+<li><strong>Bootstrap-tau consistency</strong>: branch the tau call on <code>pc_active</code> like the beta call (<code>yelmo_ice.f90</code> L244-333).</li>
+<li><strong>Deallocs / init</strong>: <code>pc%dmb</code> (<code>yelmo_topography.f90</code> L1791); <code>strn2D%f_shear</code> init + dealloc (<code>yelmo_material.f90</code> L401,445,504).</li>
+<li><strong>mask_grz / dist_margin (#Tier2)</strong>: compute distances (km) before zone classification; compute <code>dist_margin</code> (<code>yelmo_topography.f90</code> L1061).</li>
+</ol>
+</section>
+</section>
+<section id="merge-order-gating" class="level2">
+<h2 class="anchored" data-anchor-id="merge-order-gating">Merge order &amp; gating</h2>
+<ol type="1">
+<li>Wave-1 branches build-verify independently, merge to <code>dev</code> in any order (disjoint files ⇒ no conflicts). Build after each merge.</li>
+<li>WS-GLUE branches off <code>dev</code> after all Wave-1 merges, rebuilds, merges last.</li>
+<li>Between merges: no running experiments on <code>dev</code>.</li>
+</ol>
+</section>
+<section id="verification" class="level2">
+<h2 class="anchored" data-anchor-id="verification">Verification</h2>
+<ul>
+<li><strong>Per fix</strong>: clean build (<code>make yelmo-static</code> or host target).</li>
+<li><strong>Answer-preserving</strong> (dead code, deallocs, diagnostics, guards, debug removal): expect bit-identical results on a reference run.</li>
+<li><strong>Answer-changing</strong> (Picard <code>sqrt</code>, SIA <code>k-1</code>, boundary fixes, dzsdt, PC history #2, mask migration): each needs a before/after benchmark. <strong>dzsdt</strong> and <strong>PC history #2</strong> are the highest-risk items — each its own commit + EISMINT/MISMIP diff review.</li>
+<li><strong>Transpose-symmetry regression test</strong> (proposed): run e.g.&nbsp;EISMINT-moving on a transposed grid, assert <code>H(x,y)==H(y,x)ᵀ</code> to tolerance. Would have caught #10, #11, #12, #13 automatically and protects the v2.0 refactors.</li>
+</ul>
+</section>
+<section id="open-questions" class="level2">
+<h2 class="anchored" data-anchor-id="open-questions">Open questions</h2>
+<ol type="1">
+<li><strong>T_prime ceiling</strong> (<code>deformation.f90:415</code>). <code>T′ = T_ice − T_pmp + T0</code> is the Greve-Blatter homologous temperature in <strong>Kelvin</strong>; the <code>+T0</code> is the homologous shift, not a °C→K conversion. The physical cap <code>T_ice ≤ T_pmp</code> maps to <code>T′ ≤ T0</code> (not <code>T′ ≤ T_pmp</code>), so <code>min(T_prime,T_pmp)</code> cuts ATT by ~1.6× for near-temperate ice. Recommend ceiling <code>T0</code> (or remove; the EISMINT variant has no clamp). <strong>Decision needed before scheduling.</strong></li>
+<li><strong>dzsdt vs therm-dev</strong>: confirm this fix lands here and is coordinated with the vertical-velocity work on therm-dev (no double-patch).</li>
+<li><strong>mask_adv retirement</strong>: OK to drop the <code>mask_adv</code> output variable + c_api entry (restart/output configs referencing it will lose it)?</li>
+</ol>
 
 
 </section>
@@ -868,21 +907,9 @@ u(z) \;=\; u_b
     }
   });
   </script>
-<nav class="page-navigation">
-  <div class="nav-page nav-page-previous">
-      <a href="../../physics/momentum/ssa.html" class="pagination-link" aria-label="SSA — Shallow Shelf Approximation">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">SSA — Shallow Shelf Approximation</span>
-      </a>          
-  </div>
-  <div class="nav-page nav-page-next">
-      <a href="../../physics/momentum/solvers.html" class="pagination-link" aria-label="Numerical solution of DIVA / SSA">
-        <span class="nav-page-text">Numerical solution of DIVA / SSA</span> <i class="bi bi-arrow-right-short"></i>
-      </a>
-  </div>
-</nav>
 </div> <!-- /content -->
 
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/momentum/sia.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/dev/bugfix-plan-2026-07.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

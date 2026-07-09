@@ -242,6 +242,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
@@ -285,6 +291,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">yhyd</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -498,340 +510,361 @@ ul.task-list li input[type="checkbox"] {
 <td>Surface elevation rate of change</td>
 </tr>
 <tr class="even">
-<td>20</td>
-<td>mask_adv</td>
-<td>xc, yc</td>
-<td></td>
-<td>Advection mask</td>
-</tr>
-<tr class="odd">
 <td>21</td>
 <td>eps_eff</td>
 <td>xc, yc</td>
 <td>1/yr</td>
 <td>Effective strain rate</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>22</td>
 <td>tau_eff</td>
 <td>xc, yc</td>
 <td>Pa</td>
 <td>Effective stress</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>23</td>
 <td>z_base</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Ice-base elevation</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>24</td>
 <td>dzsdx</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Surface elevation slope, acx nodes</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>25</td>
 <td>dzsdy</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Surface elevation slope, acy nodes</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>26</td>
 <td>dHidx</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Ice thickness gradient, acx nodes</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>27</td>
 <td>dHidy</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Ice thickness gradient, acy nodes</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>28</td>
 <td>dzbdx</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Bedrock slope, acx nodes</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>29</td>
 <td>dzbdy</td>
 <td>xc, yc</td>
 <td>m/m</td>
 <td>Bedrock slope, acy nodes</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>30</td>
 <td>H_eff</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Effective ice thickness (margin-corrected)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>31</td>
 <td>H_grnd</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Grounded ice thickness</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>32</td>
 <td>H_calv</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Calving parameter field, ice thickness limit</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>33</td>
 <td>kt_calv</td>
 <td>xc, yc</td>
 <td></td>
 <td>Calving parameter field, vm-l19</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>34</td>
 <td>z_bed_filt</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Filtered bedrock elevation</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>35</td>
 <td>f_grnd</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>36</td>
 <td>f_grnd_acx</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction (acx nodes)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>37</td>
 <td>f_grnd_acy</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction (acy nodes)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>38</td>
 <td>f_grnd_ab</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction (ab nodes)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>39</td>
 <td>f_ice</td>
 <td>xc, yc</td>
 <td></td>
 <td>Ice-covered fraction</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>40</td>
 <td>f_grnd_bmb</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction for basal mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>41</td>
 <td>f_grnd_pin</td>
 <td>xc, yc</td>
 <td></td>
 <td>Grounded fraction from subgrid pinning points</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>42</td>
 <td>dist_margin</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Distance to nearest margin point</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>43</td>
 <td>dist_grline</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Distance to nearest grounding-line point</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>44</td>
 <td>mask_bed</td>
 <td>xc, yc</td>
 <td></td>
 <td>Multi-valued bed mask</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>45</td>
 <td>mask_grz</td>
 <td>xc, yc</td>
 <td></td>
 <td>Multi-valued grounding-line zone mask</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>46</td>
 <td>mask_frnt</td>
 <td>xc, yc</td>
 <td></td>
 <td>Multi-valued ice front mask</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>47</td>
-<td>dHidt_dyn_n</td>
+<td>dHidt_dyn_raw_n</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Ice thickness change due to advection (previous)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>48</td>
 <td>H_ice_n</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Ice thickness from previous timestep</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>49</td>
 <td>z_srf_n</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Surface elevation from previous timestep</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>50</td>
 <td>H_ice_dyn</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Dynamic ice thickness</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>51</td>
 <td>f_ice_dyn</td>
 <td>xc, yc</td>
 <td></td>
 <td>Dynamic ice-covered fraction</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>52</td>
 <td>pc_pred_H_ice</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Predicted ice thickness</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>53</td>
 <td>pc_pred_dHidt_dyn</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted dynamic ice thickness rate of change</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>54</td>
 <td>pc_pred_mb_net</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted net mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>55</td>
 <td>pc_pred_smb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted surface mass balance</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>56</td>
 <td>pc_pred_bmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted basal mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>57</td>
 <td>pc_pred_fmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted frontal mass balance</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>58</td>
 <td>pc_pred_dmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted discharge mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>59</td>
 <td>pc_pred_cmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Predicted calving mass balance</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>60</td>
 <td>pc_corr_H_ice</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Corrected ice thickness</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>61</td>
 <td>pc_corr_dHidt_dyn</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected dynamic ice thickness rate of change</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>62</td>
 <td>pc_corr_mb_net</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected net mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>63</td>
 <td>pc_corr_smb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected surface mass balance</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>64</td>
 <td>pc_corr_bmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected basal mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>65</td>
 <td>pc_corr_fmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected frontal mass balance</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>66</td>
 <td>pc_corr_dmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected discharge mass balance</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>67</td>
 <td>pc_corr_cmb</td>
 <td>xc, yc</td>
 <td>m/yr</td>
 <td>Corrected calving mass balance</td>
+</tr>
+<tr class="odd">
+<td>68</td>
+<td>tau_relax</td>
+<td>xc, yc</td>
+<td></td>
+<td>Relaxed tau time</td>
+</tr>
+<tr class="even">
+<td>69</td>
+<td>lsf</td>
+<td>xc, yc</td>
+<td></td>
+<td>Level-set function</td>
+</tr>
+<tr class="odd">
+<td>70</td>
+<td>cmb_flt_x</td>
+<td>xc, yc</td>
+<td>m/yr</td>
+<td>Floating calving rate (x-direction)</td>
+</tr>
+<tr class="even">
+<td>71</td>
+<td>cmb_flt_y</td>
+<td>xc, yc</td>
+<td>m/yr</td>
+<td>Floating calving rate (y-direction)</td>
 </tr>
 </tbody>
 </table>
