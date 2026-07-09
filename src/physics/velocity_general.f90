@@ -301,7 +301,15 @@ end if
 
                 end do 
 
-                ! === Also calculate adjusted vertical velocity to be used for temperature advection
+                ! === Also calculate the sigma-coordinate advective vertical velocity uz_star ===
+                ! uz_star = uz + (coordinate-transform corrections) = H*dzeta/dt following a parcel.
+                ! It is the vertical velocity that MUST be paired with horizontal advection taken at
+                ! constant sigma (constant zeta level). It is a general kinematic field, not a
+                ! thermodynamics internal: thermodynamics is presently its sole consumer, but any
+                ! constant-sigma scalar advection (e.g. age/tracer transport) requires uz_star in
+                ! place of the true vertical velocity uz. Computed here, alongside uz and owned by
+                ! dyn, to reuse the surface/base geometry derivatives already formed above for uz.
+                ! Note: the 1/H factor is deferred to each consumer's advection step (see below).
                 
                 do k = 1, nz_ac 
 
@@ -643,7 +651,15 @@ end if
                 end do 
 
 
-                ! === Also calculate adjusted vertical velocity to be used for temperature advection
+                ! === Also calculate the sigma-coordinate advective vertical velocity uz_star ===
+                ! uz_star = uz + (coordinate-transform corrections) = H*dzeta/dt following a parcel.
+                ! It is the vertical velocity that MUST be paired with horizontal advection taken at
+                ! constant sigma (constant zeta level). It is a general kinematic field, not a
+                ! thermodynamics internal: thermodynamics is presently its sole consumer, but any
+                ! constant-sigma scalar advection (e.g. age/tracer transport) requires uz_star in
+                ! place of the true vertical velocity uz. Computed here, alongside uz and owned by
+                ! dyn, to reuse the surface/base geometry derivatives already formed above for uz.
+                ! Note: the 1/H factor is deferred to each consumer's advection step (see below).
                 
                 do k = 1, nz_ac 
 
@@ -915,7 +931,15 @@ end if
                     
                 end do 
                 
-                ! === Also calculate adjusted vertical velocity to be used for temperature advection
+                ! === Also calculate the sigma-coordinate advective vertical velocity uz_star ===
+                ! uz_star = uz + (coordinate-transform corrections) = H*dzeta/dt following a parcel.
+                ! It is the vertical velocity that MUST be paired with horizontal advection taken at
+                ! constant sigma (constant zeta level). It is a general kinematic field, not a
+                ! thermodynamics internal: thermodynamics is presently its sole consumer, but any
+                ! constant-sigma scalar advection (e.g. age/tracer transport) requires uz_star in
+                ! place of the true vertical velocity uz. Computed here, alongside uz and owned by
+                ! dyn, to reuse the surface/base geometry derivatives already formed above for uz.
+                ! Note: the 1/H factor is deferred to each consumer's advection step (see below).
                 
                 do k = 1, nz_ac 
 
