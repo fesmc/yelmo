@@ -324,10 +324,18 @@ contains
     end subroutine calc_advec_horizontal_column_quick
     
     subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
-        ! Newly implemented advection algorithms (ajr)
-        ! Output: [K a-1]
-
-        ! [m-1] * [m a-1] * [K] = [K a-1]
+        ! Horizontal advection u.grad(var), computed in conservative flux form with a
+        ! van Leer MUSCL reconstruction and recast to the advective (non-conservative)
+        ! form actually solved by the column equation:
+        !
+        !     u.grad(var) = div(u var) - var * div(u)
+        !
+        ! div(u var) is built from limited face values so the scheme is TVD (monotone)
+        ! on strongly divergent shelf flow, where the old advective-form limiter was
+        ! not TVD and amplified small perturbations. div(u) uses the SAME face
+        ! velocities, making the scheme free-stream preserving (var=const => 0 exactly).
+        ! One face reconstruction serves all four faces, so the x and y contributions
+        ! are exact mirror images by construction. Output: [K a-1].
 
         implicit none
 
@@ -345,183 +353,100 @@ contains
         ! Local variables
         integer  :: k, nx, ny, nz_aa
         integer  :: im1, ip1, jm1, jp1
-        real(wp) :: ux_aa, uy_aa
-        real(wp) :: dx_inv, dx_inv2
-        real(wp) :: advecx, advecy, advec_rev
-        real(wp) :: a1, a2
+        integer  :: im2, ip2, jm2, jp2
+        integer  :: id1, id2, id3
+        real(wp) :: dx_inv
+        real(wp) :: uw, ue, us, un          ! face velocities: west/east/south/north
+        real(wp) :: fw, fe, fs, fn          ! limited face values of var
+        real(wp) :: fluxdiv, divu
         integer  :: BC
 
-        ! Define some constants 
-        dx_inv  = 1.0_wp / dx 
-        dx_inv2 = 1.0_wp / (2.0_wp*dx)
+        dx_inv = 1.0_wp / dx
 
-        nx  = size(var_ice,1)
-        ny  = size(var_ice,2)
-        nz_aa = size(var_ice,3) 
+        nx    = size(var_ice,1)
+        ny    = size(var_ice,2)
+        nz_aa = size(var_ice,3)
+
+        advecxy = 0.0_wp
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        advecx  = 0.0 
-        advecy  = 0.0 
-        advecxy = 0.0 
-
-        ! Get neighbor indices
+        ! BC-aware neighbor indices, +-1 and +-2 in each direction. The +-2 indices
+        ! are obtained by stepping once more from the +-1 neighbors, so periodic
+        ! wrapping (e.g. y in TROUGH/MISMIP3D) and edge clamping (x) stay consistent.
         call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+        call get_neighbor_indices_bc_codes(im2,id1,id2,id3, im1,j,   nx,ny,BC)
+        call get_neighbor_indices_bc_codes(id1,ip2,id2,id3, ip1,j,   nx,ny,BC)
+        call get_neighbor_indices_bc_codes(id1,id2,jm2,id3, i,   jm1,nx,ny,BC)
+        call get_neighbor_indices_bc_codes(id1,id2,id3,jp2, i,   jp1,nx,ny,BC)
 
         ! Loop over each point in the column
-        do k = 1, nz_aa 
+        do k = 1, nz_aa
 
-            ! Estimate direction of current flow into cell (x and y), centered in vertical layer and grid point
-            ux_aa = 0.5_wp*(ux(i,j,k)+ux(im1,j,k))
-            uy_aa = 0.5_wp*(uy(i,j,k)+uy(i,jm1,k))
-            
-            ! === x-direction advection (u . d(var)/dx) ===
-            ! 2nd order uses the one-sided 3-point (Beam-Warming) upwind stencil
-            !   d/dx var|_i ~ (3 var_i - 4 var_{i-1} + var_{i-2}) / (2 dx)   (u>0)
-            !   d/dx var|_i ~ (-3 var_i + 4 var_{i+1} - var_{i+2}) / (2 dx)  (u<0)
-            ! blended toward 1st-order upwind by a van Leer flux limiter (flux_limited)
-            ! so the scheme stays TVD/monotone near sharp gradients. 1st-order fallback
-            ! at the border points (i=2, nx-1).
-            if (ux(im1,j,k) .gt. 0.0_wp .and. ux(i,j,k) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then
-                ! Convergent flow - mean of the two one-sided (limited) derivatives
-                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
-                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
-                else
-                    advecx = a1
-                end if
-                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2        = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
-                    advec_rev = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
-                else
-                    advec_rev = a1
-                end if
-                advecx = 0.5_wp * (advecx + advec_rev)
+            ! Face velocities on the staggered (ac) nodes bounding cell (i,j)
+            uw = ux(im1,j,k)      ! west  face (between i-1 and i)
+            ue = ux(i,j,k)        ! east  face (between i and i+1)
+            us = uy(i,jm1,k)      ! south face (between j-1 and j)
+            un = uy(i,j,k)        ! north face (between j and j+1)
 
-            else if (ux_aa .gt. 0.0 .and. i .ge. 3) then
-                ! Flow to the right - inner points
-                a1 = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * ux(im1,j,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(im1,j,k)+var_ice(i-2,j,k))
-                    advecx = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(im1,j,k),var_ice(im1,j,k)-var_ice(i-2,j,k))
-                else
-                    advecx = a1
-                end if
+            ! Limited face values of var (van Leer MUSCL; order=1 => plain upwind donor)
+            fw = muscl_face(uw, var_ice(im2,j,k), var_ice(im1,j,k), var_ice(i,j,k),   var_ice(ip1,j,k), advecxy_order)
+            fe = muscl_face(ue, var_ice(im1,j,k), var_ice(i,j,k),   var_ice(ip1,j,k), var_ice(ip2,j,k), advecxy_order)
+            fs = muscl_face(us, var_ice(i,jm2,k), var_ice(i,jm1,k), var_ice(i,j,k),   var_ice(i,jp1,k), advecxy_order)
+            fn = muscl_face(un, var_ice(i,jm1,k), var_ice(i,j,k),   var_ice(i,jp1,k), var_ice(i,jp2,k), advecxy_order)
 
-            else if (ux_aa .gt. 0.0 .and. i .eq. 2) then
-                ! Flow to the right - border points (1st order)
-                advecx = dx_inv * ux(im1,j,k)*(var_ice(i,j,k)-var_ice(im1,j,k))
+            ! Conservative flux divergence div(u var) and velocity divergence div(u),
+            ! both from the same face velocities => free-stream preserving.
+            fluxdiv = (ue*fe - uw*fw)*dx_inv + (un*fn - us*fs)*dx_inv
+            divu    = (ue - uw)*dx_inv + (un - us)*dx_inv
 
-            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then
-                ! Flow to the left - inner points
-                a1 = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * ux(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(ip1,j,k)-var_ice(i+2,j,k))
-                    advecx = flux_limited(a1,a2,var_ice(ip1,j,k)-var_ice(i,j,k),var_ice(i+2,j,k)-var_ice(ip1,j,k))
-                else
-                    advecx = a1
-                end if
+            ! Advective recast: u.grad(var) = div(u var) - var div(u)
+            advecxy(k) = fluxdiv - var_ice(i,j,k)*divu
 
-            else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then
-                ! Flow to the left - border points (1st order)
-                advecx = dx_inv * ux(i,j,k)*(var_ice(ip1,j,k)-var_ice(i,j,k))
-
-            else
-                ! No flow or divergent
-                advecx = 0.0
-
-            end if
-
-            ! === y-direction advection (v . d(var)/dy), mirror image of x ===
-            if (uy(i,j-1,k) .gt. 0.0_wp .and. uy(i,j,k) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then
-                ! Convergent flow - mean of the two one-sided (limited) derivatives
-                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
-                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
-                else
-                    advecy = a1
-                end if
-                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2        = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
-                    advec_rev = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
-                else
-                    advec_rev = a1
-                end if
-                advecy = 0.5_wp * (advecy + advec_rev)
-
-            else if (uy_aa .gt. 0.0 .and. j .ge. 3) then
-                ! Flow to the right  - inner points
-                a1 = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * uy(i,jm1,k)*(3.0_wp*var_ice(i,j,k)-4.0_wp*var_ice(i,jm1,k)+var_ice(i,j-2,k))
-                    advecy = flux_limited(a1,a2,var_ice(i,j,k)-var_ice(i,jm1,k),var_ice(i,jm1,k)-var_ice(i,j-2,k))
-                else
-                    advecy = a1
-                end if
-
-            else if (uy_aa .gt. 0.0 .and. j .eq. 2) then
-                ! Flow to the right - border points (1st order)
-                advecy = dx_inv * uy(i,jm1,k)*(var_ice(i,j,k)-var_ice(i,jm1,k))
-
-            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then
-                ! Flow to the left - inner points
-                a1 = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
-                if (advecxy_order .eq. 2) then
-                    a2     = dx_inv2 * uy(i,j,k)*(-3.0_wp*var_ice(i,j,k)+4.0_wp*var_ice(i,jp1,k)-var_ice(i,j+2,k))
-                    advecy = flux_limited(a1,a2,var_ice(i,jp1,k)-var_ice(i,j,k),var_ice(i,j+2,k)-var_ice(i,jp1,k))
-                else
-                    advecy = a1
-                end if
-
-            else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then
-                ! Flow to the left - border points (1st order)
-                advecy = dx_inv * uy(i,j,k)*(var_ice(i,jp1,k)-var_ice(i,j,k))
-
-            else
-                ! No flow
-                advecy = 0.0
-
-            end if
-            
-            ! Combine advection terms for total contribution 
-            advecxy(k) = (advecx+advecy)
-
-        end do 
+        end do
 
         return
 
     end subroutine calc_advec_horizontal_column
 
-    function flux_limited(a1,a2,d_loc,d_up) result(a)
-        ! van Leer flux-limited blend between the 1st-order (a1) and 2nd-order (a2)
-        ! advection estimates. r = ratio of the upwind gradient (d_up) to the local
-        ! gradient (d_loc); phi(r) in [0,2] with phi(r<=0)=0 (revert to 1st order at
-        ! extrema, TVD) and phi(1)=1 (full 2nd order where the field is smooth).
+    function muscl_face(u, vm, v0, vp, vpp, order) result(vface)
+        ! van Leer MUSCL reconstruction of var at the cell face between v0 and vp.
+        ! u is the face velocity; vm=v_{L-1}, v0=v_L, vp=v_R, vpp=v_{R+1}, where the
+        ! face lies between cells L and R. order=1 returns the plain upwind (donor)
+        ! value; order=2 adds the limited anti-diffusive slope. The van Leer limiter
+        ! phi(r) is TVD: phi(r<=0)=0 (revert to upwind at extrema), phi(1)=1 (full
+        ! 2nd order where the field is smooth). r = upwind slope / local slope.
 
         implicit none
 
-        real(wp), intent(IN) :: a1, a2, d_loc, d_up
-        real(wp) :: a
-        real(wp) :: r, phi
+        real(wp), intent(IN) :: u, vm, v0, vp, vpp
+        integer,  intent(IN) :: order
+        real(wp) :: vface
+        real(wp) :: dloc, dup, r, phi
 
-        if (abs(d_loc) .lt. TOL_UNDERFLOW) then
-            ! Local extremum / flat: no anti-diffusive correction
-            phi = 0.0_wp
-        else
-            r   = d_up / d_loc
+        dloc = vp - v0
+        phi  = 0.0_wp
+
+        if (order .eq. 2 .and. abs(dloc) .ge. TOL_UNDERFLOW) then
+            if (u .ge. 0.0_wp) then
+                dup = v0 - vm            ! upwind slope, donor = v0
+            else
+                dup = vpp - vp           ! upwind slope, donor = vp
+            end if
+            r   = dup / dloc
             phi = (r + abs(r)) / (1.0_wp + abs(r))    ! van Leer limiter
         end if
 
-        a = a1 + phi*(a2 - a1)
+        if (u .ge. 0.0_wp) then
+            vface = v0 + 0.5_wp*phi*dloc              ! reconstruct from donor v0
+        else
+            vface = vp - 0.5_wp*phi*dloc              ! reconstruct from donor vp
+        end if
 
         return
 
-    end function flux_limited
+    end function muscl_face
 
     subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,advecxy_order,beta1,beta2,boundaries)
 
