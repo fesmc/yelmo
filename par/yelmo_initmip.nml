@@ -26,6 +26,8 @@
     pd_tsrf_path      = "ice_data/{domain}/{grid_name}/{grid_name}_MARv3.11-ERA_annmean_1961-1990.nc"
     pd_smb_path       = "ice_data/{domain}/{grid_name}/{grid_name}_MARv3.11-ERA_annmean_1961-1990.nc"
     pd_vel_path       = "ice_data/{domain}/{grid_name}/{grid_name}_VEL-J18.nc"
+    pd_tsrf_monthly = False             ! MAR annual-mean file
+    pd_smb_monthly  = False             ! MAR annual-mean file
     bmb_shlf_const  = -1.0              ! [m/a] Basal mass balance of ice shelves
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
@@ -37,6 +39,8 @@
     pd_tsrf_path      = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
     pd_smb_path       = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
     pd_vel_path       = "ice_data/{domain}/{grid_name}/{grid_name}_VEL-R11-2.nc"
+    pd_tsrf_monthly = True              ! RACMO monthly file
+    pd_smb_monthly  = True              ! RACMO monthly file
     bmb_shlf_const  = -0.2              ! [m/a] Basal mass balance of ice shelves
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
@@ -48,6 +52,8 @@
     pd_tsrf_path      = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
     pd_smb_path       = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
     pd_vel_path       = "ice_data/{domain}/{grid_name}/{grid_name}_VEL-R11-2.nc"
+    pd_tsrf_monthly = True              ! RACMO monthly file
+    pd_smb_monthly  = True              ! RACMO monthly file
     bmb_shlf_const  = 0.0               ! [m/a] Basal mass balance of ice shelves
     dT_ann          = -10.0             ! [K] Temperature anomaly (atm)
     z_sl            = -120.0            ! [m] Sea level relative to present-day 

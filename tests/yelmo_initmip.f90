@@ -51,6 +51,8 @@ program yelmo_test
         character(len=512) :: pd_tsrf_path
         character(len=512) :: pd_smb_path
         character(len=512) :: pd_vel_path
+        logical :: pd_tsrf_monthly
+        logical :: pd_smb_monthly
 
         real(wp) :: bmb_shlf_const
         real(wp) :: dT_ann
@@ -99,6 +101,8 @@ program yelmo_test
     call nml_read(path_par,ctl%set_nm,  "pd_tsrf_path",    ctl%pd_tsrf_path)
     call nml_read(path_par,ctl%set_nm,  "pd_smb_path",     ctl%pd_smb_path)
     call nml_read(path_par,ctl%set_nm,  "pd_vel_path",     ctl%pd_vel_path)
+    call nml_read(path_par,ctl%set_nm,  "pd_tsrf_monthly", ctl%pd_tsrf_monthly)   ! Is the set's tsrf file monthly?
+    call nml_read(path_par,ctl%set_nm,  "pd_smb_monthly",  ctl%pd_smb_monthly)    ! Is the set's smb file monthly?
 
     ! Parse ctl filenames as needed
     call nml_set_param(path_par, "yelmo_init_topo", "init_topo_path", ctl%init_topo_path)
@@ -106,6 +110,9 @@ program yelmo_test
     call nml_set_param(path_par, "yelmo_data", "pd_tsrf_path", ctl%pd_tsrf_path)
     call nml_set_param(path_par, "yelmo_data", "pd_smb_path",  ctl%pd_smb_path)
     call nml_set_param(path_par, "yelmo_data", "pd_vel_path",  ctl%pd_vel_path)
+    ! Propagate the set's monthly flags so the file's time resolution follows the set (unquoted: logical)
+    call nml_set_param(path_par, "yelmo_data", "pd_tsrf_monthly", merge("True ","False",ctl%pd_tsrf_monthly), quoted=.FALSE.)
+    call nml_set_param(path_par, "yelmo_data", "pd_smb_monthly",  merge("True ","False",ctl%pd_smb_monthly),  quoted=.FALSE.)
     
     call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [yr] Constant imposed bmb_shlf value
     call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
@@ -777,9 +784,10 @@ end if
 
     end subroutine scale_cf_gaussian
 
-    subroutine nml_set_param(filename, nml_group, par_name, value)
+    subroutine nml_set_param(filename, nml_group, par_name, value, quoted)
         implicit none
         character(len=*), intent(in) :: filename, nml_group, par_name, value
+        logical, intent(in), optional :: quoted   ! Wrap value in single quotes? Default .TRUE. (character params); pass .FALSE. for logicals/numbers
 
         integer, parameter :: MAX_LINES = 50000
         integer, parameter :: LINE_LEN  = 1024
@@ -787,7 +795,10 @@ end if
         character(len=LINE_LEN) :: lines(MAX_LINES)
         character(len=LINE_LEN) :: trimmed
         integer :: unit, io, n_lines, i, ieq
-        logical :: in_group, found
+        logical :: in_group, found, quote_val
+
+        quote_val = .TRUE.
+        if (present(quoted)) quote_val = quoted
 
         open(newunit=unit, file=trim(filename), status='old', action='read', iostat=io)
         if (io /= 0) stop 'nml_set_param ERROR: cannot open file'
@@ -813,7 +824,11 @@ end if
                 if (trimmed(1:1) == '/') exit
                 ieq = index(trimmed, '=')
                 if (ieq > 1 .and. str_eq_ci(trim(trimmed(1:ieq-1)), par_name)) then
-                    lines(i) = " " // trim(par_name) // " = '" // trim(value) // "'"
+                    if (quote_val) then
+                        lines(i) = " " // trim(par_name) // " = '" // trim(value) // "'"
+                    else
+                        lines(i) = " " // trim(par_name) // " = " // trim(value)
+                    end if
                     found = .true.
                     exit
                 end if
