@@ -596,6 +596,7 @@ end if
         real(wp) :: Q_b_now, Q_lith_now
         real(wp) :: enth_ref
         logical  :: is_basal_flux
+        logical  :: is_float
         logical  :: use_int
 
         real(wp), allocatable :: kappa_aa(:)    ! aa-nodes
@@ -652,6 +653,19 @@ end if
         ! Calculate diffusivity on cell centers (aa-nodes)
         call calc_enth_diffusivity(kappa_aa,enth,enth_pmp,cp_eff,kt,cr,rho_ice)
 
+        ! Floating ice: the base is held at the ocean freezing temperature T_shlf
+        ! (imposed as the Dirichlet val_base below), which is colder than the ice
+        ! pressure melting point. This is a cold freezing boundary, so force the
+        ! base-node diffusivity to the cold-ice value kt/(rho*cp) even if the column
+        ! is currently temperate there. Otherwise the temperate K0 (~0) would leave
+        ! the imposed cold base thermally disconnected from the ice above (ill-posed
+        ! Dirichlet). With cold-ice conduction the base can cool/refreeze the ice
+        ! above, forming a physical cold basal boundary layer; the enthalpy method
+        ! books the refreezing latent heat via the migrating CTS. See the k=2
+        ! kappa_a override in calc_enth_column_internal (basal_freezing branch).
+        is_float = (f_grnd .lt. 1.0_wp)
+        if (is_float) kappa_aa(1) = kt(1) / (rho_ice*cp_eff(1))
+
         ! Convert units of Q_strn [J a-1 m-3] => [J kg a-1]
         Q_strn_now = Q_strn/(rho_ice)
 
@@ -666,12 +680,19 @@ end if
         ! === Basal boundary condition =====================
 
         if (f_grnd .lt. 1.0) then
-            ! Floating or partially floating ice - set temperature equal 
-            ! to basal temperature at pressure melting point, or marine freezing temp,
-            ! or weighted average between the two.
-            
-            val_base = (f_grnd*T_pmp(1) + (1.0-f_grnd)*T_shlf) * cp(1) 
-            is_basal_flux = .FALSE. 
+            ! Floating or partially floating ice - hold the base at the marine
+            ! interface temperature (pmp / T_shlf freezing point / weighted average).
+            ! Convert that temperature to enthalpy with the SAME definition used for
+            ! val_srf, enth_ref and enth_pmp (A2 integral or A1 cp_ref); the previous
+            ! T*cp(1) form was on a different enthalpy scale, which was harmless while
+            ! floating temperate columns always took the zero-gradient base branch but
+            ! mis-scales the base once it is imposed as a Dirichlet (basal_freezing).
+            if (use_int) then
+                val_base = enth_int_from_temp(f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf)
+            else
+                val_base = (f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf) * cp_ref
+            end if
+            is_basal_flux = .FALSE.
 
         else 
             ! Grounded ice 
@@ -708,13 +729,19 @@ end if
         ! === Solver =============================
      
         call calc_enth_column_internal(enth,kappa_aa,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
-                                            zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux)
+                                            zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,is_float)
 
 
         ! Modify enthalpy at the base in the case that a temperate layer is present above the base
-        ! (water content should increase towards the base)
-        ! This should come out of routine, but it helps ensure stability to check it here
-        if (enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
+        ! (water content should increase towards the base). Grounded ice only: a grounded
+        ! temperate base can hold water at the pressure melting point, so it should follow the
+        ! temperate layer above. A FLOATING base sits at the ice-ocean interface (T_shlf, the
+        ! marine freezing temperature, below pmp) imposed as the Dirichlet val_base above and
+        ! cooled by cold-ice conduction (basal_freezing); copying the interior enth onto it
+        ! would override that BC and smear the advected interior enthalpy onto the shelf base.
+        ! So skip it for floating ice (same is_float condition used for basal_freezing).
+        ! This should come out of routine, but it helps ensure stability to check it here.
+        if (.not. is_float .and. enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
         
         ! Get temperature and water content (constant cp_ref definition)
         call convert_from_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
@@ -790,7 +817,7 @@ end if
     end subroutine calc_enth_column
 
     subroutine calc_enth_column_internal(enth,kappa,uz,advecxy,Q_strn,val_base,val_srf,thickness, &
-                                            zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux)
+                                            zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,basal_freezing)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -815,8 +842,9 @@ end if
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
         real(wp), intent(IN)    :: enth_ref       ! [J kg] Reference temperature to scale calculation
         real(wp), intent(IN)    :: dt             ! [a] Time step
-        integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point) 
+        integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point)
         logical,  intent(IN)    :: is_basal_flux  ! Is basal condition flux condition (True) or Neumann (False)
+        logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf with cold-ice conduction
         ! Local variables
         integer  :: k, nz_aa
         real(wp) :: fac, fac_a, fac_b, uz_aa, dz, dzeta
@@ -855,15 +883,17 @@ end if
             supd(1) = -1.0_wp
             rhs(1)  = val_base * dz
                 
-        else if (k_cts .ge. 2) then 
-            ! Layer above base is also temperate (with water likely present in the ice),
-            ! set K0 dE/dz = 0. To do so, set basal enthalpy equal to enthalpy above
+        else if (k_cts .ge. 2 .and. .not. basal_freezing) then
+            ! Grounded temperate base: the layer above is also temperate (water likely
+            ! present), so set K0 dE/dz = 0 by holding basal enthalpy equal to the layer
+            ! above. NOT applied for a floating freezing base (basal_freezing): there the
+            ! ocean holds the interface at T_shlf, imposed as the Dirichlet val_base below.
 
             subd(1) =  0.0_wp
             diag(1) =  1.0_wp
             supd(1) = -1.0_wp
             rhs(1)  =  0.0_wp
-              
+
         else
             ! Impose basal enthalpy (Dirichlet condition) 
 
@@ -919,6 +949,13 @@ end if
                 ! Melting base: cold ice conducts to the Dirichlet-pmp base
                 kappa_a = kappa(k)
             end if
+
+            ! Floating freezing base (mirror of the melting-base case): the cold base,
+            ! held Dirichlet at T_shlf, conducts into the temperate ice above with
+            ! cold-ice diffusivity kappa(1) (set to kt/(rho*cp) by the caller) instead
+            ! of the near-zero harmonic mean with the temperate K0. This lets the ocean
+            ! cool/refreeze the shelf base and grow a physical cold basal boundary layer.
+            if (basal_freezing .and. k .eq. 2) kappa_a = kappa(1)
             
             ! Get diffusion factors
             fac_a   = -kappa_a*dzeta_a(k)*dt/thickness**2
