@@ -399,7 +399,7 @@ contains
         real(prec) :: ATT                   ! [a^-1 Pa^-3]
 
         ! Local variables
-        real(prec) :: T_prime                         ! [K]  Temperature relative to the pressure melting point
+        real(prec) :: T_prime                         ! [K] Homologous temperature on the absolute (Kelvin) scale (T_ice-T_pmp+T0, so T0 == temperate)
         real(prec), parameter :: T_prime_lim = 263.15 ! [K] 
         real(prec), parameter :: A0_1 = 1.25671e-05   ! [a^-1 Pa^-3]
         real(prec), parameter :: A0_2 = 6.0422976e10  ! [a^-1 Pa^-3]
@@ -437,7 +437,7 @@ contains
         real(prec) :: ATT                   ! [a^-1 Pa^-3]
 
         ! Local variables
-        real(prec) :: T_prime                           ! [K]  Temperature relative to the pressure melting point
+        real(prec) :: T_prime                           ! [K] Homologous temperature on the absolute (Kelvin) scale (T_ice-T_pmp+T0, so T0 == temperate)
         real(prec), parameter :: T_prime_lim = 263.15   ! [K] 
         real(prec), parameter :: A0_1 = 1.139205e-05    ! [a^-1 Pa^-3]
         real(prec), parameter :: A0_2 = 5.459348198e10  ! [a^-1 Pa^-3]

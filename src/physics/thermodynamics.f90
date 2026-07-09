@@ -76,7 +76,7 @@ contains
         implicit none 
         
         real(wp), intent(OUT) :: bmb_grnd          ! [m/a ice equiv.] Basal mass balance, grounded
-        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal ice temp relative to pressure melting point (ie T_prime_b=0 K == temperate)
+        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal homologous temperature (temperature corrected for pressure's impact on melting temperature T_pmp); 0 == temperate
         real(wp), intent(IN)  :: Q_ice_b_now       ! [J a-1 m-2] Ice basal heat flux (positive up)
         real(wp), intent(IN)  :: Q_b_now           ! [J a-1 m-2] Basal heat production from friction and strain heating
         real(wp), intent(IN)  :: Q_rock_now        ! [J a-1 m-2] Geothermal heat flux 
@@ -124,7 +124,7 @@ contains
         implicit none
 
         real(wp), intent(OUT) :: bmb_grnd          ! [m/a ice equiv.] Basal mass balance, grounded
-        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal ice temp relative to pmp (0 == temperate)
+        real(wp), intent(IN)  :: T_prime_b         ! [K] Basal homologous temperature (temperature corrected for pressure's impact on melting temperature T_pmp); 0 == temperate
         real(wp), intent(IN)  :: enth_b            ! [J kg-1] Basal ice enthalpy
         real(wp), intent(IN)  :: enth_pmp_b        ! [J kg-1] Basal enthalpy at pressure melting point
         real(wp), intent(IN)  :: Q_ice_b_now       ! [J a-1 m-2] Ice basal heat flux (positive up)

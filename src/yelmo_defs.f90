@@ -695,7 +695,7 @@ module yelmo_defs
         real(wp), allocatable :: T_ice(:,:,:)     ! [K]     Ice temp. 
         real(wp), allocatable :: omega(:,:,:)     ! [--]    Ice water content
         real(wp), allocatable :: T_pmp(:,:,:)     ! Pressure-corrected melting point
-        real(wp), allocatable :: T_prime(:,:,:)   ! Pressure-corrected temperature
+        real(wp), allocatable :: T_prime(:,:,:)   ! Homologous temperature (temperature corrected for pressure's impact on melting temperature T_pmp)
         
         real(wp), allocatable :: f_pmp(:,:)       ! fraction of cell at pressure melting point
         real(wp), allocatable :: bmb_grnd(:,:)    ! Grounded basal mass balance 

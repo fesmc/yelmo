@@ -237,8 +237,9 @@ contains
 
         end if 
 
-        ! Calculate homologous temperature eveerywhere and at the base 
-        thrm%now%T_prime   = thrm%now%T_ice - thrm%now%T_pmp 
+        ! Calculate homologous temperature everywhere and at the base
+        ! (T_prime = T_ice - T_pmp; 0 == temperate, negative below the melting point)
+        thrm%now%T_prime   = thrm%now%T_ice - thrm%now%T_pmp
         thrm%now%T_prime_b = thrm%now%T_prime(:,:,1)
         
         ! Calculate gridpoint fraction at the pressure melting point
