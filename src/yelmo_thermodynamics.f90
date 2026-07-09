@@ -158,7 +158,7 @@ contains
                                 dyn%now%ux,dyn%now%uy,dyn%now%uz_star,thrm%now%Q_strn,thrm%now%Q_b,thrm%now%Q_rock,bnd%T_srf, &
                                 tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
-                                thrm%par%enth_cr,thrm%par%omega_max,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
+                                thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral)
 
                 case("robin")
@@ -261,7 +261,7 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral)
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
 
@@ -299,7 +299,8 @@ contains
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
         real(wp), intent(IN)    :: cr             ! [--] Conductivity ratio for temperate ice (kappa_temp = enth_cr*kappa_cold)
-        real(wp), intent(IN)    :: omega_max      ! [--] Maximum allowed water content fraction 
+        real(wp), intent(IN)    :: omega_max      ! [--] Maximum allowed water content fraction
+        real(wp), intent(IN)    :: H_ice_thin     ! [m] Thickness threshold below which the column solver is skipped
         real(wp), intent(IN)    :: rho_ice 
         real(wp), intent(IN)    :: rho_sw
         real(wp), intent(IN)    :: rho_w
@@ -317,9 +318,7 @@ contains
         real(wp) :: T_shlf, H_grnd_lim, f_scalar, T_base  
         real(wp) :: H_ice_now 
         real(wp) :: wt_neighb(3,3) 
-        real(wp) :: wt_tot 
-
-        real(wp), parameter :: H_ice_thin = 10.0   ! [m] Threshold to define 'thin' ice
+        real(wp) :: wt_tot
 
         ! ajr symtest
         logical :: is_symmetric 
@@ -652,6 +651,7 @@ end if
         call nml_read(filename,group,"const_kt",       par%const_kt,         init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"enth_cr",        par%enth_cr,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"omega_max",      par%omega_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"H_ice_thin",     par%H_ice_thin,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"enth_cp_method",  par%enth_cp_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         par%enth_integral = (trim(par%enth_cp_method) .eq. "integral")
         ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate

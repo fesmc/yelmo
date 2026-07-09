@@ -662,6 +662,7 @@ module yelmo_defs
         real(wp)            :: const_kt 
         real(wp)            :: enth_cr
         real(wp)            :: omega_max
+        real(wp)            :: H_ice_thin       ! [m] Thickness threshold below which the column solver is skipped (linear profile imposed)
         character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
         logical             :: enth_integral    ! derived: enth_cp_method == "integral"
 
