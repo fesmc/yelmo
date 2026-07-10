@@ -37,12 +37,21 @@ solvers currently supported: the **residual** assembler inherited from
 Yelmo v1, and the **energy** assembler that minimises a discrete energy
 functional.
 
-The vertical velocity $w$ is diagnosed from incompressibility once $u, v$ are
-known:
+## Vertical velocity
+
+The [vertical velocity](vertical-velocity.md) $w$ is diagnosed from
+incompressibility once $u, v$ are known, anchored at the base by the basal
+kinematic boundary condition:
 
 $$
-w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int_b^z \left( \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} \right) dz'
+w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} + \dot b}_{w_b} \; - \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + \frac{\partial v}{\partial y}\bigg|_{z'} \right) \mathrm{d}z'
 $$
+
+Alongside $w$ (`uz`), Yelmo also forms $w^\star$ (`uz_star`), the
+**sigma-relative** advective vertical velocity used by every scalar advection
+scheme that takes horizontal gradients at constant $\zeta$ — thermodynamics and
+the age/tracer solver. The two are distinct and not interchangeable; see
+[Vertical velocity](vertical-velocity.md).
 
 ## Mass conservation
 
