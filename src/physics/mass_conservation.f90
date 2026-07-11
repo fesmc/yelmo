@@ -733,19 +733,24 @@ contains
                 H_ice_new(:,ny) = 0.0
 
             case("mask")
-                ! Defer border treatment entirely to bnd%mask_ice.
-
-                where (mask_ice .eq. MASK_ICE_NONE) H_ice_new = 0.0_wp
+                ! Defer border treatment entirely to bnd%mask_ice
+                ! (handled by the universal mask enforcement below).
 
             case DEFAULT    ! e.g., None/none
-                ! Apply forced-zero mask from bnd%mask_ice
-
-                where (mask_ice .eq. MASK_ICE_NONE) H_ice_new = 0.0_wp
+                ! No special border treatment; rely on bnd%mask_ice
+                ! (handled by the universal mask enforcement below).
 
         end select
 
-        ! Impose reference ice thickness where bnd%mask_ice == MASK_ICE_FIXED
-        ! (applied universally, independent of the boundary BC choice above)
+        ! Impose the per-cell ice-domain mask (bnd%mask_ice) universally,
+        ! independent of the boundary BC choice above: MASK_ICE_NONE forces zero
+        ! ice thickness and MASK_ICE_FIXED imposes the reference thickness.
+        ! mask_ice is a per-cell constraint, not a border treatment, so it must
+        ! be honored for every 'boundaries' choice - matching how the advection
+        ! solver already treats mask_ice. Without this, a boundary choice like
+        ! "zeros" only zeroes the outer domain borders, and positive smb re-grows
+        ! ice in interior MASK_ICE_NONE cells that dynamics had zeroed each step.
+        where (mask_ice .eq. MASK_ICE_NONE)  H_ice_new = 0.0_wp
         where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 
         ! Determine rate of mass balance related to changes applied here.
