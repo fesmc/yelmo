@@ -63,8 +63,17 @@ check-hash:
 fasthydro-static:
 	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp)
 
+# elsa/tracer static archives provide the .mod files yelmo `use`s (transitively
+# via yelmo_defs, which declares elsa_class/tracer_class members of ytrc_class),
+# so they must build before yelmo-static.
+elsa-static:
+	$(MAKE) -C $(ELSAROOT) elsa-static openmp=$(openmp)
+
+tracer-static:
+	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp)
+
 # Static library compilation
-yelmo-static: fasthydro-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
 	ar rc $(objdir)/libyelmo.a $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
 	ranlib $(objdir)/libyelmo.a
 	./check_githash > git_yelmo.txt

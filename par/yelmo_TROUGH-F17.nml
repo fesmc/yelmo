@@ -254,11 +254,25 @@
     enh_shlf                = 1.0
     enh_umin                = 50.0          ! [m/yr] Minimum transition velocity to enh_stream ('*-tracer' enh methods)
     enh_umax                = 500.0         ! [m/yr] Maximum transition velocity to enh_stream ('*-tracer' enh methods)
-    calc_age                = False         ! Calculate age tracer field?
-    age_iso                 = 0.0
     tracer_method           = "expl"        ! "expl", "impl": used for age and '*-tracer' enh fields
     tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit tracer solving 
     
+/
+
+&ytrc
+    use_euler               = False         ! Run the in-tree Eulerian age tracer?
+    use_tracer              = False         ! Run the Lagrangian particle backend (tracer)?
+    use_elsa                = False         ! Run the Lagrangian layer backend (elsa)?
+    t_dep_source            = "euler"       ! "euler", "trc", "elsa"
+    time_end                = 0.0           ! [yr] set to simulation end time when use_elsa=True
+    calc_age                = False         ! Calculate the Eulerian age tracer field?
+    age_iso                 = 0.0
+    tracer_method           = "expl"        ! "expl", "impl": Eulerian age solver
+    tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit age solving
+    elsa_nml                = "None"
+    elsa_group              = "None"
+    tracer_nml              = "None"
+
 /
 
 &ytherm

@@ -17,6 +17,7 @@ module yelmo_ice
     use lsf_module, only : LSFinit
     use yelmo_dynamics
     use yelmo_material
+    use yelmo_tracers
     use yelmo_thermodynamics
     use yelmo_hydrology, only : yhyd_par_load, yhyd_init_state, calc_yhyd
     use yelmo_boundaries
@@ -298,6 +299,9 @@ contains
                     ! Calculate material (ice properties, viscosity, etc.)
                     call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
 
+                    ! Update passive tracers (euler/tracer/elsa age tracing)
+                    call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time_now)
+
                     ! Calculate thermodynamics (temperatures and enthalpy)
                     call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
 
@@ -407,6 +411,9 @@ contains
 
                 ! Calculate material (ice properties, viscosity, etc.)
                 call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
+
+                ! Update passive tracers (euler/tracer/elsa age tracing)
+                call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time_now)
 
                 ! Calculate thermodynamics (temperatures and enthalpy)
                 call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
@@ -536,7 +543,7 @@ contains
         call yelmo_regions_update(dom)
 
         ! Compare with data 
-        call ydata_compare(dom%dta,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%par%domain)
+        call ydata_compare(dom%dta,dom%tpo,dom%dyn,dom%trc,dom%thrm,dom%bnd,dom%par%domain)
 
         ! Write some diagnostics to make sure something useful is happening 
         if (yelmo_log) then
@@ -795,10 +802,18 @@ contains
 
         call ymat_par_load(dom%mat%par,filename,dom%par%nml_ymat,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
 
-        call ymat_alloc(dom%mat%now,dom%mat%par%nx,dom%mat%par%ny,dom%mat%par%nz_aa,dom%mat%par%nz_ac,dom%mat%par%n_iso)
-        
+        call ymat_alloc(dom%mat%now,dom%mat%par%nx,dom%mat%par%ny,dom%mat%par%nz_aa,dom%mat%par%nz_ac)
+
         write(*,*) "yelmo_init:: material initialized."
-        
+
+        ! == passive tracers (euler/tracer/elsa) ==
+
+        call ytrc_par_load(dom%trc%par,filename,dom%par%nml_ytrc,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
+
+        call ytrc_alloc(dom%trc%now,dom%trc%par%nx,dom%trc%par%ny,dom%trc%par%nz_aa,dom%trc%par%n_iso)
+
+        write(*,*) "yelmo_init:: passive tracers initialized."
+
         ! == thermodynamics == 
         
         call ytherm_par_load(dom%thrm%par,filename,dom%par%nml_ytherm,dom%par%zeta_aa,dom%par%zeta_ac,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),init=.TRUE.)
@@ -819,6 +834,7 @@ contains
         call load_var_io_table(dom%io%tpo,"input/yelmo-variables-ytopo.md")
         call load_var_io_table(dom%io%dyn,"input/yelmo-variables-ydyn.md")
         call load_var_io_table(dom%io%mat,"input/yelmo-variables-ymat.md")
+        call load_var_io_table(dom%io%trc,"input/yelmo-variables-ytrc.md")
         call load_var_io_table(dom%io%thrm,"input/yelmo-variables-ytherm.md")
         call load_var_io_table(dom%io%hyd,"input/yelmo-variables-yhyd.md")
         call load_var_io_table(dom%io%bnd,"input/yelmo-variables-ybound.md")
@@ -1372,12 +1388,16 @@ contains
             ! Initial basal hydrology step (fasthydrology), mirroring ytherm.
             call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time)
 
-            ! Calculate material information (with no dynamics), and set initial ice dep_time values
-            
+            ! Calculate material information (with no dynamics)
+
             dom%mat%par%time     = dble(time) - dom%par%dt_min
-            dom%mat%now%dep_time = dom%mat%par%time
 
             call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time)
+
+            ! Initialize the passive-tracer backends (needs H_ice) and take a first step
+            dom%trc%par%time = dble(time) - dom%par%dt_min
+            call ytrc_init(dom%trc,dom%grd,time,dom%tpo%now%H_ice)
+            call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time)
 
             ! Calculate initial dynamic state
             ! (normally dynamics is called right after topo, but it needs thermodynamic information,
@@ -1443,6 +1463,7 @@ contains
         call nml_read(filename,group,"nml_ydyn",      par%nml_ydyn,      defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_ytill",     par%nml_ytill,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_ymat",      par%nml_ymat,      defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"nml_ytrc",      par%nml_ytrc,      defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_ytherm",    par%nml_ytherm,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_yhyd",      par%nml_yhyd,      defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_masks",     par%nml_masks,     defaults_file=def_file,defaults_group=def_yelmo)
@@ -1551,6 +1572,7 @@ contains
         call ytopo_dealloc(dom%tpo%now)
         call ydyn_dealloc(dom%dyn%now)
         call ymat_dealloc(dom%mat%now)
+        call ytrc_end(dom%trc)
         call ytherm_dealloc(dom%thrm%now)
         call ybound_dealloc(dom%bnd)
         call ydata_dealloc(dom%dta%pd)

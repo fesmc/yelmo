@@ -64,7 +64,7 @@ contains
         call nc_write_dim(filename,"zeta",      x=ylmo%par%zeta_aa,     units="1")
         call nc_write_dim(filename,"zeta_ac",   x=ylmo%par%zeta_ac,     units="1")
         call nc_write_dim(filename,"zeta_rock", x=ylmo%thrm%par%zr%zeta_aa,units="1")
-        call nc_write_dim(filename,"age_iso",   x=ylmo%mat%par%age_iso, units="kyr")
+        call nc_write_dim(filename,"age_iso",   x=ylmo%trc%par%age_iso, units="kyr")
         call nc_write_dim(filename,"pd_age_iso",x=ylmo%dta%pd%age_iso,  units="kyr")
         call nc_write_dim(filename,"pc_steps",  x=1,dx=1,nx=3,          units="1")
         
@@ -153,6 +153,18 @@ contains
 
             if (.not. trim(io%v%varname) .eq. "none") then
                 call yelmo_write_var_io_ymat(filename,io%v,ylmo,n,ncid,irange,jrange)
+                found = .TRUE.
+            end if
+
+        end if
+
+        ! == ytrc variables ===
+        if (.not. found) then
+
+            call find_var_io_in_table(io%v,varname,io%trc)
+
+            if (.not. trim(io%v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytrc(filename,io%v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
 
@@ -410,9 +422,14 @@ contains
             call yelmo_write_var_io_ydyn(filename,io%dyn(q),dom,n,ncid,irange,jrange)
         end do
 
-        ! == ymat variables === 
+        ! == ymat variables ===
         do q = 1, size(io%mat)
             call yelmo_write_var_io_ymat(filename,io%mat(q),dom,n,ncid,irange,jrange)
+        end do
+
+        ! == ytrc variables ===
+        do q = 1, size(io%trc)
+            call yelmo_write_var_io_ytrc(filename,io%trc(q),dom,n,ncid,irange,jrange)
         end do
 
         ! == ytherm variables ===
@@ -877,7 +894,7 @@ contains
         nz_ac = size(dom%par%zeta_ac,1) 
         
         nz_r  = size(dom%thrm%now%enth_rock,3)
-        n_iso = size(dom%mat%now%depth_iso,3) 
+        n_iso = size(dom%trc%now%depth_iso,3)
 
         ! Assume that first time dimension value is to be read in
         n = 1 
@@ -986,8 +1003,8 @@ contains
 
         call nc_read_interp(filename,"f_shear_bar", dom%mat%now%f_shear_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
-        call nc_read_interp(filename,"dep_time",    dom%mat%now%dep_time,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"depth_iso",   dom%mat%now%depth_iso,ncid=ncid,start=[1,1,1,n],count=[nx,ny,n_iso,1],map=mp) 
+        call nc_read_interp(filename,"t_dep_euler", dom%trc%now%t_dep_euler,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+        call nc_read_interp(filename,"depth_iso",   dom%trc%now%depth_iso,ncid=ncid,start=[1,1,1,n],count=[nx,ny,n_iso,1],map=mp) 
         
         call nc_read_interp(filename,"strn2D_dxx", dom%mat%now%strn2D%dxx,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"strn2D_dyy", dom%mat%now%strn2D%dyy,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
@@ -1639,12 +1656,6 @@ contains
             case("f_shear_bar")
                 call nc_write(filename,trim(v%varname),ylmo%mat%now%f_shear_bar(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("dep_time") ! 3D
-                call nc_write(filename,trim(v%varname),ylmo%mat%now%dep_time(i1:i2,j1:j2,:), &
-                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("depth_iso") ! 3D
-                call nc_write(filename,trim(v%varname),ylmo%mat%now%depth_iso(i1:i2,j1:j2,:), &
-                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("strn2D_dxx")
                 call nc_write(filename,trim(v%varname),ylmo%mat%now%strn2D%dxx(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -1749,6 +1760,62 @@ contains
         return
 
     end subroutine yelmo_write_var_io_ymat
+
+    subroutine yelmo_write_var_io_ytrc(filename,v,ylmo,n,ncid,irange,jrange)
+
+        implicit none
+
+        character(len=*),  intent(IN) :: filename
+        type(var_io_type), intent(IN) :: v
+        type(yelmo_class), intent(IN) :: ylmo
+        integer,           intent(IN) :: n
+        integer,           intent(IN), optional :: ncid
+        integer,           intent(IN), optional :: irange(2)
+        integer,           intent(IN), optional :: jrange(2)
+
+        ! Local variables
+        integer :: i1, i2, j1, j2
+        character(len=32), allocatable :: dims(:)
+
+        ! Get indices for current domain of interest
+        call get_region_indices(i1,i2,j1,j2,ylmo%grd%G%nx,ylmo%grd%G%ny,irange,jrange)
+
+        ! Allocate local representation of dims to be able to add "time" as last dimension
+        allocate(dims(v%ndims+1))
+        dims(1:v%ndims) = v%dims
+        dims(v%ndims+1) = "time"
+
+        select case(trim(v%varname))
+
+            case("t_dep") ! 3D (authoritative deposition time)
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("t_dep_euler") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_euler(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("t_dep_trc") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_trc(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("t_dep_elsa") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_elsa(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("depth_iso") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%depth_iso(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+
+            case DEFAULT
+
+                write(io_unit_err,*)
+                write(io_unit_err,*) "yelmo_write_var_io_ytrc:: Error: variable not yet supported."
+                write(io_unit_err,*) "variable = ", trim(v%varname)
+                write(io_unit_err,*) "filename = ", trim(filename)
+                stop
+
+        end select
+
+        return
+
+    end subroutine yelmo_write_var_io_ytrc
 
     subroutine yelmo_write_var_io_ytherm(filename,v,ylmo,n,ncid,irange,jrange)
 

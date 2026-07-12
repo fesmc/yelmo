@@ -22,6 +22,21 @@ FASTHYDROROOT = FastHydrology
 INC_FASTHYDRO = -I${FASTHYDROROOT}/include
 LIB_FASTHYDRO = -L${FASTHYDROROOT}/include -lfasthydro
 
+# elsa: englacial layer-tracing model, a passive-tracer backend for %trc. Built
+# in-tree as a sibling checkout (yelmo/elsa), exposing module/lib under
+# libelsa/include/. Directory casing matches the upstream repo and the link
+# target `configme install` creates.
+ELSAROOT = elsa
+INC_ELSA = -I${ELSAROOT}/libelsa/include
+LIB_ELSA = -L${ELSAROOT}/libelsa/include -lelsa
+
+# tracer: Lagrangian particle-tracing model, a passive-tracer backend for %trc.
+# Built in-tree as a sibling checkout (yelmo/tracer), exposing module/lib under
+# libtracer/include/.
+TRACERROOT = tracer
+INC_TRACER = -I${TRACERROOT}/libtracer/include
+LIB_TRACER = -L${TRACERROOT}/libtracer/include -ltracer
+
 # FFTW: required transitively by FastHydrology. Built by fesm-utils into a
 # sibling tree; swapped to the OpenMP variant in the openmp block below.
 FFTWROOT = fesm-utils/fftw/fftw-serial
@@ -66,4 +81,4 @@ endif
 # `LFLAGS_EXTRA =` (macOS ld rejects -zmuldefs, so the macbook fragment does).
 LFLAGS_EXTRA ?= -Wl,-zmuldefs
 
-LFLAGS = $(LIB_NC) $(LIB_FESMUTILS) $(LIB_FASTHYDRO) $(LIB_FFTW) $(LIB_LINEAR) $(LFLAGS_EXTRA)
+LFLAGS = $(LIB_NC) $(LIB_ELSA) $(LIB_TRACER) $(LIB_FESMUTILS) $(LIB_FASTHYDRO) $(LIB_FFTW) $(LIB_LINEAR) $(LFLAGS_EXTRA)

@@ -55,29 +55,10 @@ contains
         ! Get time step and advance current time 
         dt            = dble(time) - mat%par%time 
         mat%par%time  = dble(time) 
-        
-        ! 00. First update ice age if possible
-        if (mat%par%calc_age .and. dt .gt. 0.0) then 
-            ! Perform calculations of age tracer: dep_time (deposition time)
 
-            ! Set surface boundary condition to current time 
-            X_srf = time 
-
-            ! Define limits to where to calculate age tracers
-            ! (avoid very fast-flowing ice, as they are not interesting here)
-            ! Surface value will be imposed in these places 
-            mask_tracers = .TRUE. 
-            where (dyn%now%uxy_bar .gt. 500.0_wp) mask_tracers = .FALSE. 
-
-            call calc_tracer_3D(mat%now%dep_time,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
-                tpo%now%H_ice,tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
-
-            ! Calculate isochrones too
-            call calc_isochrones(mat%now%depth_iso,mat%now%dep_time,tpo%now%H_ice,mat%par%age_iso, &
-                                                                                mat%par%zeta_aa,time)
-
-        end if 
+        ! Note: the age tracer (dep_time) moved to the ytrc subsystem (yelmo_tracers)
+        ! for v2.0. The Eulerian solver is still used below for the enh_bnd
+        ! "*-tracer" advection, which is a genuine material property.
 
         ! 0. Update strain rate 
         ! Note: due to its relevance to the dynamics solver, the strain rate tensor is
@@ -286,12 +267,9 @@ contains
 
         ! Local variables
         logical  :: init_pars
-        real(wp) :: age_iso(10)
 
         character(len=*), parameter :: def_file = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_ymat = "ymat"
-
-        age_iso = 0.0
 
         init_pars = .FALSE.
         if (present(init)) init_pars = .TRUE.
@@ -313,8 +291,6 @@ contains
         call nml_read(filename,group,"enh_shlf",               par%enh_shlf,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"enh_umin",               par%enh_umin,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"enh_umax",               par%enh_umax,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
-        call nml_read(filename,group,"calc_age",               par%calc_age,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
-        call nml_read(filename,group,"age_iso",                age_iso,                    init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"tracer_method",          par%tracer_method,          init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
 
@@ -349,19 +325,7 @@ contains
         
         if (allocated(par%zeta_ac)) deallocate(par%zeta_ac)
         allocate(par%zeta_ac(par%nz_ac))
-        par%zeta_ac = zeta_ac 
-        
-        if ( (.not. par%calc_age) .or. count(age_iso .eq. 0.0) .eq. size(age_iso)) then 
-            ! No isochrones to be calculated, fill with one layer for present day (age=0)
-            par%n_iso = 1 
-        else 
-            ! Assume all isochrone ages are not equal to present day
-            par%n_iso = count(age_iso .ne. 0.0) 
-        end if 
-
-        if (allocated(par%age_iso)) deallocate(par%age_iso)
-        allocate(par%age_iso(par%n_iso))
-        par%age_iso = age_iso(1:par%n_iso)
+        par%zeta_ac = zeta_ac
 
         ! Define current time as unrealistic value
         par%time = 1000000000   ! [a] 1 billion years in the future
@@ -370,12 +334,12 @@ contains
 
     end subroutine ymat_par_load
 
-    subroutine ymat_alloc(now,nx,ny,nz_aa,nz_ac,n_iso)
+    subroutine ymat_alloc(now,nx,ny,nz_aa,nz_ac)
 
         implicit none 
 
-        type(ymat_state_class), intent(INOUT) :: now 
-        integer :: nx, ny, nz_aa, nz_ac, n_iso   
+        type(ymat_state_class), intent(INOUT) :: now
+        integer :: nx, ny, nz_aa, nz_ac
 
         ! First make sure fields are deallocated
         call ymat_dealloc(now)
@@ -428,12 +392,9 @@ contains
         allocate(now%visc_bar(nx,ny))
         allocate(now%visc_int(nx,ny))
 
-        allocate(now%f_shear_bar(nx,ny)) 
+        allocate(now%f_shear_bar(nx,ny))
 
-        allocate(now%dep_time(nx,ny,nz_aa)) 
-        allocate(now%depth_iso(nx,ny,n_iso)) 
-
-        now%strn%dxx     = 0.0 
+        now%strn%dxx     = 0.0
         now%strn%dyy     = 0.0 
         now%strn%dxy     = 0.0 
         now%strn%dxz     = 0.0
@@ -478,12 +439,9 @@ contains
         now%visc_bar     = 1e4 
         now%visc_int     = 1e4 
 
-        now%f_shear_bar  = 0.0 
+        now%f_shear_bar  = 0.0
 
-        now%dep_time     = 0.0 
-        now%depth_iso    = 0.0 
-        
-        return 
+        return
 
     end subroutine ymat_alloc
 
@@ -541,8 +499,6 @@ contains
         
         if (allocated(now%f_shear_bar))     deallocate(now%f_shear_bar)
 
-        if (allocated(now%dep_time))        deallocate(now%dep_time)
-        if (allocated(now%depth_iso))       deallocate(now%depth_iso)
         
         return 
 

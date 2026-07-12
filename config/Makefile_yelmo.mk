@@ -10,6 +10,12 @@
 # visible to all compile rules below.
 FFLAGS += $(INC_FASTHYDRO)
 
+# elsa and tracer .mod files are likewise referenced (transitively) by every
+# yelmo source that uses yelmo_defs, because yelmo_defs declares
+# `type(elsa_class) :: elsa` and `type(tracer_class) :: trc` inside ytrc_class
+# (a member of yelmo_class). Make their include paths visible to all rules.
+FFLAGS += $(INC_ELSA) $(INC_TRACER)
+
 ## EXTERNAL LIBRARIES #######################################
 
 $(objdir)/climate_adjustments.o: $(libdir)/climate_adjustments.f90 $(objdir)/yelmo_defs.o
@@ -155,7 +161,11 @@ $(objdir)/yelmo_dynamics.o: $(srcdir)/yelmo_dynamics.f90 $(objdir)/yelmo_defs.o 
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_material.o: $(srcdir)/yelmo_material.f90 $(objdir)/yelmo_defs.o $(objdir)/deformation.o \
-							$(objdir)/ice_tracer.o 
+							$(objdir)/ice_tracer.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/yelmo_tracers.o: $(srcdir)/yelmo_tracers.f90 $(objdir)/yelmo_defs.o \
+							$(objdir)/ice_tracer.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_thermodynamics.o: $(srcdir)/yelmo_thermodynamics.f90 $(objdir)/yelmo_defs.o \
@@ -188,6 +198,7 @@ $(objdir)/yelmo_ice.o: $(srcdir)/yelmo_ice.f90 $(objdir)/yelmo_defs.o  \
 	                   $(objdir)/yelmo_dynamics.o \
 	                   $(objdir)/velocity_sia.o \
 	                   $(objdir)/yelmo_material.o \
+	                   $(objdir)/yelmo_tracers.o \
 	                   $(objdir)/yelmo_thermodynamics.o \
 	                   $(objdir)/yelmo_hydrology.o \
 	                   $(objdir)/yelmo_boundaries.o \
@@ -255,6 +266,7 @@ yelmo_base =		   $(objdir)/yelmo_defs.o \
 			 	       $(objdir)/yelmo_topography.o \
 	         		   $(objdir)/yelmo_dynamics.o \
 	         		   $(objdir)/yelmo_material.o \
+	         		   $(objdir)/yelmo_tracers.o \
 	         		   $(objdir)/yelmo_thermodynamics.o \
 	         		   $(objdir)/yelmo_hydrology.o \
 	         		   $(objdir)/yelmo_boundaries.o \

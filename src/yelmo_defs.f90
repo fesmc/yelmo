@@ -9,6 +9,12 @@ module yelmo_defs
     use fast_hydrology, only : hydro_class
     use coords, only : grid_class
 
+    ! Passive-tracer backends held inside ytrc_class (a member of yelmo_class).
+    ! Only the state types are needed here; the init/update/end interfaces are
+    ! used in yelmo_tracers. `only:` avoids importing their sp/dp/wp/MV names.
+    use elsa,   only : elsa_class
+    use tracer, only : tracer_class
+
     implicit none
 
     ! =========================================================================
@@ -579,20 +585,17 @@ module yelmo_defs
         real(wp)                :: enh_shear
         real(wp)                :: enh_stream
         real(wp)                :: enh_shlf
-        real(wp)                :: enh_umin 
+        real(wp)                :: enh_umin
         real(wp)                :: enh_umax
-        logical                 :: calc_age
-        real(wp), allocatable   :: age_iso(:)
-        character(len=56)       :: tracer_method  
-        real(wp)                :: tracer_impl_kappa
-        
-        ! Internal parameters
-        real(dp)   :: time 
-        real(wp)   :: dx, dy  
-        integer    :: nx, ny, nz_aa, nz_ac  
-        integer    :: n_iso 
+        character(len=56)       :: tracer_method       ! Eulerian solver for enh_bnd advection ("expl"|"impl")
+        real(wp)                :: tracer_impl_kappa    ! Artificial diffusivity for enh_bnd implicit solver
 
-        real(wp)   :: speed 
+        ! Internal parameters
+        real(dp)   :: time
+        real(wp)   :: dx, dy
+        integer    :: nx, ny, nz_aa, nz_ac
+
+        real(wp)   :: speed
 
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
         real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
@@ -615,16 +618,80 @@ module yelmo_defs
         real(wp), allocatable :: visc_bar(:,:)
         real(wp), allocatable :: visc_int(:,:) 
 
-        real(wp), allocatable :: f_shear_bar(:,:) 
-        
-        real(wp), allocatable :: dep_time(:,:,:)      ! Ice deposition time (for online age tracing)
-        real(wp), allocatable :: depth_iso(:,:,:)     ! Depth of specific isochronal layers
+        real(wp), allocatable :: f_shear_bar(:,:)
 
-    end type 
+    end type
 
     type ymat_class
-        type(ymat_param_class) :: par 
-        type(ymat_state_class) :: now 
+        type(ymat_param_class) :: par
+        type(ymat_state_class) :: now
+    end type
+
+    ! =========================================================================
+    ! ytrc: passive-tracer subsystem. Holds three interchangeable backends that
+    ! trace englacial provenance (deposition time / age, and whatever else each
+    ! model carries) — the in-tree Eulerian solver, the Lagrangian particle model
+    ! (tracer), and the Lagrangian layer model (elsa). Any combination may run
+    ! at once; each writes its own gridded deposition-time diagnostic and one is
+    ! designated authoritative. The age tracer lived in ymat until v2.0; the
+    ! enh_bnd "*-tracer" advection stays in ymat (a genuine material property).
+    ! =========================================================================
+    type ytrc_param_class
+
+        ! Master switches — any combination may run simultaneously
+        logical           :: use_euler          ! In-tree Eulerian age tracer (ice_tracer solver)
+        logical           :: use_tracer         ! Lagrangian particle backend (tracer library)
+        logical           :: use_elsa           ! Lagrangian layer backend (elsa library)
+        character(len=56) :: t_dep_source       ! "euler"|"tracer"|"elsa": fills authoritative t_dep
+
+        ! elsa layer-stack sizing: elsa allocates its isochrone stack once at init
+        ! from (time_end - time)/layer_resolution and never grows it, so the run's
+        ! end time must be known up front. Set to the simulation end time.
+        real(wp)          :: time_end
+
+        ! Eulerian backend parameters (migrated from ymat)
+        logical               :: calc_age            ! Master switch for the Eulerian age tracer
+        real(wp), allocatable :: age_iso(:)          ! Target isochrone ages [ka]
+        character(len=56)     :: tracer_method       ! "expl"|"impl"
+        real(wp)              :: tracer_impl_kappa    ! Artificial diffusivity for implicit solver
+
+        ! Sub-model namelist locations. elsa reads a named group (elsa_group);
+        ! tracer always reads its fixed "trc" group, so only the file is needed.
+        character(len=512) :: elsa_nml, elsa_group
+        character(len=512) :: tracer_nml
+
+        ! Lagrangian-tracer deposition/stats cadence trackers (next trigger time).
+        ! Cadence values (dt_dep, dt_write_stats) live in the tracer namelist.
+        real(dp)   :: time_dep_next
+        real(dp)   :: time_stats_next
+
+        ! Internal parameters
+        real(dp)   :: time
+        real(wp)   :: dx, dy
+        integer    :: nx, ny, nz_aa, nz_ac
+        integer    :: n_iso                          ! Number of isochrones (derived from age_iso)
+
+        real(wp), allocatable :: zeta_aa(:)          ! Layer centers (aa-nodes): nz_aa points
+        real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa-1 points
+
+    end type
+
+    type ytrc_state_class
+
+        ! Model-agnostic harmonized fields, all on the host (nx,ny,nz_aa) sigma grid.
+        real(wp), allocatable :: t_dep(:,:,:)        ! Authoritative deposition time (copy of chosen source)
+        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian native field (also the restart variable)
+        real(wp), allocatable :: t_dep_trc(:,:,:)    ! Gridded from Lagrangian particles (gappy diagnostic)
+        real(wp), allocatable :: t_dep_elsa(:,:,:)   ! Gridded from the isochrone layer stack (diagnostic)
+        real(wp), allocatable :: depth_iso(:,:,:)    ! Authoritative isochrone depths (nx,ny,n_iso)
+
+    end type
+
+    type ytrc_class
+        type(ytrc_param_class) :: par
+        type(ytrc_state_class) :: now
+        type(tracer_class)     :: trc     ! Lagrangian particle backend (held as-is from tracer repo)
+        type(elsa_class)       :: elsa    ! Lagrangian layer backend (held as-is from elsa repo)
     end type
 
     ! =========================================================================
@@ -918,6 +985,7 @@ module yelmo_defs
         type(var_io_type), allocatable :: tpo(:)
         type(var_io_type), allocatable :: dyn(:)
         type(var_io_type), allocatable :: mat(:)
+        type(var_io_type), allocatable :: trc(:)
         type(var_io_type), allocatable :: thrm(:)
         type(var_io_type), allocatable :: hyd(:)
         type(var_io_type), allocatable :: bnd(:)
@@ -946,6 +1014,7 @@ module yelmo_defs
         character(len=32)   :: nml_ydyn
         character(len=32)   :: nml_ytill
         character(len=32)   :: nml_ymat
+        character(len=32)   :: nml_ytrc
         character(len=32)   :: nml_ytherm
         character(len=32)   :: nml_yhyd
         character(len=32)   :: nml_masks
@@ -1039,6 +1108,7 @@ module yelmo_defs
         type(ytopo_class)       :: tpo      ! Topography variables
         type(ydyn_class)        :: dyn      ! Dynamics variables
         type(ymat_class)        :: mat      ! Material variables
+        type(ytrc_class)        :: trc      ! Passive-tracer subsystem (euler/tracer/elsa backends)
         type(ytherm_class)      :: thrm     ! Thermodynamics variables
         type(hydro_class)       :: hyd      ! Basal hydrology (fasthydrology)
         type(ybound_class)      :: bnd      ! Boundary variables to drive model

@@ -17,14 +17,14 @@ module yelmo_data
 
 contains
 
-    subroutine ydata_compare(dta,tpo,dyn,mat,thrm,bnd,domain)
+    subroutine ydata_compare(dta,tpo,dyn,trc,thrm,bnd,domain)
 
-        implicit none 
+        implicit none
 
         type(ydata_class),  intent(INOUT) :: dta
-        type(ytopo_class),  intent(IN)    :: tpo 
-        type(ydyn_class),   intent(IN)    :: dyn 
-        type(ymat_class),   intent(IN)    :: mat
+        type(ytopo_class),  intent(IN)    :: tpo
+        type(ydyn_class),   intent(IN)    :: dyn
+        type(ytrc_class),   intent(IN)    :: trc   ! Passive-tracer subsystem (authoritative isochrones)
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         character(len=*),   intent(IN)    :: domain 
@@ -58,14 +58,14 @@ contains
         do q = 1, dta%par%pd_age_n_iso
             ! Loop over observed isochronal layer depths 
 
-            do q1 = 1, mat%par%n_iso
-                ! Loop over isochronal layer depths in Yelmo 
+            do q1 = 1, trc%par%n_iso
+                ! Loop over isochronal layer depths in Yelmo
 
-                if (abs(mat%par%age_iso(q1)-dta%pd%age_iso(q)) .lt. tol) then 
-                    ! Isochronal layer in data matches this one 
+                if (abs(trc%par%age_iso(q1)-dta%pd%age_iso(q)) .lt. tol) then
+                    ! Isochronal layer in data matches this one
 
-                    where(dta%pd%depth_iso(:,:,q) .ne. mv) 
-                        dta%pd%err_depth_iso(:,:,q) = mat%now%depth_iso(:,:,q1) - dta%pd%depth_iso(:,:,q)
+                    where(dta%pd%depth_iso(:,:,q) .ne. mv)
+                        dta%pd%err_depth_iso(:,:,q) = trc%now%depth_iso(:,:,q1) - dta%pd%depth_iso(:,:,q)
                     elsewhere 
                         dta%pd%err_depth_iso(:,:,q) = mv 
                     end where 
