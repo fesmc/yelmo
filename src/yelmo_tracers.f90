@@ -97,8 +97,7 @@ contains
         ! === 3. Lagrangian particle backend (tracer) ======================
         if (trc%par%use_tracer) then
             call ytrc_update_tracer(trc,tpo,dyn,grd,time)
-            ! TODO (M3): harmonize particle cloud -> trc%now%t_dep_trc
-            trc%now%t_dep_trc = MV
+            call ytrc_harmonize_tracer(trc,grd)
         end if
 
         ! === 4. Authoritative field + isochrones ==========================
@@ -312,6 +311,69 @@ contains
         return
 
     end subroutine ytrc_update_tracer
+
+    subroutine ytrc_harmonize_tracer(trc,grd)
+        ! Grid the Lagrangian particle cloud onto the host sigma grid as a gridded
+        ! deposition-time field (t_dep_trc). Each active particle is binned to the
+        ! nearest host cell (i,j) and nearest sigma level k by its position, and
+        ! the mean deposition time of the particles in a cell is stored. Cells
+        ! with no particle stay MV -- the field is intentionally gappy, its sparsity
+        ! reflecting how well the particle cloud samples the ice at that point.
+
+        implicit none
+
+        type(ytrc_class), intent(INOUT) :: trc
+        type(grid_class), intent(IN)    :: grd
+
+        ! Local variables
+        integer  :: p, np, i, j, k, nx, ny, nz_aa
+        real(wp) :: x0, y0, dx, dy, sig
+        real(wp), allocatable :: sum_t(:,:,:)
+        integer,  allocatable :: cnt(:,:,:)
+
+        nx    = trc%par%nx
+        ny    = trc%par%ny
+        nz_aa = trc%par%nz_aa
+
+        x0 = real(grd%G%x(1),wp)
+        y0 = real(grd%G%y(1),wp)
+        dx = real(grd%G%dx,wp)
+        dy = real(grd%G%dy,wp)
+
+        allocate(sum_t(nx,ny,nz_aa)); sum_t = 0.0_wp
+        allocate(cnt(nx,ny,nz_aa));   cnt   = 0
+
+        np = size(trc%trc%now%active,1)
+
+        do p = 1, np
+
+            if (trc%trc%now%active(p) .lt. 1) cycle   ! only activated/live particles
+
+            ! Nearest host cell centre (aa) in the horizontal
+            i = nint((trc%trc%now%x(p) - x0)/dx) + 1
+            j = nint((trc%trc%now%y(p) - y0)/dy) + 1
+            if (i .lt. 1 .or. i .gt. nx .or. j .lt. 1 .or. j .gt. ny) cycle
+
+            ! Nearest sigma level (sigma=1 at surface, matching zeta_aa)
+            sig = trc%trc%now%sigma(p)
+            k   = minloc(abs(trc%par%zeta_aa - sig),1)
+
+            sum_t(i,j,k) = sum_t(i,j,k) + trc%trc%dep%time(p)
+            cnt(i,j,k)   = cnt(i,j,k) + 1
+
+        end do
+
+        where (cnt .gt. 0)
+            trc%now%t_dep_trc = sum_t / real(cnt,wp)
+        elsewhere
+            trc%now%t_dep_trc = MV
+        end where
+
+        deallocate(sum_t,cnt)
+
+        return
+
+    end subroutine ytrc_harmonize_tracer
 
     subroutine interp_zeta_ac_to_aa(u_aa,u_ac,zeta_ac,zeta_aa)
         ! Linearly interpolate a 3D field from the ac (interface) vertical axis
