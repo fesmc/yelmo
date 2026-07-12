@@ -91,8 +91,7 @@ contains
         ! === 2. Lagrangian layer backend (elsa) ===========================
         if (trc%par%use_elsa) then
             call ytrc_update_elsa(trc,tpo,dyn,time)
-            ! TODO (M2): harmonize elsa layer stack -> trc%now%t_dep_elsa
-            trc%now%t_dep_elsa = MV
+            call ytrc_harmonize_elsa(trc)
         end if
 
         ! === 3. Lagrangian particle backend (tracer) ======================
@@ -142,6 +141,122 @@ contains
         return
 
     end subroutine ytrc_update_elsa
+
+    subroutine ytrc_harmonize_elsa(trc)
+        ! Map elsa's isochrone layer stack onto the host sigma grid as a gridded
+        ! deposition-time field (t_dep_elsa), column by column. Requires
+        ! grid_factor=1 (checked at init), so elsa's grid is the host grid.
+        !
+        ! elsa layers (bottom to top):
+        !   1 .. n_layers_init         initial equal-thickness column (ice deposited
+        !                              at or before time_init -> floored to time_init)
+        !   n_layers_init+1 .. n_top-1 layer L closed by the isochrone at its top,
+        !                              deposition time = time_add(L - n_layers_init)
+        !   n_top                      current accumulating layer, top = surface = now
+        !
+        ! dsum_iso(:,:,L) is the height of layer L's top above the bed; the column
+        ! total dsum_iso(:,:,n_top) equals H_ice. Deposition time at a given height
+        ! is linearly interpolated between the bounding isochrone knots.
+
+        implicit none
+
+        type(ytrc_class), intent(INOUT) :: trc
+
+        ! Local variables
+        integer  :: i, j, k, L, nlt, ntop, nx, ny, nz_aa, nk
+        real(dp) :: h, tt, H_col, t_init
+        real(dp), allocatable :: hk(:), tk(:)
+
+        real(wp), parameter :: H_MIN_ELSA = 1.0e-6_wp
+
+        nx     = trc%par%nx
+        ny     = trc%par%ny
+        nz_aa  = trc%par%nz_aa
+        nlt    = trc%elsa%par%n_layers_init
+        ntop   = trc%elsa%now%n_top
+        t_init = trc%par%elsa_time_init
+
+        trc%now%t_dep_elsa = MV
+
+        ! Knots: a bed knot (h=0) plus every boundary from n_layers_init to n_top
+        nk = (ntop - nlt + 1) + 1
+        allocate(hk(nk),tk(nk))
+
+        do j = 1, ny
+        do i = 1, nx
+
+            H_col = trc%elsa%now%dsum_iso(i,j,ntop)
+            if (H_col .le. real(H_MIN_ELSA,dp)) cycle   ! no ice -> leave MV
+
+            ! Build monotonic (height, time) knots for this column
+            hk(1) = 0.0_dp
+            tk(1) = t_init
+            do L = nlt, ntop
+                hk(L-nlt+2) = trc%elsa%now%dsum_iso(i,j,L)
+                if (L .lt. nlt+1) then
+                    tk(L-nlt+2) = t_init                              ! base of accumulation
+                else if (L .lt. ntop) then
+                    tk(L-nlt+2) = trc%elsa%par%time_add(L-nlt)        ! closed isochrone
+                else
+                    tk(L-nlt+2) = trc%elsa%now%time                  ! surface (now)
+                end if
+            end do
+
+            do k = 1, nz_aa
+                h = real(trc%par%zeta_aa(k),dp) * H_col
+                call interp_monotonic(tt,h,hk,tk,nk)
+                trc%now%t_dep_elsa(i,j,k) = real(tt,wp)
+            end do
+
+        end do
+        end do
+
+        deallocate(hk,tk)
+
+        return
+
+    end subroutine ytrc_harmonize_elsa
+
+    subroutine interp_monotonic(y,x,xk,yk,nk)
+        ! Linear interpolation of y(x) from monotonic non-decreasing knots
+        ! (xk,yk). Clamps outside the range; skips zero-width (tied-xk) intervals.
+
+        implicit none
+
+        real(dp), intent(OUT) :: y
+        real(dp), intent(IN)  :: x
+        real(dp), intent(IN)  :: xk(:), yk(:)
+        integer,  intent(IN)  :: nk
+
+        integer  :: m
+        real(dp) :: wt
+
+        if (x .le. xk(1)) then
+            y = yk(1)
+            return
+        else if (x .ge. xk(nk)) then
+            y = yk(nk)
+            return
+        end if
+
+        ! Find the interval [xk(m), xk(m+1)] containing x
+        do m = 1, nk-1
+            if (x .ge. xk(m) .and. x .le. xk(m+1)) then
+                if (xk(m+1) .gt. xk(m)) then
+                    wt = (x - xk(m)) / (xk(m+1) - xk(m))
+                    y  = (1.0_dp-wt)*yk(m) + wt*yk(m+1)
+                else
+                    y = yk(m+1)   ! zero-width interval -> take upper knot
+                end if
+                return
+            end if
+        end do
+
+        y = yk(nk)   ! fallback (should not be reached)
+
+        return
+
+    end subroutine interp_monotonic
 
     subroutine ytrc_update_tracer(trc,tpo,dyn,grd,time)
         ! Drive the Lagrangian particle model. tracer wants cell-centred (aa)
@@ -254,6 +369,17 @@ contains
             call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
                            real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
                            real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy")
+
+            ! The t_dep_elsa diagnostic maps elsa's layer stack onto the host
+            ! sigma grid column-by-column; this only holds when elsa shares the
+            ! host grid (grid_factor=1). Enforce it.
+            if (abs(trc%elsa%par%grid_factor - 1.0_wp) .gt. 1e-6_wp) then
+                write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires grid_factor=1 in the elsa &
+                                     &namelist (for the t_dep_elsa diagnostic); got ", trc%elsa%par%grid_factor
+                stop "Program stopped."
+            end if
+
+            trc%par%elsa_time_init = real(time,dp)
         end if
 
         ! Particle backend (tracer): allocate the fixed particle pool
