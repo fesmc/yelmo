@@ -3,4 +3,6 @@ package = "yelmo"
 deps = [
     "fesm-utils:dev",
     "FastHydrology:dev",
+    "elsa:main",
+    "tracer:feature/particle-cloning",
 ]
