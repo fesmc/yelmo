@@ -264,6 +264,14 @@
 
 /
 
+! Tracer backend (&trc) — dormant unless ytrc%use_tracer=True. Only entries an
+! -p override targets need to appear here (runme -p overrides existing keys, it
+! does not create them); everything else comes from input/tracer_defaults.nml.
+! See scripts/run_trc_eismint.sh.
+&trc
+    stats = False       ! gridded stats (trc_count, trc_depth_iso); rest from defaults
+/
+
 &ytherm
     method          = "enth"            ! "fixed", "robin", "temp", "enth"
     qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
