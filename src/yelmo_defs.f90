@@ -651,7 +651,7 @@ module yelmo_defs
 
         ! Eulerian backend parameters (migrated from ymat)
         logical               :: calc_age            ! Master switch for the Eulerian age tracer
-        real(wp), allocatable :: age_iso(:)          ! Target isochrone ages [ka]
+        real(wp), allocatable :: time_iso(:)         ! Target isochrone deposition times [ka]
         character(len=56)     :: tracer_method       ! "expl"|"impl"
         real(wp)              :: tracer_impl_kappa    ! Artificial diffusivity for implicit solver
 
@@ -669,7 +669,7 @@ module yelmo_defs
         real(dp)   :: time
         real(wp)   :: dx, dy
         integer    :: nx, ny, nz_aa, nz_ac
-        integer    :: n_iso                          ! Number of isochrones (derived from age_iso)
+        integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
 
         real(wp), allocatable :: zeta_aa(:)          ! Layer centers (aa-nodes): nz_aa points
         real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa-1 points
@@ -908,10 +908,11 @@ module yelmo_defs
         logical             :: pd_vel_load  
         character(len=1028) :: pd_vel_path 
         character(len=56)   :: pd_vel_names(2) 
-        logical             :: pd_age_load 
-        character(len=1028) :: pd_age_path 
-        character(len=56)   :: pd_age_names(2) 
-        integer             :: pd_age_n_iso 
+        logical             :: pd_age_load
+        character(len=1028) :: pd_age_path
+        character(len=56)   :: pd_age_names(2)
+        integer             :: pd_age_n_iso
+        logical             :: pd_age_to_time      ! Convert loaded obs isochrone ages [ka] to deposition times [ka] (t_dep = -age)
 
         character(len=56)   :: domain 
     end type 
@@ -930,8 +931,8 @@ module yelmo_defs
         real(wp), allocatable :: err_uxy_s(:,:)
         real(wp), allocatable :: err_depth_iso(:,:,:) 
 
-        ! Axis 
-        real(wp), allocatable :: age_iso(:) 
+        ! Axis
+        real(wp), allocatable :: time_iso(:)   ! Isochrone deposition times [ka] (obs ages converted on load)
 
         real(wp)   :: rmse_H 
         real(wp)   :: rmse_zsrf

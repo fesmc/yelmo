@@ -115,7 +115,7 @@ contains
         end select
 
         ! Diagnose isochrone depths from the authoritative deposition-time field
-        call calc_isochrones(trc%now%depth_iso,trc%now%t_dep,tpo%now%H_ice,trc%par%age_iso, &
+        call calc_isochrones(trc%now%depth_iso,trc%now%t_dep,tpo%now%H_ice,trc%par%time_iso, &
                                                                         trc%par%zeta_aa,time)
 
         return
@@ -543,12 +543,12 @@ contains
 
         ! Local variables
         logical  :: init_pars
-        real(wp) :: age_iso(10)
+        real(wp) :: time_iso(10)
 
         character(len=*), parameter :: def_file = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_ytrc = "ytrc"
 
-        age_iso = 0.0
+        time_iso = 0.0
 
         init_pars = .FALSE.
         if (present(init)) init_pars = .TRUE.
@@ -561,7 +561,7 @@ contains
         call nml_read(filename,group,"t_dep_source",      par%t_dep_source,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"time_end",          par%time_end,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"calc_age",          par%calc_age,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
-        call nml_read(filename,group,"age_iso",           age_iso,               init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"time_iso",          time_iso,              init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_method",     par%tracer_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_impl_kappa", par%tracer_impl_kappa, init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"elsa_nml",          par%elsa_nml,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
@@ -588,16 +588,16 @@ contains
         allocate(par%zeta_ac(par%nz_ac))
         par%zeta_ac = zeta_ac
 
-        ! Number of isochrones follows the target ages (as in the former ymat path)
-        if ( (.not. par%calc_age) .or. count(age_iso .eq. 0.0) .eq. size(age_iso)) then
+        ! Number of isochrones follows the target deposition times (former ymat path)
+        if ( (.not. par%calc_age) .or. count(time_iso .eq. 0.0) .eq. size(time_iso)) then
             par%n_iso = 1
         else
-            par%n_iso = count(age_iso .ne. 0.0)
+            par%n_iso = count(time_iso .ne. 0.0)
         end if
 
-        if (allocated(par%age_iso)) deallocate(par%age_iso)
-        allocate(par%age_iso(par%n_iso))
-        par%age_iso = age_iso(1:par%n_iso)
+        if (allocated(par%time_iso)) deallocate(par%time_iso)
+        allocate(par%time_iso(par%n_iso))
+        par%time_iso = time_iso(1:par%n_iso)
 
         ! Define current time as unrealistic value
         par%time = 1000000000   ! [a] 1 billion years in the future

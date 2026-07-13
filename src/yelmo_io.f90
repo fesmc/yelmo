@@ -65,8 +65,8 @@ contains
         call nc_write_dim(filename,"zeta",      x=ylmo%par%zeta_aa,     units="1")
         call nc_write_dim(filename,"zeta_ac",   x=ylmo%par%zeta_ac,     units="1")
         call nc_write_dim(filename,"zeta_rock", x=ylmo%thrm%par%zr%zeta_aa,units="1")
-        call nc_write_dim(filename,"age_iso",   x=ylmo%trc%par%age_iso, units="kyr")
-        call nc_write_dim(filename,"pd_age_iso",x=ylmo%dta%pd%age_iso,  units="kyr")
+        call nc_write_dim(filename,"time_iso",   x=ylmo%trc%par%time_iso, units="kyr")
+        call nc_write_dim(filename,"pd_time_iso",x=ylmo%dta%pd%time_iso,  units="kyr")
         call nc_write_dim(filename,"pc_steps",  x=1,dx=1,nx=3,          units="1")
         
         call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
@@ -2241,7 +2241,7 @@ contains
         call nc_write(filename,"rmse_uxy_log",ylmo%dta%pd%rmse_loguxy,units="log(m/yr)",long_name="RMSE - Log surface velocity", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"rmse_iso",ylmo%dta%pd%rmse_iso,units="m",long_name="RMSE - isochronal layer depths", &
-                  dim1="pd_age_iso",dim2="time",start=[1,n],missing_value=mv,ncid=ncid)
+                  dim1="pd_time_iso",dim2="time",start=[1,n],missing_value=mv,ncid=ncid)
 
         return 
 

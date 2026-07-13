@@ -255,7 +255,7 @@
     t_dep_source            = "euler"       ! "euler", "trc", "elsa"
     time_end                = 0.0           ! [yr] set to simulation end time when use_elsa=True
     calc_age                = False         ! Calculate the Eulerian age tracer field?
-    age_iso                 = 0.0
+    time_iso                = 0.0
     tracer_method           = "expl"        ! "expl", "impl": Eulerian age solver
     tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit age solving
     elsa_nml                = "None"

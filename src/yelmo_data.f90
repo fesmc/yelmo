@@ -61,7 +61,7 @@ contains
             do q1 = 1, trc%par%n_iso
                 ! Loop over isochronal layer depths in Yelmo
 
-                if (abs(trc%par%age_iso(q1)-dta%pd%age_iso(q)) .lt. tol) then
+                if (abs(trc%par%time_iso(q1)-dta%pd%time_iso(q)) .lt. tol) then
                     ! Isochronal layer in data matches this one
 
                     where(dta%pd%depth_iso(:,:,q) .ne. mv)
@@ -367,10 +367,17 @@ contains
             filename = dta%par%pd_age_path
             nms(1:2) = dta%par%pd_age_names
 
-            call nc_read(filename,nms(1), dta%pd%age_iso,   missing_value=mv)
+            call nc_read(filename,nms(1), dta%pd%time_iso,  missing_value=mv)
             call nc_read(filename,nms(2), dta%pd%depth_iso, missing_value=mv)
 
-        end if 
+            ! The observed isochrone file dates layers by age [ka before present].
+            ! The model works in deposition time [ka], so convert age -> deposition
+            ! time (t_dep = -age, present = 0) unless the file already holds times.
+            if (dta%par%pd_age_to_time) then
+                where (dta%pd%time_iso .ne. mv) dta%pd%time_iso = -dta%pd%time_iso
+            end if
+
+        end if
 
         ! Summarize data loading 
         write(*,*) "ydata_load:: range(H_ice):     ",   minval(dta%pd%H_ice),   maxval(dta%pd%H_ice)
@@ -384,7 +391,7 @@ contains
                                                         maxval(dta%pd%smb,dta%pd%smb .ne. mv)
         write(*,*) "ydata_load:: range(uxy_s):     ",   minval(dta%pd%uxy_s,dta%pd%uxy_s .ne. mv), &
                                                         maxval(dta%pd%uxy_s,dta%pd%uxy_s .ne. mv)
-        write(*,*) "ydata_load:: range(age_iso):   ",   minval(dta%pd%age_iso), maxval(dta%pd%age_iso)
+        write(*,*) "ydata_load:: range(time_iso):  ",   minval(dta%pd%time_iso), maxval(dta%pd%time_iso)
         write(*,*) "ydata_load:: range(depth_iso): ",   minval(dta%pd%depth_iso,dta%pd%depth_iso .ne. mv), &
                                                         maxval(dta%pd%depth_iso,dta%pd%depth_iso .ne. mv)
                 
@@ -431,6 +438,7 @@ contains
         call nml_read(filename,group,"pd_age_load",     par%pd_age_load,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
         call nml_read(filename,group,"pd_age_path",     par%pd_age_path,     init=init_pars,defaults_file=def_file,defaults_group=def_data)
         call nml_read(filename,group,"pd_age_names",    par%pd_age_names,    init=init_pars,defaults_file=def_file,defaults_group=def_data)
+        call nml_read(filename,group,"pd_age_to_time",  par%pd_age_to_time,  init=init_pars,defaults_file=def_file,defaults_group=def_data)
         
         ! Subsitute domain/grid_name
         call yelmo_parse_path(par%pd_topo_path,domain,grid_name)
@@ -479,7 +487,7 @@ contains
         allocate(pd%T_srf(nx,ny))
         allocate(pd%smb(nx,ny))
         
-        allocate(pd%age_iso(n_iso))
+        allocate(pd%time_iso(n_iso))
         allocate(pd%depth_iso(nx,ny,n_iso))
 
         allocate(pd%ux_s(nx,ny))
@@ -505,8 +513,8 @@ contains
         pd%T_srf         = 0.0 
         pd%smb           = 0.0 
 
-        pd%age_iso       = 0.0 
-        pd%depth_iso     = 0.0 
+        pd%time_iso      = 0.0
+        pd%depth_iso     = 0.0
 
         pd%ux_s          = 0.0 
         pd%uy_s          = 0.0 
@@ -548,7 +556,8 @@ contains
         if (allocated(pd%smb))              deallocate(pd%smb)
         
         if (allocated(pd%depth_iso))        deallocate(pd%depth_iso)
-        
+        if (allocated(pd%time_iso))         deallocate(pd%time_iso)
+
         if (allocated(pd%ux_s))             deallocate(pd%ux_s)
         if (allocated(pd%uy_s))             deallocate(pd%uy_s)
         if (allocated(pd%uxy_s))            deallocate(pd%uxy_s)

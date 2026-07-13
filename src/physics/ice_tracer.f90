@@ -993,19 +993,17 @@ contains
 
     end subroutine calc_dzeta_terms
 
-    subroutine calc_isochrones(depth_iso,dep_time,H_ice,age_iso,zeta,time)
-        ! Calculate specific isochronal layers (depth_iso) at specified ages (age_iso)
-        ! from info about the deposition time of each ice layer (dep_time)
-
-        ! Note: to maintain generality, calculate everything based on dep_time, rather
-        ! than age (ie, convert the age of each layer to a deposition time) 
+    subroutine calc_isochrones(depth_iso,dep_time,H_ice,time_iso,zeta,time)
+        ! Calculate specific isochronal layers (depth_iso) at specified deposition
+        ! times (time_iso) from the deposition time of each ice layer (dep_time).
+        ! Deposition-time isochrones are fixed horizons, valid at any model time.
 
         implicit none 
 
         real(prec), intent(OUT) :: depth_iso(:,:,:)     ! [m]   Depth of isochronal layer
         real(prec), intent(IN)  :: dep_time(:,:,:)      ! [a]   Deposition time of ice layer
         real(prec), intent(IN)  :: H_ice(:,:)           ! [m]   Ice thickness 
-        real(prec), intent(IN)  :: age_iso(:)           ! [ka]  Isochronal layer ages
+        real(prec), intent(IN)  :: time_iso(:)          ! [ka]  Isochronal layer deposition times
         real(prec), intent(IN)  :: zeta(:)              ! [-]   Vertical sigma coordinates
         real(prec), intent(IN)  :: time                 ! [a]   Current time 
 
@@ -1016,7 +1014,7 @@ contains
         nx    = size(H_ice,1)
         ny    = size(H_ice,2) 
         nz    = size(zeta) 
-        n_iso = size(age_iso) 
+        n_iso = size(time_iso)
 
         ! Initially set depth of isochrones to zero 
         depth_iso = 0.0 
@@ -1025,8 +1023,8 @@ contains
                 
         do q = 1, n_iso 
 
-            ! Get isochronal age in terms of deposition time [ka] => [a]
-            dep_time_iso = 0.0 - (age_iso(q)*1e3) 
+            ! Target deposition time [ka] => [a]
+            dep_time_iso = time_iso(q)*1e3
 
             if (dep_time_iso .lt. time) then 
                 ! This layer should exist, perform interpolation at each point 
