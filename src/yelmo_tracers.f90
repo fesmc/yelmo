@@ -26,7 +26,8 @@ module yelmo_tracers
 
     use elsa,   only : elsa_init, elsa_update, elsa_end, elsa_restart_write
     use tracer, only : tracer_init, tracer_update, tracer_end, &
-                       tracer_write_init, tracer_write, tracer_read
+                       tracer_write_init, tracer_write, tracer_read, &
+                       calc_tracer_stats
 
     implicit none
 
@@ -34,6 +35,7 @@ module yelmo_tracers
     public :: ytrc_par_load, ytrc_alloc, ytrc_dealloc
     public :: ytrc_init, calc_ytrc, ytrc_end
     public :: ytrc_restart_write
+    public :: ytrc_calc_stats
 
 contains
 
@@ -99,6 +101,7 @@ contains
         if (trc%par%use_tracer) then
             call ytrc_update_tracer(trc,tpo,dyn,grd,time)
             call ytrc_harmonize_tracer(trc,grd)
+            call ytrc_calc_stats(trc)   ! refresh gridded stats (no-op if stats off)
         end if
 
         ! === 4. Authoritative field + isochrones ==========================
@@ -382,6 +385,28 @@ contains
 
     end subroutine ytrc_harmonize_tracer
 
+    subroutine ytrc_calc_stats(trc)
+        ! Refresh the tracer backend's gridded (Eulerian) statistics from the
+        ! current particle cloud. Called each step from calc_ytrc, so the stats
+        ! read into yelmo2D.nc are always current. No-op unless the tracer backend
+        ! runs with stats enabled.
+
+        implicit none
+
+        type(ytrc_class), intent(INOUT) :: trc
+
+        if (.not. trc%par%use_tracer)  return
+        if (.not. trc%trc%par%stats)   return
+
+        call calc_tracer_stats(trc%trc%stats, trc%trc%now%active, &
+                               trc%trc%now%x, trc%trc%now%y, trc%trc%now%dpth, trc%trc%now%H, &
+                               trc%trc%dep%time, trc%trc%dep%z, trc%trc%dep%lon, trc%trc%dep%lat, &
+                               trc%trc%dep%t2m_ann, trc%trc%dep%pr_ann, trc%trc%dep%d18O_ann)
+
+        return
+
+    end subroutine ytrc_calc_stats
+
     subroutine ytrc_init(trc,grd,time,H_ice,restart)
         ! Initialize the enabled backends. Called once from yelmo_init_state,
         ! after the topography (H_ice) has been set. On a restart, `restart` is
@@ -441,8 +466,12 @@ contains
         ! then on a restart overlay the saved particle cloud from the sidecar
         ! (tracer_read must run after tracer_init; it only overwrites state).
         if (trc%par%use_tracer) then
+            ! Pass yelmo's isochrone targets (time_iso) so the tracer's gridded
+            ! stats share the authoritative deposition-time axis, independent of
+            ! the tracer namelist (see tracer_init).
             call tracer_init(trc%trc,trim(trc%par%tracer_nml),real(time,wp), &
-                             real(grd%G%x,wp),real(grd%G%y,wp),is_sigma=.TRUE.,grid=grd)
+                             real(grd%G%x,wp),real(grd%G%y,wp),is_sigma=.TRUE.,grid=grd, &
+                             time_iso=trc%par%time_iso)
 
             if (is_restart) then
                 call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),real(time,wp))

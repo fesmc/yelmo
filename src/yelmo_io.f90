@@ -67,6 +67,12 @@ contains
         call nc_write_dim(filename,"zeta_rock", x=ylmo%thrm%par%zr%zeta_aa,units="1")
         call nc_write_dim(filename,"time_iso",   x=ylmo%trc%par%time_iso, units="kyr")
         call nc_write_dim(filename,"pd_time_iso",x=ylmo%dta%pd%time_iso,  units="kyr")
+
+        ! Normalized-depth axis for the tracer backend's gridded stats (only
+        ! allocated when the tracer runs with stats enabled).
+        if (ylmo%trc%par%use_tracer .and. ylmo%trc%trc%par%stats) then
+            call nc_write_dim(filename,"depth_norm",x=ylmo%trc%trc%stats%depth_norm,units="1")
+        end if
         call nc_write_dim(filename,"pc_steps",  x=1,dx=1,nx=3,          units="1")
         
         call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
@@ -1807,6 +1813,15 @@ contains
             case("depth_iso") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%trc%now%depth_iso(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+
+            case("trc_count") ! 3D (depth_norm) — tracer particle count per depth band
+                if (allocated(ylmo%trc%trc%stats%count)) &
+                    call nc_write(filename,trim(v%varname),ylmo%trc%trc%stats%count(i1:i2,j1:j2,:), &
+                                start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("trc_depth_iso") ! 3D (time_iso) — isochrone depth from the particle cloud
+                if (allocated(ylmo%trc%trc%stats%depth_iso)) &
+                    call nc_write(filename,trim(v%varname),ylmo%trc%trc%stats%depth_iso(i1:i2,j1:j2,:), &
+                                start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
 
             case DEFAULT
 
