@@ -186,7 +186,7 @@ $(objdir)/yelmo_data.o: $(srcdir)/yelmo_data.f90 $(objdir)/yelmo_defs.o $(objdir
 $(objdir)/yelmo_regions.o: $(srcdir)/yelmo_regions.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o
+$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/control.o: control.f90

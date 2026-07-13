@@ -4,9 +4,10 @@ module yelmo_io
     
     use ncio 
     
-    use yelmo_defs 
+    use yelmo_defs
     use yelmo_tools, only : get_region_indices
-    use yelmo_grid 
+    use yelmo_tracers, only : ytrc_restart_write
+    use yelmo_grid
     
     use variable_io
     use interp2D
@@ -337,20 +338,20 @@ contains
         ! Write all yelmo data to file, so that it can be
         ! read later to restart a simulation.
         
-        implicit none 
+        implicit none
 
         type(yelmo_class), intent(IN) :: dom
-        character(len=*),  intent(IN) :: filename 
-        real(wp),          intent(IN) :: time 
-        logical,           intent(IN), optional :: init 
+        character(len=*),  intent(IN) :: filename
+        real(wp),          intent(IN) :: time
+        logical,           intent(IN), optional :: init
         integer,           intent(IN), optional :: irange(2)
         integer,           intent(IN), optional :: jrange(2)
-        
+
         ! Local variables
         integer  :: ncid, n, q, nt
-        integer :: i1, i2, j1, j2 
-        logical  :: initialize_file  
-        
+        integer :: i1, i2, j1, j2
+        logical  :: initialize_file
+
         type(yelmo_io_tables) :: io
 
         ! Store yelmo io in local object for easier access
@@ -454,8 +455,12 @@ contains
         ! Close the netcdf file
         call nc_close(ncid)
 
-        ! Write summary 
-        write(*,*) 
+        ! Write the passive-tracer backends' native restart sidecars (elsa layer
+        ! stack, tracer particle cloud) alongside the yelmo restart file.
+        call ytrc_restart_write(dom%trc,filename,time)
+
+        ! Write summary
+        write(*,*)
         write(*,*) "time = ", time, " : saved restart file: ", trim(filename)
         write(*,*) 
 

@@ -22,17 +22,18 @@ module yelmo_tracers
     use nml
 
     use yelmo_defs
-    use yelmo_tools, only : stagger_acx_aa, stagger_acy_aa
     use ice_tracer,  only : calc_tracer_3D, calc_isochrones
 
-    use elsa,   only : elsa_init, elsa_update, elsa_end
-    use tracer, only : tracer_init, tracer_update, tracer_end
+    use elsa,   only : elsa_init, elsa_update, elsa_end, elsa_restart_write
+    use tracer, only : tracer_init, tracer_update, tracer_end, &
+                       tracer_write_init, tracer_write, tracer_read
 
     implicit none
 
     private
     public :: ytrc_par_load, ytrc_alloc, ytrc_dealloc
     public :: ytrc_init, calc_ytrc, ytrc_end
+    public :: ytrc_restart_write
 
 contains
 
@@ -258,10 +259,12 @@ contains
     end subroutine interp_monotonic
 
     subroutine ytrc_update_tracer(trc,tpo,dyn,grd,time)
-        ! Drive the Lagrangian particle model. tracer wants cell-centred (aa)
-        ! velocities on the zeta_aa sigma axis, so destagger ux/uy from acx/acy
-        ! and interpolate uz from zeta_ac to zeta_aa. Deposition/stats cadence
-        ! is governed by the tracer namelist (dt_dep, dt_write_stats).
+        ! Drive the Lagrangian particle model. tracer samples the host velocities
+        ! on their native Arakawa-C locations and interpolates directly to each
+        ! particle point (fesmc/tracer#1), so pass ux/uy/uz staggered together
+        ! with their axes: ux on acx (x_ux = x+dx/2), uy on acy (y_uy = y+dy/2),
+        ! uz on the zeta_ac interfaces (z_uz = zeta_ac). Deposition cadence is
+        ! governed by the tracer namelist (dt_dep).
 
         implicit none
 
@@ -272,29 +275,24 @@ contains
         real(wp),          intent(IN)    :: time
 
         ! Local variables
-        integer :: k, nx, ny, nz_aa
+        integer :: nx, ny
         logical :: dep_now, stats_now
-        real(wp), allocatable :: ux_aa(:,:,:), uy_aa(:,:,:), uz_aa(:,:,:)
+        real(wp) :: dx, dy
+        real(wp), allocatable :: x_ux(:), y_uy(:)
 
-        nx    = trc%par%nx
-        ny    = trc%par%ny
-        nz_aa = trc%par%nz_aa
+        nx = trc%par%nx
+        ny = trc%par%ny
+        dx = real(grd%G%dx,wp)
+        dy = real(grd%G%dy,wp)
 
-        allocate(ux_aa(nx,ny,nz_aa))
-        allocate(uy_aa(nx,ny,nz_aa))
-        allocate(uz_aa(nx,ny,nz_aa))
-
-        ! Destagger horizontal velocities acx/acy -> aa, per level
-        do k = 1, nz_aa
-            ux_aa(:,:,k) = stagger_acx_aa(dyn%now%ux(:,:,k))
-            uy_aa(:,:,k) = stagger_acy_aa(dyn%now%uy(:,:,k))
-        end do
-
-        ! Interpolate vertical velocity zeta_ac -> zeta_aa (yelmo uz is positive up)
-        call interp_zeta_ac_to_aa(uz_aa,dyn%now%uz,trc%par%zeta_ac,trc%par%zeta_aa)
+        ! Staggered velocity axes: acx is the right cell border (x+dx/2), acy the
+        ! top border (y+dy/2); uz already sits on the zeta_ac interfaces.
+        allocate(x_ux(nx),y_uy(ny))
+        x_ux = real(grd%G%x,wp) + 0.5_wp*dx
+        y_uy = real(grd%G%y,wp) + 0.5_wp*dy
 
         ! Decide whether to deposit this step (cadence dt_dep from tracer namelist).
-        ! M1: gridded stats harmonization not yet wired, so stats output is off.
+        ! Gridded-stats output is off; the harmonized t_dep_trc is built afterwards.
         dep_now   = .FALSE.
         stats_now = .FALSE.
         if (real(time,dp) .ge. trc%par%time_dep_next) then
@@ -302,11 +300,14 @@ contains
             trc%par%time_dep_next = trc%par%time_dep_next + real(trc%trc%par%dt_dep,dp)
         end if
 
-        call tracer_update(trc%trc,real(time,wp),real(grd%G%x,wp),real(grd%G%y,wp),trc%par%zeta_aa, &
-                           tpo%now%z_srf,tpo%now%H_ice,ux_aa,uy_aa,uz_aa, &
+        call tracer_update(trc%trc,real(time,wp), &
+                           real(grd%G%x,wp),real(grd%G%y,wp),trc%par%zeta_aa, &
+                           tpo%now%z_srf,tpo%now%H_ice, &
+                           dyn%now%ux,dyn%now%uy,dyn%now%uz, &
+                           x_ux=x_ux,y_uy=y_uy,z_uz=trc%par%zeta_ac, &
                            dep_now=dep_now,stats_now=stats_now,sigma_srf=1.0_wp)
 
-        deallocate(ux_aa,uy_aa,uz_aa)
+        deallocate(x_ux,y_uy)
 
         return
 
@@ -375,46 +376,11 @@ contains
 
     end subroutine ytrc_harmonize_tracer
 
-    subroutine interp_zeta_ac_to_aa(u_aa,u_ac,zeta_ac,zeta_aa)
-        ! Linearly interpolate a 3D field from the ac (interface) vertical axis
-        ! onto the aa (cell-centre) axis, column by column. Endpoints clamp.
-
-        implicit none
-
-        real(wp), intent(OUT) :: u_aa(:,:,:)
-        real(wp), intent(IN)  :: u_ac(:,:,:)
-        real(wp), intent(IN)  :: zeta_ac(:)
-        real(wp), intent(IN)  :: zeta_aa(:)
-
-        ! Local variables
-        integer  :: k, kac, nz_aa, nz_ac
-        real(wp) :: wt
-
-        nz_aa = size(zeta_aa,1)
-        nz_ac = size(zeta_ac,1)
-
-        do k = 1, nz_aa
-            if (zeta_aa(k) .le. zeta_ac(1)) then
-                u_aa(:,:,k) = u_ac(:,:,1)
-            else if (zeta_aa(k) .ge. zeta_ac(nz_ac)) then
-                u_aa(:,:,k) = u_ac(:,:,nz_ac)
-            else
-                ! Find the ac interval containing zeta_aa(k)
-                do kac = 1, nz_ac-1
-                    if (zeta_aa(k) .ge. zeta_ac(kac) .and. zeta_aa(k) .le. zeta_ac(kac+1)) exit
-                end do
-                wt = (zeta_aa(k) - zeta_ac(kac)) / (zeta_ac(kac+1) - zeta_ac(kac))
-                u_aa(:,:,k) = (1.0_wp-wt)*u_ac(:,:,kac) + wt*u_ac(:,:,kac+1)
-            end if
-        end do
-
-        return
-
-    end subroutine interp_zeta_ac_to_aa
-
-    subroutine ytrc_init(trc,grd,time,H_ice)
+    subroutine ytrc_init(trc,grd,time,H_ice,restart)
         ! Initialize the enabled backends. Called once from yelmo_init_state,
-        ! after the topography (H_ice) has been set.
+        ! after the topography (H_ice) has been set. On a restart, `restart` is
+        ! the yelmo restart path; each backend restores its own native state from
+        ! a sidecar file derived from it.
 
         implicit none
 
@@ -422,15 +388,38 @@ contains
         type(grid_class), intent(IN)    :: grd
         real(wp),         intent(IN)    :: time
         real(wp),         intent(IN)    :: H_ice(:,:)
+        character(len=*), intent(IN), optional :: restart
 
-        ! Eulerian backend: seed deposition time to the current time
-        trc%now%t_dep_euler = real(time,wp)
+        ! Local variables
+        logical            :: is_restart
+        integer            :: n_add
+        character(len=512) :: elsa_rst
 
-        ! Layer backend (elsa): allocate the layer stack sized by par%time_end
+        is_restart = .FALSE.
+        if (present(restart)) then
+            if (trim(restart) .ne. "None" .and. len_trim(restart) .gt. 0) is_restart = .TRUE.
+        end if
+
+        ! Eulerian backend: seed deposition time to the current time on a cold
+        ! start. On a restart, t_dep_euler is read from the yelmo restart file by
+        ! yelmo_restart_read (which runs before this), so do not overwrite it.
+        if (.not. is_restart) trc%now%t_dep_euler = real(time,wp)
+
+        ! Layer backend (elsa): allocate the layer stack (sized by par%time_end on
+        ! a cold start, or read from the sidecar on a restart).
         if (trc%par%use_elsa) then
-            call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                           real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
-                           real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy")
+
+            if (is_restart) then
+                elsa_rst = ytrc_restart_filename(restart,"elsa")
+                call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
+                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
+                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy", &
+                               restart=trim(elsa_rst))
+            else
+                call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
+                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
+                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy")
+            end if
 
             ! The t_dep_elsa diagnostic maps elsa's layer stack onto the host
             ! sigma grid column-by-column; this only holds when elsa shares the
@@ -441,13 +430,35 @@ contains
                 stop "Program stopped."
             end if
 
-            trc%par%elsa_time_init = real(time,dp)
+            ! Floor time for elsa's pre-init initial layers (see ytrc_harmonize_elsa).
+            ! On a restart the original init time is not stored, so recover it from
+            ! the isochrone schedule (exact for a regular layer_resolution).
+            if (is_restart) then
+                n_add = size(trc%elsa%par%time_add)
+                if (n_add .ge. 2) then
+                    trc%par%elsa_time_init = trc%elsa%par%time_add(1) &
+                                           - (trc%elsa%par%time_add(2) - trc%elsa%par%time_add(1))
+                else if (n_add .eq. 1) then
+                    trc%par%elsa_time_init = trc%elsa%par%time_add(1)
+                else
+                    trc%par%elsa_time_init = real(time,dp)
+                end if
+            else
+                trc%par%elsa_time_init = real(time,dp)
+            end if
+
         end if
 
-        ! Particle backend (tracer): allocate the fixed particle pool
+        ! Particle backend (tracer): allocate the fixed particle pool (tracer_init),
+        ! then on a restart overlay the saved particle cloud from the sidecar
+        ! (tracer_read must run after tracer_init; it only overwrites state).
         if (trc%par%use_tracer) then
             call tracer_init(trc%trc,trim(trc%par%tracer_nml),real(time,wp), &
                              real(grd%G%x,wp),real(grd%G%y,wp),is_sigma=.TRUE.,grid=grd)
+
+            if (is_restart) then
+                call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),real(time,wp))
+            end if
 
             ! Initialize deposition/stats cadence trackers from the tracer namelist
             trc%par%time_dep_next   = real(time,dp)
@@ -457,6 +468,77 @@ contains
         return
 
     end subroutine ytrc_init
+
+    subroutine ytrc_restart_write(trc,filename,time)
+        ! Write the native restart state of each enabled backend to a sidecar
+        ! file alongside the yelmo restart (e.g. yelmo_restart.nc ->
+        ! yelmo_restart_elsa.nc / _tracer.nc). The Eulerian backend needs no
+        ! sidecar: its t_dep_euler field is written into the yelmo restart via
+        ! the io%trc table.
+
+        implicit none
+
+        type(ytrc_class), intent(IN) :: trc
+        character(len=*), intent(IN) :: filename
+        real(wp),         intent(IN) :: time
+
+        ! Local variables
+        integer            :: is
+        character(len=512) :: path, fldr, fname
+        type(tracer_class) :: trc_tmp
+
+        ! Guard on allocation: a restart file may be written before the backends
+        ! are initialized (e.g. the diagnostic write inside yelmo_restart_read,
+        ! which runs before ytrc_init), and there is nothing to save yet.
+        if (trc%par%use_elsa .and. allocated(trc%elsa%now%d_iso)) then
+            call elsa_restart_write(trc%elsa,trim(ytrc_restart_filename(filename,"elsa")))
+        end if
+
+        ! tracer_write takes a folder + filename and appends to a fresh archive;
+        ! split the sidecar path and create it (tracer_write_init) before writing.
+        ! tracer_write is INTENT(INOUT) (it stamps time_write), so operate on a
+        ! local copy to keep this routine and its callers read-only in `trc`.
+        if (trc%par%use_tracer .and. allocated(trc%trc%now%x)) then
+            path = ytrc_restart_filename(filename,"tracer")
+            is   = index(trim(path),"/",back=.TRUE.)
+            if (is .gt. 0) then
+                fldr  = path(1:is-1)
+                fname = path(is+1:)
+            else
+                fldr  = "."
+                fname = trim(path)
+            end if
+            trc_tmp = trc%trc
+            call tracer_write_init(trc_tmp,trim(fldr),trim(fname))
+            call tracer_write(trc_tmp,real(time,wp),trim(fldr),trim(fname))
+        end if
+
+        return
+
+    end subroutine ytrc_restart_write
+
+    function ytrc_restart_filename(base,tag) result(path)
+        ! Build a sidecar restart path by inserting "_<tag>" before the ".nc"
+        ! extension of `base` (e.g. ("dir/yelmo_restart.nc","elsa") ->
+        ! "dir/yelmo_restart_elsa.nc"). Falls back to appending if no ".nc".
+
+        implicit none
+
+        character(len=*), intent(IN) :: base, tag
+        character(len=512) :: path
+
+        integer :: ie
+
+        ie = index(base,".nc",back=.TRUE.)
+        if (ie .gt. 0) then
+            path = base(1:ie-1)//"_"//trim(tag)//".nc"
+        else
+            path = trim(base)//"_"//trim(tag)//".nc"
+        end if
+
+        return
+
+    end function ytrc_restart_filename
 
     subroutine ytrc_par_load(par,filename,group,zeta_aa,zeta_ac,nx,ny,dx,init)
 

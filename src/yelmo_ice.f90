@@ -1358,6 +1358,12 @@ contains
             ! And ensure pc is already active
             dom%time%pc_active = .TRUE.
 
+            ! Initialize the passive-tracer backends from their restart sidecars.
+            ! euler's t_dep_euler was just read above; elsa reloads its layer stack;
+            ! tracer cold-starts (tracer_read not yet implemented upstream).
+            dom%trc%par%time = dble(time)
+            call ytrc_init(dom%trc,dom%grd,time,dom%tpo%now%H_ice,restart=trim(dom%par%restart))
+
         else
 
             ! Consistency check 
