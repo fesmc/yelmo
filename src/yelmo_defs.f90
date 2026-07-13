@@ -648,7 +648,6 @@ module yelmo_defs
         ! from (time_end - time)/layer_resolution and never grows it, so the run's
         ! end time must be known up front. Set to the simulation end time.
         real(wp)          :: time_end
-        real(dp)          :: elsa_time_init      ! host time at elsa init; floor for the elsa t_dep diagnostic
 
         ! Eulerian backend parameters (migrated from ymat)
         logical               :: calc_age            ! Master switch for the Eulerian age tracer

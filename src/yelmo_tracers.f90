@@ -147,11 +147,15 @@ contains
         ! deposition-time field (t_dep_elsa), column by column. Requires
         ! grid_factor=1 (checked at init), so elsa's grid is the host grid.
         !
+        ! The layer->time mapping is read straight from elsa's state: t_dep(L)
+        ! is the deposition time of layer L (its bottom boundary), the stored
+        ! source of truth, and is uniform in x,y.
+        !
         ! elsa layers (bottom to top):
         !   1 .. n_layers_init         initial equal-thickness column (ice deposited
-        !                              at or before time_init -> floored to time_init)
+        !                              at or before elsa's init time -> floored there)
         !   n_layers_init+1 .. n_top-1 layer L closed by the isochrone at its top,
-        !                              deposition time = time_add(L - n_layers_init)
+        !                              whose time is t_dep(L+1)
         !   n_top                      current accumulating layer, top = surface = now
         !
         ! dsum_iso(:,:,L) is the height of layer L's top above the bed; the column
@@ -164,7 +168,7 @@ contains
 
         ! Local variables
         integer  :: i, j, k, L, nlt, ntop, nx, ny, nz_aa, nk
-        real(dp) :: h, tt, H_col, t_init
+        real(dp) :: h, tt, H_col
         real(dp), allocatable :: hk(:), tk(:)
 
         real(wp), parameter :: H_MIN_ELSA = 1.0e-6_wp
@@ -174,13 +178,23 @@ contains
         nz_aa  = trc%par%nz_aa
         nlt    = trc%elsa%par%n_layers_init
         ntop   = trc%elsa%now%n_top
-        t_init = trc%par%elsa_time_init
 
         trc%now%t_dep_elsa = MV
 
-        ! Knots: a bed knot (h=0) plus every boundary from n_layers_init to n_top
+        ! Knots: a bed knot (h=0) plus every layer-top boundary from
+        ! n_layers_init to n_top. The time knots are read from elsa's per-layer
+        ! deposition times t_dep -- uniform in x,y, so build them once. The top
+        ! of layer L is the isochrone laid when layer L+1 began, time t_dep(L+1);
+        ! the bed floor is t_dep(nlt+1) (elsa's init time) and the surface (top
+        ! of n_top) is 'now'.
         nk = (ntop - nlt + 1) + 1
         allocate(hk(nk),tk(nk))
+
+        tk(1) = trc%elsa%now%t_dep(nlt+1)
+        do L = nlt, ntop-1
+            tk(L-nlt+2) = trc%elsa%now%t_dep(L+1)
+        end do
+        tk(nk) = trc%elsa%now%time
 
         do j = 1, ny
         do i = 1, nx
@@ -188,18 +202,10 @@ contains
             H_col = trc%elsa%now%dsum_iso(i,j,ntop)
             if (H_col .le. real(H_MIN_ELSA,dp)) cycle   ! no ice -> leave MV
 
-            ! Build monotonic (height, time) knots for this column
+            ! Column-varying height knots
             hk(1) = 0.0_dp
-            tk(1) = t_init
             do L = nlt, ntop
                 hk(L-nlt+2) = trc%elsa%now%dsum_iso(i,j,L)
-                if (L .lt. nlt+1) then
-                    tk(L-nlt+2) = t_init                              ! base of accumulation
-                else if (L .lt. ntop) then
-                    tk(L-nlt+2) = trc%elsa%par%time_add(L-nlt)        ! closed isochrone
-                else
-                    tk(L-nlt+2) = trc%elsa%now%time                  ! surface (now)
-                end if
             end do
 
             do k = 1, nz_aa
@@ -392,7 +398,6 @@ contains
 
         ! Local variables
         logical            :: is_restart
-        integer            :: n_add
         character(len=512) :: elsa_rst
 
         is_restart = .FALSE.
@@ -428,23 +433,6 @@ contains
                 write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires grid_factor=1 in the elsa &
                                      &namelist (for the t_dep_elsa diagnostic); got ", trc%elsa%par%grid_factor
                 stop "Program stopped."
-            end if
-
-            ! Floor time for elsa's pre-init initial layers (see ytrc_harmonize_elsa).
-            ! On a restart the original init time is not stored, so recover it from
-            ! the isochrone schedule (exact for a regular layer_resolution).
-            if (is_restart) then
-                n_add = size(trc%elsa%par%time_add)
-                if (n_add .ge. 2) then
-                    trc%par%elsa_time_init = trc%elsa%par%time_add(1) &
-                                           - (trc%elsa%par%time_add(2) - trc%elsa%par%time_add(1))
-                else if (n_add .eq. 1) then
-                    trc%par%elsa_time_init = trc%elsa%par%time_add(1)
-                else
-                    trc%par%elsa_time_init = real(time,dp)
-                end if
-            else
-                trc%par%elsa_time_init = real(time,dp)
             end if
 
         end if
