@@ -1,8 +1,8 @@
 # configme manifest for yelmo.
 package = "yelmo"
 deps = [
-    "fesm-utils:dev",
-    "FastHydrology:dev",
+    "fesm-utils:main",
+    "FastHydrology:main",
     "elsa:main",
     "tracer:main",
 ]
