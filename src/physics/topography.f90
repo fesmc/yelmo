@@ -1851,7 +1851,8 @@ end if
     end subroutine calc_bmb_total
 
     subroutine calc_fmb_total(fmb,fmb_shlf,bmb_shlf,H_ice,H_grnd,f_ice, &
-                                fmb_method,fmb_scale,rho_ice,rho_sw,dx,boundaries)
+                                fmb_method,fmb_scale,fmb_lambda,rho_ice,rho_sw,dx,boundaries, &
+                                Q_sg, tf_shlf)
 
         implicit none 
 
@@ -1863,10 +1864,13 @@ end if
         real(wp), intent(IN)  :: f_ice(:,:)
         integer,  intent(IN)  :: fmb_method 
         real(wp), intent(IN)  :: fmb_scale
+        real(wp), intent(IN)  :: fmb_lambda         
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
         real(wp), intent(IN)  :: dx
         character(len=*), intent(IN) :: boundaries
+        real(wp), intent(IN), optional :: Q_sg(:,:)      ! Subglacial discharge [m3/s]
+        real(wp), intent(IN), optional :: tf_shlf(:,:)  
     
         ! Local variables
         integer    :: i, j, nx, ny, n_margin
@@ -1877,6 +1881,17 @@ end if
         real(wp) :: bmb_eff 
         logical  :: mask(4) 
         integer  :: BC
+
+        !Rignotet al. (2016) variables
+        real(wp), parameter :: rignot16_a     = 3.0e-4_wp  
+        real(wp), parameter :: rignot16_b     = 0.15_wp    
+        real(wp), parameter :: rignot16_alpha = 0.39_wp    
+        real(wp), parameter :: rignot16_beta  = 1.18_wp    
+        real(wp), parameter :: rignot16_days_yr = 365.0_wp 
+
+        
+        real(wp) :: q_sg_norm 
+        real(wp) :: tf_now       
 
         real(wp) :: rho_ice_sw 
         
@@ -1963,6 +1978,69 @@ end if
 
                     end if 
 
+                end do 
+                end do
+                !$omp end parallel do
+
+            case(3)
+                ! Calculate fmb using Rignot et al. (2016) parameterization:
+                ! m = lambda * (a*h*q^alpha + b) * TF^beta 
+                ! where h is the water depth in metres
+                ! q = 86400 * Q / A is the subglacial discharge (Q, m3/s)
+                ! and TF is the ocean thermal forcing (ºC)
+                
+                do j = 1, ny 
+                do i = 1, nx 
+ 
+                    ! Get neighbor indices
+                    call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+ 
+                    ! Get mask of neighbors that are ice free 
+                    mask = ( [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)].eq.0.0 )
+ 
+                    ! Count how many neighbors are ice free 
+                    n_margin = count(mask) 
+ 
+                    if (H_ice(i,j) .gt. 0.0_wp .and. &
+                        H_grnd(i,j) .lt. H_ice(i,j) .and. &
+                                            n_margin .gt. 0) then 
+                        ! Cell is ice-covered, [grounded below sea level or floating] and at the ice margin
+ 
+                        ! Get effective ice thickness
+                        call calc_H_eff(H_eff,H_ice(i,j),f_ice(i,j))
+ 
+                        ! Determine depth of adjacent water (h en la formula de Rignot)
+                        if (H_grnd(i,j) .lt. 0.0_wp) then 
+                            ! Cell is floating, calculate submerged ice thickness 
+                            dz = (H_eff*rho_ice_sw)
+                            
+                        else 
+                            ! Cell is grounded, recover depth of seawater
+                            dz = max( (H_eff - H_grnd(i,j)) * rho_ice_sw, 0.0_wp)
+ 
+                        end if 
+ 
+                        ! Get area of ice submerged and adjacent to seawater
+                        area_flt = real(n_margin,wp)*dz*dx 
+
+                        if (area_flt .gt. 0.0_wp) then
+                            ! q = 86400 * Q / A  [m/dia], A = area_flt [m2], Q_sg [m3/s]
+                            q_sg_norm = 86400.0_wp * Q_sg(i,j) / area_flt
+ 
+                            tf_now = max(tf_shlf(i,j), 0.0_wp)
+
+                            fmb(i,j) = - fmb_lambda * (rignot16_a*dz*(q_sg_norm**rignot16_alpha) + rignot16_b) &
+                                            * (tf_now**rignot16_beta) * (area_flt/area_tot)     
+                        else
+                            fmb(i,j) = 0.0_wp
+                        end if 
+ 
+                    else 
+                        ! Set front mass balance equal to zero 
+                        fmb(i,j) = 0.0_wp 
+ 
+                    end if 
+ 
                 end do 
                 end do
                 !$omp end parallel do

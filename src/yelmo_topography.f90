@@ -207,7 +207,8 @@ end if
                     ! Calculate frontal mass balance
                     call calc_fmb_total(tpo%now%fmb_ref,bnd%fmb_shlf,bnd%bmb_shlf,tpo%now%H_ice, &
                                     tpo%now%H_grnd,tpo%now%f_ice,tpo%par%fmb_method,tpo%par%fmb_scale, &
-                                    bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%dx,tpo%par%boundaries)
+                                    tpo%par%fmb_lambda, bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%dx,tpo%par%boundaries, &
+                                    bnd%Qd,bnd%tf_shlf)
 
                     if (tpo%par%use_bmb) then
                         call calc_G_mbal(tpo%now%fmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%fmb_ref,dt)
@@ -1310,6 +1311,7 @@ end if
         ! fmb
         call nml_read(filename,group_ytopo,"fmb_method",        par%fmb_method,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"fmb_scale",         par%fmb_scale,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"fmb_lambda",         par%fmb_lambda,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
 
         ! === read calving routine ===
         call nml_read(filename,group_ycalv,"use_lsf",           par%use_lsf,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
