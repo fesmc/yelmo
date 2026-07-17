@@ -1,5 +1,19 @@
 # Yelmo changelog
 
+## v2.3.1 (2026-07-17)
+
+- **Fix ISMIPHOM aborting at startup.** `par/yelmo_ISMIPHOM.nml` still set
+  `ydyn.solver = "l1l2"` after the L1L2 solver was deleted in v2.3, and
+  `yelmo_check_enum` stops hard on an unknown value. Switched to `diva`; note this
+  changes ISMIP-HOM benchmark results, as DIVA is a different approximation.
+  Stale `l1l2` doc comments removed across `par/` and `input/yelmo_defaults.nml`
+  (no parameter values changed).
+- **Refresh the bundled `yelmo-config` defaults/enums snapshot**, which predated the
+  v2.3 `&ytrc` refactor — installs without a checkout served pre-refactor parameters.
+- **Fix `yelmo-config snapshot` writing to the installed package** instead of the
+  checkout, which is how the snapshot went stale unnoticed. Added a drift check
+  pinning the committed snapshot to `input/yelmo_defaults.nml`.
+
 ## v2.3 (2026-07-15)
 
 Enthalpy is now the default thermodynamics solver, a passive-tracer subsystem is
