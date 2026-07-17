@@ -91,9 +91,7 @@
       "ssa",
       "hybrid",
       "diva",
-      "diva-noslip",
-      "l1l2",
-      "l1l2-noslip"
+      "diva-noslip"
     ],
     "conditions": []
   },
@@ -276,6 +274,25 @@
     "allowed": [
       "H_ref",
       "H_ice_n"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytrc",
+    "name": "t_dep_source",
+    "allowed": [
+      "euler",
+      "trc",
+      "elsa"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytrc",
+    "name": "tracer_method",
+    "allowed": [
+      "expl",
+      "impl"
     ],
     "conditions": []
   }
