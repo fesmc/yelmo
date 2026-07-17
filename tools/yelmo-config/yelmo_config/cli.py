@@ -377,14 +377,18 @@ def cmd_update(args) -> None:
 
 
 def cmd_snapshot(args) -> None:
-    """`yelmo-config snapshot` — refresh the bundled defaults + enum snapshots
-    from a local Yelmo checkout into the package's data/ directory. For
-    maintainers: run from a checkout, then commit the updated data files."""
+    """`yelmo-config snapshot` — refresh the defaults + enum snapshots from a
+    local Yelmo checkout into that checkout's yelmo_config/data/ directory. For
+    maintainers: run from a checkout, then commit the updated data files.
+
+    The destination is derived from the located checkout, not from this
+    package's own data/ dir: under a non-editable install those differ, and
+    writing to the latter would update site-packages while leaving the
+    maintainer's tree untouched."""
     import json
     from . import namelist as nl
     from .constraints import enums_to_json, extract_enums
-    from .locate import (BUNDLED_DEFAULTS, BUNDLED_ENUMS, find_local_defaults,
-                         find_src)
+    from .locate import SNAPSHOT_RELPATH, find_local_defaults, find_src
 
     try:
         dp = find_local_defaults(args.defaults)
@@ -395,13 +399,19 @@ def cmd_snapshot(args) -> None:
         sys.exit("yelmo-config snapshot: could not locate src/ for enum extraction "
                  "(pass --src). A full checkout is required.")
 
-    BUNDLED_DEFAULTS.parent.mkdir(parents=True, exist_ok=True)
-    BUNDLED_DEFAULTS.write_text(Path(dp).read_text())
+    out_dir = Path(dp).resolve().parent.parent / SNAPSHOT_RELPATH
+    if not out_dir.is_dir():
+        sys.exit(f"yelmo-config snapshot: no snapshot directory in the checkout: "
+                 f"{out_dir}. A full checkout is required.")
+    out_defaults = out_dir / "yelmo_defaults.nml"
+    out_enums = out_dir / "enums.json"
+
+    out_defaults.write_text(Path(dp).read_text())
     enums = extract_enums(Path(sp))
-    BUNDLED_ENUMS.write_text(json.dumps(enums_to_json(enums), indent=2) + "\n")
+    out_enums.write_text(json.dumps(enums_to_json(enums), indent=2) + "\n")
 
     n_enum = sum(len(v) for v in enums.values())
-    print(f"snapshot written to {BUNDLED_DEFAULTS.parent}")
+    print(f"snapshot written to {out_dir}")
     print(f"  defaults : {dp}")
     print(f"  enums    : {sp}  ({n_enum} constraint(s) across {len(enums)} parameter(s))")
 

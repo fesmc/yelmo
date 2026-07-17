@@ -7,6 +7,7 @@ schema, plus a smoke test against the repo's real yelmo_defaults.nml if found.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -337,30 +338,74 @@ def test_local_differs_warning(tmp_path, monkeypatch):
     assert any("differ" in w for w in schema.warnings)
 
 
-def test_snapshot_writes_bundle(tmp_path, monkeypatch):
-    import argparse
-    from yelmo_config import cli
-    from yelmo_config import locate
-    from yelmo_config.constraints import load_bundled_enums
-    # fake checkout
-    (tmp_path / "input").mkdir()
-    dp = tmp_path / "input" / "yelmo_defaults.nml"
+def _fake_checkout(root: Path) -> Path:
+    """Minimal checkout: input/, src/, and the snapshot dir. Returns defaults path."""
+    from yelmo_config.locate import SNAPSHOT_RELPATH
+    (root / "input").mkdir()
+    dp = root / "input" / "yelmo_defaults.nml"
     dp.write_text('&ycalv\n use_lsf=False\n calv_flt_method="vm-l19"\n/\n')
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "x.f90").write_text(
+    (root / "src").mkdir()
+    (root / "src" / "x.f90").write_text(
         '    subroutine ycalv_par_load(group_ycalv)\n'
         '        call yelmo_check_enum(group_ycalv,"calv_flt_method",par%x,"vm-l19|kill")\n'
         '    end subroutine\n')
-    # redirect the bundle target into tmp
-    out_def = tmp_path / "out" / "yelmo_defaults.nml"
-    out_enm = tmp_path / "out" / "enums.json"
-    monkeypatch.setattr(locate, "BUNDLED_DEFAULTS", out_def)
-    monkeypatch.setattr(locate, "BUNDLED_ENUMS", out_enm)
+    (root / SNAPSHOT_RELPATH).mkdir(parents=True)
+    return dp
+
+
+def test_snapshot_writes_into_the_checkout(tmp_path):
+    # snapshot must update the located checkout, NOT this package's data/ dir --
+    # under a non-editable install those differ, and writing to the latter
+    # silently leaves the maintainer's tree stale. No monkeypatching: the
+    # destination is asserted, since getting it wrong is the bug being guarded.
+    import argparse
+    from yelmo_config import cli, locate
+    from yelmo_config.constraints import load_bundled_enums
+    dp = _fake_checkout(tmp_path)
 
     cli.cmd_snapshot(argparse.Namespace(defaults=str(dp), src=str(tmp_path / "src")))
-    assert out_def.is_file() and out_enm.is_file()
-    enums = load_bundled_enums(out_enm)
+
+    out_dir = tmp_path / locate.SNAPSHOT_RELPATH
+    assert (out_dir / "yelmo_defaults.nml").read_text() == dp.read_text()
+    enums = load_bundled_enums(out_dir / "enums.json")
     assert enums[("ycalv", "calv_flt_method")][0].allowed == ["vm-l19", "kill"]
+    # the installed package's own data/ must be untouched by a foreign checkout
+    assert locate.DATA_DIR not in (out_dir, out_dir.resolve())
+
+
+def test_snapshot_rejects_incomplete_checkout(tmp_path):
+    # without a snapshot dir there is no correct destination -- fail loudly
+    # rather than silently creating one in an arbitrary tree.
+    import argparse
+    from yelmo_config import cli
+    from yelmo_config.locate import SNAPSHOT_RELPATH
+    dp = _fake_checkout(tmp_path)
+    shutil.rmtree(tmp_path / SNAPSHOT_RELPATH)
+
+    with pytest.raises(SystemExit) as e:
+        cli.cmd_snapshot(argparse.Namespace(defaults=str(dp), src=str(tmp_path / "src")))
+    assert "snapshot directory" in str(e.value)
+
+
+def test_committed_snapshot_matches_real_defaults():
+    # the committed snapshot must not drift from input/yelmo_defaults.nml.
+    # Drift means installs without a checkout serve stale parameters -- this has
+    # happened (the snapshot missed the &ytrc refactor for weeks).
+    from yelmo_config.locate import DEFAULTS_RELPATH, SNAPSHOT_RELPATH
+    here = Path(__file__).resolve()
+    root = None
+    for d in here.parents:
+        if (d / DEFAULTS_RELPATH).is_file():
+            root = d
+            break
+    if root is None:
+        pytest.skip("real yelmo_defaults.nml not found")
+    live = root / DEFAULTS_RELPATH
+    snap = root / SNAPSHOT_RELPATH / "yelmo_defaults.nml"
+    assert snap.is_file(), f"no committed snapshot at {snap}"
+    assert snap.read_text() == live.read_text(), (
+        f"{snap} has drifted from {live}; run `yelmo-config snapshot` and commit."
+    )
 
 
 def test_real_defaults_smoke():

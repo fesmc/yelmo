@@ -22,6 +22,11 @@ from pathlib import Path
 
 DEFAULTS_RELPATH = Path("input") / "yelmo_defaults.nml"
 
+# Where the snapshot lives *inside a checkout*. `snapshot` writes here, rather
+# than to DATA_DIR below, so it updates the tree the maintainer will commit even
+# when the running yelmo-config is a non-editable install elsewhere.
+SNAPSHOT_RELPATH = Path("tools") / "yelmo-config" / "yelmo_config" / "data"
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
 BUNDLED_DEFAULTS = DATA_DIR / "yelmo_defaults.nml"
 BUNDLED_ENUMS = DATA_DIR / "enums.json"
