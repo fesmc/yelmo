@@ -306,6 +306,7 @@ contains
         allocate(now%bmb_shlf(nx,ny))
         allocate(now%fmb_shlf(nx,ny))
         allocate(now%T_shlf(nx,ny))
+        allocate(now%tf_shlf(nx,ny))
         allocate(now%Q_geo(nx,ny))
         allocate(now%Qd(nx,ny))
 
@@ -336,6 +337,7 @@ contains
         now%bmb_shlf    = 0.0_wp 
         now%fmb_shlf    = 0.0_wp 
         now%T_shlf      = 0.0_wp
+        now%tf_shlf     = 0.0_wp
         now%Q_geo       = 0.0_wp
         now%Qd          = 0.0_wp  
 
@@ -376,6 +378,7 @@ contains
         if (allocated(now%bmb_shlf))    deallocate(now%bmb_shlf)
         if (allocated(now%fmb_shlf))    deallocate(now%fmb_shlf)
         if (allocated(now%T_shlf))      deallocate(now%T_shlf)
+        if (allocated(now%tf_shlf))     deallocate(now%tf_shlf)
         if (allocated(now%Q_geo))       deallocate(now%Q_geo)
         if (allocated(now%Qd))          deallocate(now%Qd)
 

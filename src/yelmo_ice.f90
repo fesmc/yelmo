@@ -1562,6 +1562,7 @@ contains
         write(*,*) "ybound:: smb: ",      minval(bnd%smb),      maxval(bnd%smb)
         write(*,*) "ybound:: T_srf: ",    minval(bnd%T_srf),    maxval(bnd%T_srf)
         write(*,*) "ybound:: T_shlf: ",   minval(bnd%T_shlf),   maxval(bnd%T_shlf)
+        write(*,*) "ybound:: tf_shlf: ",  minval(bnd%tf_shlf),  maxval(bnd%tf_shlf)
         write(*,*) "ybound:: bmb_shlf: ", minval(bnd%bmb_shlf), maxval(bnd%bmb_shlf)
         write(*,*) "ybound:: Q_geo: ",    minval(bnd%Q_geo),    maxval(bnd%Q_geo)
         
