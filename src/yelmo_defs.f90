@@ -130,6 +130,7 @@ module yelmo_defs
         real(wp)           :: gz_Hg0
         real(wp)           :: gz_Hg1
         real(wp)           :: fmb_scale
+        real(wp)           :: fmb_lambda
         real(wp)           :: k2
         real(wp)           :: w2  
         real(wp)           :: kt_ref
@@ -777,6 +778,7 @@ module yelmo_defs
         real(wp), allocatable :: bmb_shlf(:,:)
         real(wp), allocatable :: fmb_shlf(:,:) 
         real(wp), allocatable :: T_shlf(:,:)
+        real(wp), allocatable :: tf_shlf(:,:)
         real(wp), allocatable :: Q_geo(:,:)
         real(wp), allocatable :: Qd(:,:)
 
