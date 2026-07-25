@@ -32,6 +32,7 @@ module yelmo_io
     public :: yelmo_write_step
     public :: yelmo_write_step_model_metrics
     public :: yelmo_write_step_pd_metrics
+    public :: yelmo_write_metrics
     public :: yelmo_restart_write
     public :: yelmo_restart_read_topo_bnd
     public :: yelmo_restart_read
@@ -317,10 +318,11 @@ contains
         ! Update the time step
         call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
 
-        ! Write model metrics (model speed, dt, eta)
-        call yelmo_write_step_model_metrics(filename,ylmo,n,ncid,irange,jrange)
- 
-        if (write_pd_metrics) then 
+        ! Note: numerics/speed metrics (speed, dt, eta, pc_tau_max) are no longer
+        ! embedded here; they are written to the dedicated yelmo_metrics.nc when
+        ! write_metrics=.TRUE. (see yelmo_write_metrics).
+
+        if (write_pd_metrics) then
             ! Write present-day data metrics (rmse[H],etc)
             call yelmo_write_step_pd_metrics(filename,ylmo,n,ncid)
         end if  
@@ -2201,8 +2203,54 @@ contains
 
     end subroutine yelmo_write_var_io_ydata
 
+    subroutine yelmo_write_metrics(dom,time)
+        ! Write the numerics/speed metrics to the dedicated file yelmo_metrics.nc,
+        ! located in dom%outfldr. Does nothing unless dom%par%write_metrics is
+        ! .TRUE.; once enabled, the file is created lazily on the first call and
+        ! further records are appended on the dom%par%write_metrics_dt cadence.
+        ! Called from yelmo_update; suppressed during equilibration.
+
+        implicit none
+
+        type(yelmo_class), intent(INOUT) :: dom
+        real(wp),          intent(IN)    :: time
+
+        ! Local variables
+        character(len=512)  :: filename
+        integer             :: ncid, n
+        logical             :: do_write
+        real(wp), parameter :: time_tol = 1e-5
+
+        if (.not. dom%par%write_metrics) return
+
+        filename = trim(dom%outfldr)//"yelmo_metrics.nc"
+
+        ! Create the file on first use; otherwise write on the write_metrics_dt cadence.
+        if (.not. dom%time%metrics_init_done) then
+            call yelmo_grid_write(dom%grd,filename,dom%par%domain,dom%par%grid_name,create=.TRUE.)
+            call nc_write_dim(filename,"time",x=time,dx=1.0_wp,nx=1,units="years",unlimited=.TRUE.)
+            do_write = .TRUE.
+        else
+            do_write = (time - dom%time%metrics_time_write) .ge. (dom%par%write_metrics_dt - time_tol)
+        end if
+
+        if (do_write) then
+            call nc_open(filename,ncid,writable=.TRUE.)
+            n = nc_time_index(filename,"time",time,ncid)
+            call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
+            call yelmo_write_step_model_metrics(filename,dom,n,ncid)
+            call nc_close(ncid)
+
+            dom%time%metrics_time_write = time
+            dom%time%metrics_init_done  = .TRUE.
+        end if
+
+        return
+
+    end subroutine yelmo_write_metrics
+
     subroutine yelmo_write_step_model_metrics(filename,ylmo,n,ncid,irange,jrange)
-        ! Write model performance metrics (speed, dt, eta) 
+        ! Write model performance metrics (speed, dt, eta)
 
         implicit none 
 

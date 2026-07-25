@@ -1028,10 +1028,14 @@ module yelmo_defs
         logical             :: restart_z_bed 
         logical             :: restart_H_ice 
         
-        ! Data logging 
-        logical             :: log_timestep 
+        ! Data logging
+        logical             :: log_timestep
 
-        ! Automatic kill step for unstable performance 
+        ! Numerics/speed metrics output (yelmo_metrics.nc)
+        logical             :: write_metrics
+        real(wp)            :: write_metrics_dt
+
+        ! Automatic kill step for unstable performance
         logical             :: disable_kill 
 
         ! Vertical dimension definition
@@ -1093,11 +1097,15 @@ module yelmo_defs
         real(wp), allocatable :: pc_taus(:,:,:)
         real(wp), allocatable :: pc_tau_max(:,:)
 
-        character(len=512)   :: log_timestep_file 
+        character(len=512)   :: log_timestep_file
 
-        logical :: pc_active 
+        logical :: pc_active
 
-    end type 
+        ! Metrics output state (yelmo_metrics.nc)
+        real(wp) :: metrics_time_write   ! Model time of the last metrics record
+        logical  :: metrics_init_done    ! Has the metrics file been created yet?
+
+    end type
 
     ! Define the overall yelmo_class, which is a container for
     ! all information needed to model a given domain (eg, Greenland, Antarctica, NH)
@@ -1115,8 +1123,9 @@ module yelmo_defs
         type(ybound_class)      :: bnd      ! Boundary variables to drive model
         type(ydata_class)       :: dta      ! Data variables for comparison
         type(yregions_class)    :: reg      ! Regionally aggregated variables for whole domain 
-        type(yregions_class), allocatable :: regs(:)  ! Regionally aggregated variables for whole domain 
+        type(yregions_class), allocatable :: regs(:)  ! Regionally aggregated variables for whole domain
         type(yelmo_io_tables)   :: io       ! IO variable tables
+        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics)
     end type
 
     public   ! All yelmo defs are public
