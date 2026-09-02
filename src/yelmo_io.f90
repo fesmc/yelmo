@@ -1092,6 +1092,12 @@ contains
         call nc_read_interp(filename,"hyd_p_w",       dom%hyd%now%p_w,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"hyd_q_x",       dom%hyd%now%q_x,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"hyd_q_y",       dom%hyd%now%q_y,       ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        ! hyd_q is the K24 Picard loop's warm-start state (added after hyd_q_x/
+        ! hyd_q_y). Older restarts won't have it; leave the zero seed from
+        ! hydro_init_state rather than erroring, same as a cold Picard start.
+        if (nc_exists_var(filename,"hyd_q")) then
+            call nc_read_interp(filename,"hyd_q",     dom%hyd%now%q,         ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
         call nc_read_interp(filename,"hyd_N",         dom%hyd%now%N,         ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"hyd_kappa",     dom%hyd%now%kappa,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
 
@@ -1987,6 +1993,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_q_y")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%q_y(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_q")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%q(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_N")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%N(i1:i2,j1:j2), &
