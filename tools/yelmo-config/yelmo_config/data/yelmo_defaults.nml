@@ -184,7 +184,7 @@
     W_til_bc         = 0.0 ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 3      ! 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_N_closure     = 3      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
     bkt_floating_mode = 1      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
 
@@ -199,23 +199,63 @@
     two_value_delta = 0.02
 
     ! ---- k24 (k24_) ----
-    k24_substrate_type               = 2
-    k24_flux_solver                  = 0
-    k24_manning_exponent             = 3.0
-    k24_latent_heat_water            = 3.35e5
-    k24_bed_thickness                = 0.1
-    k24_manning_coefficient_exponent = 1.25
-    k24_bed_friction_exponent        = 1.5
-    k24_friction_factor              = 0.1
-    k24_till_factor                  = 1.1
-    k24_critical_discharge           = 1.0
-    k24_initial_cavity_height        = 0.1
-    k24_coupling_length              = 1.0e4
-    k24_long_coupling_water          = 5.0
-    k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 1.8e-3
-    k24_W_min                        = 1.0e-8
-    k24_W_max                        = 0.015
+    ! Defaults mirror the KazmierczakHydroModel constructor keywords in
+    ! FastHydrology.jl (src/models/kazmierczak2024/model.jl). The Julia field
+    ! each key maps to is named in the trailing comment.
+
+    ! -- mode selectors --
+    k24_substrate_type               = 2        ! 0=HARD 1=SOFT 2=MIXED (Fortran-only; builds kappa)
+    k24_flux_solver                  = 0        ! psi_out_algorithm: 0=RECURSIVE 1=ITERATIVE 2=TOPOSORT
+    k24_toposort_allow_cycles        = False    ! TopologicalPsiOut(allow_cycles=...)
+    k24_drainage_mode                = 0        ! 0=BOTH 1=EFFICIENT_ONLY 2=INEFFICIENT_ONLY
+    k24_water_thickness_algorithm    = 0        ! 0=DARCY_WEISBACH 1=LAMINAR 2=AREAL_CONDUIT
+    k24_gradient_convention          = 0        ! 0=MEAN 1=LOCAL (Darcy-Weisbach / laminar closures only)
+    k24_sliding_law                  = 0        ! 0=NONE 1=WEERTMAN 2=POWER_PLASTIC 3=REG_COULOMB
+
+    ! -- physical constants --
+    k24_manning_exponent             = 3.0      ! n, Glen's flow-law exponent
+    k24_latent_heat_water            = 3.34e5   ! L_w [J/kg]
+    k24_bed_thickness                = 0.1      ! h_b, bed obstacle height [m]
+    k24_manning_coefficient_exponent = 1.25     ! alpha = 5/4
+    k24_bed_friction_exponent        = 1.5      ! beta  = 3/2
+    k24_friction_factor              = 0.1      ! f, Darcy-Weisbach friction factor
+    k24_till_factor                  = 1.1      ! F_till
+    k24_critical_discharge           = 1.0      ! Q_c [m3/s]
+    k24_initial_cavity_height        = 0.1      ! H_0 [m]
+    k24_coupling_length              = 1.0e4    ! l_c, conduit spacing [m]
+    k24_long_coupling_water          = 5.0      ! longcoupwater; 0 disables the smoothing entirely
+    k24_eta_w                        = 5.703855806525211e-11 ! eta_w [Pa s] = 1.8e-3 per year
+
+    ! -- clamps. Julia's constructor leaves all of these OFF; KORI-ULB's own
+    !    values are given in the comments if you want that fidelity back.
+    k24_min_pressure_fraction        = 0.0      ! sigmat        (KORI-ULB: 0.02)
+    k24_W_min                        = 0.0      ! Wmin  [m]     (KORI-ULB: 1.0e-8)
+    k24_W_max                        = 1.0e30   ! Wmax  [m]     (KORI-ULB: 0.015)
+    k24_q_min                        = 0.0      ! q_min [m2/s]
+    k24_q_max                        = 1.0e30   ! q_max [m2/s]  (KORI-ULB: 3.168808781402895e-3 = 1e5 per year)
+
+    ! -- solver configuration --
+    k24_fill_iters                   = 10       ! fill_iters
+    k24_max_psi_out_calls            = 50000    ! max_psi_out_calls
+    k24_dissipation_melt             = True     ! add |q*grad(phi0)|/(L_w*rho_w) to the source
+    k24_max_dissipation_iters        = 20       ! max_dissipation_iters
+    k24_dissipation_rtol             = 1.0e-12  ! dissipation_rtol
+    k24_dissipation_verbose          = True     ! dissipation_verbose
+    k24_max_coupling_iters           = 20       ! max_coupling_iters  (N-dependent sliding laws)
+    k24_coupling_rtol                = 1.0e-8   ! coupling_rtol
+    k24_coupling_verbose             = True     ! coupling_verbose
+
+    ! -- sliding-law parameters. Only the set belonging to k24_sliding_law is
+    !    read; C / c_till are mandatory keywords in Julia and default to 0 here,
+    !    which makes an unconfigured law a no-op rather than a wrong answer.
+    k24_weertman_C                   = 0.0                    ! WeertmanSlidingLaw.C [Pa (s/m)^q]
+    k24_weertman_q                   = 0.3333333333333333     ! WeertmanSlidingLaw.q
+    k24_power_plastic_c_till         = 0.0                    ! PowerPlasticSlidingLaw.c_till
+    k24_power_plastic_q              = 1.0                    ! PowerPlasticSlidingLaw.q
+    k24_power_plastic_u0             = 3.168808781402895e-06  ! PowerPlasticSlidingLaw.u0 [m/s] = 100 m/yr
+    k24_reg_coulomb_c_till           = 0.0                    ! RegularizedCoulombSlidingLaw.c_till
+    k24_reg_coulomb_q                = 0.3333333333333333     ! RegularizedCoulombSlidingLaw.q
+    k24_reg_coulomb_u0               = 3.168808781402895e-06  ! RegularizedCoulombSlidingLaw.u0 [m/s] = 100 m/yr
 /
 
 &ymat
