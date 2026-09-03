@@ -182,10 +182,9 @@
     W_til_max        = 2.0 ! [m]   was ytherm.H_w_max
     mask_bc          = 2   ! 0=ZERO 1=IMPOSED 2=MIRROR
     W_til_bc         = 0.0 ! [m]
-    is_external      = False ! N_eff set externally (coupled host) - calc_ydyn_neff leaves dyn%now%N_eff alone
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 3      ! 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_N_closure     = 3      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
     bkt_floating_mode = 1      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
 

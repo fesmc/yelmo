@@ -756,10 +756,12 @@ contains
         ! two-value) lives inside fasthydrology now; this routine is
         ! purely a grid-side interpolation hook.
         !
-        ! When hyd%par%is_external is .TRUE., this is a no-op: N_eff is
-        ! assumed to be set by an external coupled host (e.g. via
-        ! YelmoMirror's yelmo_set_var2D("dyn_N_eff", ...)) and must
-        ! survive untouched into calc_c_bed.
+        ! An external coupled host (e.g. a Julia hydrology model driving
+        ! Yelmo via YelmoMirror) owns N_eff by setting hyd.bkt_N_closure=-1
+        ! and pushing its value into hyd%now%N directly (yelmo_set_var2D
+        ! "hyd_N"); apply_N_closure then leaves hyd%now%N untouched, and
+        ! this routine's normal copy below carries it into dyn%now%N_eff -
+        ! no separate flag needed here.
 
         implicit none
 
@@ -776,13 +778,6 @@ contains
         real(wp) :: wt2D
         type(gq2D_class) :: gq2D
         integer  :: BC
-
-        if (hyd%par%is_external) then
-            ! N_eff is being pushed in by an external coupled host (e.g. a
-            ! Julia hydrology model driving Yelmo via YelmoMirror) - leave
-            ! dyn%now%N_eff untouched, do not overwrite it with hyd%now%N.
-            return
-        end if
 
         if (dyn%par%neff_nxi .lt. 0) then
             write(*,*) "calc_ydyn_neff:: Error: neff_nxi must be >= 0."

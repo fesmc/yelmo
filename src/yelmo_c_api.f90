@@ -642,6 +642,13 @@ contains
       ! -----------------------------------------------------------------------
       ! (Basal water moved to hyd; use hyd_W_til via the hyd setters.)
 
+      ! -----------------------------------------------------------------------
+      ! hyd%now (hydro_state_class, fasthydrology) — for an external coupled
+      ! host driving basal hydrology (e.g. hyd.bkt_N_closure=-1 to own hyd_N).
+      ! -----------------------------------------------------------------------
+      case("hyd_N");             ylmo%hyd%now%N             = real(v2D, wp)
+      case("hyd_W_til");         ylmo%hyd%now%W_til         = real(v2D, wp)
+
       case DEFAULT
         write(*,*) "yelmo_set_var2D:: variable not found or not settable: "//trim(f_name)
     end select
