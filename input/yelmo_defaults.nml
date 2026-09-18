@@ -244,6 +244,7 @@
     k24_max_coupling_iters           = 20       ! max_coupling_iters  (N-dependent sliding laws)
     k24_coupling_rtol                = 1.0e-8   ! coupling_rtol
     k24_coupling_verbose             = True     ! coupling_verbose
+    k24_mdot_includes_friction        = False    ! mdot_includes_friction: mdot already includes friction estimate
 
     ! -- sliding-law parameters. Only the set belonging to k24_sliding_law is
     !    read; C / c_till are mandatory keywords in Julia and default to 0 here,
