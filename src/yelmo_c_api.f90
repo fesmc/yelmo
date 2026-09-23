@@ -289,6 +289,15 @@ contains
       case("bnd_mask_ice");      v2D = real(ylmo%bnd%mask_ice,      c_double)
 
       ! -----------------------------------------------------------------------
+      ! ydata%pd (present-day / observational reference data, read-only:
+      ! loaded once from file by ydata_load, not part of the prognostic
+      ! state). H_ice already has a prognostic-side alias via bnd_H_ice_ref;
+      ! uxy_s and H_grnd have no such alias, so they are exposed directly.
+      ! -----------------------------------------------------------------------
+      case("dta_pd_uxy_s");      v2D = real(ylmo%dta%pd%uxy_s,      c_double)
+      case("dta_pd_H_grnd");     v2D = real(ylmo%dta%pd%H_grnd,     c_double)
+
+      ! -----------------------------------------------------------------------
       ! ytopo%now (ytopo_state_class)
       ! -----------------------------------------------------------------------
       case("tpo_H_ice");         v2D = real(ylmo%tpo%now%H_ice,         c_double)
