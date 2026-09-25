@@ -128,7 +128,7 @@ contains
 
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
-            W_til_predicted = W_til - (bmb_grnd*(rho_w/rho_ice))*dt
+            W_til_predicted = W_til - (bmb_grnd*(rho_ice/rho_w))*dt
             
             ! == Assign grounded basal boundary conditions ==
 
@@ -699,7 +699,7 @@ end if
 
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
-            W_til_predicted = W_til - (bmb_grnd*(rho_w/rho_ice))*dt 
+            W_til_predicted = W_til - (bmb_grnd*(rho_ice/rho_w))*dt 
             
             ! == Assign grounded basal boundary conditions ==
 
