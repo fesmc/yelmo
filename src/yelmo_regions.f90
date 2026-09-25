@@ -235,7 +235,7 @@ contains
         real(wp), allocatable :: H_af(:,:) 
 
         ! Conversion parameter 
-        conv_km3a_Sv = 1e-6*(1e9*bnd%c%rho_w/bnd%c%rho_ice)/bnd%c%sec_year
+        conv_km3a_Sv = 1e-6*(1e9*bnd%c%rho_ice/bnd%c%rho_w)/bnd%c%sec_year
 
         ! Grid size 
         nx = size(reg%mask,1)
