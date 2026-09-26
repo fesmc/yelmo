@@ -35,6 +35,14 @@ module thermodynamics
     real(wp), parameter, public :: cp_a = 146.3_wp       ! [J kg-1 K-1]
     real(wp), parameter, public :: cp_b = 7.253_wp       ! [J kg-1 K-2]
 
+    ! Seawater freezing point coefficients, Jenkins (1991):
+    ! T_f = a1*S + b1 + c1*z_b [degC], with z_b<0 the elevation below sea level.
+    ! Used by calc_T_freeze_sw and calc_T_base_shlf_approx.
+    real(wp), parameter :: Tf_a1 = - 0.0575      ! [degC / PSU]
+    real(wp), parameter :: Tf_b1 =   0.0901      ! [degC]
+    real(wp), parameter :: Tf_c1 =   7.61E-4     ! [degC / m]
+    real(wp), parameter :: Tf_S0 =   34.75       ! [g / kg == PSU] Constant reference salinity
+
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
@@ -49,6 +57,7 @@ module thermodynamics
     public :: calc_T_pmp
     public :: calc_f_pmp
     public :: calc_T_base_shlf_approx
+    public :: calc_T_freeze_sw
     public :: define_temp_linear_3D
     public :: define_temp_robin_3D
     public :: define_temp_linear_column
@@ -1151,15 +1160,14 @@ contains
         real(wp) :: T_base_shlf
 
         ! Local variables 
-        real(wp), parameter :: a1 = - 0.0575      ! [degC / PSU]
-        real(wp), parameter :: b1 =   0.0901      ! [degC]
-        real(wp), parameter :: c1 =   7.61E-4     ! [degC / m]
-        real(wp), parameter :: S0 =   34.75       ! [g / kg == PSU]
         real(wp) :: f_scalar, H_grnd_lim 
 
+        ! Seawater freezing point at the depth of the shelf base (the draft).
         ! Freezing point decreases with depth: the Jenkins (1991) depth term is
         ! c1*z_b with z_b<0 the base elevation, i.e. minus c1 times the draft.
-        T_base_shlf = a1*S0 + b1 - c1*(rho_ice/rho_sw)*H_ice + T0
+        ! Same as calc_T_freeze_sw((rho_ice/rho_sw)*H_ice,T0), but written out
+        ! to keep the original floating-point evaluation order (answer-preserving).
+        T_base_shlf = Tf_a1*Tf_S0 + Tf_b1 - Tf_c1*(rho_ice/rho_sw)*H_ice + T0
 
         ! Additionally ensure that the shelf temperature is approaching the pressure melting point
         ! as the grounding line is reached 
@@ -1175,6 +1183,25 @@ contains
         return 
 
     end function calc_T_base_shlf_approx
+
+    elemental function calc_T_freeze_sw(depth,T0) result(T_f)
+        ! Freezing temperature of seawater [K] at a given depth
+        ! below sea level, following Jenkins (1991), assuming
+        ! a constant salinity S0.
+
+        implicit none 
+
+        real(wp), intent(IN) :: depth           ! [m] Depth below sea level (positive down)
+        real(wp), intent(IN) :: T0              ! [K] Reference freezing temperature (273.15 K)
+        real(wp) :: T_f
+
+        ! Freezing point decreases with depth: the Jenkins (1991) depth term is
+        ! c1*z_b with z_b = -depth the elevation, i.e. minus c1 times the depth.
+        T_f = Tf_a1*Tf_S0 + Tf_b1 - Tf_c1*depth + T0
+
+        return 
+
+    end function calc_T_freeze_sw
     
     subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral)
         ! Define a linear vertical temperature profile

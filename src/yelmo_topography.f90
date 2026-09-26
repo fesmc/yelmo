@@ -808,7 +808,8 @@ end if
 
             case("ismip7")
                 ! Retreat of marine-terminating glaciers following ISMIP7 protocol
-                call calc_fmb_ismip7(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,bnd%z_bed,bnd%Qd,bnd%T_shlf,tpo%par%dx,tpo%now%f_ice,tpo%par%boundaries)            
+                call calc_fmb_ismip7(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar, &
+                                     bnd%z_bed,bnd%z_sl,bnd%Qd,bnd%T_shlf,bnd%c%T0,tpo%par%dx,tpo%now%f_ice,tpo%par%boundaries)
 
             case DEFAULT
                 ! To do: Add new laws
@@ -876,7 +877,12 @@ end if
         ! #34 follow-up). Matches Yelmo.jl, whose Oceananigans `:bounded`
         ! BC zeros only the halo, leaving edge cells free.
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       bnd%mask_ice,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+                       tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+
+        ! Marine points where ice is not allowed (bnd%mask_ice = MASK_ICE_NONE, 
+        ! where H_ice is held at zero) are ocean by definition: keep the LSF
+        ! at its ocean value there, so that the front cannot advance into them.
+        where(bnd%mask_ice .eq. MASK_ICE_NONE .and. bnd%z_bed .lt. bnd%z_sl) tpo%now%lsf = 1.0_wp
 
         ! LSF should not affect grounded land points, i.e. points whose bed
         ! is at or above sea level. The comparison is inclusive (.ge.) so that
@@ -1480,6 +1486,13 @@ end if
                                   "zero|none|stress-b12")
         end if
 
+        if (par%dt_lsf .gt. 0.0_wp .and. par%dt_lsf .lt. 0.01_wp) then
+            ! LSFsnap checks the reflag time on a 0.01 yr resolution (nint(time*100)),
+            ! so smaller positive intervals are not representable (and nint(dt_lsf*100)=0).
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.dt_lsf must be <= 0 (disabled) &
+                                 &or >= 0.01 yr; got ", par%dt_lsf
+            stop "Program stopped."
+        end if
         if (par%grad_lim .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim
             stop "Program stopped."

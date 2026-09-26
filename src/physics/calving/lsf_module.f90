@@ -17,7 +17,8 @@ module lsf_module
     ! Mirrors the design in Yelmo.jl/src/topo/lsf.jl.
     ! ----------------------------------------------------------------------
 
-    use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err
+    use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err, &
+                                  MASK_ICE_DYNAMIC
     use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes
     use topography,        only : calc_H_eff
     use solver_advection,  only : calc_advec2D
@@ -64,7 +65,7 @@ contains
 
     end subroutine LSFinit
 
-    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,mask_ice,dx,dy,dt,solver,boundaries)
+    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,dx,dy,dt,solver,boundaries)
 
         implicit none
 
@@ -73,7 +74,6 @@ contains
         real(wp),       intent(INOUT) :: cr_acx(:,:),cr_acy(:,:) ! [m/yr] calving rate (vertical)
         real(wp),       intent(IN)    :: u_acx(:,:)              ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: v_acy(:,:)              ! [m/a] 2D velocity, y-direction (ac-nodes)
-        integer,        intent(IN)    :: mask_ice(:,:)           ! Advection mask
         real(wp),       intent(IN)    :: dx                      ! [m] Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                      ! [m] Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                      ! [a]   Timestep
@@ -84,6 +84,7 @@ contains
         integer  :: nx, ny
         real(wp), allocatable :: wx(:,:), wy(:,:), mask_lsf(:,:)
         real(wp), allocatable :: var_dot(:,:)                    ! [dvar/dt] Source term for variable. Not used in LSF.
+        integer,  allocatable :: mask_adv(:,:)                   ! Advection mask (MASK_ICE_* codes)
 
         nx = size(lsf,1)
         ny = size(lsf,2)
@@ -91,11 +92,18 @@ contains
         allocate(wy(nx,ny))
         allocate(mask_lsf(nx,ny))
         allocate(var_dot(nx,ny))
+        allocate(mask_adv(nx,ny))
 
         ! Initialize variables
         dlsf     = 0.0_wp  ! LSF change in a time dt
         mask_lsf = 1.0_wp  ! Allow all LSF mask to be advected
         var_dot  = 0.0_wp
+
+        ! The LSF is advected everywhere: the ice-thickness mask (bnd%mask_ice)
+        ! must not constrain it, otherwise its MASK_ICE_NONE/FIXED rows would
+        ! impose Dirichlet values on the level set (e.g. lsf=0 at domain edges).
+        ! Domain edges are then handled by the solver's `boundaries` treatment.
+        mask_adv = MASK_ICE_DYNAMIC
 
         ! Net LSF velocity: dynamic velocity + calving retreat rate
         wx = u_acx + cr_acx
@@ -108,7 +116,7 @@ contains
 
         ! Compute the advected LSF field
         call calc_advec2D(dlsf,lsf,mask_lsf,wx,wy,var_dot, &
-                            mask_ice,dx,dy,dt,solver,boundaries)
+                            mask_adv,dx,dy,dt,solver,boundaries)
         call apply_tendency_lsf(lsf,dlsf,dt,adjust_lsf=.FALSE.)
 
         ! Saturate to [-1, 1] as a guardrail against upwind diffusion.
@@ -358,7 +366,8 @@ contains
         filled    = mask_ac .ne. 0.0_wp
         mask_fill = mask_orig
 
-        if (sum(mask_orig) .eq. 0.0_wp) then
+        if (.not. any(filled)) then
+            ! No filled cells to extrapolate from
             deallocate(filled)
             return
         end if
@@ -406,7 +415,8 @@ contains
         filled    = mask_ac .ne. 0.0_wp
         mask_fill = mask_orig
 
-        if (sum(mask_orig) .eq. 0.0_wp) then
+        if (.not. any(filled)) then
+            ! No filled cells to extrapolate from
             deallocate(filled)
             return
         end if
