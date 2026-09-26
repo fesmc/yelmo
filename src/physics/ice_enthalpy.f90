@@ -176,7 +176,7 @@ contains
             ! Calculate basal mass balance as sum of all water produced in column,
             ! reset temperature to pmp  
             if (T_excess .gt. 0.0) then 
-                melt_internal = melt_internal + T_excess * H_ice*(zeta_ac(k)-zeta_ac(k-1))*cp(k) / (L_ice * dt) 
+                melt_internal = melt_internal + T_excess * H_ice*(zeta_ac(k+1)-zeta_ac(k))*cp(k) / (L_ice * dt)
                 T_ice(k)      = T_pmp(k)
             end if 
             
@@ -766,7 +766,7 @@ end if
 
             ! Calculate internal melt as sum of all excess water produced in the column 
             if (omega_excess .gt. 0.0) then 
-                dz = H_ice*(zeta_ac(k)-zeta_ac(k-1))
+                dz = H_ice*(zeta_ac(k+1)-zeta_ac(k))
                 melt_internal = melt_internal + (omega_excess*dz) / dt 
                 omega(k)      = omega_max 
             end if 
@@ -910,12 +910,12 @@ end if
 
             ! Get kappa for the lower and upper ac-nodes using harmonic mean from aa-nodes
             
-            dz1 = zeta_ac(k-1)-zeta_aa(k-1)
-            dz2 = zeta_aa(k)-zeta_ac(k-1)
+            dz1 = zeta_ac(k)-zeta_aa(k-1)
+            dz2 = zeta_aa(k)-zeta_ac(k)
             call calc_wtd_harmonic_mean(kappa_a,kappa(k-1),kappa(k),dz1,dz2)
 
-            dz1 = zeta_ac(k)-zeta_aa(k)
-            dz2 = zeta_aa(k+1)-zeta_ac(k)
+            dz1 = zeta_ac(k+1)-zeta_aa(k)
+            dz2 = zeta_aa(k+1)-zeta_ac(k+1)
             call calc_wtd_harmonic_mean(kappa_b,kappa(k),kappa(k+1),dz1,dz2)
 
             ! Special treatment of diffusivity at the cold-temperate transition
