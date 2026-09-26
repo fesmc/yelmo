@@ -138,6 +138,8 @@ contains
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
         real(wp), allocatable :: F2(:,:)              ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
+        real(wp), allocatable :: F2_acx(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
+        real(wp), allocatable :: F2_acy(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
 
         real(wp) :: L2_norm 
         real(wp) :: ssa_resid 
@@ -160,6 +162,8 @@ contains
         allocate(beta_eff_acx(nx,ny))
         allocate(beta_eff_acy(nx,ny))
         allocate(F2(nx,ny))
+        allocate(F2_acx(nx,ny))
+        allocate(F2_acy(nx,ny))
 
         ! Initially set error very high 
         ssa_err_acx = 1.0_wp 
@@ -231,18 +235,23 @@ contains
                                 par%beta_const,par%beta_q,par%beta_u0,par%beta_gl_scale,par%beta_gl_f, &
                                 par%H_grnd_lim,par%beta_min,par%rho_ice,par%rho_sw,par%boundaries)
 
-            ! Calculate F-integeral (F2) on aa-nodes 
+            ! Calculate F-integeral (F2) on aa-nodes and stagger it to ac-nodes
             call calc_F_integral(F2,visc_eff,H_ice,f_ice,zeta_aa,n=2.0_wp)
-            
-            ! Calculate effective beta 
-            call calc_beta_eff(beta_eff,beta,F2,zeta_aa,no_slip=par%no_slip)
-            
-            ! Stagger beta and beta_eff 
+            call stagger_F_integral(F2_acx,F2_acy,F2,f_ice,par%boundaries)
+
+            ! Stagger beta 
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_bar,uy_bar, &
                         f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
-            call stagger_beta(beta_eff_acx,beta_eff_acy,beta_eff,H_ice,f_ice,ux_bar,uy_bar, &
-                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
             
+            ! Calculate effective beta on ac-nodes from staggered beta and F2 (as in L19),
+            ! so that ub = ubar/(1+beta*F2) and taub = beta*ub hold on each ac-node.
+            ! Note: beta_min applies to beta (via stagger_beta), not to beta_eff.
+            call calc_beta_eff(beta_eff_acx,beta_acx,F2_acx,no_slip=par%no_slip)
+            call calc_beta_eff(beta_eff_acy,beta_acy,F2_acy,no_slip=par%no_slip)
+
+            ! Also calculate beta_eff on aa-nodes (diagnostic output only)
+            call calc_beta_eff(beta_eff,beta,F2,no_slip=par%no_slip)
+
             ! write(*,*) "c_bed:    ", minval(c_bed),    maxval(c_bed)
             ! write(*,*) "beta:     ", minval(beta),     maxval(beta)
             ! write(*,*) "beta_eff: ", minval(beta_eff), maxval(beta_eff)
@@ -332,7 +341,7 @@ end if
             call calc_basal_stress(taub_acx,taub_acy,beta_eff_acx,beta_eff_acy,ux_bar,uy_bar)
 
             ! Calculate basal velocity from depth-averaged solution and basal stress
-            call calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2,taub_acx,taub_acy,H_ice,f_ice,par%no_slip,par%boundaries)
+            call calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2_acx,F2_acy,taub_acx,taub_acy,par%no_slip)
 
             ! Exit iterations if ssa solution has converged
             if (is_converged) exit 
@@ -920,30 +929,71 @@ end if
 
     end subroutine calc_F_integral
     
-    subroutine calc_beta_eff(beta_eff,beta,F2,zeta_aa,no_slip)
-        ! Calculate the depth-averaged horizontal velocity (ux_bar,uy_bar)
+    subroutine stagger_F_integral(F_int_acx,F_int_acy,F_int,f_ice,boundaries)
+        ! Stagger an F-integral from aa-nodes to ac-nodes,
+        ! taking the ice-covered value at the ice margin
 
-        ! Note: L19 staggers the F-integral F2, then solves for beta 
+        implicit none 
+
+        real(wp), intent(OUT) :: F_int_acx(:,:)   ! acx-nodes
+        real(wp), intent(OUT) :: F_int_acy(:,:)   ! acy-nodes
+        real(wp), intent(IN)  :: F_int(:,:)       ! aa-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)       ! aa-nodes
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        integer :: im1, ip1, jm1, jp1 
+        integer :: BC
+
+        nx = size(F_int,1)
+        ny = size(F_int,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            F_int_acx(i,j) = calc_staggered_margin(F_int(i,j),F_int(ip1,j),f_ice(i,j),f_ice(ip1,j))
+            F_int_acy(i,j) = calc_staggered_margin(F_int(i,j),F_int(i,jp1),f_ice(i,j),f_ice(i,jp1))
+
+        end do 
+        end do  
+        !$omp end parallel do
+
+        return 
+
+    end subroutine stagger_F_integral
+
+    subroutine calc_beta_eff(beta_eff,beta,F2,no_slip)
+        ! Calculate the effective basal friction coefficient beta_eff,
+        ! such that taub = beta_eff*ubar. Arrays can be on any
+        ! nodes, as long as beta and F2 are given on the same nodes
+        ! (L19 staggers F2 to ac-nodes, then calculates beta_eff there).
 
         implicit none 
         
-        real(wp), intent(OUT) :: beta_eff(:,:)    ! aa-nodes
-        real(wp), intent(IN)  :: beta(:,:)        ! aa-nodes
-        real(wp), intent(IN)  :: F2(:,:)          ! aa-nodes
-        real(wp), intent(IN)  :: zeta_aa(:)       ! aa-nodes
+        real(wp), intent(OUT) :: beta_eff(:,:)
+        real(wp), intent(IN)  :: beta(:,:)
+        real(wp), intent(IN)  :: F2(:,:)
         logical,  intent(IN)  :: no_slip 
-
-        ! Local variables 
-        integer :: i, j, nx, ny
-
-        nx = size(beta_eff,1)
-        ny = size(beta_eff,2)
 
         if (no_slip) then 
             ! No basal sliding allowed, impose beta_eff derived from viscosity 
             ! following L19, Eq. 35 (or G11, Eq. 42)
+            ! F2=0 only where no neighboring cell is fully ice covered (no
+            ! velocity solved, see set_ssa_masks), so no basal stress there.
 
-            beta_eff = 1.0_wp / F2 
+            where (F2 .gt. 0.0_wp)
+                beta_eff = 1.0_wp / F2 
+            elsewhere
+                beta_eff = 0.0_wp
+            end where
 
         else 
             ! Basal sliding allowed, calculate beta_eff 
@@ -957,9 +1007,11 @@ end if
 
     end subroutine calc_beta_eff
 
-    subroutine calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2,taub_acx,taub_acy,H_ice,f_ice,no_slip,boundaries)
+    subroutine calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2_acx,F2_acy,taub_acx,taub_acy,no_slip)
         ! Calculate basal sliding following Goldberg (2011), Eq. 34
         ! (or it can also be obtained from L19, Eq. 32 given ub*beta=taub)
+        ! Note: all fields on ac-nodes. With taub = beta_eff*ubar, this
+        ! gives ub = ubar/(1+beta*F2), ie, same sign as ubar.
 
         implicit none
         
@@ -967,22 +1019,11 @@ end if
         real(wp), intent(OUT) :: uy_b(:,:)
         real(wp), intent(IN)  :: ux_bar(:,:) 
         real(wp), intent(IN)  :: uy_bar(:,:)
-        real(wp), intent(IN)  :: F2(:,:)
+        real(wp), intent(IN)  :: F2_acx(:,:)
+        real(wp), intent(IN)  :: F2_acy(:,:)
         real(wp), intent(IN)  :: taub_acx(:,:) 
         real(wp), intent(IN)  :: taub_acy(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
         logical,  intent(IN)  :: no_slip
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer  :: i, j, nx, ny 
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: F2_ac 
-        integer  :: BC
-
-        nx = size(ux_b,1)
-        ny = size(ux_b,2) 
 
         if (no_slip) then 
             ! Set basal velocity to zero 
@@ -995,29 +1036,8 @@ end if
         else 
             ! Calculate basal velocity normally 
 
-            ! Set boundary condition code
-            BC = boundary_code(boundaries)
-
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,F2_ac)
-            do j = 1, ny 
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                ! ==== x-direction (acx-nodes) =====
-
-                F2_ac = calc_staggered_margin(F2(i,j),F2(ip1,j),f_ice(i,j),f_ice(ip1,j))
-                ux_b(i,j) = ux_bar(i,j) - taub_acx(i,j)*F2_ac 
-
-                ! ==== y-direction (acy-nodes) =====
-                
-                F2_ac = calc_staggered_margin(F2(i,j),F2(i,jp1),f_ice(i,j),f_ice(i,jp1))
-                uy_b(i,j) = uy_bar(i,j) - taub_acy(i,j)*F2_ac 
-
-            end do 
-            end do  
-            !$omp end parallel do
+            ux_b = ux_bar - taub_acx*F2_acx 
+            uy_b = uy_bar - taub_acy*F2_acy 
 
             ! No treatment of boundary conditions needed since ux_b/uy_b are derived.
 
