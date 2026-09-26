@@ -836,8 +836,6 @@ module yelmo_defs
         type(ybound_const_class) :: c       ! Physical constants for the domain
 
         ! Region constants
-        real(wp)   :: index_north = 1.0   ! Northern Hemisphere region number
-        real(wp)   :: index_south = 2.0   ! Antarctica region number
         real(wp)   :: index_grl   = 1.3   ! Greenland region number
 
         ! Variables that save the current boundary conditions

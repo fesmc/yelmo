@@ -158,18 +158,19 @@ contains
         !
         ! ====================================
 
-        ! First assign default region values
+        ! First assign default region values (used if no regions file is loaded)
         bnd%region_mask = 1.0
         select case(trim(domain))
-            case("North")
-                bnd%regions = bnd%index_north
-            case("Antarctica")
-                bnd%regions = bnd%index_south
             case("Greenland")
+                ! The Greenland domain is centered on the Greenland region
                 bnd%regions = bnd%index_grl
             case DEFAULT
-                ! Assign a default value everywhere
-                bnd%regions = 1.0
+                ! No region information: mark all points as unclassified (0).
+                ! Note: the hemisphere codes (North=1.0, Antarctica=2.0) cannot be
+                ! used as defaults, since in the REGIONS files they denote points
+                ! outside of any land subregion (open ocean), which is where
+                ! ybound_define_mask_ice (and user code) forbids ice.
+                bnd%regions = 0.0
 
         end select
 
@@ -224,7 +225,8 @@ contains
         select case(trim(domain))
 
             case ("North")
-                ! Allow ice everywhere except the open ocean
+                ! Allow ice everywhere except the open ocean (region 1.0 in the
+                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
                 where (bnd%regions .eq. 1.0) bnd%mask_ice = MASK_ICE_NONE
                 bnd%mask_ice(1,:)  = MASK_ICE_NONE
@@ -249,6 +251,8 @@ contains
                 where (bnd%regions .eq. 1.0)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
 
             case ("Antarctica")
+                ! Allow ice everywhere except the open ocean (region 2.0 in the
+                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
                 where (bnd%regions .eq. 2.0) bnd%mask_ice = MASK_ICE_NONE
                 bnd%mask_ice(1,:)  = MASK_ICE_NONE
