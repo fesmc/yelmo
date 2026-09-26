@@ -704,6 +704,14 @@ contains
                 ! Do nothing - this should be handled by the ice advection routine
                 ! if the default choice ytopo.solver="impl-lis" is used.
 
+            case("periodic-x")
+                ! Periodic x: nothing to do (handled by the ice advection routine).
+                ! Infinite y: set border points equal to inner neighbors, as
+                ! for "infinite", since subsequently the mb forcing is applied.
+
+                H_ice_new(:,1)  = H_ice_new(:,2)
+                H_ice_new(:,ny) = H_ice_new(:,ny-1)
+
             case("infinite")
                 ! Set border points equal to inner neighbors 
                 ! This is not fully handled by ytopo.solver="impl-lis", since
