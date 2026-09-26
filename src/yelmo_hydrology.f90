@@ -71,10 +71,16 @@ contains
         !   {f_ice >= 0.5 .and.
         !    f_grnd > 0.0}          ->  mask    (1.0 = active hydrology cell)
         !   -thrm%now%bmb_grnd *
-        !       rho_ice / rho_w     ->  bmb_w   (water-equivalent m/a, +ve = source)
+        !       rho_ice / rho_w     ->  mdot    (water-equivalent, +ve = source)
         !   dyn%now%uxy_b           ->  uxy_b
         !   mat%now%ATT(:,:,1)      ->  A_glen  (basal layer; zeta_aa(1) = 0)
-        !   time                    ->  time
+        !   time                    ->  time    [a]
+        !
+        ! fasthydrology's rate inputs (mdot, uxy_b, A_glen) are SI (per second),
+        ! while yelmo's are per year. All three are divided by fasthydrology's
+        ! own SEC_PER_YEAR, the same constant it uses to convert the time step
+        ! to dt_sec, so that e.g. mdot*dt_sec is exactly bmb_w*dt [m] and the
+        ! solution does not depend on the choice of seconds per year.
         !
         ! fasthydrology's hydro_update internally skips work when
         ! dt = time - hyd%now%time is non-positive, so we can call
@@ -91,6 +97,7 @@ contains
         ! Local scratch arrays sized to the yelmo grid
         real(wp), allocatable :: mask(:,:)
         real(wp), allocatable :: bmb_w(:,:)
+        real(wp), allocatable :: uxy_b(:,:)
         real(wp), allocatable :: A_glen_b(:,:)
         integer :: nx, ny
 
@@ -99,6 +106,7 @@ contains
 
         allocate(mask(nx,ny))
         allocate(bmb_w(nx,ny))
+        allocate(uxy_b(nx,ny))
         allocate(A_glen_b(nx,ny))
 
         ! Active-hydrology mask: grounded ice cells.
@@ -115,14 +123,20 @@ contains
         ! cell straight to W_til_max.
         bmb_w = -thrm%now%bmb_grnd * (bnd%c%rho_ice / bnd%c%rho_w) / SEC_PER_YEAR
 
-        ! Basal Glen-A. zeta_aa(1) = 0 in yelmo, so index 1 is the base.
-        A_glen_b = mat%now%ATT(:,:,1)
+        ! Basal sliding speed [m/a] -> [m/s]. K24's sliding laws compare it
+        ! with u0 given in m/s, and its N_inf balances sliding opening
+        ! against melt opening (Q*|grad phi|, already per second).
+        uxy_b = dyn%now%uxy_b / SEC_PER_YEAR
+
+        ! Basal Glen-A [Pa^-3 a^-1] -> [Pa^-3 s^-1]. zeta_aa(1) = 0 in
+        ! yelmo, so index 1 is the base.
+        A_glen_b = mat%now%ATT(:,:,1) / SEC_PER_YEAR
 
         call hydro_update(hyd, tpo%now%H_ice, bnd%z_bed, bnd%z_sl,        &
                           tpo%now%f_ice, tpo%now%f_grnd, mask,            &
-                          bmb_w, dyn%now%uxy_b, A_glen_b, time)
+                          bmb_w, uxy_b, A_glen_b, time)
 
-        deallocate(mask, bmb_w, A_glen_b)
+        deallocate(mask, bmb_w, uxy_b, A_glen_b)
 
         return
 
