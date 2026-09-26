@@ -49,16 +49,16 @@ contains
 
         init_pars = .TRUE. 
         
-        call nml_read(filename,phys_const,"sec_year",    c%sec_year,   init=init_pars)
-        call nml_read(filename,phys_const,"g",           c%g,          init=init_pars)
-        call nml_read(filename,phys_const,"T0",          c%T0,         init=init_pars)
-        call nml_read(filename,phys_const,"rho_ice",     c%rho_ice,    init=init_pars)
-        call nml_read(filename,phys_const,"rho_w",       c%rho_w,      init=init_pars)
-        call nml_read(filename,phys_const,"rho_sw",      c%rho_sw,     init=init_pars)
-        call nml_read(filename,phys_const,"rho_a",       c%rho_a,      init=init_pars)
-        call nml_read(filename,phys_const,"rho_rock",    c%rho_rock,   init=init_pars)
-        call nml_read(filename,phys_const,"L_ice",       c%L_ice,      init=init_pars)
-        call nml_read(filename,phys_const,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
+        call nml_read(filename,group,"sec_year",    c%sec_year,   init=init_pars)
+        call nml_read(filename,group,"g",           c%g,          init=init_pars)
+        call nml_read(filename,group,"T0",          c%T0,         init=init_pars)
+        call nml_read(filename,group,"rho_ice",     c%rho_ice,    init=init_pars)
+        call nml_read(filename,group,"rho_w",       c%rho_w,      init=init_pars)
+        call nml_read(filename,group,"rho_sw",      c%rho_sw,     init=init_pars)
+        call nml_read(filename,group,"rho_a",       c%rho_a,      init=init_pars)
+        call nml_read(filename,group,"rho_rock",    c%rho_rock,   init=init_pars)
+        call nml_read(filename,group,"L_ice",       c%L_ice,      init=init_pars)
+        call nml_read(filename,group,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
 
         ! Define conversion factors too
 
