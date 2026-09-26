@@ -294,13 +294,11 @@ to the restart file.
 ::: {.callout-note}
 ## 3D CFL timestep
 
-`set_adaptive_timestep` in
+There is no 3D advective CFL limit: `set_adaptive_timestep` in
 [`yelmo_timesteps.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_timesteps.f90)
-currently takes `uz`, but the 3D advective CFL is **disabled**: `dt_adv3D` is
-hardcoded to `1000.0` and both `calc_adv3D_timestep*` helpers are commented
-out. Should that constraint ever be reactivated, it must be driven by
-`uz_star`, since that is the velocity at which scalars actually cross model
-layers.
+only applies the 2D (depth-averaged) advective CFL. Should a 3D constraint ever
+be added, it must be driven by `uz_star`, since that is the velocity at which
+scalars actually cross model layers.
 :::
 
 ## References

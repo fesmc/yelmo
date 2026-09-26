@@ -1086,8 +1086,7 @@ module yelmo_defs
         real(wp), allocatable :: pc_tau_masked(:,:)
         
         real(wp), allocatable :: dt_adv(:,:) 
-        real(wp), allocatable :: dt_diff(:,:) 
-        real(wp), allocatable :: dt_adv3D(:,:,:)
+        real(wp), allocatable :: dt_diff(:,:)
         
         ! Timing information
         real(wp)   :: model_speed 
