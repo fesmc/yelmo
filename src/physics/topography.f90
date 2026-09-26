@@ -1112,6 +1112,7 @@ contains
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: Hg_nb(9)
         real(wp) :: Hg_int(gz_nx,gz_nx)
         integer  :: BC
 
@@ -1134,7 +1135,13 @@ contains
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (maxval(H_grnd(im1:ip1,jm1:jp1)) .ge. 0.0 .and. minval(H_grnd(im1:ip1,jm1:jp1)) .lt. 0.0) then 
+            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
+            ! empty where the neighbor indices wrap around the domain)
+            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
+                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
+                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
+
+            if (maxval(Hg_nb) .ge. 0.0 .and. minval(Hg_nb) .lt. 0.0) then
                 ! Point contains grounding line, get grounded area  
                 
                 call calc_subgrid_array(Hg_int, H_grnd,gz_nx,i,j,im1,ip1,jm1,jp1)
@@ -1999,6 +2006,7 @@ end if
         integer  :: i, j, i1, j1, nx, ny
         integer  :: im1, ip1, jm1, jp1 
         real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4, Hg_mid  
+        real(wp) :: Hg_nb(9)
         real(wp) :: wt 
         integer  :: BC
 
@@ -2027,19 +2035,25 @@ end if
         allocate(Hg_int(nxi,nxi))
         allocate(bmb_int(nxi,nxi))
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_int,i1,j1,wt)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
         do j = 1, ny 
         do i = 1, nx
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (minval(H_grnd(im1:ip1,jm1:jp1)) .ge. gz_Hg1) then 
+            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
+            ! empty where the neighbor indices wrap around the domain)
+            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
+                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
+                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
+
+            if (minval(Hg_nb) .ge. gz_Hg1) then
                 ! Entire cell is grounded
 
                 bmb(i,j) = bmb_grnd(i,j)
             
-            else if (maxval(H_grnd(im1:ip1,jm1:jp1)) .lt. gz_Hg0) then 
+            else if (maxval(Hg_nb) .lt. gz_Hg0) then
                 ! Entire cell is floating
 
                 bmb(i,j) = bmb_shlf(i,j) 
