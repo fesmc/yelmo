@@ -1,6 +1,7 @@
 module solver_ssa_ac
 
-    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal
+    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal, &
+                           MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use solver_linear
@@ -896,13 +897,8 @@ contains
         
         real(wp), allocatable :: mask_frnt_dyn(:,:)
 
-        ! Integer values for the mask_frnt should be consistent
-        ! with those defined in topography.f90:calc_ice_front().
+        ! mask_frnt values are the MASK_FRNT_* codes of yelmo_defs.
         ! val_disabled is an internal value only used in this routine.
-        integer, parameter :: val_ice_free  = -1 
-        integer, parameter :: val_flt       = 1
-        integer, parameter :: val_marine    = 2
-        integer, parameter :: val_grnd      = 3
         integer, parameter :: val_disabled  = 5 
 
         nx = size(H_ice,1)
@@ -948,8 +944,8 @@ contains
                     do j = 1, ny
                     do i = 1, nx
                     
-                        if ( mask_frnt(i,j) .eq. val_grnd .or. &
-                             mask_frnt(i,j) .eq. val_marine ) mask_frnt_dyn(i,j) = val_disabled
+                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND .or. &
+                             mask_frnt(i,j) .eq. MASK_FRNT_MARINE ) mask_frnt_dyn(i,j) = val_disabled
 
                     end do
                     end do
@@ -962,7 +958,7 @@ contains
                     do j = 1, ny
                     do i = 1, nx
                     
-                        if ( mask_frnt(i,j) .eq. val_grnd ) mask_frnt_dyn(i,j) = val_disabled
+                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND ) mask_frnt_dyn(i,j) = val_disabled
 
                     end do
                     end do
@@ -1037,8 +1033,8 @@ contains
                 end if 
 
                 ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. 5 .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. 5) ) then 
+                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
+                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. val_disabled) ) then 
                     ! Deactivated lateral boundary point 
 
                     ssa_mask_acx(i,j) = 4 
@@ -1089,8 +1085,8 @@ contains
                 end if 
 
                 ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. 5 .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. 5) ) then 
+                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
+                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. val_disabled) ) then 
                     ! Deactivated lateral boundary point 
 
                     ssa_mask_acy(i,j) = 4 

@@ -1,6 +1,8 @@
 module topography 
 
-    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal
+    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal, &
+                           MASK_FRNT_ICE_FREE, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
+                           MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
 
@@ -747,19 +749,14 @@ contains
         real(wp) :: f_neighb(4) 
         integer  :: BC
 
-        integer, parameter :: val_ice_free  = -1 
-        integer, parameter :: val_flt       = 1
-        integer, parameter :: val_marine    = 1 !2
-        integer, parameter :: val_grnd      = 3
-        
         nx = size(mask_frnt,1) 
         ny = size(mask_frnt,2) 
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Initialize mask to zero everywhere to start 
-        mask_frnt = 0
+        ! Initialize mask to non-front everywhere to start 
+        mask_frnt = MASK_FRNT_NONE
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,f_neighb)
         do j = 1, ny
@@ -777,25 +774,25 @@ contains
                 if (f_grnd(i,j) .gt. 0.0 .and. (z_sl(i,j) .le. z_bed(i,j)) ) then 
                     ! Ice front grounded above sea level 
 
-                    mask_frnt(i,j) = val_grnd 
+                    mask_frnt(i,j) = MASK_FRNT_GRND 
 
                 else if (f_grnd(i,j) .gt. 0.0) then 
                     ! Ice front grounded below sea level 
 
-                    mask_frnt(i,j) = val_marine 
+                    mask_frnt(i,j) = MASK_FRNT_MARINE 
 
                 else
                     ! Floating ice front 
 
-                    mask_frnt(i,j) = val_flt 
+                    mask_frnt(i,j) = MASK_FRNT_FLOAT 
 
                 end if 
 
                 ! Ensure adjacent ice-free points are marked too
-                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = val_ice_free
-                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = val_ice_free
-                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = val_ice_free
-                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = val_ice_free
+                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = MASK_FRNT_ICE_FREE
+                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = MASK_FRNT_ICE_FREE
+                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = MASK_FRNT_ICE_FREE
+                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = MASK_FRNT_ICE_FREE
 
             end if 
 
