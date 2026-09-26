@@ -90,7 +90,8 @@ contains
                 ! Tracers should be calculated here (see above)
 
                 ! Pre-calculate the contribution of horizontal advection to column solution
-                call calc_advec_horizontal_column(advecxy,X_ice,ux,uy,dx,i,j,ulim=5000.0_prec)
+                ! (from X_prev: neighbours i-1/j-1 of X_ice have already been updated in this sweep)
+                call calc_advec_horizontal_column(advecxy,X_prev,ux,uy,dx,i,j,ulim=5000.0_prec)
                 
                 ! Calculate the updated basal value of X from 
                 ! basal mass balance including additional thinning term
