@@ -760,16 +760,17 @@ contains
         where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 
         ! Determine rate of mass balance related to changes applied here.
-        ! For MASK_ICE_FIXED (imposed) cells use no overshoot, so apply_tendency
-        ! lands exactly on H_ice_ref each step (no drift from a persistent
-        ! dyn inflow/outflow imbalance). For other cells keep the 10% safety
-        ! margin so the apply_tendency clip-to-zero handles the MASK_ICE_NONE
-        ! path robustly.
+        ! Where ice is removed completely (H_ice_new == 0), overshoot by 10%
+        ! so that apply_tendency's clip-to-zero removes it robustly (no
+        ! round-off remnant). Everywhere else (MASK_ICE_FIXED imposed values,
+        ! margin reduction, boundary copies) use the exact rate, so that
+        ! apply_tendency lands on H_ice_new (to round-off) without over- or
+        ! undershooting it.
         if (dt .ne. 0.0) then
-            where (mask_ice .eq. MASK_ICE_FIXED)
-                mb_resid = (H_ice_new - H_ice) / dt
-            elsewhere
+            where (H_ice_new .eq. 0.0_wp .and. mask_ice .ne. MASK_ICE_FIXED)
                 mb_resid = 1.1_wp * (H_ice_new - H_ice) / dt
+            elsewhere
+                mb_resid = (H_ice_new - H_ice) / dt
             end where
         else
             mb_resid = 0.0
