@@ -86,7 +86,6 @@
     pc_controller   = "PI42"
     pc_use_H_pred   = False
     pc_filter_vel   = False
-    pc_corr_vel     = False
     pc_n_redo       = 5
     pc_tol          = 50.0
     pc_eps          = 10.0

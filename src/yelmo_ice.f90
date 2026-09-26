@@ -1507,7 +1507,6 @@ contains
         call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel, defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel,   defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
