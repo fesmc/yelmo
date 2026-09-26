@@ -874,7 +874,12 @@ end if
         ! #34 follow-up). Matches Yelmo.jl, whose Oceananigans `:bounded`
         ! BC zeros only the halo, leaving edge cells free.
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       bnd%mask_ice,tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+                       tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+
+        ! Marine points where ice is not allowed (bnd%mask_ice = MASK_ICE_NONE, 
+        ! where H_ice is held at zero) are ocean by definition: keep the LSF
+        ! at its ocean value there, so that the front cannot advance into them.
+        where(bnd%mask_ice .eq. MASK_ICE_NONE .and. bnd%z_bed .lt. bnd%z_sl) tpo%now%lsf = 1.0_wp
 
         ! LSF should not affect grounded land points, i.e. points whose bed
         ! is at or above sea level. The comparison is inclusive (.ge.) so that
