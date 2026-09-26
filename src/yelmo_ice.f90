@@ -837,7 +837,7 @@ contains
 
         ! == hydrology (fasthydrology) ==
 
-        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp))
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c)
 
         write(*,*) "yelmo_init:: hydrology initialized."
 

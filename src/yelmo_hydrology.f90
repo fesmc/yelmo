@@ -4,13 +4,13 @@ module yelmo_hydrology
     ! (mask, bmb_w, A_glen) expected by fasthydrology from the
     ! corresponding yelmo state.
     !
-    ! fasthydrology writes hyd%now%N back to yelmo, and dyn%now%N_eff
-    ! is read from hyd%now%N when ydyn neff_method=6 (see calc_ydyn_neff).
-    ! Other paths (thrm%now%H_w, the legacy ytherm bucket, neff_method=1..5)
-    ! still co-exist during the migration and are untouched here.
+    ! fasthydrology owns the till water W_til (hyd%now%W_til, read by
+    ! ytherm) and the effective pressure hyd%now%N, which calc_ydyn_neff
+    ! copies (or subgrid-averages, ydyn.neff_nxi) into dyn%now%N_eff.
 
     use yelmo_defs
     use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update, SEC_PER_YEAR
+    use fast_hydrology_k24, only : k24_finalize_par
 
     implicit none
 
@@ -21,21 +21,37 @@ module yelmo_hydrology
 
 contains
 
-    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy)
+    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy, c)
         ! Load fasthydrology parameters from the yelmo namelist. The grid
         ! spacing is passed to hydro_init so the user does not have to
         ! keep dx / dy in sync in the namelist (they are no longer
         ! namelist-loaded by fasthydrology).
 
-        type(hydro_class), intent(INOUT) :: hyd
-        character(len=*),  intent(IN)    :: filename
-        character(len=*),  intent(IN)    :: group
-        integer,           intent(IN)    :: nx, ny
-        real(wp),          intent(IN)    :: dx, dy
+        type(hydro_class),        intent(INOUT) :: hyd
+        character(len=*),         intent(IN)    :: filename
+        character(len=*),         intent(IN)    :: group
+        integer,                  intent(IN)    :: nx, ny
+        real(wp),                 intent(IN)    :: dx, dy
+        type(ybound_const_class), intent(IN)    :: c        ! Physical constants of the domain
 
         ! Defaults overlay and typo validation now happen inside
         ! hydro_init (fast_hydrology) using input/yelmo_defaults.nml.
         call hydro_init(hyd, filename, nx, ny, dx, dy, group=group)
+
+        ! fasthydrology hard-codes rho_ice, rho_w and g, and reads the
+        ! marine closure's rho_sw from &yhyd (marine_rho_sw). Replace them
+        ! with yelmo's domain constants, so that N and p_w are consistent
+        ! with yelmo's overburden and flotation criterion (e.g. marine N
+        ! vanishes where yelmo's H_grnd does), then refresh the K24
+        ! parameters derived from them.
+        hyd%par%k24%ice_density        = real(c%rho_ice, dp)
+        hyd%par%k24%water_density      = real(c%rho_w,   dp)
+        hyd%par%k24%gravity            = real(c%g,       dp)
+        hyd%par%closures%rho_ice       = c%rho_ice
+        hyd%par%closures%g             = c%g
+        hyd%par%closures%marine%rho_sw = c%rho_sw
+
+        call k24_finalize_par(hyd%par%k24)
 
         return
 
