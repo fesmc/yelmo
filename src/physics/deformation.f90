@@ -1455,15 +1455,18 @@ end if
 
                     ! Get dxz and dzx on aa-nodes 
                     ! (but also get dzx on aa-nodes vertically)
+                    ! Note: dzx is on vertical ac-nodes; the faces of aa-node k are ac-nodes k (below)
+                    ! and k+1 (above), so pass k+1 as upper and k as lower index to gq3D_to_nodes_acz
                     call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dxz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dyz and dzy on aa-nodes 
                     ! (but also get dzy on aa-nodes vertically)
+                    ! (dzy on vertical ac-nodes: faces k and k+1, as for dzx above)
                     call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dyz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
