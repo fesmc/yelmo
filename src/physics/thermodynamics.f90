@@ -767,7 +767,7 @@ contains
             else 
                 ! No Q_strn outside of ice sheet 
                 
-                Q_strn(i,j,k) = 0.0_wp 
+                Q_strn(i,j,:) = 0.0_wp 
 
             end if 
 
@@ -847,7 +847,7 @@ contains
                     else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
                         dQsdT_y = (Qs(i,jp1,k) - Qs(i,j,k)) / (T(i,jp1,k) - T(i,j,k) + eps)
                     else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_x = 0.0
+                        dQsdT_y = 0.0
                     end if
 
                     ! Vertical derivatives
@@ -1250,7 +1250,8 @@ contains
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa
-        real(wp) :: T_base, T_pmp
+        real(wp) :: T_base
+        real(wp), allocatable :: T_pmp(:,:,:)
         logical  :: use_int
 
         use_int = .false.
@@ -1260,8 +1261,14 @@ contains
         ny    = size(T_ice,2)
         nz_aa = size(T_ice,3)
 
+        allocate(T_pmp(nx,ny,nz_aa))
+
         do j = 1, ny 
         do i = 1, nx
+
+            do k = 1, nz_aa
+                T_pmp(i,j,k) = calc_T_pmp(H_ice(i,j),zeta_aa(k),T0,T_pmp_beta,rho_ice,g)
+            end do
 
             if (H_ice(i,j) .gt. 0.0) then
                 ! Ice is present, define linear temperature profile with frozen bed (-10 degC)
@@ -1275,14 +1282,14 @@ contains
 
             end if 
 
-            ! Assume zero water content 
-            omega = 0.0_wp 
-
-            ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
-            call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
-
         end do
         end do
+
+        ! Assume zero water content 
+        omega = 0.0_wp 
+
+        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
 
         return
 
