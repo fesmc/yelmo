@@ -5,7 +5,7 @@ module yelmo_thermodynamics
     use yelmo_defs 
     use yelmo_grid, only : calc_zeta
     use yelmo_tools, only : smooth_gauss_2D, smooth_gauss_3D, gauss_values, fill_borders_2D, fill_borders_3D, &
-            stagger_aa_ab
+            stagger_aa_ab, boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     
     use thermodynamics 
     use ice_enthalpy
@@ -159,7 +159,8 @@ contains
                                 tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral)
+                                bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
+                                thrm%par%boundaries)
 
                 case("robin")
                     ! Use Robin solution for ice temperature
@@ -261,7 +262,8 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral)
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral, &
+                                        boundaries)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
 
@@ -312,9 +314,15 @@ contains
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
+        character(len=*), intent(IN) :: boundaries      ! Boundary treatment
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac  
+        integer :: i1, i2, j1, j2 
+        integer :: im1, ip1, jm1, jp1 
+        integer :: ii(3), jj(3) 
+        integer :: BC 
+        logical :: per_x, per_y 
         real(wp) :: T_shlf, H_grnd_lim, f_scalar, T_base  
         real(wp) :: H_ice_now 
         real(wp) :: wt_neighb(3,3) 
@@ -328,11 +336,31 @@ contains
         nz_aa = size(zeta_aa,1)
         nz_ac = size(zeta_ac,1)
 
+        ! Solve all points in periodic directions (true wrap: every point is
+        ! an interior point), otherwise only the interior; non-periodic
+        ! borders are filled from their interior neighbors below.
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
         ! ===================================================
 
         !$omp parallel do collapse(2) private(i,j,H_ice_now,T_shlf,T_base)
-        do j = 2, ny-1
-        do i = 2, nx-1 
+        do j = j1, j2
+        do i = i1, i2 
             
             if (f_ice(i,j) .gt. 0.0) then 
                 H_ice_now = H_ice(i,j) / f_ice(i,j) 
@@ -438,14 +466,19 @@ if (.TRUE.) then
         ! Extrapolate thermodynamics to ice-free and partially ice-covered 
         ! neighbors to the ice margin.
         ! (Helps with stability to give good values of ATT to newly advected points)
-        !$omp parallel do collapse(2) private(i,j,k,wt_neighb,wt_tot)
-        do j = 2, ny-1
-        do i = 2, nx-1 
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,ii,jj,wt_neighb,wt_tot)
+        do j = j1, j2
+        do i = i1, i2 
             
             if (f_ice(i,j) .lt. 1.0) then 
 
+                ! 3x3 neighborhood with BC-aware neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                ii = [im1,i,ip1]
+                jj = [jm1,j,jp1]
+
                 wt_neighb = 0.0 
-                where (f_ice(i-1:i+1,j-1:j+1) .eq. 1.0) wt_neighb = 1.0 
+                where (f_ice(ii,jj) .eq. 1.0) wt_neighb = 1.0 
                 wt_tot = sum(wt_neighb)
 
                 if (wt_tot .gt. 0.0) then 
@@ -455,10 +488,10 @@ if (.TRUE.) then
                     wt_neighb = wt_neighb / wt_tot 
 
                     do k = 1, nz_aa 
-                        enth(i,j,k)  = sum(enth(i-1:i+1,j-1:j+1,k) *wt_neighb)
-                        T_ice(i,j,k) = sum(T_ice(i-1:i+1,j-1:j+1,k)*wt_neighb)
-                        omega(i,j,k) = sum(omega(i-1:i+1,j-1:j+1,k)*wt_neighb)
-                        T_pmp(i,j,k) = sum(T_pmp(i-1:i+1,j-1:j+1,k)*wt_neighb)
+                        enth(i,j,k)  = sum(enth(ii,jj,k) *wt_neighb)
+                        T_ice(i,j,k) = sum(T_ice(ii,jj,k)*wt_neighb)
+                        omega(i,j,k) = sum(omega(ii,jj,k)*wt_neighb)
+                        T_pmp(i,j,k) = sum(T_pmp(ii,jj,k)*wt_neighb)
                     end do 
 
                 end if 
@@ -470,11 +503,13 @@ if (.TRUE.) then
         !$omp end parallel do
 end if 
 
-        ! Fill in borders 
-        call fill_borders_3D(enth,nfill=1)
-        call fill_borders_3D(T_ice,nfill=1)
-        call fill_borders_3D(omega,nfill=1)
-        call fill_borders_2D(bmb_grnd,nfill=1)
+        ! Fill in non-periodic borders from interior neighbors
+        call fill_borders_3D(enth,    nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_3D(T_ice,   nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_3D(omega,   nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(bmb_grnd,nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(Q_ice_b, nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(H_cts,   nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         
         return 
 

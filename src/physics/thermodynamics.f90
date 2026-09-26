@@ -6,7 +6,8 @@ module thermodynamics
 
     use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW, io_unit_err
 
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, set_boundaries_3D_aa
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
+                            set_boundaries_3D_aa
     
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
@@ -506,7 +507,7 @@ contains
         nz = size(advecxy,3)
 
         ! Determine number of sub-steps from the domain-max horizontal Courant number
-        cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt)
+        cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries)
         nsub = max(1, ceiling(cfl/cfl_safe))
         if (nsub .gt. nmax) then
             write(io_unit_err,"(a,i0,a,g12.4,a,g12.4)") &
@@ -570,7 +571,7 @@ contains
 
     end subroutine calc_advec_horizontal_3D
 
-    function calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt) result(cfl)
+    function calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries) result(cfl)
         ! Domain-max horizontal Courant number of the explicit thermal advection over dt.
         ! Uses the per-layer ac-node face velocities the flux-form scheme actually sees
         ! (the larger of the two bounding faces in each direction, as in
@@ -585,24 +586,49 @@ contains
         real(wp), intent(IN) :: H_ice(:,:)    ! nx,ny     aa-nodes
         real(wp), intent(IN) :: dx
         real(wp), intent(IN) :: dt
+        character(len=*), intent(IN) :: boundaries
         real(wp) :: cfl
 
         ! Local variables
         integer  :: i, j, k, nx, ny, nz
+        integer  :: i1, i2, j1, j2
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        logical  :: per_x, per_y
         real(wp) :: ux_now, uy_now, c
 
         nx = size(ux,1)
         ny = size(ux,2)
         nz = size(ux,3)
 
+        ! Include all points in periodic directions (true wrap), otherwise
+        ! only the interior (the border values are set by the boundary treatment)
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
         cfl = 0.0_wp
 
-        do j = 2, ny-1
-        do i = 2, nx-1
+        do j = j1, j2
+        do i = i1, i2
             if (H_ice(i,j) .gt. 0.0_wp) then
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                 do k = 1, nz
-                    ux_now = max(abs(ux(i-1,j,k)),abs(ux(i,j,k)))
-                    uy_now = max(abs(uy(i,j-1,k)),abs(uy(i,j,k)))
+                    ux_now = max(abs(ux(im1,j,k)),abs(ux(i,j,k)))
+                    uy_now = max(abs(uy(i,jm1,k)),abs(uy(i,j,k)))
                     c = dt * (ux_now/dx + uy_now/dx)
                     if (c .gt. cfl) cfl = c
                 end do
