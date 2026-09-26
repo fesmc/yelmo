@@ -289,6 +289,15 @@ contains
       case("bnd_mask_ice");      v2D = real(ylmo%bnd%mask_ice,      c_double)
 
       ! -----------------------------------------------------------------------
+      ! ydata%pd (present-day / observational reference data, read-only:
+      ! loaded once from file by ydata_load, not part of the prognostic
+      ! state). H_ice already has a prognostic-side alias via bnd_H_ice_ref;
+      ! uxy_s and H_grnd have no such alias, so they are exposed directly.
+      ! -----------------------------------------------------------------------
+      case("dta_pd_uxy_s");      v2D = real(ylmo%dta%pd%uxy_s,      c_double)
+      case("dta_pd_H_grnd");     v2D = real(ylmo%dta%pd%H_grnd,     c_double)
+
+      ! -----------------------------------------------------------------------
       ! ytopo%now (ytopo_state_class)
       ! -----------------------------------------------------------------------
       case("tpo_H_ice");         v2D = real(ylmo%tpo%now%H_ice,         c_double)
@@ -641,6 +650,13 @@ contains
       ! ytherm%now — 2D fields
       ! -----------------------------------------------------------------------
       ! (Basal water moved to hyd; use hyd_W_til via the hyd setters.)
+
+      ! -----------------------------------------------------------------------
+      ! hyd%now (hydro_state_class, fasthydrology) — for an external coupled
+      ! host driving basal hydrology (e.g. hyd.bkt_N_closure=-1 to own hyd_N).
+      ! -----------------------------------------------------------------------
+      case("hyd_N");             ylmo%hyd%now%N             = real(v2D, wp)
+      case("hyd_W_til");         ylmo%hyd%now%W_til         = real(v2D, wp)
 
       case DEFAULT
         write(*,*) "yelmo_set_var2D:: variable not found or not settable: "//trim(f_name)

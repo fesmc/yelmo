@@ -755,6 +755,13 @@ contains
         ! dyn%par%neff_nxi. The N-closure (overburden / marine / till /
         ! two-value) lives inside fasthydrology now; this routine is
         ! purely a grid-side interpolation hook.
+        !
+        ! An external coupled host (e.g. a Julia hydrology model driving
+        ! Yelmo via YelmoMirror) owns N_eff by setting hyd.bkt_N_closure=-1
+        ! and pushing its value into hyd%now%N directly (yelmo_set_var2D
+        ! "hyd_N"); apply_N_closure then leaves hyd%now%N untouched, and
+        ! this routine's normal copy below carries it into dyn%now%N_eff -
+        ! no separate flag needed here.
 
         implicit none
 

@@ -266,9 +266,19 @@ contains
                 bnd%mask_ice(:,1)  = MASK_ICE_NONE
                 bnd%mask_ice(:,ny) = MASK_ICE_NONE
 
-            case ("MISMIP","MISMIP+","TROUGH","TROUGH-F17")
+            case ("MISMIP","MISMIP3D","MISMIP+","TROUGH","TROUGH-F17")
 
-                ! Ice can grow everywhere, except farthest x-border
+                ! Ice can grow everywhere, except farthest x-border.
+                !
+                ! "MISMIP3D" must be listed here explicitly. yelmo_init already
+                ! maps experiment="MISMIP3D" onto the MISMIP3D (y-periodic)
+                ! tpo/dyn/thrm boundaries, but this select case used to omit it,
+                ! so a domain named "MISMIP3D" fell through to case DEFAULT and
+                ! had all four borders marked MASK_ICE_FIXED. With bnd%H_ice_ref
+                ! left at its zero default, calc_G_boundaries then reset
+                ! H_ice = H_ice_ref = 0 on the whole perimeter every timestep --
+                ! silently draining ice at the flowband divide (i=1) and along
+                ! both lateral edges (j=1, j=ny), which no MISMIP-type setup wants.
                 bnd%mask_ice       = MASK_ICE_DYNAMIC
                 bnd%mask_ice(nx,:) = MASK_ICE_NONE
 
