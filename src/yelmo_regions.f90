@@ -133,13 +133,13 @@ contains
         ! Update global region mask in case mask_ice is changing
         ylmo%reg%mask = (ylmo%bnd%mask_ice /= MASK_ICE_NONE)
 
-        call yelmo_calc_region(ylmo%reg,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
+        call yelmo_calc_region(ylmo%reg,ylmo%grd,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
 
         ! Next calculate each sub region
 
         if (ylmo%par%n_reg .gt. 0) then
             do k = 1, ylmo%par%n_reg 
-                call yelmo_calc_region(ylmo%regs(k),ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
+                call yelmo_calc_region(ylmo%regs(k),ylmo%grd,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
             end do
         end if
 
@@ -205,13 +205,20 @@ contains
 
     end subroutine yelmo_regions_write
 
-    subroutine yelmo_calc_region(reg,tpo,dyn,thrm,mat,bnd,hyd,mask)
+    subroutine yelmo_calc_region(reg,grd,tpo,dyn,thrm,mat,bnd,hyd,mask)
         ! Calculate a set of regional variables (averages, totals)
-        ! for a given domain defined by `mask`.
+        ! for a given domain defined by `mask` (or by reg%mask if absent).
+        ! State variables (means, volumes, areas) are computed over the
+        ! ice-covered points of the region; rates and fluxes (dVidt, fwf, dmb,
+        ! cmb) are integrated over the whole region, so that points that became
+        ! ice free during the timestep still contribute their mass loss.
+        ! Areas and volumes use the true grid-cell area grd%area, which
+        ! accounts for the map-projection scale factor.
 
         implicit none
 
         type(yregions_class), intent(INOUT) :: reg
+        type(grid_class),     intent(IN)    :: grd
         type(ytopo_class),    intent(IN)    :: tpo
         type(ydyn_class),     intent(IN)    :: dyn
         type(ytherm_class),   intent(IN)    :: thrm
@@ -228,38 +235,46 @@ contains
         real(wp) :: m2_km2 = 1e-6 
         real(wp) :: conv_km3a_Sv
 
+        logical, allocatable :: mask_reg(:,:) 
         logical, allocatable :: mask_tot(:,:) 
         logical, allocatable :: mask_grnd(:,:) 
         logical, allocatable :: mask_flt(:,:) 
         
         real(wp), allocatable :: H_af(:,:) 
+        real(wp), allocatable :: area(:,:) 
 
         ! Conversion parameter 
         conv_km3a_Sv = 1e-6*(1e9*bnd%c%rho_ice/bnd%c%rho_w)/bnd%c%sec_year
 
-        ! Grid size 
-        nx = size(reg%mask,1)
-        ny = size(reg%mask,2)
+        ! Grid size (from H_ice: reg%mask is not allocated when `mask` is given)
+        nx = size(tpo%now%H_ice,1)
+        ny = size(tpo%now%H_ice,2)
 
         ! Allocate masks 
+        allocate(mask_reg(nx,ny))
         allocate(mask_tot(nx,ny))
         allocate(mask_grnd(nx,ny))
         allocate(mask_flt(nx,ny))
         
         allocate(H_af(nx,ny)) 
+        allocate(area(nx,ny)) 
 
-        ! Define masks 
+        ! Define region mask 
         if (present(mask)) then
             ! Use provided mask
-            mask_tot  = (mask .and. tpo%now%H_ice .gt. 0.0) 
-            mask_grnd = (mask .and. tpo%now%H_ice .gt. 0.0 .and. tpo%now%f_grnd .gt. 0.0)
-            mask_flt  = (mask .and. tpo%now%H_ice .gt. 0.0 .and. tpo%now%f_grnd .eq. 0.0)
+            mask_reg = mask
         else
             ! Use predefined region mask
-            mask_tot  = (reg%mask .and. tpo%now%H_ice .gt. 0.0) 
-            mask_grnd = (reg%mask .and. tpo%now%H_ice .gt. 0.0 .and. tpo%now%f_grnd .gt. 0.0)
-            mask_flt  = (reg%mask .and. tpo%now%H_ice .gt. 0.0 .and. tpo%now%f_grnd .eq. 0.0)
+            mask_reg = reg%mask
         end if
+
+        ! Define masks of ice-covered points within region
+        mask_tot  = (mask_reg .and. tpo%now%H_ice .gt. 0.0) 
+        mask_grnd = (mask_tot .and. tpo%now%f_grnd .gt. 0.0)
+        mask_flt  = (mask_tot .and. tpo%now%f_grnd .eq. 0.0)
+
+        ! Grid-cell area [m^2]
+        area = real(grd%area,wp)
 
         ! Calculate ice thickness above flotation 
         call calc_H_af(H_af,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw,use_f_ice=.FALSE.)
@@ -268,6 +283,19 @@ contains
         npts_grnd = real(count(mask_grnd),wp)
         npts_flt  = real(count(mask_flt),wp)
         
+        ! ===== Rates and fluxes (whole region) =====
+
+        reg%dVidt      = sum(tpo%now%dHidt*area,mask=mask_reg)*m3_km3        ! [km^3/yr]
+        reg%fwf        = -reg%dVidt*conv_km3a_Sv                            ! [Sv]
+
+        ! Discharge
+        reg%dmb        = sum(tpo%now%dmb*area,mask=mask_reg)                ! [m^3/yr]
+        
+        ! Calving
+        reg%cmb        = sum(tpo%now%cmb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_reg)            ! [m^3/yr]
+        reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_reg)           ! [m^3/yr]
+
         ! ===== Total ice variables =====
 
         if (npts_tot .gt. 0) then 
@@ -279,22 +307,12 @@ contains
             reg%H_ice_max  = maxval(tpo%now%H_ice,mask=mask_tot)              ! [m]
             reg%dzsdt      = sum(tpo%now%dzsdt,mask=mask_tot)/npts_tot        ! [m/yr]
             
-            reg%V_ice      = sum(tpo%now%H_ice,mask=mask_tot)*tpo%par%dx*tpo%par%dy*m3_km3              ! [km^3]
-            reg%A_ice      = count(tpo%now%H_ice .gt. 0.0 .and. mask_tot)*tpo%par%dx*tpo%par%dy*m2_km2  ! [km^2]
-            reg%dVidt      = sum(tpo%now%dHidt,mask=mask_tot)*tpo%par%dx*tpo%par%dy*m3_km3              ! [km^3/yr]
-            reg%fwf        = -reg%dVidt*conv_km3a_Sv                        ! [Sv]
-
-            ! Discharge
-            reg%dmb        = sum(tpo%now%dmb,mask=mask_tot)*tpo%par%dx*tpo%par%dy              ! [m^3/yr]
-            
-            ! Calving
-            reg%cmb        = sum(tpo%now%cmb,mask=mask_tot)*tpo%par%dx*tpo%par%dy              ! [m^3/yr]
-            reg%cmb_flt    = sum(tpo%now%cmb_flt,mask=mask_tot)*tpo%par%dx*tpo%par%dy          ! [m^3/yr]
-            reg%cmb_grnd   = sum(tpo%now%cmb_grnd,mask=mask_tot)*tpo%par%dx*tpo%par%dy         ! [m^3/yr]
+            reg%V_ice      = sum(tpo%now%H_ice*area,mask=mask_tot)*m3_km3     ! [km^3]
+            reg%A_ice      = sum(tpo%now%f_ice*area,mask=mask_tot)*m2_km2     ! [km^2]
             
             ! Volume above sea level
-            reg%V_sl       = sum(H_af,mask=mask_tot)*tpo%par%dx*tpo%par%dy*m3_km3   ! [km^3]
-            reg%V_sle      = reg%V_sl * bnd%c%conv_km3_sle                          ! [km^3] => [m sle]
+            reg%V_sl       = sum(H_af*area,mask=mask_tot)*m3_km3            ! [km^3]
+            reg%V_sle      = reg%V_sl * bnd%c%conv_km3_sle                  ! [km^3] => [m sle]
             
             ! ydyn variables 
             reg%uxy_bar    = sum(dyn%now%uxy_bar,mask=mask_tot)/npts_tot      ! [m/yr]
@@ -318,11 +336,6 @@ contains
             
             reg%V_ice       = 0.0_wp 
             reg%A_ice       = 0.0_wp 
-            reg%dVidt       = 0.0_wp 
-            reg%fwf         = 0.0_wp 
-            reg%cmb         = 0.0_wp
-            reg%cmb_flt     = 0.0_wp
-            reg%cmb_grnd    = 0.0_wp
             reg%V_sl        = 0.0_wp 
             reg%V_sle       = 0.0_wp 
 
@@ -347,8 +360,8 @@ contains
             reg%H_ice_g      = sum(tpo%now%H_ice,mask=mask_grnd)/npts_grnd     ! [m]
             reg%z_srf_g      = sum(tpo%now%z_srf,mask=mask_grnd)/npts_grnd     ! [m]
             
-            reg%V_ice_g      = sum(tpo%now%H_ice,mask=mask_grnd)*tpo%par%dx*tpo%par%dy*m3_km3             ! [km^3]
-            reg%A_ice_g      = count(tpo%now%H_ice .gt. 0.0 .and. mask_grnd)*tpo%par%dx*tpo%par%dy*m2_km2 ! [km^2]
+            reg%V_ice_g      = sum(tpo%now%H_ice*area,mask=mask_grnd)*m3_km3    ! [km^3]
+            reg%A_ice_g      = sum(tpo%now%f_ice*area,mask=mask_grnd)*m2_km2    ! [km^2]
             
             ! ydyn variables 
             reg%uxy_bar_g    = sum(dyn%now%uxy_bar,mask=mask_grnd)/npts_grnd      ! [m/a]
@@ -387,8 +400,8 @@ contains
 
             ! ytopo variables 
             reg%H_ice_f      = sum(tpo%now%H_ice,mask=mask_flt)/npts_flt     ! [m]
-            reg%V_ice_f      = sum(tpo%now%H_ice,mask=mask_flt)*tpo%par%dx*tpo%par%dy*m3_km3             ! [km^3]
-            reg%A_ice_f      = count(tpo%now%H_ice .gt. 0.0 .and. mask_flt)*tpo%par%dx*tpo%par%dy*m2_km2 ! [km^2]
+            reg%V_ice_f      = sum(tpo%now%H_ice*area,mask=mask_flt)*m3_km3     ! [km^3]
+            reg%A_ice_f      = sum(tpo%now%f_ice*area,mask=mask_flt)*m2_km2     ! [km^2]
 
             ! ydyn variables 
             reg%uxy_bar_f    = sum(dyn%now%uxy_bar,mask=mask_flt)/npts_flt      ! [m/a]
@@ -476,7 +489,7 @@ contains
             ! If a mask is provided, assume the regional 
             ! values must be calculated now.
 
-            call yelmo_calc_region(reg,dom%tpo,dom%dyn,dom%thrm,dom%mat,dom%bnd,dom%hyd,mask) 
+            call yelmo_calc_region(reg,dom%grd,dom%tpo,dom%dyn,dom%thrm,dom%mat,dom%bnd,dom%hyd,mask) 
 
         else if (present(reg_now)) then 
             ! Assume region has been calculated and is available 
