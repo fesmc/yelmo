@@ -98,13 +98,15 @@ contains
         tot_dHidt_dyn   = sum(dHidt_dyn)*dx*dx  * conv
 
         ! Get total of components and percent error
-        tot_components = tot_mb_net + tot_cmb
+        ! (dHidt_dyn integrates to the net flux across the domain boundary,
+        ! so it must be included for the budget to close)
+        tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
         percent_error  = (tot_components - tot_dHidt) / (tot_dHidt+tol_mb) * 100.0 
 
-        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,2g13.4,a3,g13.4)") &
+        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,3g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
                     tot_dHidt, tot_components, percent_error, " | ", &
-                    tot_mb_net, tot_cmb !, " | ", tot_dHidt_dyn
+                    tot_dHidt_dyn, tot_mb_net, tot_cmb
 
         return
 
