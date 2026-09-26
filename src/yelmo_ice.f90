@@ -898,14 +898,15 @@ contains
                 dom%thrm%par%boundaries = "periodic"
                 
             case("ISMIPHOM","slab","periodic","periodic-xy") 
-                ! Periodic boundary conditions in x and y, eg: X_1 = X_n-1; X_n = X_2
+                ! Periodic boundary conditions in x and y: true wrap with period n,
+                ! i.e., X_0 == X_n and X_n+1 == X_1 (no halo/ghost cells)
 
                 dom%tpo%par%boundaries  = "periodic"
                 dom%dyn%par%boundaries  = "periodic"
                 dom%thrm%par%boundaries = "periodic"
             
             case("periodic-x") 
-                ! Periodic boundary conditions in x-direction,
+                ! Periodic boundary conditions in x-direction (true wrap, period nx),
                 ! infinite in y-direction
                 dom%tpo%par%boundaries  = "periodic-x"
                 dom%dyn%par%boundaries  = "periodic-x"
