@@ -110,6 +110,8 @@ contains
     end subroutine get_region_indices
 
     subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+        ! String-based wrapper of get_neighbor_indices_bc_codes, so that
+        ! both interfaces share one definition of each boundary treatment.
 
         implicit none
 
@@ -124,36 +126,7 @@ contains
         
         character(len=*), intent(IN) :: boundaries
 
-        select case(trim(boundaries))
-
-            case("infinite","mask")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx)
-                jm1 = max(j-1,1)
-                jp1 = min(j+1,ny)
-
-            case("MISMIP3D","TROUGH")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx) 
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-                
-            case DEFAULT 
-                ! periodic, periodic-x (for now treat the same way)
-
-                im1 = i-1
-                if (im1 .eq. 0)    im1 = nx 
-                ip1 = i+1
-                if (ip1 .eq. nx+1) ip1 = 1 
-
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-
-        end select 
+        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,boundary_code(boundaries))
 
         return
 
@@ -194,8 +167,10 @@ contains
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
 
-            case DEFAULT
-                ! Periodic, periodic-x (for now treat the same way)
+            case(BND_PERIODIC)
+                ! Periodic in x and y: true wrap with period nx (ny), i.e.,
+                ! cells 1 and nx (1 and ny) are neighbors and every grid
+                ! point is a regular interior point (no halo/ghost cells).
 
                 im1 = i-1
                 if (im1 .eq. 0)    im1 = nx
@@ -206,6 +181,23 @@ contains
                 if (jm1 .eq. 0)    jm1 = ny
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
+
+            case(BND_PERIODIC_X)
+                ! Periodic in x (true wrap, period nx),
+                ! infinite (clamped) in y
+
+                im1 = i-1
+                if (im1 .eq. 0)    im1 = nx
+                ip1 = i+1
+                if (ip1 .eq. nx+1) ip1 = 1
+
+                jm1 = max(j-1,1)
+                jp1 = min(j+1,ny)
+
+            case DEFAULT
+
+                write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
+                stop
 
         end select
 
@@ -925,7 +917,7 @@ end if
         ! is the same, not the variable itself.
         select case(trim(boundaries))
 
-            case("infinite","mask")
+            case("infinite","mask","periodic-x")
                 dvardy(:,1)  = dvardy(:,2)
                 dvardy(:,ny) = dvardy(:,ny-1)
 
@@ -1195,19 +1187,14 @@ end if
 
             case("periodic","periodic-xy") 
 
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-
-                var(:,1:2)     = var(:,ny-3:ny-2)
-                var(:,ny-1:ny) = var(:,3:4)
+                ! Periodic x and y: true wrap (period nx, ny), all points
+                ! are interior points, so there are no halo cells to set.
 
             case("periodic-x")
 
-                ! Periodic x
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-                
-                ! Infinite (free-slip too)
+                ! Periodic x: true wrap (period nx), nothing to set.
+
+                ! Infinite y (free-slip too)
                 var(:,1)  = var(:,2)
                 var(:,ny) = var(:,ny-1)
 
@@ -1299,17 +1286,12 @@ end if
 
             case("periodic") 
 
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
-                var_acx(:,1)    = var_acx(:,ny-1)
-                var_acx(:,ny)   = var_acx(:,2) 
-                
+                ! True wrap in x and y (period nx, ny): acx(nx,:) lies between
+                ! aa(nx,:) and aa(1,:), all points are interior, nothing to set.
+
             case("periodic-x") 
                 
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acx(:,1)    = var_acx(:,2)
                 var_acx(:,ny)   = var_acx(:,ny-1) 
 
@@ -1352,17 +1334,12 @@ end if
 
             case("periodic") 
 
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
-                var_acx(:,1,:)    = var_acx(:,ny-1,:)
-                var_acx(:,ny,:)   = var_acx(:,2,:) 
-                
+                ! True wrap in x and y (period nx, ny): acx(nx,:) lies between
+                ! aa(nx,:) and aa(1,:), all points are interior, nothing to set.
+
             case("periodic-x") 
                 
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acx(:,1,:)    = var_acx(:,2,:)
                 var_acx(:,ny,:)   = var_acx(:,ny-1,:) 
 
@@ -1405,16 +1382,12 @@ end if
 
             case("periodic") 
 
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
-                var_acy(:,1)    = var_acy(:,ny-2)
-                var_acy(:,ny-1) = var_acy(:,2) 
-                var_acy(:,ny)   = var_acy(:,3)
+                ! True wrap in x and y (period nx, ny): acy(:,ny) lies between
+                ! aa(:,ny) and aa(:,1), all points are interior, nothing to set.
 
             case("periodic-x") 
                 
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acy(:,1)    = var_acy(:,2)
                 var_acy(:,ny-1) = var_acy(:,ny-2) 
                 var_acy(:,ny)   = var_acy(:,ny-1)
@@ -1458,16 +1431,12 @@ end if
 
             case("periodic") 
 
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
-                var_acy(:,1,:)    = var_acy(:,ny-2,:)
-                var_acy(:,ny-1,:) = var_acy(:,2,:) 
-                var_acy(:,ny,:)   = var_acy(:,3,:)
+                ! True wrap in x and y (period nx, ny): acy(:,ny) lies between
+                ! aa(:,ny) and aa(:,1), all points are interior, nothing to set.
 
             case("periodic-x") 
                 
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acy(:,1,:)    = var_acy(:,2,:)
                 var_acy(:,ny-1,:) = var_acy(:,ny-2,:) 
                 var_acy(:,ny,:)   = var_acy(:,ny-1,:)
