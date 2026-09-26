@@ -72,15 +72,15 @@ contains
                 eps_eff(i,j) = 0.0_wp 
 
             else if (eps_eig_1(i,j) .eq. 0.0 .and. eps_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no stresses available, 
-                ! use maximum value of eps_eff from upstream neighbors.
+                ! Margin point was likely just advected, no strain rates available, 
+                ! use the mean of the non-zero eps_eff values of ice-covered neighbors.
 
                 eps_eff_neighb = 0.0_wp 
 
-                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = eps_eig_1(im1,j) * eps_eig_2(im1,j)
-                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = eps_eig_1(ip1,j) * eps_eig_2(ip1,j)
-                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = eps_eig_1(i,jm1) * eps_eig_2(i,jm1)
-                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = eps_eig_1(i,jp1) * eps_eig_2(i,jp1)
+                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = calc_eps_eff_now_ac(eps_eig_1(im1,j),eps_eig_2(im1,j))
+                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = calc_eps_eff_now_ac(eps_eig_1(ip1,j),eps_eig_2(ip1,j))
+                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = calc_eps_eff_now_ac(eps_eig_1(i,jm1),eps_eig_2(i,jm1))
+                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = calc_eps_eff_now_ac(eps_eig_1(i,jp1),eps_eig_2(i,jp1))
 
                 n = count(eps_eff_neighb.ne.0.0_wp)
 
@@ -91,9 +91,9 @@ contains
                 end if 
 
             else 
-                ! Stresses are available at this margin point. 
+                ! Strain rates are available at this margin point. 
                 ! Calculate the effective strain rate directly.
-                eps_eff(i,j) = eps_eig_1(i,j) * eps_eig_2(i,j)
+                eps_eff(i,j) = calc_eps_eff_now_ac(eps_eig_1(i,j),eps_eig_2(i,j))
                 
             end if 
             
@@ -104,6 +104,23 @@ contains
         return 
 
     end subroutine calc_eps_eff_ac
+    
+    elemental function calc_eps_eff_now_ac(eeig1,eeig2) result(eps_eff) 
+        ! Effective strain rate for eigencalving, Levermann et al. (2012):
+        ! eps_eff = e+ * e- if both eigenvalues are positive (divergent 
+        ! spreading in both directions), otherwise zero (no calving).
+
+        implicit none 
+
+        real(wp), intent(IN) :: eeig1 
+        real(wp), intent(IN) :: eeig2
+        real(wp) :: eps_eff
+
+        eps_eff = max(eeig1,0.0_wp) * max(eeig2,0.0_wp)
+
+        return 
+
+    end function calc_eps_eff_now_ac
     
     subroutine calc_tau_eff_ac(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2,boundaries)
         ! Effective stress rates. Based on additional of principal stresses.
