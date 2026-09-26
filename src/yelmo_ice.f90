@@ -152,10 +152,9 @@ contains
             ! === Diagnose different adaptive timestep limits ===
 
             ! Calculate adaptive time step from CFL constraints 
-            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff,dom%time%dt_adv3D, &
-                                dom%dyn%now%ux,dom%dyn%now%uy,dom%dyn%now%uz,dom%dyn%now%ux_bar,dom%dyn%now%uy_bar, &
-                                dom%tpo%now%H_ice,dom%tpo%now%dHidt,dom%par%zeta_ac, &
-                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max) 
+            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff, &
+                                dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
+                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
@@ -789,7 +788,7 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
@@ -1508,7 +1507,6 @@ contains
         call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel, defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel,   defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)

@@ -57,6 +57,13 @@ module yelmo_defs
     integer,  parameter :: MASK_ICE_FIXED   = 1     ! Ice thickness is prescribed (= H_ice_ref)
     integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
 
+    ! Values for tpo%now%mask_frnt (ice-front mask, see topography.f90:calc_ice_front)
+    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front
+    integer,  parameter :: MASK_FRNT_NONE     =  0  ! Not a front point
+    integer,  parameter :: MASK_FRNT_FLOAT    =  1  ! Floating ice front
+    integer,  parameter :: MASK_FRNT_MARINE   =  2  ! Ice front grounded below sea level
+    integer,  parameter :: MASK_FRNT_GRND     =  3  ! Ice front grounded above sea level
+
     ! Mathematical constants
     real(wp), parameter :: pi  = real(2._dp*acos(0.0_dp),wp)
     real(wp), parameter :: degrees_to_radians = real(pi / 180._dp,wp)  ! Conversion factor between radians and degrees
@@ -1050,8 +1057,7 @@ module yelmo_defs
         character (len=56)  :: pc_method
         character (len=56)  :: pc_controller
         logical             :: pc_use_H_pred 
-        logical             :: pc_filter_vel 
-        logical             :: pc_corr_vel 
+        logical             :: pc_filter_vel
         integer             :: pc_n_redo 
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
@@ -1078,8 +1084,7 @@ module yelmo_defs
         real(wp), allocatable :: pc_tau_masked(:,:)
         
         real(wp), allocatable :: dt_adv(:,:) 
-        real(wp), allocatable :: dt_diff(:,:) 
-        real(wp), allocatable :: dt_adv3D(:,:,:)
+        real(wp), allocatable :: dt_diff(:,:)
         
         ! Timing information
         real(wp)   :: model_speed 
