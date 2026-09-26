@@ -20,6 +20,7 @@ module yelmo_tools
     public :: get_region_indices
     public :: get_neighbor_indices
     public :: get_neighbor_indices_bc_codes
+    public :: get_periodic_directions
     public :: calc_magnitude 
     public :: calc_magnitude_from_staggered
     public :: stagger_ac_aa
@@ -204,6 +205,47 @@ contains
         return
 
     end subroutine get_neighbor_indices_bc_codes
+
+    subroutine get_periodic_directions(per_x,per_y,BC)
+        ! Which directions wrap (true wrap, no halo cells) for a boundary
+        ! code, consistent with get_neighbor_indices_bc_codes. In a periodic
+        ! direction every point is an interior point, so loops must cover
+        ! the full index range and no border values may be overwritten.
+
+        implicit none
+
+        logical, intent(OUT) :: per_x
+        logical, intent(OUT) :: per_y
+        integer, intent(IN)  :: BC
+
+        select case(BC)
+
+            case(BND_ZEROS,BND_INFINITE)
+                per_x = .FALSE.
+                per_y = .FALSE.
+
+            case(BND_MISMIP3D,BND_TROUGH)
+                per_x = .FALSE.
+                per_y = .TRUE.
+
+            case(BND_PERIODIC)
+                per_x = .TRUE.
+                per_y = .TRUE.
+
+            case(BND_PERIODIC_X)
+                per_x = .TRUE.
+                per_y = .FALSE.
+
+            case DEFAULT
+
+                write(io_unit_err,*) "get_periodic_directions:: Error: boundary code not recognized: ", BC
+                stop
+
+        end select
+
+        return
+
+    end subroutine get_periodic_directions
 
     function boundary_code(boundaries) result(code)
 
@@ -1463,71 +1505,96 @@ end if
 
     end subroutine set_boundaries_3D_acy
 
-    subroutine fill_borders_2D(var,nfill,fill)
+    subroutine fill_borders_2D(var,nfill,fill,fill_x,fill_y)
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(INOUT) :: var(:,:) 
-        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in 
-        real(wp), intent(IN), optional :: fill(:,:) ! Values to impose 
+        real(wp), intent(INOUT) :: var(:,:)
+        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in
+        real(wp), intent(IN), optional :: fill(:,:) ! Values to impose
+        logical,  intent(IN), optional :: fill_x    ! Fill the x-borders? (default: true)
+        logical,  intent(IN), optional :: fill_y    ! Fill the y-borders? (default: true)
 
-        ! Local variables 
-        integer :: i, j, nx, ny, q 
-        
+        ! Local variables
+        integer :: i, j, nx, ny, q
+        logical :: do_x, do_y
+
         nx = size(var,1)
         ny = size(var,2)
 
-        if (present(fill)) then 
-            ! Fill with prescribed values from array 'fill' 
+        do_x = .TRUE.
+        if (present(fill_x)) do_x = fill_x
+        do_y = .TRUE.
+        if (present(fill_y)) do_y = fill_y
 
-            do q = 1, nfill 
-                var(q,:)      = fill(nfill+1,:)      
-                var(nx-q+1,:) = fill(nx-nfill,:)   
-                
-                var(:,q)      = fill(:,nfill+1)     
-                var(:,ny-q+1) = fill(:,ny-nfill)  
-            end do 
+        if (present(fill)) then
+            ! Fill with prescribed values from array 'fill'
 
-        else 
-            ! Fill with interior neighbor values 
+            do q = 1, nfill
+                if (do_x) then
+                    var(q,:)      = fill(nfill+1,:)
+                    var(nx-q+1,:) = fill(nx-nfill,:)
+                end if
+                if (do_y) then
+                    var(:,q)      = fill(:,nfill+1)
+                    var(:,ny-q+1) = fill(:,ny-nfill)
+                end if
+            end do
 
-            do q = 1, nfill 
-                var(q,:)      = var(nfill+1,:)      
-                var(nx-q+1,:) = var(nx-nfill,:)   
-                
-                var(:,q)      = var(:,nfill+1)     
-                var(:,ny-q+1) = var(:,ny-nfill)  
-            end do 
+        else
+            ! Fill with interior neighbor values
 
-        end if 
+            do q = 1, nfill
+                if (do_x) then
+                    var(q,:)      = var(nfill+1,:)
+                    var(nx-q+1,:) = var(nx-nfill,:)
+                end if
+                if (do_y) then
+                    var(:,q)      = var(:,nfill+1)
+                    var(:,ny-q+1) = var(:,ny-nfill)
+                end if
+            end do
 
-        return 
+        end if
+
+        return
 
     end subroutine fill_borders_2D
 
-    subroutine fill_borders_3D(var,nfill)
+    subroutine fill_borders_3D(var,nfill,fill_x,fill_y)
         ! 3rd dimension is not filled (should be vertical dimension)
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(INOUT) :: var(:,:,:) 
-        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in 
+        real(wp), intent(INOUT) :: var(:,:,:)
+        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in
+        logical,  intent(IN), optional :: fill_x    ! Fill the x-borders? (default: true)
+        logical,  intent(IN), optional :: fill_y    ! Fill the y-borders? (default: true)
 
-        ! Local variables 
-        integer :: i, j, nx, ny, q 
-        
+        ! Local variables
+        integer :: i, j, nx, ny, q
+        logical :: do_x, do_y
+
         nx = size(var,1)
         ny = size(var,2)
 
-        do q = 1, nfill 
-            var(q,:,:)      = var(nfill+1,:,:)      
-            var(nx-q+1,:,:) = var(nx-nfill,:,:)   
-            
-            var(:,q,:)      = var(:,nfill+1,:)     
-            var(:,ny-q+1,:) = var(:,ny-nfill,:)  
-        end do 
+        do_x = .TRUE.
+        if (present(fill_x)) do_x = fill_x
+        do_y = .TRUE.
+        if (present(fill_y)) do_y = fill_y
 
-        return 
+        do q = 1, nfill
+            if (do_x) then
+                var(q,:,:)      = var(nfill+1,:,:)
+                var(nx-q+1,:,:) = var(nx-nfill,:,:)
+            end if
+            if (do_y) then
+                var(:,q,:)      = var(:,nfill+1,:)
+                var(:,ny-q+1,:) = var(:,ny-nfill,:)
+            end if
+        end do
+
+        return
 
     end subroutine fill_borders_3D
 
