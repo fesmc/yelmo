@@ -679,7 +679,13 @@ contains
                                 H_tmp(i,jm1),H_tmp(i,jp1)])
 
                 if ( H_eff .gt. H_max) then 
-                    H_ice_new(i,j) = H_max 
+                    ! Limit the effective thickness to H_max and convert it
+                    ! back to a grid-mean thickness (inverse of calc_H_eff)
+                    if (f_ice(i,j) .gt. 0.0_wp) then
+                        H_ice_new(i,j) = H_max*f_ice(i,j)
+                    else
+                        H_ice_new(i,j) = H_max
+                    end if
                 end if
                 
             end if
