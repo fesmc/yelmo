@@ -511,8 +511,10 @@ contains
 
             advecxy = 0.0_wp
 
-            do j = 2, ny-1
-            do i = 2, nx-1
+            ! Compute on all points with BC-aware neighbors, then overwrite
+            ! the non-periodic border points according to the boundary treatment
+            do j = 1, ny
+            do i = 1, nx
                 call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
             end do
             end do
@@ -533,8 +535,8 @@ contains
 
                 a_sub = 0.0_wp
 
-                do j = 2, ny-1
-                do i = 2, nx-1
+                do j = 1, ny
+                do i = 1, nx
                     call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
                 end do
                 end do

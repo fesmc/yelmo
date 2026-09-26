@@ -1332,15 +1332,7 @@ contains
 
             case("periodic") 
 
-                ux(1,:)  = ux(nx-1,:) 
-                ux(nx,:) = ux(2,:) 
-                ux(:,1)  = ux(:,ny-1)
-                ux(:,ny) = ux(:,2) 
-
-                uy(1,:)  = uy(nx-1,:) 
-                uy(nx,:) = uy(2,:) 
-                uy(:,1)  = uy(:,ny-1)
-                uy(:,ny) = uy(:,2) 
+                ! True wrap (period nx, ny): all points are interior, do nothing
 
             case("MISMIP3D")
 

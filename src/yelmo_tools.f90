@@ -1187,19 +1187,14 @@ end if
 
             case("periodic","periodic-xy") 
 
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-
-                var(:,1:2)     = var(:,ny-3:ny-2)
-                var(:,ny-1:ny) = var(:,3:4)
+                ! Periodic x and y: true wrap (period nx, ny), all points
+                ! are interior points, so there are no halo cells to set.
 
             case("periodic-x")
 
-                ! Periodic x
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-                
-                ! Infinite (free-slip too)
+                ! Periodic x: true wrap (period nx), nothing to set.
+
+                ! Infinite y (free-slip too)
                 var(:,1)  = var(:,2)
                 var(:,ny) = var(:,ny-1)
 
@@ -1291,17 +1286,12 @@ end if
 
             case("periodic") 
 
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
-                var_acx(:,1)    = var_acx(:,ny-1)
-                var_acx(:,ny)   = var_acx(:,2) 
-                
+                ! True wrap in x and y (period nx, ny): acx(nx,:) lies between
+                ! aa(nx,:) and aa(1,:), all points are interior, nothing to set.
+
             case("periodic-x") 
                 
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acx(:,1)    = var_acx(:,2)
                 var_acx(:,ny)   = var_acx(:,ny-1) 
 
@@ -1344,17 +1334,12 @@ end if
 
             case("periodic") 
 
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
-                var_acx(:,1,:)    = var_acx(:,ny-1,:)
-                var_acx(:,ny,:)   = var_acx(:,2,:) 
-                
+                ! True wrap in x and y (period nx, ny): acx(nx,:) lies between
+                ! aa(nx,:) and aa(1,:), all points are interior, nothing to set.
+
             case("periodic-x") 
                 
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acx(:,1,:)    = var_acx(:,2,:)
                 var_acx(:,ny,:)   = var_acx(:,ny-1,:) 
 
@@ -1397,16 +1382,12 @@ end if
 
             case("periodic") 
 
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
-                var_acy(:,1)    = var_acy(:,ny-2)
-                var_acy(:,ny-1) = var_acy(:,2) 
-                var_acy(:,ny)   = var_acy(:,3)
+                ! True wrap in x and y (period nx, ny): acy(:,ny) lies between
+                ! aa(:,ny) and aa(:,1), all points are interior, nothing to set.
 
             case("periodic-x") 
                 
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acy(:,1)    = var_acy(:,2)
                 var_acy(:,ny-1) = var_acy(:,ny-2) 
                 var_acy(:,ny)   = var_acy(:,ny-1)
@@ -1450,16 +1431,12 @@ end if
 
             case("periodic") 
 
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
-                var_acy(:,1,:)    = var_acy(:,ny-2,:)
-                var_acy(:,ny-1,:) = var_acy(:,2,:) 
-                var_acy(:,ny,:)   = var_acy(:,3,:)
+                ! True wrap in x and y (period nx, ny): acy(:,ny) lies between
+                ! aa(:,ny) and aa(:,1), all points are interior, nothing to set.
 
             case("periodic-x") 
                 
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
+                ! True wrap in x (nothing to set), infinite in y
                 var_acy(:,1,:)    = var_acy(:,2,:)
                 var_acy(:,ny-1,:) = var_acy(:,ny-2,:) 
                 var_acy(:,ny,:)   = var_acy(:,ny-1,:)
