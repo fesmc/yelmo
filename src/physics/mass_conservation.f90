@@ -658,7 +658,7 @@ contains
 
         H_tmp = H_ice_new
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,H_eff,H_max)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff,H_max)
         do j = 1, ny 
         do i = 1, nx 
 
