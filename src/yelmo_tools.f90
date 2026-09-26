@@ -110,6 +110,8 @@ contains
     end subroutine get_region_indices
 
     subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+        ! String-based wrapper of get_neighbor_indices_bc_codes, so that
+        ! both interfaces share one definition of each boundary treatment.
 
         implicit none
 
@@ -124,36 +126,7 @@ contains
         
         character(len=*), intent(IN) :: boundaries
 
-        select case(trim(boundaries))
-
-            case("infinite","mask")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx)
-                jm1 = max(j-1,1)
-                jp1 = min(j+1,ny)
-
-            case("MISMIP3D","TROUGH")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx) 
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-                
-            case DEFAULT 
-                ! periodic, periodic-x (for now treat the same way)
-
-                im1 = i-1
-                if (im1 .eq. 0)    im1 = nx 
-                ip1 = i+1
-                if (ip1 .eq. nx+1) ip1 = 1 
-
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-
-        end select 
+        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,boundary_code(boundaries))
 
         return
 
@@ -194,8 +167,10 @@ contains
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
 
-            case DEFAULT
-                ! Periodic, periodic-x (for now treat the same way)
+            case(BND_PERIODIC)
+                ! Periodic in x and y: true wrap with period nx (ny), i.e.,
+                ! cells 1 and nx (1 and ny) are neighbors and every grid
+                ! point is a regular interior point (no halo/ghost cells).
 
                 im1 = i-1
                 if (im1 .eq. 0)    im1 = nx
@@ -206,6 +181,23 @@ contains
                 if (jm1 .eq. 0)    jm1 = ny
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
+
+            case(BND_PERIODIC_X)
+                ! Periodic in x (true wrap, period nx),
+                ! infinite (clamped) in y
+
+                im1 = i-1
+                if (im1 .eq. 0)    im1 = nx
+                ip1 = i+1
+                if (ip1 .eq. nx+1) ip1 = 1
+
+                jm1 = max(j-1,1)
+                jp1 = min(j+1,ny)
+
+            case DEFAULT
+
+                write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
+                stop
 
         end select
 
@@ -925,7 +917,7 @@ end if
         ! is the same, not the variable itself.
         select case(trim(boundaries))
 
-            case("infinite","mask")
+            case("infinite","mask","periodic-x")
                 dvardy(:,1)  = dvardy(:,2)
                 dvardy(:,ny) = dvardy(:,ny-1)
 
