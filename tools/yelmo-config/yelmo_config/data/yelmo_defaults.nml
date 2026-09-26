@@ -49,6 +49,9 @@
     pc_tol          = 5.0               ! [m/a] Tolerance threshold to redo timestep
     pc_eps          = 1.0               ! Predictor-corrector tolerance
 
+    write_metrics    = False            ! Write numerics/speed metrics to yelmo_metrics.nc
+    write_metrics_dt = 100.0            ! [yr] Output cadence for yelmo_metrics.nc
+
 /
 
 &ytopo
@@ -190,7 +193,7 @@
     ! ---- closures (no prefix) ----
     const_N         = 1.0e7  ! [Pa] N_CLOSURE_CONST (legacy yneff.const)
     marine_p        = 1.0
-    marine_rho_sw   = 1028.0
+    marine_rho_sw   = 1028.0 ! [kg/m3] ignored by yelmo: overwritten by yelmo_phys_const.nml rho_sw (as are rho_ice, rho_w, g)
     till_N0         = 1000.0 ! legacy yneff.N0
     till_delta      = 0.04   ! legacy yneff.delta
     till_e0         = 0.69   ! legacy yneff.e0
