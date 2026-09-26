@@ -5,6 +5,7 @@ module calving_ac
     use yelmo_defs, only : sp, dp, wp, prec, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     use topography, only : calc_H_eff 
+    use thermodynamics, only : calc_T_freeze_sw
 
     implicit none 
     private 
@@ -384,25 +385,32 @@ contains
     !
     ! ===================================================================
 
-    subroutine calc_fmb_ismip7(cr_acx,cr_acy,z_bed,Qd,TF,dx,f_ice,boundaries)
+    subroutine calc_fmb_ismip7(cr_acx,cr_acy,u_acx,v_acy,z_bed,z_sl,Qd,T_ocn,T0,dx,f_ice,boundaries)
         ! Calculate the retreat rate of marine terminating glaciers based on ISMIP7 protocol
         ! 
-        ! m = (a h_w q^alpha + b) TF^beta [m/yr]
-        ! q = 86400*Q/A [m3/s]
+        ! m = (a h_w q^alpha + b) TF^beta [m/d]
+        ! q = 86400*Q/A [m/d]
         !
         ! a, alpha, b, beta: constants
-        ! h_w: water depth
-        ! Q: subglacial discharge (units?)
-        ! A: submerged ice area
-        ! TF: thermal forcing [degC?/K?]
-
+        ! h_w: water depth at the terminus, z_sl - z_bed [m]
+        ! Q: subglacial discharge [m3/s]
+        ! A: submerged area of the terminus face, h_w*dx [m2]
+        ! TF: thermal forcing, T_ocn - T_f(h_w) [K]
+        !
+        ! T_f is the seawater freezing point following Jenkins (1991),
+        ! evaluated at the water depth h_w assuming a constant salinity 
+        ! (see calc_T_freeze_sw). The retreat rate m is converted to [m/yr]
+        ! and applied on ac-nodes against the direction of ice flow.
 
         implicit none 
 
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
+        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
         real(wp), intent(IN)    :: z_bed(:,:)               ! Bedrock elevation [m]
+        real(wp), intent(IN)    :: z_sl(:,:)                ! Sea level [m]
         real(wp), intent(IN)    :: Qd(:,:)                  ! subglacial discharge [m3/s]
-        real(wp), intent(IN)    :: TF(:,:)                  ! Thermal forcing [K]
+        real(wp), intent(IN)    :: T_ocn(:,:)               ! Ocean temperature [K]
+        real(wp), intent(IN)    :: T0                       ! Reference freezing temperature [K]
         real(wp), intent(IN)    :: dx                       ! Resolution [m]
         real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
         character(len=*), intent(IN) :: boundaries 
@@ -410,13 +418,16 @@ contains
         ! local variables
         integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
         real(wp) :: a, b, alpha, beta, m_acx, m_acy
-        real(wp), allocatable :: m_aa(:,:)
+        real(wp) :: u_acy, v_acx, uxy_acx, uxy_acy
+        real(wp), allocatable :: m_aa(:,:), h_w(:,:), TF(:,:)
         integer  :: BC
 
         nx = size(z_bed,1)
         ny = size(z_bed,2) 
 
         allocate(m_aa(nx,ny))
+        allocate(h_w(nx,ny))
+        allocate(TF(nx,ny))
 
         a     = 3.0e-4
         b     = 0.15
@@ -424,19 +435,22 @@ contains
         beta  = 1.18
         m_aa  = 0.0_wp
 
-        m_aa  = 365.25*(a*MAX(0.0,-1.0*z_bed)*((86400.0*Qd/(MAX(0.0,-1.0*z_bed)*dx+1e-8))**alpha)+b)*&
-                (MAX(0.0_wp, TF - 273.15)**beta) ! is in m/yr
+        ! Water depth and thermal forcing relative to the local freezing point
+        h_w   = MAX(0.0_wp, z_sl - z_bed)
+        TF    = MAX(0.0_wp, T_ocn - calc_T_freeze_sw(h_w,T0))
+
+        m_aa  = 365.25*(a*h_w*((86400.0*Qd/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,u_acy,v_acx,uxy_acx,uxy_acy)
         do j = 1, ny
             do i = 1, nx
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                     
-                ! Stagger 1st ppal stress into ac-nodes                        
+                ! Stagger retreat rate into ac-nodes                        
                 m_acx = 0.5*(m_aa(i,j)+m_aa(ip1,j))
                 m_acy = 0.5*(m_aa(i,j)+m_aa(i,jp1))
                         
@@ -455,14 +469,23 @@ contains
                     m_acy = m_aa(i,jp1)
                 end if
 
-                ! Compute calving-rates on ac-nodes
-                cr_acx(i,j) = -1.0*MAX(0.0_wp,m_acx)
-                cr_acy(i,j) = -1.0*MAX(0.0_wp,m_acy)
+                ! Stagger velocities x/y ac-velocities into y/x ac-nodes
+                ! to get the velocity magnitude on each ac-node
+                u_acy   = 0.25_wp*(u_acx(i,j)+u_acx(im1,j)+u_acx(im1,jp1)+u_acx(i,jp1))
+                v_acx   = 0.25_wp*(v_acy(i,j)+v_acy(i,jm1)+v_acy(ip1,jm1)+v_acy(ip1,j))
+                uxy_acx = MAX(1e-8_wp,(u_acx(i,j)**2 + v_acx**2)**0.5)
+                uxy_acy = MAX(1e-8_wp,(v_acy(i,j)**2 + u_acy**2)**0.5)
+
+                ! Compute calving-rates on ac-nodes (retreat against the flow direction)
+                cr_acx(i,j) = -(u_acx(i,j)/uxy_acx)*MAX(0.0_wp,m_acx)
+                cr_acy(i,j) = -(v_acy(i,j)/uxy_acy)*MAX(0.0_wp,m_acy)
             end do
         end do
         !$omp end parallel do
 
         deallocate(m_aa)
+        deallocate(h_w)
+        deallocate(TF)
 
         return 
 
