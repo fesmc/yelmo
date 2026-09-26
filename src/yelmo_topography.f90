@@ -420,8 +420,11 @@ end if
             tpo%now%dHidt  = (tpo%now%H_ice - tpo%now%H_ice_n) / dt
             tpo%now%dlsfdt = (tpo%now%lsf   - tpo%now%lsf_n) / dt
 
-            ! Determine mass balance error by comparing mass_in - mass_out to dHidt
-            tpo%now%mb_err = tpo%now%dHidt - (tpo%now%mb_net + tpo%now%cmb)
+            ! Determine mass balance error as the residual of dHidt with respect to
+            ! all applied tendencies (dynamics, mb_net incl. relax and resid, calving).
+            ! Since every tendency passes through apply_tendency (adjust_mb=.TRUE.),
+            ! this should vanish to round-off.
+            tpo%now%mb_err = tpo%now%dHidt - (tpo%now%dHidt_dyn + tpo%now%mb_net + tpo%now%cmb)
 
         end if
 

@@ -98,13 +98,15 @@ contains
         tot_dHidt_dyn   = sum(dHidt_dyn)*dx*dx  * conv
 
         ! Get total of components and percent error
-        tot_components = tot_mb_net + tot_cmb
+        ! (dHidt_dyn integrates to the net flux across the domain boundary,
+        ! so it must be included for the budget to close)
+        tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
         percent_error  = (tot_components - tot_dHidt) / (tot_dHidt+tol_mb) * 100.0 
 
-        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,2g13.4,a3,g13.4)") &
+        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,3g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
                     tot_dHidt, tot_components, percent_error, " | ", &
-                    tot_mb_net, tot_cmb !, " | ", tot_dHidt_dyn
+                    tot_dHidt_dyn, tot_mb_net, tot_cmb
 
         return
 
@@ -658,7 +660,7 @@ contains
 
         H_tmp = H_ice_new
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,H_eff,H_max)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff,H_max)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -679,7 +681,13 @@ contains
                                 H_tmp(i,jm1),H_tmp(i,jp1)])
 
                 if ( H_eff .gt. H_max) then 
-                    H_ice_new(i,j) = H_max 
+                    ! Limit the effective thickness to H_max and convert it
+                    ! back to a grid-mean thickness (inverse of calc_H_eff)
+                    if (f_ice(i,j) .gt. 0.0_wp) then
+                        H_ice_new(i,j) = H_max*f_ice(i,j)
+                    else
+                        H_ice_new(i,j) = H_max
+                    end if
                 end if
                 
             end if
@@ -762,16 +770,17 @@ contains
         where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 
         ! Determine rate of mass balance related to changes applied here.
-        ! For MASK_ICE_FIXED (imposed) cells use no overshoot, so apply_tendency
-        ! lands exactly on H_ice_ref each step (no drift from a persistent
-        ! dyn inflow/outflow imbalance). For other cells keep the 10% safety
-        ! margin so the apply_tendency clip-to-zero handles the MASK_ICE_NONE
-        ! path robustly.
+        ! Where ice is removed completely (H_ice_new == 0), overshoot by 10%
+        ! so that apply_tendency's clip-to-zero removes it robustly (no
+        ! round-off remnant). Everywhere else (MASK_ICE_FIXED imposed values,
+        ! margin reduction, boundary copies) use the exact rate, so that
+        ! apply_tendency lands on H_ice_new (to round-off) without over- or
+        ! undershooting it.
         if (dt .ne. 0.0) then
-            where (mask_ice .eq. MASK_ICE_FIXED)
-                mb_resid = (H_ice_new - H_ice) / dt
-            elsewhere
+            where (H_ice_new .eq. 0.0_wp .and. mask_ice .ne. MASK_ICE_FIXED)
                 mb_resid = 1.1_wp * (H_ice_new - H_ice) / dt
+            elsewhere
+                mb_resid = (H_ice_new - H_ice) / dt
             end where
         else
             mb_resid = 0.0
