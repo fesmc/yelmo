@@ -1709,14 +1709,15 @@ contains
                 u_now = 0.0_wp 
             end if 
 
-            ! Add to total 
-            uu_tot = uu_tot + q_now 
+            ! Add to total (flux magnitude, so that the weight
+            ! is independent of the flow direction)
+            uu_tot = uu_tot + abs(q_now) 
 
             ! If in grounded region, add to grounded total
             ! (grounded node 'a' is at lambda=1, so the grounded fraction
             !  f_grnd_ac of the cell adjoins the lambda=1 end)
             if (lambda .gt. (1.0_wp - f_grnd_ac)) then
-                uu_grnd = uu_grnd + q_now 
+                uu_grnd = uu_grnd + abs(q_now) 
             end if 
 
         end do 
