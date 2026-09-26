@@ -1177,6 +1177,19 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Reset strain rate fields to zero, since only fully ice-covered points
+        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
+        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
+        ! rely on zero eigenvalues there to fill in from neighbors).
+        strn%dxx     = 0.0_wp
+        strn%dyy     = 0.0_wp
+        strn%dxy     = 0.0_wp
+        strn%dxz     = 0.0_wp
+        strn%dyz     = 0.0_wp
+        strn%de      = 0.0_wp
+        strn%div     = 0.0_wp
+        strn%f_shear = 0.0_wp
+
         ! Calculate all strain rate tensor components on aa-nodes (horizontally and vertically)
         ! dxx = dxx
         ! dxy = 0.5*(dxy+dyx)
@@ -1399,6 +1412,19 @@ end if
         
         ! Get boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Reset strain rate fields to zero, since only fully ice-covered points
+        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
+        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
+        ! rely on zero eigenvalues there to fill in from neighbors).
+        strn%dxx     = 0.0_wp
+        strn%dyy     = 0.0_wp
+        strn%dxy     = 0.0_wp
+        strn%dxz     = 0.0_wp
+        strn%dyz     = 0.0_wp
+        strn%de      = 0.0_wp
+        strn%div     = 0.0_wp
+        strn%f_shear = 0.0_wp
 
         ! Calculate all strain rate tensor components on aa-nodes (horizontally and vertically)
         ! dxx = dxx
