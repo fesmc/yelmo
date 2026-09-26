@@ -47,7 +47,8 @@ contains
             allocate(ylmo%regs(ylmo%par%n_reg))
 
             do k = 1, ylmo%par%n_reg
-                ylmo%regs(1)%name = ""
+                ylmo%regs(k)%name  = ""
+                ylmo%regs(k)%write = .FALSE.
             end do
 
         else 
@@ -523,7 +524,7 @@ contains
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"dHidt",reg%dHidt,units="m/a",long_name="Mean rate ice thickness change", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"H_ice_max",reg%H_ice_max,units="m/a",long_name="Max ice thickness", &
+        call nc_write(filename,"H_ice_max",reg%H_ice_max,units="m",long_name="Max ice thickness", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"dzsdt",reg%dzsdt,units="m/a",long_name="Mean rate surface elevation change", &
                       dim1="time",start=[n],ncid=ncid)
@@ -534,7 +535,7 @@ contains
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"dVidt",reg%dVidt,units="km^3/a",long_name="Rate volume change", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"fwf",reg%fwf,units="Sv",long_name="Rate volume change", &
+        call nc_write(filename,"fwf",reg%fwf,units="Sv",long_name="Freshwater flux (liquid water equivalent of -dVidt)", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"cmb",reg%cmb,units="m^3/yr",long_name="Calving mass balance rate", &
