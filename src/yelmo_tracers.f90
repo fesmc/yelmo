@@ -505,8 +505,8 @@ contains
         type(tracer_class) :: trc_tmp
 
         ! Guard on allocation: a restart file may be written before the backends
-        ! are initialized (e.g. the diagnostic write inside yelmo_restart_read,
-        ! which runs before ytrc_init), and there is nothing to save yet.
+        ! are initialized (e.g. by a C-API host before yelmo_init_state calls
+        ! ytrc_init), and there is nothing to save yet.
         if (trc%par%use_elsa .and. allocated(trc%elsa%now%d_iso)) then
             call elsa_restart_write(trc%elsa,trim(ytrc_restart_filename(filename,"elsa")))
         end if
