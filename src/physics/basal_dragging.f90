@@ -212,7 +212,7 @@ contains
                 ! Apply minimum of sed scaling and current cb_ref
                 ! sed scaling also goes from cf_ref to cf_min
 
-                !$omp parallel do collapse(2) private(i,j,lambda_bed)
+                !$omp parallel do collapse(2) private(i,j,lambda_bed,cb_ref_now)
                 do j = 1, ny 
                 do i = 1, nx 
 
@@ -229,6 +229,7 @@ contains
                     
                 end do
                 end do
+                !$omp end parallel do
 
             case(2,3)
                 ! Sediment scaling:
@@ -326,6 +327,7 @@ contains
                 if (T_frz .ge. 0.0) then
                     write(io_unit_err,*) "Error: calc_c_bed:: T_frz must be less than zero."
                     write(io_unit_err,*) "ydyn.T_frz = ", T_frz
+                    stop 
                 end if
 
                 do j = 1, ny 
