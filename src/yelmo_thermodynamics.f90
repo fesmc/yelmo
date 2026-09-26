@@ -275,7 +275,7 @@ contains
         real(wp), intent(INOUT) :: T_ice(:,:,:)   ! [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:,:,:)   ! [--] Ice water content
         real(wp), intent(INOUT) :: bmb_grnd(:,:)  ! [m a-1] Basal mass balance (melting is negative)
-        real(wp), intent(OUT)   :: Q_ice_b(:,:)   ! [J a-1 m-2] Basal ice heat flux 
+        real(wp), intent(OUT)   :: Q_ice_b(:,:)   ! [mW m-2] Basal ice heat flux 
         real(wp), intent(OUT)   :: H_cts(:,:)     ! [m] Height of the cold-temperate transition surface (CTS)
         real(wp), intent(INOUT) :: T_pmp(:,:,:)   ! [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:,:,:)      ! [J kg-1 K-1] Specific heat capacity

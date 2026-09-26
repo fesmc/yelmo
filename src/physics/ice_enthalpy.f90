@@ -556,7 +556,7 @@ end if
         real(wp), intent(INOUT) :: T_ice(:)       ! nz_aa [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:)       ! nz_aa [-] Ice column water content fraction
         real(wp), intent(INOUT) :: bmb_grnd       ! [m a-1] Basal mass balance (melting is negative)
-        real(wp), intent(OUT)   :: Q_ice_b        ! [J a-1 m-2] Ice basal heat flux (positive up)
+        real(wp), intent(OUT)   :: Q_ice_b        ! [mW m-2] Ice basal heat flux (positive up)
         real(wp), intent(OUT)   :: H_cts          ! [m] cold-temperate transition surface (CTS) height
         real(wp), intent(IN)    :: T_pmp(:)       ! nz_aa [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:)          ! nz_aa [J kg-1 K-1] Specific heat capacity
@@ -593,7 +593,7 @@ end if
         real(wp) :: omega_excess
         real(wp) :: melt_internal
         real(wp) :: val_base, val_srf
-        real(wp) :: Q_b_now, Q_lith_now
+        real(wp) :: Q_b_now, Q_lith_now, Q_ice_b_now
         real(wp) :: enth_ref
         logical  :: is_basal_flux
         logical  :: is_float
@@ -789,19 +789,22 @@ end if
         if (H_ice .gt. 0.0_wp) then
             dz = H_ice * (zeta_aa(2)-zeta_aa(1))
             if (enth_Q_ice_b) then
-                Q_ice_b = -kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz
+                Q_ice_b_now = -kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz
             else
-                Q_ice_b = -kt(1) * ( T_ice(2) - T_ice(1) ) / dz
+                Q_ice_b_now = -kt(1) * ( T_ice(2) - T_ice(1) ) / dz
             end if
         else
-            Q_ice_b = 0.0_wp
+            Q_ice_b_now = 0.0_wp
         end if
 
+        ! Calculate Q_ice_b for global output
+        Q_ice_b = Q_ice_b_now*1e3/sec_year      ! [J a-1 m-2] => [mW m-2]
+
         ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
-        ! Q_b_now/Q_lith_now are in [J a-1 m-2] (converted above); Q_ice_b is positive up.
+        ! Q_b_now/Q_lith_now/Q_ice_b_now are in [J a-1 m-2]; Q_ice_b_now is positive up.
         if (f_grnd .gt. 0.0_wp) then
             call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
-                                            Q_ice_b,Q_b_now,Q_lith_now,rho_ice,L_ice)
+                                            Q_ice_b_now,Q_b_now,Q_lith_now,rho_ice,L_ice)
         else
             bmb_grnd = 0.0_wp
         end if
