@@ -366,7 +366,8 @@ contains
         filled    = mask_ac .ne. 0.0_wp
         mask_fill = mask_orig
 
-        if (sum(mask_orig) .eq. 0.0_wp) then
+        if (.not. any(filled)) then
+            ! No filled cells to extrapolate from
             deallocate(filled)
             return
         end if
@@ -414,7 +415,8 @@ contains
         filled    = mask_ac .ne. 0.0_wp
         mask_fill = mask_orig
 
-        if (sum(mask_orig) .eq. 0.0_wp) then
+        if (.not. any(filled)) then
+            ! No filled cells to extrapolate from
             deallocate(filled)
             return
         end if

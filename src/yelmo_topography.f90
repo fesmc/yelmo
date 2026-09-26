@@ -1483,6 +1483,13 @@ end if
                                   "zero|none|stress-b12")
         end if
 
+        if (par%dt_lsf .gt. 0.0_wp .and. par%dt_lsf .lt. 0.01_wp) then
+            ! LSFsnap checks the reflag time on a 0.01 yr resolution (nint(time*100)),
+            ! so smaller positive intervals are not representable (and nint(dt_lsf*100)=0).
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.dt_lsf must be <= 0 (disabled) &
+                                 &or >= 0.01 yr; got ", par%dt_lsf
+            stop "Program stopped."
+        end if
         if (par%grad_lim .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim
             stop "Program stopped."
