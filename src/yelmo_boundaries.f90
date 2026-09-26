@@ -71,7 +71,8 @@ contains
         c%conv_millionkm3_Gt  = (1e6) * (1e9) *c%conv_m3_Gt     ! [1e6km3/1] * [1e9m^3/km^3] * conv
         
         c%area_seasurf        = 3.618e8                         ! [km^2]
-        c%conv_km3_sle        = (1e-3) / 394.7                  ! [m/mm] / [km^3 to raise ocean by 1mm] => m sle, see https://sealevel.info/conversion_factors.html
+        ! [m sle / km^3 ice]: km^3 ice => m^3 liquid water, spread over the ocean surface area
+        c%conv_km3_sle        = (c%rho_ice/c%rho_w) * (1e9) / (c%area_seasurf*1e6)
 
         if (yelmo_log) then
             write(*,*) ""
