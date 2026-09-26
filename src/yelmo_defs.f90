@@ -440,7 +440,7 @@ module yelmo_defs
         integer    :: nx, ny, nz_aa, nz_ac 
         real(wp)   :: dx, dy
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         real(dp)   :: time
 
         integer    :: ssa_iter_now              ! Number of iterations used for Picard iteration to solve ssa this timestep
@@ -598,7 +598,7 @@ module yelmo_defs
         real(wp)   :: speed
 
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         
     end type 
 
@@ -672,7 +672,7 @@ module yelmo_defs
         integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
 
         real(wp), allocatable :: zeta_aa(:)          ! Layer centers (aa-nodes): nz_aa points
-        real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa+1 points
 
     end type
 
@@ -702,7 +702,7 @@ module yelmo_defs
     
     type zeta_column_class 
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
 
         real(wp), allocatable :: dzeta_a(:)
         real(wp), allocatable :: dzeta_b(:)
@@ -1063,7 +1063,7 @@ module yelmo_defs
         
         ! Sigma coordinates (internal parameter)
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         
         ! Other internal parameters
         logical  :: use_restart 

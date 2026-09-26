@@ -29,7 +29,7 @@ contains
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
@@ -259,7 +259,7 @@ contains
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
@@ -377,7 +377,7 @@ contains
         ! Note zeta= column height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
@@ -546,7 +546,7 @@ end if
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
@@ -822,7 +822,7 @@ end if
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
