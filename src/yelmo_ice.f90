@@ -9,7 +9,7 @@ module yelmo_ice
     use yelmo_grid, only : yelmo_init_grid, calc_zeta
     use yelmo_timesteps, only : ytime_init, set_pc_beta_coefficients, set_adaptive_timestep, set_adaptive_timestep_pc,   &
                                 set_pc_mask, calc_pc_eta, calc_pc_tau_fe_sbe,calc_pc_tau_ab_sam, calc_pc_tau_heun,  &
-                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write, calc_adv3D_timestep1
+                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write
     use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients
     use yelmo_io 
 

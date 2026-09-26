@@ -27,7 +27,6 @@ module yelmo_timesteps
     public :: yelmo_timestep_write
 
     public :: calc_adv2D_timestep1
-    public :: calc_adv3D_timestep1 
 
     public :: check_checkerboard 
 
@@ -724,8 +723,6 @@ end if
         ! ajr: diffusivity D2D is not available right now (SIA solver does not calculate it)
         ! So, diffusivity needs to be diagnosed, to be able to estimate dt_diff properly. 
 
-!         dt_adv3D = calc_adv3D_timestep1(ux,uy,uz,dx,dx,H_ice,zeta_ac,cfl_max)
-!         dt_adv3D = calc_adv3D_timestep(ux,uy,uz,H_ice,zeta_ac,dx,dx,cfl_max)
         dt_adv3D = 1000.0    ! Prescribe something just to avoid compiler warnings 
 
         ! Get minimum from adv and diffusive timesteps
@@ -917,77 +914,6 @@ end if
 
     end function calc_adv2D_timestep1
 
-    function calc_adv3D_timestep1(ux,uy,uz,dx,dy,H_ice,zeta_ac,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux(:,:,:)        ! acx-nodes
-        real(wp), intent(IN) :: uy(:,:,:)        ! acy-nodes
-        real(wp), intent(IN) :: uz(:,:,:)        ! acz-nodes  
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: H_ice(:,:)       ! aa-nodes 
-        real(wp), intent(IN) :: zeta_ac(:)       ! ac-nodes 
-        real(wp), intent(IN) :: cfl_max          ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt(size(ux,1),size(ux,2),size(ux,3))    ! aa-nodes 
-
-        ! Local variables  
-        integer :: i, j, k, nx, ny, nz_aa  
-        real(wp) :: ux_now, uy_now 
-        real(wp) :: dz 
-
-        nx    = size(ux,1)
-        ny    = size(ux,2)
-        nz_aa = size(zeta_ac)+1  
-
-        ! Set a high timestep to start 
-        dt = cfl_max * 1.0 / (1e-3)
-
-        do j = 2, ny-1 
-        do i = 2, nx-1 
-
-            if (H_ice(i,j) .gt. 0.0) then 
-
-!             ux_now = abs( 0.5*(ux(i-1,j)+ux(i,j)) )
-!             uy_now = abs( 0.5*(uy(i,j-1)+uy(i,j)) )
-
-            !ux_now = max(abs(ux(i-1,j)),abs(ux(i,j)))
-            !uy_now = max(abs(uy(i,j-1)),abs(uy(i,j)))
-            
-            !dt(i,j) = cfl_max * 1.0 / max(ux_now/dx + uy_now/dy,1e-3)
-
-!             dt(i,j) = cfl_max * 1.0 / max(abs(ux(i-1,j))/dx + abs(ux(i,j))/dx &
-!                                         + abs(uy(i,j-1))/dy + abs(uy(i,j))/dy,1e-3)
-            
-                do k = 2, nz_aa-1 
-
-                    dz = H_ice(i,j) * (zeta_ac(k)-zeta_ac(k-1))
-
-                    dt(i,j,k) = cfl_max * 1.0 / max(abs(ux(i-1,j,k))/(2.0*dx) + abs(ux(i,j,k))/(2.0*dx) &
-                                            + abs(uy(i,j-1,k))/(2.0*dy) + abs(uy(i,j,k))/(2.0*dy), &
-                                            + abs(uz(i,j,k-1))/(2.0*dz) + abs(uz(i,j,k))/(2.0*dz), 1e-3)
-    !                 dt(i,j,k) = cfl_max * 1.0 / max(abs(ux(i-1,j,k))/(2.0*dx) + abs(ux(i,j,k))/(2.0*dx) &
-    !                                         + abs(uy(i,j-1,k))/(2.0*dy) + abs(uy(i,j,k))/(2.0*dy), 1e-3)
-                
-                end do 
-
-            end if 
-
-        end do 
-        end do 
-
-        return 
-
-    end function calc_adv3D_timestep1
-    
     elemental function calc_adv2D_timestep(ux,uy,dx,dy,cfl_max) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
@@ -1068,96 +994,6 @@ end if
         return 
 
     end subroutine calc_adv2D_velocity
-    
-    function calc_adv3D_timestep(ux,uy,uz,H_ice,zeta_ac,dx,dy,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-        ! Note: this is used by Bueler et al. (2007), but it seems 
-        ! to impose a very, very small timestep, given the vertical
-        ! velocity at the surface (ie, smb) essentially ends up being the
-        ! limiting condition. 
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux(:,:,:), uy(:,:,:), uz(:,:,:)
-        real(wp), intent(IN) :: H_ice(:,:) 
-        real(wp), intent(IN) :: zeta_ac(:) 
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: cfl_max             ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt 
-
-        ! Local variables 
-        integer    :: i, j, k, nx, ny, nz_aa 
-        real(wp) :: dt_check, dt_max 
-        real(wp) :: dz, ux_aa, uy_aa, uz_aa  
-
-        real(wp), parameter :: tol = 1e-5 
-
-        nx    = size(ux,1)
-        ny    = size(ux,2)
-        nz_aa = size(ux,3)
-
-        ! Start with a really high time step 
-        dt_max = cfl_max * 1.0 / tol 
-        dt     = dt_max
-
-!         write(*,*) "cfl_max = ", cfl_max 
-!         write(*,*) "dt_max  = ", dt_max 
-
-!         write(*,*) "calc_adv3D_timestep:: Error: This routine is not working yet."
-        
-!         stop 
-
-        ! Loop over horizontal grid points 
-        do j = 2, ny 
-        do i = 2, nx 
-
-            if (H_ice(i,j) .gt. 0.0) then 
-
-                ! Loop over the vertical layers
-                do k = 1, nz_aa-1 
-                    ux_aa = 0.5*(ux(i-1,j,k)+ux(i,j,k))
-                    uy_aa = 0.5*(uy(i,j-1,k)+uy(i,j,k))
-
-                    if (k .le. 1 .or. k .ge. nz_aa-1) then 
-                        ! No interpolation of vertical velocity at the base or surface
-                        uz_aa = uz(i,j,k) 
-                    else
-                        ! Interpolation to vertical aa-nodes
-                        uz_aa = 0.5*(uz(i,j,k-1)+uz(i,j,k))
-                    end if 
-
-                    if (k .le. 1) then 
-                        dz = 1e-5 
-                    else 
-                        dz = max(H_ice(i,j)*(zeta_ac(k)-zeta_ac(k-1)),1e-5)
-                    end if 
-                    
-                    dt_check = cfl_max * 1.0 / max(abs(ux_aa)/dx + abs(uy_aa)/dy + abs(uz_aa)/dz,tol)
-
-!                     write(*,*) i, j, k, dt_check, dt_max, ux_aa, ux_aa, uz_aa, &
-!                                     abs(ux_aa)/dx + abs(ux_aa)/dy + abs(uz_aa)/dz
-
-                    dt_max = min(dt_check,dt_max)
-                end do 
-
-            end if 
-
-        end do 
-        end do 
-
-!         stop 
-
-        return 
-
-    end function calc_adv3D_timestep
     
     subroutine calc_checkerboard(var_check,var,mask)
 

@@ -1155,7 +1155,9 @@ contains
         real(wp), parameter :: S0 =   34.75       ! [g / kg == PSU]
         real(wp) :: f_scalar, H_grnd_lim 
 
-        T_base_shlf = a1*S0 + b1 + c1*(rho_ice/rho_sw)*H_ice + T0 
+        ! Freezing point decreases with depth: the Jenkins (1991) depth term is
+        ! c1*z_b with z_b<0 the base elevation, i.e. minus c1 times the draft.
+        T_base_shlf = a1*S0 + b1 - c1*(rho_ice/rho_sw)*H_ice + T0
 
         ! Additionally ensure that the shelf temperature is approaching the pressure melting point
         ! as the grounding line is reached 
