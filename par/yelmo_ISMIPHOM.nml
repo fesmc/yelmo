@@ -19,7 +19,7 @@
     domain          = "ISMIPHOM"
     grid_name       = "ISMIPHOM"
     grid_path       = "none"
-    phys_const      = "TROUGH"
+    phys_const      = "ISMIPHOM"
     experiment      = "periodic"        ! "None", "EISMINT", "MISMIP3D", "BUELER",  to apply special boundary conditions   
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"

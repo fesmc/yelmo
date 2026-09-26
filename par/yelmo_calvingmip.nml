@@ -17,7 +17,7 @@
     domain          = "EISMINT"
     grid_name       = "EISMINT"
     grid_path       = "none"
-    phys_const      = "EISMINT"
+    phys_const      = "CALVINGMIP"
     experiment      = "EISMINT"         ! "None", "EISMINT", "MISMIP3D", "BUELER"  to apply special boundary conditions   
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"

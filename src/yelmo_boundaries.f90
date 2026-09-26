@@ -37,6 +37,12 @@ contains
                 group = "EISMINT"        
             case("MISMIP","MISMIP3D")
                 group = "MISMIP3D"
+            case("MISMIP+","MISMIPplus")
+                group = "MISMIPplus"
+            case("ISMIPHOM","ISMIP-HOM")
+                group = "ISMIPHOM"
+            case("CALVINGMIP","CalvingMIP")
+                group = "CALVINGMIP"
             case("TROUGH")
                 group = "TROUGH"
             case DEFAULT
