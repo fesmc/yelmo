@@ -109,6 +109,7 @@ contains
 
         integer :: im1, ip1, jm1, jp1 
         real(wp) :: N_aa_now
+        integer  :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
@@ -118,41 +119,6 @@ contains
             ! Object 'lgs' has not been initialized yet, do so now.
 
             call linear_solver_init(lgs,nx,ny,nvar=2,n_terms=9)
-
-        end if 
-
-        if (count(ssa_mask_acx .eq. 1) + count(ssa_mask_acy .eq. 1) .gt. 0) then 
-            ! Points exist for ssa solver to treat
-
-            ! Consistency check: ensure beta is defined well 
-            if ( ( count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0) .eq. 0 ) .or. & 
-                 ( count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0) .eq. 0 ) ) then  
-                ! No points found with a non-zero beta for grounded ice,
-                ! something was not well-defined/well-initialized, give a warning
-                ! with some statistics. In the actual solver, beta will
-                ! be given a small non-zero value for these points.
-
-                write(*,*)
-                write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
-                write(*,*) "count(ssa_mask_acx .eq. 1) = ", count(ssa_mask_acx .eq. 1)
-                write(*,*) "count(ssa_mask_acy .eq. 1) = ", count(ssa_mask_acy .eq. 1)
-                write(*,*) "count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0) = ", &
-                                        count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0)
-                write(*,*) "count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0) = ", &
-                                        count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0)
-                write(*,*)
-
-                ! write(*,*) 
-                ! write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Error: beta appears to be zero everywhere for grounded ice."
-                ! write(*,*) "range(beta_acx): ", minval(beta_acx), maxval(beta_acx)
-                ! write(*,*) "range(beta_acy): ", minval(beta_acy), maxval(beta_acy)
-                ! write(*,*) "range(ssa_mask_acx): ", minval(ssa_mask_acx), maxval(ssa_mask_acx)
-                ! write(*,*) "range(ssa_mask_acy): ", minval(ssa_mask_acy), maxval(ssa_mask_acy)
-                ! write(*,*) "Stopping."
-                ! write(*,*) 
-                ! stop 
-                
-            end if 
 
         end if 
 
@@ -242,6 +208,13 @@ contains
         lgs%a_ptr(1) = 1
 
         k = 0
+
+        ! Counters of inner grounded rows (and those with beta > 0) for the
+        ! beta consistency check after assembly
+        n_grnd_x = 0
+        n_beta_x = 0
+        n_grnd_y = 0
+        n_beta_y = 0
 
         do n=1, lgs%nmax-1, 2
 
@@ -481,6 +454,11 @@ contains
 
                 beta_now = beta_acx(i,j)
                 if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0) beta_now = beta_min
+
+                if (ssa_mask_acx(i,j) .eq. 1) then
+                    n_grnd_x = n_grnd_x + 1
+                    if (beta_acx(i,j) .gt. 0.0) n_beta_x = n_beta_x + 1
+                end if
 
                 ! -- vx terms -- 
 
@@ -765,6 +743,11 @@ contains
                 beta_now = beta_acy(i,j)
                 if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0) beta_now = beta_min
 
+                if (ssa_mask_acy(i,j) .eq. 1) then
+                    n_grnd_y = n_grnd_y + 1
+                    if (beta_acy(i,j) .gt. 0.0) n_beta_y = n_beta_y + 1
+                end if
+
                 ! -- vy terms -- 
 
                 nc = 2*lgs%ij2n(i,j)        ! column counter for uy(i,j)
@@ -828,6 +811,24 @@ contains
             lgs%a_ptr(nr+1) = k+1   ! row is completed, store index to next row
 
         end do
+
+        ! Consistency check: ensure beta is defined well for grounded ice.
+        ! Only inner rows (momentum equations with a friction term) are counted;
+        ! border and lateral-bc rows do not use beta.
+        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
+             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
+            ! No inner grounded points found with a non-zero beta,
+            ! something was not well-defined/well-initialized, give a warning
+            ! with some statistics. In the assembly above, beta=beta_min
+            ! was used for these points.
+
+            write(*,*)
+            write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
+            write(*,*) "inner grounded acx rows: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
+            write(*,*) "inner grounded acy rows: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
+            write(*,*)
+
+        end if
 
         ! Done: A, x and b matrices in Ax=b have been populated 
         ! and stored in lgs object. 
