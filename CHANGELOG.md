@@ -1,5 +1,105 @@
 # Yelmo changelog
 
+## Unreleased (dev)
+
+Mostly fixes from a whole-source audit (2026-09). Most default runs change a
+little. MISMIP3D and DIVA runs change more.
+
+### Changes that affect existing par files
+
+- **`ydyn.pc_corr_vel` removed** (it was unused). `nml_validate` stops on unknown
+  parameters, so delete it from external par files.
+- **`ydyn.ssa_lat_bc = "floating"` now means floating fronts only.** The producer
+  and consumer of the ice-front mask disagreed on its codes, so `"floating"` acted as
+  `"marine"` (floating and grounded marine fronts). The codes are now shared
+  (`MASK_FRNT_*` in `yelmo_defs`). The default and all shipped par files use
+  `"marine"`, which keeps previous results. External par files that set `"floating"`
+  change behaviour at grounded marine fronts: switch to `"marine"` to keep it.
+- **Benchmark physical constants follow the published protocols**
+  (`input/yelmo_phys_const.nml`). EISMINT uses ρ_ice = 910. MISMIP3D uses g = 9.8,
+  ρ_sw = 1000 and a 365-day year. There are new `MISMIPplus`, `ISMIPHOM` and
+  `CALVINGMIP` groups. MISMIP3D changes a lot: Stnd at 16.1 ka has x_gl 400→500 km
+  and volume +33%. EISMINT H changes by +0.27% and ISMIP-HOM by about −1%.
+- **CalvingMIP uses constant N_eff = 1 Pa again** (`bkt_N_closure = 0`,
+  `const_N = 1`). Since the `neff_method` retirement it had been mapped to the
+  overburden closure with `cf_ref = 1e4`, which froze the bed.
+- **`k24_eta_w` in the par files is now SI** (5.70e-11 Pa s). The old value was a
+  stale per-year one, about 3e7 times too large.
+- **Requires FastHydrology dev ≥ `5c83050`** (new `hydro_calc_N`, and
+  `hydro_init_state` now takes `H_ice`).
+
+### Answer-changing fixes
+
+- **Basal water and freshwater flux:** the ρ_ice/ρ_w ratio was inverted in the basal
+  water predictor and the freshwater flux.
+- **N_eff is evaluated on the current dynamics geometry.** Since `neff_method` was
+  retired, N_eff came from hydrology computed on geometry 1–2 steps old. Newly iced
+  or newly grounded cells therefore had N = 0 (free sliding). `calc_ydyn_neff` now
+  calls FastHydrology's state-free `hydro_calc_N` on `H_ice_dyn`. K24 and external N
+  still use `hyd%now%N`. FastHydrology now starts N at overburden, so K24 no longer
+  starts from N = 0. TROUGH mean H changes by −1.4%, and the "beta appears to be
+  zero" warnings in CalvingMIP and EISMINT with SSA/DIVA are gone.
+- **DIVA:** β_eff is now computed on ac-nodes from staggered β and F2. It was
+  staggered from aa-nodes, which could reverse u_b, and no-slip gave 1/F2 = Inf.
+  This affects every DIVA run: TROUGH uxy +1.4%.
+- **Vertical grid:** the quad3D strain-rate `dzx`/`dzy` used the wrong vertical
+  faces. The enthalpy conductivity and internal-melt layer thickness used stale
+  `nz_ac = nz_aa-1` indexing. The sign of the depth term in the shelf-base freezing
+  point was wrong. Enthalpy `Q_ice_b` is now output in mW m-2.
+- **Stress and strain:** the 2D stress used the previous viscosity. Strain rates
+  are reset at partial and ice-free cells.
+- **Hydrology coupling:** K24 now receives `uxy_b` and `A_glen` in SI units.
+  FastHydrology's ρ_ice, ρ_w, ρ_sw and g now come from Yelmo's domain constants.
+- **Eulerian tracer advection** read values already updated earlier in the same
+  sweep. EISMINT age asymmetry is now 2.4 yr (was 78 yr).
+- **Periodic boundaries:** there is now one true-wrap convention everywhere (period
+  n, no halo; `periodic-x` wraps in x and is infinite in y). Beta staggering, the
+  halo routines and the impl-lis advection builder follow it. The thermodynamics
+  now solves the periodic edge columns instead of copying them. Non-periodic runs
+  are unchanged. The ISMIP-HOM shift error drops from 0.22 to 1e-6.
+- **Mass conservation:** the 10% `mb_resid` overshoot is applied only where ice is
+  removed. The margin thickness limit can no longer add ice at fractional cells.
+- **Linear solver:** an all-zero RHS returns x = 0. Before, Lis returned NaN, which
+  was clamped to +u_max. `limit_vel` now lets NaN through, so it is caught by
+  `yelmo_check_kill`.
+
+### Non-default options
+
+- **Calving:** the ISMIP7 retreat now follows the flow direction on ac-nodes, and
+  uses thermal forcing relative to the local seawater freezing point (new
+  `calc_T_freeze_sw`) and the true water depth. Eigencalving is zero unless both
+  eigenvalues are positive.
+- **LSF:** advected with its own all-dynamic mask, no longer held at 0 where ice is
+  not allowed. Ocean cells are pinned to lsf = +1.
+- **SSA:** fixes for `visc_method = 0` and `2`, and for the energy solver with the
+  "mask" boundary condition.
+- **Grounding line:** fixes for `taud_gl_method = 2, 3` and `beta_gl_stag = 4`,
+  which removes a N–S asymmetry in TROUGH.
+- **Discharge:** `dmb_method = 1` no longer scales `dist_grline` by dx a second time.
+- **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
+
+### Diagnostics
+
+- Regional budgets integrate fluxes over the region, weight by the true projected
+  cell area and `f_ice`, and now close: TROUGH `cmb` was always 0. Regional values
+  on polar stereographic grids change by 3–5%.
+- `mb_err` is now a true mass-balance residual (it was `dHidt_dyn`), and
+  `tot_dHidt_dyn` is added to the budget.
+- NH-* predefined grids: y0 = −5400 km (was +5400 km).
+- Domains with no regions file default to `regions = 0` (Greenland keeps 1.3).
+- New `write_metrics` option writing `yelmo_metrics.nc`.
+- The restart read no longer writes a debug `yelmo_restart_init.nc`.
+
+### Other
+
+- C API: read-only getters for `dta%pd%uxy_s` and `dta%pd%H_grnd`, and setters for
+  `hyd_N`/`hyd_W_til`. `yhyd.is_external` lets a host model own N_eff.
+- `hyd%now%q` is written to restarts. MISMIP3D is handled in
+  `ybound_define_mask_ice`.
+- Removed dead code: `calc_adv3D_timestep*`, `dt_adv3D` and `index_north`/`south`.
+- New docs page on numerical precision (why the symmetry check needs double
+  precision for DIVA, and a plan for double-precision internals).
+
 ## v2.3.1 (2026-07-17)
 
 - **Fix ISMIPHOM aborting at startup.** `par/yelmo_ISMIPHOM.nml` still set
