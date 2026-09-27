@@ -7,6 +7,7 @@ program yelmo_test
     use yelmo 
 
     use ice_optimization 
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -355,7 +356,8 @@ program yelmo_test
                 ! Update ice sheet 
                 call yelmo_update(yelmo1,time)
 
-                if (mod(nint(time*100),nint(dt2D_out*100))==0) then
+                ! int64: a default integer overflows for |time| > ~2.1e7 yr
+                if (mod(nint(time*100,int64),nint(dt2D_out*100,int64))==0) then
                     call write_step_2D_opt(yelmo1,file2D,time,mb_corr,mask_noice,tau,err_scale)
                 end if 
 

@@ -10,6 +10,7 @@ program yelmo_mask_ice
     use ncio
     use yelmo
     use timestepping
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none
 
@@ -195,11 +196,12 @@ program yelmo_mask_ice
 
         call yelmo_update(yelmo1,ts%time)
 
-        if (mod(nint(ts%time_elapsed*100),nint(dt2D_out*100))==0) then
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(ts%time_elapsed*100,int64),nint(dt2D_out*100,int64))==0) then
             call write_step_2D(yelmo1,file2D,time=ts%time)
         end if
 
-        if (mod(nint(ts%time_elapsed*100),nint(dt1D_out*100))==0) then
+        if (mod(nint(ts%time_elapsed*100,int64),nint(dt1D_out*100,int64))==0) then
             call yelmo_write_reg_step(yelmo1,file1D,time=ts%time)
         end if
 
