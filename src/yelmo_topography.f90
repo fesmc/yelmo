@@ -1108,7 +1108,8 @@ end if
             case(1) 
                 ! Binary f_grnd, linear f_grnd_acx/acy based on H_grnd
 
-                call calc_f_grnd_subgrid_linear(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%H_grnd)
+                call calc_f_grnd_subgrid_linear(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%H_grnd, &
+                                                                tpo%par%boundaries)
 
             case(2)
                 ! Grounded area f_grnd, average to f_grnd_acx/acy 
