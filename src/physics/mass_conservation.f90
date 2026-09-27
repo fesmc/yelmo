@@ -925,7 +925,7 @@ contains
 
     end subroutine calc_G_relaxation
 
-    subroutine extend_floating_slab(H_ice,f_grnd,H_slab,n_ext)
+    subroutine extend_floating_slab(H_ice,f_grnd,H_slab,n_ext,boundaries)
         ! Extend ice field so that there is always 
         ! floating ice next to grounded marine margins
         ! Extended ice should be very thin, will 
@@ -938,11 +938,13 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:) 
         real(wp), intent(IN)    :: H_slab       ! Typically 1 or 0.1 m. 
         integer,  intent(IN)    :: n_ext        ! Number of points to extend slab
+        character(len=*), intent(IN) :: boundaries 
         
         ! Local variables 
         integer :: i, j, nx, ny, iter 
         integer :: im1, ip1, jm1, jp1
         logical :: is_marine 
+        integer :: BC
 
         logical  :: ms4(4)
         real(wp) :: Hi4(4) 
@@ -960,29 +962,16 @@ contains
         mask_slab = .FALSE. 
         H_new     = H_ice 
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         do iter = 1, n_ext
 
             do j = 1, ny 
             do i = 1, nx 
 
-                ! BC: Periodic boundary conditions
-                im1 = i-1
-                if (im1 == 0) then
-                    im1 = nx
-                end if
-                ip1 = i+1
-                if (ip1 == nx+1) then
-                    ip1 = 1
-                end if
-
-                jm1 = j-1
-                if (jm1 == 0) then
-                    jm1 = ny
-                end if
-                jp1 = j+1
-                if (jp1 == ny+1) then
-                    jp1 = 1
-                end if
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
                 if ( f_grnd(i,j) .eq. 0.0 .and. H_ice(i,j) .eq. 0.0 ) then 
                     ! Floating ice-free ocean point
@@ -1022,7 +1011,7 @@ contains
 
     end subroutine extend_floating_slab
 
-    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,dt)
+    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,dt,boundaries)
         ! Eliminate fractional ice covered points that only 
         ! have fractional ice neighbors. 
 
@@ -1032,14 +1021,19 @@ contains
         real(wp), intent(IN)  :: H_ice(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
         real(wp), intent(IN)  :: dt 
+        character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_new(:,:) 
+        integer :: BC
 
         nx = size(H_ice,1) 
         ny = size(H_ice,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         allocate(H_new(nx,ny)) 
 
@@ -1049,24 +1043,8 @@ contains
         do j = 1, ny 
         do i = 1, nx 
 
-            ! BC: Periodic boundary conditions
-            im1 = i-1
-            if (im1 == 0) then
-                im1 = nx
-            end if
-            ip1 = i+1
-            if (ip1 == nx+1) then
-                ip1 = 1
-            end if
-
-            jm1 = j-1
-            if (jm1 == 0) then
-                jm1 = ny
-            end if
-            jp1 = j+1
-            if (jp1 == ny+1) then
-                jp1 = 1
-            end if
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             if (f_ice(i,j) .gt. 0.0 .and. f_ice(i,j) .lt. 1.0) then 
                 ! Fractional ice-covered point 

@@ -690,7 +690,7 @@ end if
 
 
         ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt)
+        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,mbal_now,dt,"frac",adjust_mb=.TRUE.)
@@ -964,7 +964,7 @@ end if
         call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt)
+        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         !mbal_now = 0.0_wp  ! ajr, commented this out, as it is zeroed out above. Otherwise
@@ -1221,7 +1221,8 @@ end if
                 where(tpo%now%H_ice_dyn .gt. 0.0 .and. tpo%now%H_ice_dyn .lt. 1.0) &
                         tpo%now%H_ice_dyn = 1.0_wp 
 
-                call extend_floating_slab(tpo%now%H_ice_dyn,tpo%now%f_grnd,H_slab=1.0_wp,n_ext=4)
+                call extend_floating_slab(tpo%now%H_ice_dyn,tpo%now%f_grnd,H_slab=1.0_wp,n_ext=4, &
+                                                        boundaries=tpo%par%boundaries)
 
                 ! Calculate the ice fraction mask for use with the dynamics solver
                 call update_ice_fraction(tpo,bnd,tpo%now%f_ice_dyn,tpo%now%H_ice_dyn,flt_subgrid=.FALSE.)
