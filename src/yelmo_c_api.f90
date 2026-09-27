@@ -296,6 +296,9 @@ contains
       ! -----------------------------------------------------------------------
       case("dta_pd_uxy_s");      v2D = real(ylmo%dta%pd%uxy_s,      c_double)
       case("dta_pd_H_grnd");     v2D = real(ylmo%dta%pd%H_grnd,     c_double)
+      case("dta_pd_H_ice");      v2D = real(ylmo%dta%pd%H_ice,      c_double)
+      case("dta_pd_z_srf");      v2D = real(ylmo%dta%pd%z_srf,      c_double)
+      case("dta_pd_mask_bed");   v2D = real(ylmo%dta%pd%mask_bed,   c_double)
 
       ! -----------------------------------------------------------------------
       ! ytopo%now (ytopo_state_class)
