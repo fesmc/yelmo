@@ -808,7 +808,7 @@ end if
 
             case("ismip7")
                 ! Retreat of marine-terminating glaciers following ISMIP7 protocol
-                call calc_fmb_ismip7(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar, &
+                call calc_fmb_ismip7(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,tpo%now%lsf, &
                                      bnd%z_bed,bnd%z_sl,bnd%Qd,bnd%T_shlf,bnd%c%T0,tpo%par%dx,tpo%now%f_ice,tpo%par%boundaries)
 
             case DEFAULT

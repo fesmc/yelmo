@@ -402,7 +402,7 @@ contains
     !
     ! ===================================================================
 
-    subroutine calc_fmb_ismip7(cr_acx,cr_acy,u_acx,v_acy,z_bed,z_sl,Qd,T_ocn,T0,dx,f_ice,boundaries)
+    subroutine calc_fmb_ismip7(cr_acx,cr_acy,lsf,z_bed,z_sl,Qd,T_ocn,T0,dx,f_ice,boundaries)
         ! Calculate the retreat rate of marine terminating glaciers based on ISMIP7 protocol
         ! 
         ! m = (a h_w q^alpha + b) TF^beta [m/d]
@@ -417,12 +417,20 @@ contains
         ! T_f is the seawater freezing point following Jenkins (1991),
         ! evaluated at the water depth h_w assuming a constant salinity 
         ! (see calc_T_freeze_sw). The retreat rate m is converted to [m/yr]
-        ! and applied on ac-nodes against the direction of ice flow.
+        ! and applied on ac-nodes along the inward front normal -n, with
+        ! n = grad(lsf)/|grad(lsf)| the outward normal (lsf > 0 is ocean).
+        ! The front then retreats at rate m independently of the ice flow
+        ! (in the LSF velocity w = u + cr), so a stagnant front also retreats.
+        ! Where |grad(lsf)| = 0 (away from the front) there is no normal and
+        ! the retreat rate is zero; the level set is not moved there anyway.
+        ! Note: with lsf_method="snap" the lsf is saturated to +-1 next to
+        ! the front, so the normal is only resolved as axis-aligned or
+        ! diagonal directions; "redist" gives a smoother normal.
 
         implicit none 
 
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
-        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
+        real(wp), intent(IN)    :: lsf(:,:)                 ! Level-set function (aa-nodes, lsf > 0 is ocean)
         real(wp), intent(IN)    :: z_bed(:,:)               ! Bedrock elevation [m]
         real(wp), intent(IN)    :: z_sl(:,:)                ! Sea level [m]
         real(wp), intent(IN)    :: Qd(:,:)                  ! subglacial discharge [m3/s]
@@ -435,7 +443,7 @@ contains
         ! local variables
         integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
         real(wp) :: a, b, alpha, beta, m_acx, m_acy
-        real(wp) :: u_acy, v_acx, uxy_acx, uxy_acy
+        real(wp) :: gx, gy, gxy
         real(wp), allocatable :: m_aa(:,:), h_w(:,:), TF(:,:)
         integer  :: BC
 
@@ -463,7 +471,7 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,u_acy,v_acx,uxy_acx,uxy_acy)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,gx,gy,gxy)
         do j = 1, ny
             do i = 1, nx
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -487,16 +495,32 @@ contains
                     m_acy = m_aa(i,jp1)
                 end if
 
-                ! Stagger velocities x/y ac-velocities into y/x ac-nodes
-                ! to get the velocity magnitude on each ac-node
-                u_acy   = 0.25_wp*(u_acx(i,j)+u_acx(im1,j)+u_acx(im1,jp1)+u_acx(i,jp1))
-                v_acx   = 0.25_wp*(v_acy(i,j)+v_acy(i,jm1)+v_acy(ip1,jm1)+v_acy(ip1,j))
-                uxy_acx = MAX(1e-8_wp,(u_acx(i,j)**2 + v_acx**2)**0.5)
-                uxy_acy = MAX(1e-8_wp,(v_acy(i,j)**2 + u_acy**2)**0.5)
+                ! Compute calving-rates on ac-nodes (retreat along the inward
+                ! front normal). grad(lsf) on each ac-node: normal component
+                ! from the two adjacent aa-nodes, tangential component from
+                ! the centred difference averaged over them. Only the
+                ! direction is needed, so the common 1/dx factor is dropped
+                ! (dx = dy).
 
-                ! Compute calving-rates on ac-nodes (retreat against the flow direction)
-                cr_acx(i,j) = -(u_acx(i,j)/uxy_acx)*MAX(0.0_wp,m_acx)
-                cr_acy(i,j) = -(v_acy(i,j)/uxy_acy)*MAX(0.0_wp,m_acy)
+                ! x-direction
+                gx  = lsf(ip1,j) - lsf(i,j)
+                gy  = 0.25_wp*(lsf(i,jp1)+lsf(ip1,jp1)-lsf(i,jm1)-lsf(ip1,jm1))
+                gxy = sqrt(gx**2 + gy**2)
+                if (gxy .gt. 0.0_wp) then
+                    cr_acx(i,j) = -(gx/gxy)*MAX(0.0_wp,m_acx)
+                else
+                    cr_acx(i,j) = 0.0_wp
+                end if
+
+                ! y-direction
+                gy  = lsf(i,jp1) - lsf(i,j)
+                gx  = 0.25_wp*(lsf(ip1,j)+lsf(ip1,jp1)-lsf(im1,j)-lsf(im1,jp1))
+                gxy = sqrt(gx**2 + gy**2)
+                if (gxy .gt. 0.0_wp) then
+                    cr_acy(i,j) = -(gy/gxy)*MAX(0.0_wp,m_acy)
+                else
+                    cr_acy(i,j) = 0.0_wp
+                end if
             end do
         end do
         !$omp end parallel do
