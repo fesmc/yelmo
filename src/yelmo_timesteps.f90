@@ -3,7 +3,7 @@ module yelmo_timesteps
     use ncio 
 
     use yelmo_defs, only : sp, dp, wp, io_unit_err, ytime_class, MV, TOL_UNDERFLOW   
-    use yelmo_tools, only : get_neighbor_indices
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     
     use topography, only : calc_ice_fraction, calc_H_grnd
 
@@ -181,6 +181,7 @@ contains
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, jm1, ip1, jp1 
+        integer :: BC
 
         real(wp), allocatable :: f_ice_pred(:,:) 
         real(wp), allocatable :: f_ice_corr(:,:) 
@@ -191,6 +192,9 @@ contains
         
         nx = size(mask,1)
         ny = size(mask,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         allocate(f_ice_pred(nx,ny))
         allocate(f_ice_corr(nx,ny))
@@ -212,10 +216,8 @@ if (.TRUE.) then
         do j = 1, ny 
         do i = 1, nx
 
-            im1 = max(i-1,1)
-            jm1 = max(j-1,1)
-            ip1 = min(i+1,nx)
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             ! Define places that should not be checked 
 
@@ -233,8 +235,9 @@ if (.TRUE.) then
             else
                 ! Ice-covered points, further checks below
 
-                 if (count(f_ice_pred(im1:ip1,jm1:jp1).lt.1.0) .gt. 0 .or. &
-                     count(f_ice_corr(im1:ip1,jm1:jp1).lt.1.0) .gt. 0) then 
+                 ! (vector subscripts, so that the 3x3 neighborhood also wraps)
+                 if (count(f_ice_pred([im1,i,ip1],[jm1,j,jp1]).lt.1.0) .gt. 0 .or. &
+                     count(f_ice_corr([im1,i,ip1],[jm1,j,jp1]).lt.1.0) .gt. 0) then 
                     ! Point is at (or near) ice-margin point 
 
                     mask(i,j) = .FALSE. 
@@ -412,7 +415,7 @@ end if
 
     end subroutine calc_pc_tau_heun
 
-    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller)
+    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,boundaries)
         ! Calculate the timestep following algorithm for 
         ! a general predictor-corrector (pc) method.
         ! Implemented followig Cheng et al (2017, GMD)
@@ -430,6 +433,7 @@ end if
         real(wp), intent(IN)  :: dx                   ! [m]
         integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
+        character(len=*), intent(IN) :: boundaries      ! Boundary conditions of the advection (ytopo)
 
         ! Local variables
         real(wp) :: dt_n, dt_nm1, dt_nm2          ! [yr]   Timesteps (n:n-2)
@@ -542,7 +546,7 @@ end if
         ! edge for explicit advection) proved unstable at the nonlinear SIA moving
         ! margin (grid-axis 2dx oscillations breaking dome symmetry), so use 0.5
         ! as a safety factor without being as restrictive as the diagnostic cfl_max.
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp) )
+        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp,boundaries=boundaries) )
         dtmax_now = min(dtmax,dt_adv) 
 
         ! Finally, ensure timestep is within prescribed limits
@@ -680,7 +684,7 @@ end if
     end function calc_pi_rho_PID1
 
     subroutine set_adaptive_timestep(dt,dt_adv,ux_bar,uy_bar,dHicedt, &
-                        dx,dtmin,dtmax,cfl_max)
+                        dx,dtmin,dtmax,cfl_max,boundaries)
         ! Determine value of adaptive timestep to be consistent with 
         ! min/max timestep range and maximum allowed step of model 
         ! to line up with control time steps
@@ -694,6 +698,7 @@ end if
         real(wp), intent(IN)  :: dHicedt(:,:)    ! [m a-1]
         real(wp), intent(IN)  :: dx, dtmin, dtmax ! [a]
         real(wp), intent(IN)  :: cfl_max
+        character(len=*), intent(IN) :: boundaries  ! Boundary conditions of the advection (ytopo)
         
         ! Local variables 
         real(wp) :: dt_adv_min 
@@ -707,7 +712,7 @@ end if
         ! Timestep limit determined from CFL condition for general advective
         ! velocity (adapted from Bueler et al., 2007)
 
-        dt_adv   = calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max)
+        dt_adv   = calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max,boundaries)
 
         ! Get minimum advective timestep
         dt_adv_min  = minval(dt_adv)
@@ -729,7 +734,7 @@ end if
         ! Check if additional timestep reduction is necessary,
         ! due to checkerboard patterning related to mass conservation.
         ! Reduce if necessary 
-        call check_checkerboard(is_unstable,dHicedt,rate_lim)
+        call check_checkerboard(is_unstable,dHicedt,rate_lim,boundaries)
         if (is_unstable) dt = rate_scalar*dt
 
         ! Finally, ensure timestep is within prescribed limits
@@ -816,7 +821,7 @@ end if
 
     end subroutine set_to_nearest_timestep
 
-    function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max) result(dt)
+    function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max,boundaries) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
         ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
@@ -833,10 +838,15 @@ end if
         real(wp), intent(IN) :: uy(:,:)           ! acy-nodes 
         real(wp), intent(IN) :: dx, dy
         real(wp), intent(IN) :: cfl_max           ! Maximum Courant number, default cfl_max=1.0
+        character(len=*), intent(IN) :: boundaries
         real(wp) :: dt(size(ux,1),size(ux,2))     ! aa-nodes 
 
         ! Local variables  
         integer :: i, j, nx, ny 
+        integer :: i1, i2, j1, j2
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
         real(wp) :: ux_now, uy_now 
 
         real(wp), parameter :: eps = 1e-1         ! [m/a] Small factor to avoid divide by zero 
@@ -844,14 +854,35 @@ end if
         nx = size(ux,1)
         ny = size(ux,2)
 
-        do j = 2, ny-1 
-        do i = 2, nx-1 
+        ! Include all points in periodic directions (true wrap), otherwise
+        ! only the interior (the border values are copied from it below)
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
-!             ux_now = abs( 0.5*(ux(i-1,j)+ux(i,j)) )
-!             uy_now = abs( 0.5*(uy(i,j-1)+uy(i,j)) )
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
 
-            ux_now = max(abs(ux(i-1,j)),abs(ux(i,j)))
-            uy_now = max(abs(uy(i,j-1)),abs(uy(i,j)))
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
+        do j = j1, j2 
+        do i = i1, i2 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+!             ux_now = abs( 0.5*(ux(im1,j)+ux(i,j)) )
+!             uy_now = abs( 0.5*(uy(i,jm1)+uy(i,j)) )
+
+            ux_now = max(abs(ux(im1,j)),abs(ux(i,j)))
+            uy_now = max(abs(uy(i,jm1)),abs(uy(i,j)))
             
             if (abs(ux_now) .lt. TOL_UNDERFLOW) ux_now = 0.0_wp 
             if (abs(uy_now) .lt. TOL_UNDERFLOW) uy_now = 0.0_wp 
@@ -864,10 +895,14 @@ end if
         end do 
         end do 
 
-        dt(1,:)  = dt(2,:)
-        dt(nx,:) = dt(nx-1,:) 
-        dt(:,1)  = dt(:,2)
-        dt(:,ny) = dt(:,ny-1)
+        if (.not. per_x) then
+            dt(1,:)  = dt(2,:)
+            dt(nx,:) = dt(nx-1,:) 
+        end if
+        if (.not. per_y) then
+            dt(:,1)  = dt(:,2)
+            dt(:,ny) = dt(:,ny-1)
+        end if
 
         return 
 
@@ -996,33 +1031,58 @@ end if
 
     end subroutine calc_checkerboard
 
-    subroutine check_checkerboard(is_unstable,var,lim)
+    subroutine check_checkerboard(is_unstable,var,lim,boundaries)
 
         implicit none 
 
         logical,    intent(OUT) :: is_unstable
         real(wp), intent(IN)  :: var(:,:) 
         real(wp), intent(IN)  :: lim 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        integer :: i1, i2, j1, j2
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
 
         nx = size(var,1)
         ny = size(var,2) 
 
+        ! Check all points in periodic directions (true wrap), otherwise only the interior
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
         ! First assume everything is stable 
         is_unstable = .FALSE. 
 
-        do j = 2, ny-1
-        do i = 2, nx-1 
+        do j = j1, j2
+        do i = i1, i2 
  
             if (abs(var(i,j)) .ge. lim) then
                 ! Check for checkerboard pattern with var > lim
 
-                if ( (var(i,j)*var(i-1,j) .lt. 0.0 .and. & 
-                      var(i,j)*var(i+1,j) .lt. 0.0) .or. & 
-                     (var(i,j)*var(i,j-1) .lt. 0.0 .and. & 
-                      var(i,j)*var(i,j+1) .lt. 0.0) ) then 
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                if ( (var(i,j)*var(im1,j) .lt. 0.0 .and. & 
+                      var(i,j)*var(ip1,j) .lt. 0.0) .or. & 
+                     (var(i,j)*var(i,jm1) .lt. 0.0 .and. & 
+                      var(i,j)*var(i,jp1) .lt. 0.0) ) then 
                     ! Point has checkerboard pattern in at least one direction
 
                     is_unstable = .TRUE. 

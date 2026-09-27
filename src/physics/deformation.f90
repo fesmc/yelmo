@@ -358,18 +358,10 @@ contains
         end do 
         !$omp end parallel do
 
-        ! Apply boundary conditions as needed 
-        if (trim(boundaries) .eq. "periodic") then
-
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
-            visc_eff_int(nx,:)   = visc_eff_int(2,:)
-            visc_eff_int(:,1)    = visc_eff_int(:,ny-1)
-            visc_eff_int(:,ny)   = visc_eff_int(:,2)
-
-        else if (trim(boundaries) .eq. "periodic-x") then 
+        ! Apply boundary conditions as needed. Periodic directions are a true
+        ! wrap (no halo cells), so their border points are not overwritten.
+        if (trim(boundaries) .eq. "periodic-x") then 
             
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
-            visc_eff_int(nx,:)   = visc_eff_int(2,:)
             visc_eff_int(:,1)    = visc_eff_int(:,2)
             visc_eff_int(:,ny)   = visc_eff_int(:,ny-1)
 

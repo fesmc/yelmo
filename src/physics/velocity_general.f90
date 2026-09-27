@@ -2,7 +2,7 @@ module velocity_general
     ! This module contains general routines that are used by several solvers. 
     
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
@@ -1675,7 +1675,7 @@ end if
 
     end subroutine set_inactive_margins
 
-    subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy)
+    subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy,boundaries)
         ! Calculate the ice flux at a given point.
         ! Note: calculated on ac-nodes.
         ! qq      [m3 a-1] 
@@ -1691,13 +1691,28 @@ end if
         real(wp), intent(IN)  :: H_ice(:,:)      ! [m]      Ice thickness, aa-nodes
         real(wp), intent(IN)  :: dx              ! [m]      Horizontal resolution, x-dir
         real(wp), intent(IN)  :: dy              ! [m]      Horizontal resolution, y-dir 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        integer :: im1, ip1, jm1, jp1
+        integer :: i2, j2
+        integer :: BC
+        logical :: per_x, per_y
         real(wp) :: area_ac 
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        ! The last ac-node is an interior node only in a periodic direction
+        i2 = nx-1
+        if (per_x) i2 = nx
+        j2 = ny-1
+        if (per_y) j2 = ny
 
         ! Reset fluxes to zero 
         qq_acx = 0.0 
@@ -1705,16 +1720,18 @@ end if
 
         ! acx-nodes 
         do j = 1, ny 
-        do i = 1, nx-1 
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i+1,j))) * dx 
+        do i = 1, i2 
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(ip1,j))) * dx 
             qq_acx(i,j) = area_ac*ux_bar(i,j)
         end do 
         end do 
 
         ! acy-nodes 
-        do j = 1, ny-1 
+        do j = 1, j2 
         do i = 1, nx 
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,j+1))) * dy 
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,jp1))) * dy 
             qq_acy(i,j) = area_ac*uy_bar(i,j)
         end do 
         end do 

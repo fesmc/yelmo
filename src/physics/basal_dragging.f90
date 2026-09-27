@@ -448,7 +448,7 @@ contains
             case(0) 
                 ! Apply fractional parameter at grounding line, no scaling when beta_gl_f=1.0
 
-                call scale_beta_gl_fraction(beta,f_grnd,beta_gl_f)
+                call scale_beta_gl_fraction(beta,f_grnd,beta_gl_f,boundaries)
 
             case(1) 
                 ! Apply H_grnd scaling, reducing beta linearly towards zero at the grounding line 
@@ -1120,22 +1120,27 @@ contains
     !
     ! ================================================================================
 
-    subroutine scale_beta_gl_fraction(beta,f_grnd,f_gl)
+    subroutine scale_beta_gl_fraction(beta,f_grnd,f_gl,boundaries)
         ! Apply scalar between 0 and 1 to modify basal friction coefficient
         ! at the grounding line.
-        
+
         implicit none
-        
+
         real(wp), intent(INOUT) :: beta(:,:)     ! aa-nodes
         real(wp), intent(IN)    :: f_grnd(:,:)   ! aa-nodes
-        real(wp), intent(IN)    :: f_gl          ! Fraction parameter      
-        
+        real(wp), intent(IN)    :: f_gl          ! Fraction parameter
+        character(len=*), intent(IN) :: boundaries
+
         ! Local variables
         integer    :: i, j, nx, ny
-        integer    :: im1, ip1, jm1, jp1 
+        integer    :: im1, ip1, jm1, jp1
+        integer    :: BC
 
         nx = size(f_grnd,1)
-        ny = size(f_grnd,2) 
+        ny = size(f_grnd,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! Consistency check 
         if (f_gl .lt. 0.0 .or. f_gl .gt. 1.0) then 
@@ -1148,13 +1153,10 @@ contains
         do j = 1, ny
         do i = 1, nx
 
-            im1 = max(1, i-1)
-            ip1 = min(nx,i+1)
-            
-            jm1 = max(1, j-1)
-            jp1 = min(ny,j+1)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Check if point is at the grounding line 
+            ! Check if point is at the grounding line
             if (f_grnd(i,j) .gt. 0.0 .and. &
                 (f_grnd(im1,j) .eq. 0.0 .or. f_grnd(ip1,j) .eq. 0.0 .or. &
                  f_grnd(i,jm1) .eq. 0.0 .or. f_grnd(i,jp1) .eq. 0.0) ) then 

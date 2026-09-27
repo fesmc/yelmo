@@ -857,7 +857,7 @@ contains
 
 
     subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice, &
-                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc)
+                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc,boundaries)
         ! Define where ssa calculations should be performed
         ! Note: could be binary, but perhaps also distinguish 
         ! grounding line/zone to use this mask for later gl flux corrections
@@ -888,10 +888,12 @@ contains
         real(wp), intent(IN)  :: dx 
         logical,  intent(IN)  :: use_ssa       ! SSA is actually active now? 
         character(len=*), intent(IN) :: lateral_bc 
+        character(len=*), intent(IN) :: boundaries 
 
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
         real(wp) :: H_acx, H_acy
         logical  :: is_steep 
         logical  :: is_convergent 
@@ -905,6 +907,9 @@ contains
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         allocate(mask_frnt_dyn(nx,ny))
 
         ! Initially no active ssa points, all velocities set to zero
@@ -984,10 +989,7 @@ contains
             do i = 1, nx
 
                 ! Get neighbor indices
-                im1 = max(i-1,1) 
-                ip1 = min(i+1,nx) 
-                jm1 = max(j-1,1) 
-                jp1 = min(j+1,ny)
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
 
                 ! == x-direction ===

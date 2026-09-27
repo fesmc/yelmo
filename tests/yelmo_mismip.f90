@@ -25,7 +25,7 @@ program yelmo_mismip
     real(prec) :: xmax, ymin, ymax 
     real(prec) :: dx 
     integer    :: i, j, nx, ny 
-    real(prec) :: x_gl, x_gl_stnd
+    real(prec) :: x_gl, x_gl_edge, x_gl_stnd
     real(prec) :: time_mod_1, time_mod_2 
 
     integer :: n_att, n_att_tot, q_att, q
@@ -131,10 +131,21 @@ program yelmo_mismip
 
     end if 
     
-    ! Define the domain and grid
+    ! Define the domain and grid. The channel is periodic in y (true wrap,
+    ! period ny*dx, no halo): centred grid y_j = (j-jc)*dx with jc = ny/2+1,
+    ! so that y=0 is a row and the period is exactly ymax-ymin. For even ny
+    ! the wall y=ymin is a row, for odd ny the wall lies midway between the
+    ! first and last rows.
     ymax =  50.0
     ymin = -50.0
-    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1,y0=ymin,dy=dx,ny=int((ymax-ymin)/dx)+1)
+    ny   = nint((ymax-ymin)/dx)
+    if (abs(ny*dx-(ymax-ymin)) .gt. 1e-6*(ymax-ymin)) then
+        write(*,*) "yelmo_mismip:: Error: the domain width (ymax-ymin) must be a multiple of dx."
+        write(*,*) "ymax-ymin, dx = ", ymax-ymin, dx
+        stop
+    end if
+    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1, &
+                            y0=-real(ny/2,prec)*dx,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
 
@@ -178,9 +189,10 @@ program yelmo_mismip
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
 
-    ! Write initial state 
-    x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd)
-    call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl) 
+    ! Write initial state (grounding line on the centreline y=0 and at the channel wall)
+    x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
+    x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
+    call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl,x_gl_edge=x_gl_edge) 
 
     ! Advance timesteps
     do n = 1, ceiling((time_end-time_init)/dtt)
@@ -236,7 +248,8 @@ program yelmo_mismip
         ! == Yelmo ice sheet ===================================================
         call yelmo_update(yelmo1,time)
 
-        x_gl = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd)
+        x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
+        x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
         
         ! == Update boundaries 
         
@@ -245,12 +258,12 @@ program yelmo_mismip
         ! == MODEL OUTPUT =======================================================
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
         if (mod(nint(time*100,int64),nint(dt2D_out*100,int64))==0) then  
-            call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl)    
+            call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl,x_gl_edge=x_gl_edge)    
         end if 
 
         if (mod(nint(time*100,int64),nint((5.0*dtt)*100,int64))==0) then
-            write(*,"(a,2f14.4,a10,g14.3,f10.2)") "time = ",  &
-                time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl 
+            write(*,"(a,2f14.4,a10,g14.3,2f10.2)") "time = ",  &
+                time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl, x_gl_edge 
         end if 
 
     end do
@@ -273,7 +286,7 @@ program yelmo_mismip
 
 contains
 
-    subroutine write_step_2D(ylmo,filename,time,x_gl)
+    subroutine write_step_2D(ylmo,filename,time,x_gl,x_gl_edge)
 
         implicit none 
         
@@ -281,6 +294,7 @@ contains
         character(len=*),  intent(IN) :: filename
         real(prec), intent(IN) :: time
         real(prec), intent(IN) :: x_gl
+        real(prec), intent(IN) :: x_gl_edge
 
         ! Local variables
         integer    :: ncid, n, i, j, nx, ny  
@@ -306,8 +320,10 @@ contains
         ! 1D variables of interest 
         call nc_write(filename,"x_rf",ylmo%mat%par%rf_const,units="", &
             long_name="Rate factor",dim1="time",start=[n],count=[1],ncid=ncid)
-        call nc_write(filename,"x_gl",x_gl,units="", &
-            long_name="Grounding line position",dim1="time",start=[n],count=[1],ncid=ncid)
+        call nc_write(filename,"x_gl",x_gl,units="km", &
+            long_name="Grounding line position (centreline, y=0)",dim1="time",start=[n],count=[1],ncid=ncid)
+        call nc_write(filename,"x_gl_edge",x_gl_edge,units="km", &
+            long_name="Grounding line position (channel wall, |y|=ly/2)",dim1="time",start=[n],count=[1],ncid=ncid)
 
         ! == yelmo_topography ==
         call nc_write(filename,"H_ice",ylmo%tpo%now%H_ice,units="m",long_name="Ice thickness", &
