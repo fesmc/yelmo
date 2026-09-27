@@ -989,48 +989,6 @@ end if
 
     end subroutine calc_adv2D_velocity
     
-    subroutine calc_checkerboard(var_check,var,mask)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: var_check(:,:) 
-        real(wp), intent(IN)  :: var(:,:) 
-        logical,    intent(IN)  :: mask(:,:)  
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-
-        nx = size(var,1)
-        ny = size(var,2) 
-
-        ! First assume everything is stable 
-        var_check = 0.0_wp 
-
-        do j = 2, ny-1
-        do i = 2, nx-1 
-            
-            if (mask(i,j)) then 
-                ! For points of interest, check for checkerboard pattern in var 
-
-                if ( (var(i,j)*var(i-1,j) .lt. 0.0 .and. & 
-                      var(i,j)*var(i+1,j) .lt. 0.0) .or. & 
-                     (var(i,j)*var(i,j-1) .lt. 0.0 .and. & 
-                      var(i,j)*var(i,j+1) .lt. 0.0) ) then 
-                    ! Point has checkerboard pattern in at least one direction
-
-                    var_check = var 
-
-                end if 
-
-            end if 
-
-        end do 
-        end do  
-
-        return 
-
-    end subroutine calc_checkerboard
-
     subroutine check_checkerboard(is_unstable,var,lim,boundaries)
 
         implicit none 
