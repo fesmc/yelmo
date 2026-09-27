@@ -787,7 +787,7 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,ip2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -826,8 +826,10 @@ if (margin2nd) then
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then
                 ! Ice-free to the left
 
-                if (ip1 .lt. nx) then 
-                    ip2 = ip1+1 
+                ! Neighbor to the right of ip1 (equals ip1 at a non-periodic border)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,ip1,j,nx,ny,BC)
+
+                if (ip2 .ne. ip1) then 
                     if (f_ice(ip2,j) .eq. 1.0) then
                         V0 = var(i,j)
                         if (zero_outside) V0 = 0.0 
@@ -893,7 +895,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,jp2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -932,8 +934,10 @@ if (margin2nd) then
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
                 ! Ice-free to the bottom
 
-                if (jp1 .lt. ny) then 
-                    jp2 = jp1+1 
+                ! Neighbor above jp1 (equals jp1 at a non-periodic border)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,i,jp1,nx,ny,BC)
+
+                if (jp2 .ne. jp1) then 
                     if (f_ice(i,jp2) .eq. 1.0) then
                         V0 = var(i,j)
                         if (zero_outside) V0 = 0.0 
