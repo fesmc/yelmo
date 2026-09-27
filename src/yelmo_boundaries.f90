@@ -247,6 +247,14 @@ contains
             case ("Eurasia")
                 ! Allow ice only in the Eurasia domain (1.2*)
 
+                if (count(bnd%regions .ge. 1.2 .and. bnd%regions .le. 1.29) .eq. 0) then
+                    ! Without a regions file (regions=0), ice would be forbidden everywhere
+                    write(io_unit_err,*) "ybound_define_mask_ice:: Error: domain='Eurasia' requires a regions &
+                                         &field with Eurasia codes (1.2 <= regions <= 1.29), but none were found."
+                    write(io_unit_err,*) "range(regions): ", minval(bnd%regions), maxval(bnd%regions)
+                    stop
+                end if
+
                 where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = MASK_ICE_NONE
                 bnd%mask_ice(1,:)  = MASK_ICE_NONE
                 bnd%mask_ice(nx,:) = MASK_ICE_NONE
