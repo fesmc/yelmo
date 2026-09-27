@@ -8,7 +8,8 @@ module lsf_module
     ! Public surface:
     !   - LSFinit         : initialise phi to +-1 from H_ice / z_bed / z_sl
     !   - LSFupdate       : advect phi at w = u_bar + cr (extrapolated into
-    !                       the ocean), then saturate to [-1, 1]
+    !                       the ocean) with a dedicated advective-form
+    !                       upwind solver, then saturate to [-1, 1]
     !   - LSFredistance   : Sussman/Osher Hamilton-Jacobi redistancing to
     !                       restore |grad phi| ~= 1 without moving the
     !                       zero level set. Replaces the older ad-hoc
@@ -17,11 +18,9 @@ module lsf_module
     ! Mirrors the design in Yelmo.jl/src/topo/lsf.jl.
     ! ----------------------------------------------------------------------
 
-    use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err, &
-                                  MASK_ICE_DYNAMIC
+    use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err
     use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes
     use topography,        only : calc_H_eff
-    use solver_advection,  only : calc_advec2D
     use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none
@@ -66,11 +65,21 @@ contains
 
     end subroutine LSFinit
 
-    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,dx,dy,dt,solver,boundaries)
+    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,dx,dy,dt,boundaries)
+        ! Advect the LSF with the front velocity w = u_bar + cr:
+        !
+        !   d phi / dt + w . grad phi = 0
+        !
+        ! i.e. the level-set equation in advective form (phi is not a
+        ! conserved quantity, so no phi*div(w) term as in the flux-form
+        ! ice-thickness solvers). w lives on the ac-nodes, where the
+        ! calving rates are defined; see calc_lsf_advec_rate for the
+        ! upwind discretisation. The explicit update is sub-cycled so that
+        ! it is stable for any model timestep dt.
 
         implicit none
 
-        real(wp),       intent(INOUT) :: dlsf(:,:)               ! advected LSF field
+        real(wp),       intent(INOUT) :: dlsf(:,:)               ! [1/yr] LSF rate of change
         real(wp),       intent(INOUT) :: lsf(:,:)                ! LSF to be advected (aa-nodes)
         real(wp),       intent(INOUT) :: cr_acx(:,:),cr_acy(:,:) ! [m/yr] calving rate (vertical)
         real(wp),       intent(IN)    :: u_acx(:,:)              ! [m/a] 2D velocity, x-direction (ac-nodes)
@@ -78,33 +87,30 @@ contains
         real(wp),       intent(IN)    :: dx                      ! [m] Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                      ! [m] Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                      ! [a]   Timestep
-        character(len=*), intent(IN)  :: solver                  ! Solver to use for the LSF advection equation
-        character(len=*), intent(IN)  :: boundaries              ! Boundary condition string (passed to advection)
+        character(len=*), intent(IN)  :: boundaries              ! Boundary condition string (neighbour indices)
 
         ! Local variables
-        integer  :: nx, ny
-        real(wp), allocatable :: wx(:,:), wy(:,:), mask_lsf(:,:)
-        real(wp), allocatable :: var_dot(:,:)                    ! [dvar/dt] Source term for variable. Not used in LSF.
-        integer,  allocatable :: mask_adv(:,:)                   ! Advection mask (MASK_ICE_* codes)
+        integer  :: i, j, n, nx, ny, n_sub
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: w_max, rate_max, dt_max, dt_sub
+        real(wp), allocatable :: wx(:,:), wy(:,:), lsf_n(:,:), lsf_dot(:,:)
+
+        real(wp), parameter :: cfl = 0.5_wp                      ! CFL number on max|w|
 
         nx = size(lsf,1)
         ny = size(lsf,2)
         allocate(wx(nx,ny))
         allocate(wy(nx,ny))
-        allocate(mask_lsf(nx,ny))
-        allocate(var_dot(nx,ny))
-        allocate(mask_adv(nx,ny))
+        allocate(lsf_n(nx,ny))
+        allocate(lsf_dot(nx,ny))
 
-        ! Initialize variables
-        dlsf     = 0.0_wp  ! LSF change in a time dt
-        mask_lsf = 1.0_wp  ! Allow all LSF mask to be advected
-        var_dot  = 0.0_wp
+        BC = boundary_code(boundaries)
 
-        ! The LSF is advected everywhere: the ice-thickness mask (bnd%mask_ice)
-        ! must not constrain it, otherwise its MASK_ICE_NONE/FIXED rows would
-        ! impose Dirichlet values on the level set (e.g. lsf=0 at domain edges).
-        ! Domain edges are then handled by the solver's `boundaries` treatment.
-        mask_adv = MASK_ICE_DYNAMIC
+        dlsf = 0.0_wp  ! LSF change in a time dt
+
+        ! Only advect if dt > 0
+        if (dt .le. 0.0_wp) return
 
         ! Net LSF velocity: dynamic velocity + calving retreat rate
         wx = u_acx + cr_acx
@@ -115,10 +121,37 @@ contains
         call extrapolate_ocn_acx(wx,wx,u_acx)
         call extrapolate_ocn_acy(wy,wy,v_acy)
 
-        ! Compute the advected LSF field
-        call calc_advec2D(dlsf,lsf,mask_lsf,wx,wy,var_dot, &
-                            mask_adv,dx,dy,dt,solver,boundaries)
-        call apply_tendency_lsf(lsf,dlsf,dt,adjust_lsf=.FALSE.)
+        ! Sub-step size: CFL = 0.5 on max|w| over the domain, and at most the
+        ! positivity limit of the face-upwind update, dt*(a+b+c+d) <= 1, with
+        ! a,b,c,d the inflow speeds/dx through the four cell faces (only
+        ! binding where the flow converges on a cell from several sides).
+        w_max    = max(maxval(abs(wx)),maxval(abs(wy)))
+        rate_max = 0.0_wp
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1) reduction(max:rate_max)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            rate_max = max(rate_max, (max(wx(im1,j),0.0_wp) - min(wx(i,j),0.0_wp)) / dx &
+                                   + (max(wy(i,jm1),0.0_wp) - min(wy(i,j),0.0_wp)) / dy)
+        end do
+        end do
+        !$omp end parallel do
+
+        dt_max = dt
+        if (w_max    .gt. 0.0_wp) dt_max = min(dt_max, cfl*min(dx,dy)/w_max)
+        if (rate_max .gt. 0.0_wp) dt_max = min(dt_max, 1.0_wp/rate_max)
+        n_sub  = ceiling(dt/dt_max)
+        dt_sub = dt / real(n_sub,wp)
+
+        ! Advect with explicit sub-steps
+        lsf_n = lsf
+        do n = 1, n_sub
+            call calc_lsf_advec_rate(lsf_dot,lsf,wx,wy,dx,dy,BC)
+            lsf = lsf + dt_sub*lsf_dot
+        end do
+
+        ! Rate of change over the whole timestep (before saturation)
+        dlsf = (lsf - lsf_n) / dt
 
         ! Saturate to [-1, 1] as a guardrail against upwind diffusion.
         ! LSFredistance is what restores |grad phi| ~= 1; this just keeps
@@ -288,57 +321,56 @@ contains
     !
     ! ===================================================================
 
-    subroutine apply_tendency_lsf(lsf,lsf_dot,dt,adjust_lsf)
+    subroutine calc_lsf_advec_rate(lsf_dot,lsf,wx,wy,dx,dy,BC)
+        ! Rate of change of the LSF, lsf_dot = -w . grad(lsf), from
+        ! first-order upwinding with the face (ac-node) velocities.
+        ! In x, for cell i with faces i-1/2 (wx(im1,j)) and i+1/2 (wx(i,j)):
+        !
+        !   (w phi_x)_i = max(w_{i-1/2},0) * (phi_i     - phi_{i-1}) / dx
+        !               + min(w_{i+1/2},0) * (phi_{i+1} - phi_i    ) / dx
+        !
+        ! i.e. each face that carries flow into the cell contributes the
+        ! one-sided gradient on its side (and y likewise). This is the
+        ! donor-cell flux form minus phi_i*div(w), so it reduces to the
+        ! standard upwind scheme where w is uniform, and it uses the front
+        ! velocity exactly on the face where the calving rate is defined.
+        ! Stable and monotone for dt*(a+b+c+d) <= 1 (see LSFupdate).
 
         implicit none
 
-        real(wp), intent(INOUT) :: lsf(:,:)
-        real(wp), intent(INOUT) :: lsf_dot(:,:)
-        real(wp), intent(IN)    :: dt
-        logical, optional, intent(IN) :: adjust_lsf
+        real(wp), intent(OUT) :: lsf_dot(:,:)
+        real(wp), intent(IN)  :: lsf(:,:)
+        real(wp), intent(IN)  :: wx(:,:)                        ! [m/yr] LSF velocity (acx-nodes)
+        real(wp), intent(IN)  :: wy(:,:)                        ! [m/yr] LSF velocity (acy-nodes)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy
+        integer,  intent(IN)  :: BC
 
         ! Local variables
         integer :: i, j, nx, ny
-        real(wp) :: lsf_prev
-        real(wp) :: dlsfdt
-        logical  :: allow_adjust_lsf
+        integer :: im1, ip1, jm1, jp1
 
-        if (dt .gt. 0.0) then
-            ! Only apply this routine if dt > 0!
+        nx = size(lsf,1)
+        ny = size(lsf,2)
 
-            allow_adjust_lsf = .FALSE.
-            if (present(adjust_lsf)) allow_adjust_lsf = adjust_lsf
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
 
-            nx = size(lsf,1)
-            ny = size(lsf,2)
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            !$omp parallel do collapse(2) private(i,j,lsf_prev,dlsfdt)
-            do j = 1, ny
-            do i = 1, nx
+            lsf_dot(i,j) = -( max(wx(im1,j),0.0_wp) * (lsf(i,j)   - lsf(im1,j)) / dx &
+                            + min(wx(i,j),  0.0_wp) * (lsf(ip1,j) - lsf(i,j)  ) / dx &
+                            + max(wy(i,jm1),0.0_wp) * (lsf(i,j)   - lsf(i,jm1)) / dy &
+                            + min(wy(i,j),  0.0_wp) * (lsf(i,jp1) - lsf(i,j)  ) / dy )
 
-                ! Store previous value
-                lsf_prev = lsf(i,j)
-
-                ! Now update lsf with tendency for this timestep
-                lsf(i,j) = lsf_prev + dt*lsf_dot(i,j)
-
-                ! Calculate actual current rate of change
-                dlsfdt = (lsf(i,j) - lsf_prev) / dt
-
-                ! Update lsf rate to match rate of change perfectly
-                if (allow_adjust_lsf) then
-                    lsf_dot(i,j) = dlsfdt
-                end if
-
-            end do
-            end do
-            !$omp end parallel do
-
-        end if
+        end do
+        end do
+        !$omp end parallel do
 
         return
 
-    end subroutine apply_tendency_lsf
+    end subroutine calc_lsf_advec_rate
 
     ! ===================================================================
     !

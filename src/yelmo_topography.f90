@@ -870,14 +870,13 @@ end if
         ! Use "infinite" (Neumann-zero) boundaries for the LSF advection
         ! regardless of the model-wide tpo%par%boundaries: the LSF is a
         ! signed-distance field that must continue smoothly outside the
-        ! domain. With a Dirichlet-zero boundary (the "zeros" semantic)
-        ! the matrix builder would force lsf=0 at every edge cell, which
-        ! creates a spurious LSF=0 contour one cell from the boundary and
-        ! the Sussman/Osher redistance fights it every step (see issue
-        ! #34 follow-up). Matches Yelmo.jl, whose Oceananigans `:bounded`
-        ! BC zeros only the halo, leaving edge cells free.
+        ! domain. A Dirichlet-zero boundary would create a spurious LSF=0
+        ! contour one cell from the boundary that the Sussman/Osher
+        ! redistance fights every step (see issue #34 follow-up). Matches
+        ! Yelmo.jl, whose Oceananigans `:bounded` BC zeros only the halo,
+        ! leaving edge cells free.
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       tpo%par%dx,tpo%par%dy,dt,tpo%par%solver,"infinite")
+                       tpo%par%dx,tpo%par%dy,dt,"infinite")
 
         ! Marine points where ice is not allowed (bnd%mask_ice = MASK_ICE_NONE, 
         ! where H_ice is held at zero) are ocean by definition: keep the LSF
