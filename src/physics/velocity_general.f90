@@ -24,6 +24,7 @@ module velocity_general
     public :: calc_lateral_bc_stress_2D
     public :: set_inactive_margins
     public :: calc_ice_flux
+    public :: calc_grounding_line_flux
     public :: calc_vel_ratio
 
     public :: picard_calc_error 
@@ -1676,8 +1677,8 @@ end if
     end subroutine set_inactive_margins
 
     subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy,boundaries)
-        ! Calculate the ice flux at a given point.
-        ! Note: calculated on ac-nodes.
+        ! Calculate the ice flux through each cell face (ac-nodes), using the
+        ! upwind ice thickness, as in the advection solvers (impl-lis, expl-upwind).
         ! qq      [m3 a-1] 
         ! ux,uy   [m a-1]
         ! H_ice   [m] 
@@ -1722,7 +1723,11 @@ end if
         do j = 1, ny 
         do i = 1, i2 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(ip1,j))) * dx 
+            if (ux_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dy
+            else
+                area_ac = H_ice(ip1,j) * dy
+            end if
             qq_acx(i,j) = area_ac*ux_bar(i,j)
         end do 
         end do 
@@ -1731,7 +1736,11 @@ end if
         do j = 1, j2 
         do i = 1, nx 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,jp1))) * dy 
+            if (uy_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dx
+            else
+                area_ac = H_ice(i,jp1) * dx
+            end if
             qq_acy(i,j) = area_ac*uy_bar(i,j)
         end do 
         end do 
@@ -1739,6 +1748,69 @@ end if
         return 
 
     end subroutine calc_ice_flux
+
+    subroutine calc_grounding_line_flux(qq_gl_acx,qq_gl_acy,qq_acx,qq_acy,f_grnd,f_ice,boundaries)
+        ! Ice flux across the grounding line [m3 a-1], on ac-nodes: the ice flux
+        ! (qq_acx/qq_acy, see calc_ice_flux) through faces between a (partially)
+        ! grounded cell (f_grnd > 0) and a floating ice cell (f_grnd = 0, f_ice > 0),
+        ! and zero elsewhere. As for qq, the sign gives the direction (+x/+y).
+        ! Grounding-line cells are defined as in calc_distance_to_grounding_line.
+
+        implicit none
+
+        real(wp), intent(OUT) :: qq_gl_acx(:,:)  ! [m3 a-1] Grounding-line flux (acx nodes)
+        real(wp), intent(OUT) :: qq_gl_acy(:,:)  ! [m3 a-1] Grounding-line flux (acy nodes)
+        real(wp), intent(IN)  :: qq_acx(:,:)     ! [m3 a-1] Ice flux (acx nodes)
+        real(wp), intent(IN)  :: qq_acy(:,:)     ! [m3 a-1] Ice flux (acy nodes)
+        real(wp), intent(IN)  :: f_grnd(:,:)     ! [--]     Grounded fraction, aa-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)      ! [--]     Ice-covered fraction, aa-nodes
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+
+        nx = size(f_grnd,1)
+        ny = size(f_grnd,2)
+
+        BC = boundary_code(boundaries)
+
+        qq_gl_acx = 0.0_wp
+        qq_gl_acy = 0.0_wp
+
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(ip1,j),f_ice(i,j),f_ice(ip1,j))) then
+                qq_gl_acx(i,j) = qq_acx(i,j)
+            end if
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(i,jp1),f_ice(i,j),f_ice(i,jp1))) then
+                qq_gl_acy(i,j) = qq_acy(i,j)
+            end if
+
+        end do
+        end do
+
+        return
+
+    contains
+
+        pure logical function is_gl_face(fg0,fg1,fi0,fi1)
+            ! Face between a (partially) grounded cell and a floating ice cell
+
+            implicit none
+
+            real(wp), intent(IN) :: fg0, fg1, fi0, fi1
+
+            is_gl_face = (fg0 .gt. 0.0_wp .and. fg1 .eq. 0.0_wp .and. fi1 .gt. 0.0_wp) .or. &
+                         (fg1 .gt. 0.0_wp .and. fg0 .eq. 0.0_wp .and. fi0 .gt. 0.0_wp)
+
+        end function is_gl_face
+
+    end subroutine calc_grounding_line_flux
 
     elemental function calc_vel_ratio(uxy_base,uxy_srf) result(f_vbvs)
 

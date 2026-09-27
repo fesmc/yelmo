@@ -34,6 +34,13 @@ little. MISMIP3D and DIVA runs change more.
   - `ytopo.slope_bg_x` and `ytopo.slope_bg_y` (default 0) add a uniform background
     slope to the surface and bed gradients. They are for periodic domains whose
     geometry is tilted; the tilt itself is not in `z_srf`/`z_bed`.
+  - `yelmo.pc_cfl_max` (default 0.5) is the Courant-number cap on the
+    predictor-corrector timestep. It was hard-coded to 0.5.
+- **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
+  controller let dt reach 5 yr during fast flank sliding, where a lateral mode
+  grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to
+  12 m mirror-asymmetric at t = 200 yr and 6 m at 3.2 ka, now ≤ 2e-3 m, at the
+  same cost. TROUGH volume at 5 ka +1.1%; MISMIP3D x_gl 520.17 → 520.08 km.
 - **`yelmo.pc_filter_vel` (default true) changed meaning.** The velocity
   solution is no longer filtered. The thickness update is advected with the mean
   of the current and previous solutions, a true two-step mean (before, it was a
@@ -86,6 +93,11 @@ little. MISMIP3D and DIVA runs change more.
   point was wrong. Enthalpy `Q_ice_b` is now output in mW m-2.
 - **Stress and strain:** the 2D stress used the previous viscosity. Strain rates
   are reset at partial and ice-free cells.
+- **Partially ice-covered cells** get the 2D strain rates and `visc_bar` of their
+  fully ice-covered neighbours (they were zero). Before, `calc_eps_eff` and
+  `calc_tau_eff` patched this separately, and the `vm-m16` calving law saw zero
+  stress, so partial front cells never calved. This changes von Mises and eigen
+  calving runs (Antarctica 32 km, 1 ka, `vm-l19`: shelf volume −0.6%).
 - **Hydrology coupling:** K24 now receives `uxy_b` and `A_glen` in SI units.
   FastHydrology's ρ_ice, ρ_w, ρ_sw and g now come from Yelmo's domain constants.
 - **Eulerian tracer advection** read values already updated earlier in the same
@@ -133,10 +145,15 @@ little. MISMIP3D and DIVA runs change more.
     2010). The MISMIP3D RF hysteresis gap goes from 464 to 365 km.
 - **K24 hydrology:** the latent heat is taken from Yelmo's `L_ice`.
 - **Discharge:** `dmb_method = 1` no longer scales `dist_grline` by dx a second time.
+- **`ytopo.margin2nd`:** the one-sided margin gradient was twice too large and
+  failed the EISMINT symmetry check. It now passes (Linf/Hmax 2e-6).
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
 
 ### Diagnostics
 
+- `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
+  were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
+  advection does (was the mean of the two cells).
 - Regional budgets integrate fluxes over the region, weight by the true projected
   cell area and `f_ice`, and now close: TROUGH `cmb` was always 0. Regional values
   on polar stereographic grids change by 3–5%.

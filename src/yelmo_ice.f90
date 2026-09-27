@@ -158,7 +158,7 @@ contains
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
                                     dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
-                                    dom%tpo%par%boundaries)
+                                    dom%par%pc_cfl_max,dom%tpo%par%boundaries)
 
             ! ajr restart check:
             ! write(*,*) "Set timestep: ", n, time_now, dt_pi, dt_max
@@ -1498,6 +1498,7 @@ contains
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_cfl_max",    par%pc_cfl_max,    defaults_file=def_file,defaults_group=def_yelmo)
 
         call nml_read(filename,group,"write_metrics",    par%write_metrics,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"write_metrics_dt", par%write_metrics_dt, defaults_file=def_file,defaults_group=def_yelmo)
@@ -1556,6 +1557,10 @@ contains
         ! Range checks
         if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: cfl_max must be in (0,1]; got ", par%cfl_max
+            stop "Program stopped."
+        end if
+        if (par%pc_cfl_max .le. 0.0_wp .or. par%pc_cfl_max .gt. 1.0_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_cfl_max must be in (0,1]; got ", par%pc_cfl_max
             stop "Program stopped."
         end if
         if (par%nz_aa .lt. 2) then

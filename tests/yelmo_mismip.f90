@@ -430,9 +430,9 @@ contains
         call nc_write(filename,"uxy_bar",ylmo%dyn%now%uxy_bar,units="m/a",long_name="Vertically averaged velocity magnitude", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
-        call nc_write(filename,"qq_gl_acx",ylmo%dyn%now%qq_gl_acx,units="m2/a",long_name="Grounding line flux (x)", &
+        call nc_write(filename,"qq_gl_acx",ylmo%dyn%now%qq_gl_acx,units="m3/a",long_name="Grounding line flux (x)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"qq_gl_acy",ylmo%dyn%now%qq_gl_acy,units="m2/a",long_name="Grounding line flux (y)", &
+        call nc_write(filename,"qq_gl_acy",ylmo%dyn%now%qq_gl_acy,units="m3/a",long_name="Grounding line flux (y)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
 !         call nc_write(filename,"ux",ylmo%dyn%now%ux,units="m/a",long_name="Horizontal velocity (x)", &

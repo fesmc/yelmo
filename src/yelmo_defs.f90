@@ -1062,6 +1062,7 @@ module yelmo_defs
         integer             :: pc_n_redo 
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
+        real(wp)            :: pc_cfl_max 
 
         ! Regions
         integer             :: n_reg

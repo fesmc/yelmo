@@ -28,6 +28,7 @@ module yelmo_tools
     public :: calc_gradient_acy
 
     public :: mean_mask
+    public :: fill_partial_ice_cells
     public :: minmax
 
     public :: set_boundaries_2D_aa
@@ -369,17 +370,19 @@ contains
 
 if (margin2nd) then 
             ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
+            ! Following Saito et al (2007) by applying a second-order, upwind gradient:
+            ! the standard one-sided difference (3*V0 - 4*V1 + V2)/(2*dx), taken from
+            ! the two ice-covered points upstream of the margin
 
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then 
                 ! Ice-free to the right
 
-                if (f_ice(im1,j) .eq. 1.0) then 
+                if (im1 .ne. i .and. f_ice(im1,j) .eq. 1.0) then 
                     V0 = var(ip1,j)
                     if (zero_outside) V0 = 0.0 
                     V1 = var(i,j)
                     V2 = var(im1,j)
-                    dvardx(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dx
+                    dvardx(i,j) = (1.0*V2-4.0*V1+3.0*V0)/(2.0*dx)
                 else 
                     dvardx(i,j) = 0.0
                 end if 
@@ -396,7 +399,7 @@ if (margin2nd) then
                         if (zero_outside) V0 = 0.0 
                         V1 = var(ip1,j)
                         V2 = var(ip2,j)
-                        dvardx(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dx
+                        dvardx(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/(2.0*dx)
                     else 
                         dvardx(i,j) = 0.0
                     end if
@@ -481,17 +484,19 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
 
 if (margin2nd) then 
             ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
+            ! Following Saito et al (2007) by applying a second-order, upwind gradient:
+            ! the standard one-sided difference (3*V0 - 4*V1 + V2)/(2*dx), taken from
+            ! the two ice-covered points upstream of the margin
 
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then 
                 ! Ice-free to the top
 
-                if (f_ice(i,jm1) .eq. 1.0) then 
+                if (jm1 .ne. j .and. f_ice(i,jm1) .eq. 1.0) then 
                     V0 = var(i,jp1)
                     if (zero_outside) V0 = 0.0 
                     V1 = var(i,j)
                     V2 = var(i,jm1)
-                    dvardy(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dy
+                    dvardy(i,j) = (1.0*V2-4.0*V1+3.0*V0)/(2.0*dy)
                 else 
                     dvardy(i,j) = 0.0
                 end if 
@@ -508,7 +513,7 @@ if (margin2nd) then
                         if (zero_outside) V0 = 0.0 
                         V1 = var(i,jp1)
                         V2 = var(i,jp2)
-                        dvardy(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dy
+                        dvardy(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/(2.0*dy)
                     else 
                         dvardy(i,j) = 0.0
                     end if
@@ -565,6 +570,76 @@ end if
 
     end function mean_mask
     
+    subroutine fill_partial_ice_cells(var,f_ice,boundaries)
+        ! Give partially ice-covered cells (0 < f_ice < 1) the mean of var
+        ! over their direct neighbors that are fully ice covered (f_ice == 1),
+        ! or zero if there are none. Used for quantities that are only
+        ! calculated at fully ice-covered cells (strain rate, viscosity),
+        ! so that they are also defined at the ice margin.
+
+        implicit none
+
+        real(wp), intent(INOUT) :: var(:,:)
+        real(wp), intent(IN)    :: f_ice(:,:)
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny, n
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: var_sum
+        real(wp), allocatable :: var0(:,:)
+
+        nx = size(var,1)
+        ny = size(var,2)
+
+        BC = boundary_code(boundaries)
+
+        var0 = var
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,var_sum)
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_ice(i,j) .lt. 1.0_wp) then
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                n       = 0
+                var_sum = 0.0_wp
+                if (f_ice(im1,j) .eq. 1.0_wp) then
+                    n = n + 1
+                    var_sum = var_sum + var0(im1,j)
+                end if
+                if (f_ice(ip1,j) .eq. 1.0_wp) then
+                    n = n + 1
+                    var_sum = var_sum + var0(ip1,j)
+                end if
+                if (f_ice(i,jm1) .eq. 1.0_wp) then
+                    n = n + 1
+                    var_sum = var_sum + var0(i,jm1)
+                end if
+                if (f_ice(i,jp1) .eq. 1.0_wp) then
+                    n = n + 1
+                    var_sum = var_sum + var0(i,jp1)
+                end if
+
+                if (n .gt. 0) then
+                    var(i,j) = var_sum / real(n,wp)
+                else
+                    var(i,j) = 0.0_wp
+                end if
+
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine fill_partial_ice_cells
+
     elemental subroutine minmax(var,var_lim)
 
         implicit none 

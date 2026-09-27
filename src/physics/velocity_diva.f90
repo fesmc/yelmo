@@ -62,12 +62,6 @@ module velocity_diva
 
 contains
     
-    ! Variables/params needed for gl-flux methods
-    ! qq_gl_acx 
-    ! qq_gl_acy 
-    ! ATT_bar 
-    ! 
-    
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now, &

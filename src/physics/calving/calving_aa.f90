@@ -625,7 +625,10 @@ contains
 
     end subroutine calc_calving_rate_eigen
 
-    subroutine calc_eps_eff(eps_eff,eps_eig_1,eps_eig_2,f_ice,boundaries)
+    subroutine calc_eps_eff(eps_eff,eps_eig_1,eps_eig_2,f_ice)
+        ! Effective strain rate at ice-covered points. Partially ice-covered
+        ! points carry the strain rates of their fully ice-covered neighbors
+        ! (see fill_strain_2D_partial).
 
         implicit none 
 
@@ -633,62 +636,12 @@ contains
         real(wp), intent(IN)  :: eps_eig_1(:,:)
         real(wp), intent(IN)  :: eps_eig_2(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
-        character(len=*), intent(IN) :: boundaries 
 
-        ! Local variables 
-        integer  :: i, j, nx, ny, n  
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: eps_eff_neighb(4)
-        integer  :: BC
-
-        nx = size(eps_eff,1)
-        ny = size(eps_eff,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,eps_eff_neighb)
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            if (f_ice(i,j) .eq. 0.0_wp) then 
-                ! Ice-free point, no strain
-
-                eps_eff(i,j) = 0.0_wp 
-
-            else if (eps_eig_1(i,j) .eq. 0.0 .and. eps_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no strain rates available, 
-                ! use the mean of the non-zero eps_eff values of ice-covered neighbors.
-
-                eps_eff_neighb = 0.0_wp 
-
-                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = calc_eps_eff_now(eps_eig_1(im1,j),eps_eig_2(im1,j))
-                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = calc_eps_eff_now(eps_eig_1(ip1,j),eps_eig_2(ip1,j))
-                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = calc_eps_eff_now(eps_eig_1(i,jm1),eps_eig_2(i,jm1))
-                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = calc_eps_eff_now(eps_eig_1(i,jp1),eps_eig_2(i,jp1))
-
-                n = count(eps_eff_neighb.ne.0.0_wp)
-
-                if (n .gt. 0) then 
-                    eps_eff(i,j) = sum(eps_eff_neighb,mask=eps_eff_neighb.ne.0.0_wp) / real(n,wp)
-                else 
-                    eps_eff(i,j) = 0.0_wp
-                end if 
-
-            else 
-                ! Strain rates are available at this margin point. 
-                ! Calculate the effective strain rate directly.
-
-                eps_eff(i,j) = calc_eps_eff_now(eps_eig_1(i,j),eps_eig_2(i,j))
-                
-            end if 
-            
-        end do 
-        end do 
-        !$omp end parallel do
+        where (f_ice .gt. 0.0_wp)
+            eps_eff = calc_eps_eff_now(eps_eig_1,eps_eig_2)
+        elsewhere
+            eps_eff = 0.0_wp
+        end where
 
         return 
 
@@ -711,7 +664,10 @@ contains
 
     end function calc_eps_eff_now
     
-    subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2,boundaries)
+    subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2)
+        ! Effective stress at ice-covered points. Partially ice-covered
+        ! points carry the stresses of their fully ice-covered neighbors
+        ! (see fill_strain_2D_partial and calc_ymat).
 
         implicit none 
 
@@ -720,62 +676,12 @@ contains
         real(wp), intent(IN)  :: tau_eig_2(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
         real(wp), intent(IN)  :: w2 
-        character(len=*), intent(IN) :: boundaries 
 
-        ! Local variables 
-        integer  :: i, j, nx, ny, n  
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: tau_eff_neighb(4) 
-        integer  :: BC
-
-        nx = size(tau_eff,1)
-        ny = size(tau_eff,2) 
-        
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,tau_eff_neighb)
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            if (f_ice(i,j) .eq. 0.0_wp) then 
-                ! Ice-free point, no stress
-
-                tau_eff(i,j) = 0.0_wp 
-
-            else if (tau_eig_1(i,j) .eq. 0.0 .and. tau_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no stresses available, 
-                ! use maximum value of tau_eff from upstream neighbors.
-
-                tau_eff_neighb = 0.0_wp 
-
-                if (f_ice(im1,j).gt.0.0) tau_eff_neighb(1) = calc_tau_eff_now(tau_eig_1(im1,j),tau_eig_2(im1,j),w2)
-                if (f_ice(ip1,j).gt.0.0) tau_eff_neighb(2) = calc_tau_eff_now(tau_eig_1(ip1,j),tau_eig_2(ip1,j),w2)
-                if (f_ice(i,jm1).gt.0.0) tau_eff_neighb(3) = calc_tau_eff_now(tau_eig_1(i,jm1),tau_eig_2(i,jm1),w2)
-                if (f_ice(i,jp1).gt.0.0) tau_eff_neighb(4) = calc_tau_eff_now(tau_eig_1(i,jp1),tau_eig_2(i,jp1),w2)
-
-                n = count(tau_eff_neighb.ne.0.0_wp)
-
-                if (n .gt. 0) then 
-                    tau_eff(i,j) = sum(tau_eff_neighb,mask=tau_eff_neighb.ne.0.0_wp) / real(n,wp)
-                else 
-                    tau_eff(i,j) = 0.0_wp 
-                end if 
-
-            else 
-                ! Stresses are available at this margin point. 
-                ! Calculate the effective strain rate directly.
-
-                tau_eff(i,j) = calc_tau_eff_now(tau_eig_1(i,j),tau_eig_2(i,j),w2)
-            
-            end if 
-
-        end do 
-        end do
-        !$omp end parallel do
+        where (f_ice .gt. 0.0_wp)
+            tau_eff = calc_tau_eff_now(tau_eig_1,tau_eig_2,w2)
+        elsewhere
+            tau_eff = 0.0_wp
+        end where
 
         return 
 

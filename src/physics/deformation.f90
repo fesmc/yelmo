@@ -11,7 +11,7 @@ module deformation
 
     use yelmo_defs,  only : sp, dp, wp, prec, TOL_UNDERFLOW, &
                         jacobian_3D_class, strain_2D_class, strain_3D_class, stress_2D_class, stress_3D_class
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, fill_partial_ice_cells, &
                     calc_vertical_integrated_2D, integrate_trapezoid1D_1D, integrate_trapezoid1D_pt
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
@@ -37,6 +37,7 @@ module deformation
     public :: calc_jacobian_vel_3D_uzterms
     public :: calc_strain_rate_tensor_jac
     public :: calc_strain_rate_tensor_jac_quad3D
+    public :: fill_strain_2D_partial
     public :: calc_strain_rate_tensor_2D
     public :: calc_strain_rate_horizontal_2D
     public :: calc_stress_tensor 
@@ -1171,8 +1172,8 @@ end if
 
         ! Reset strain rate fields to zero, since only fully ice-covered points
         ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
-        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
-        ! rely on zero eigenvalues there to fill in from neighbors).
+        ! must not retain values from a previous call (partially ice-covered
+        ! points of strn2D are filled afterwards by fill_strain_2D_partial).
         strn%dxx     = 0.0_wp
         strn%dyy     = 0.0_wp
         strn%dxy     = 0.0_wp
@@ -1408,8 +1409,8 @@ end if
 
         ! Reset strain rate fields to zero, since only fully ice-covered points
         ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
-        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
-        ! rely on zero eigenvalues there to fill in from neighbors).
+        ! must not retain values from a previous call (partially ice-covered
+        ! points of strn2D are filled afterwards by fill_strain_2D_partial).
         strn%dxx     = 0.0_wp
         strn%dyy     = 0.0_wp
         strn%dxy     = 0.0_wp
@@ -1849,6 +1850,33 @@ end if
 
     end subroutine calc_stress_tensor
     
+    subroutine fill_strain_2D_partial(strn2D,f_ice,boundaries)
+        ! The strain rate tensor is only calculated at fully ice-covered
+        ! points. Give partially ice-covered (margin) points the mean of their
+        ! fully ice-covered neighbors, so that margin quantities (eg, calving
+        ! laws) see the local strain field. f_shear is left at zero there.
+
+        implicit none
+
+        type(strain_2D_class), intent(INOUT) :: strn2D
+        real(wp),              intent(IN)    :: f_ice(:,:)
+        character(len=*),      intent(IN)    :: boundaries
+
+        call fill_partial_ice_cells(strn2D%dxx,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%dyy,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%dxy,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%dxz,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%dyz,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%div,f_ice,boundaries)
+        call fill_partial_ice_cells(strn2D%de, f_ice,boundaries)
+
+        call calc_2D_eigen_values(strn2D%eps_eig_1,strn2D%eps_eig_2, &
+                                    strn2D%dxx,strn2D%dyy,strn2D%dxy)
+
+        return
+
+    end subroutine fill_strain_2D_partial
+
     subroutine calc_stress_tensor_2D(strs2D,visc_bar,strn2D)
         ! Calculate the deviatoric stress tensor components [Pa]
         ! following from, eg, Thoma et al. (2014), Eq. 7.
