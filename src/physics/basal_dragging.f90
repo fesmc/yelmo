@@ -438,10 +438,6 @@ contains
 
         end select 
 
-        ! 1a. Ensure beta is relatively smooth 
-!         call regularize2D(beta,H_ice,dx)
-!         call limit_gradient(beta,H_ice,dx,log=.TRUE.)
-
         ! 2. Scale beta as it approaches grounding line 
         select case(beta_gl_scale) 
 

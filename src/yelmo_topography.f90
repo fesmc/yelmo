@@ -1101,11 +1101,6 @@ end if
         call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
         call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
 
-        ! ajr: experimental, doesn't seem to work properly yet! ===>
-        ! Modify surface slope gradient at the grounding line if desired 
-!         call calc_gradient_ac_gl(tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%z_srf,tpo%now%H_ice, &
-!                                       tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%par%dx,method=2,grad_lim=tpo%par%grad_lim)
-        
         ! 3. Calculate new masks ------------------------------
 
         ! Calculate the grounded fraction and grounding line mask of each grid cell
