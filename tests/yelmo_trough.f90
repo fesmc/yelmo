@@ -112,23 +112,29 @@ program yelmo_trough
             ! period is exactly ly. For even ny the wall y=-ly/2 is a row, for
             ! odd ny the wall lies midway between the first and last rows.
 
-            ny = nint(ly/dx)
-            if (abs(ny*dx-ly) .gt. 1e-6_wp*ly) then
-                write(*,*) "yelmo_trough:: Error: ly must be a multiple of dx for the periodic channel."
-                write(*,*) "ly, dx = ", ly, dx
-                stop
-            end if
+            nx = int(xmax/dx)+1
+            ny = periodic_npts(ly,dx,"ly")
+            y0 = -real(ny/2,wp)*dx
+
+        case("SLAB-S06","RAYMOND")
+            ! Slab periodic in x and y (experiment "SLAB"): x_i = (i-1)*dx with
+            ! period exactly lx (no duplicated end column), and the same centred
+            ! y-grid as the channel above, with period exactly ly.
+
+            nx = periodic_npts(lx,dx,"lx")
+            ny = periodic_npts(ly,dx,"ly")
             y0 = -real(ny/2,wp)*dx
 
         case DEFAULT
 
+            nx = int(xmax/dx)+1
             ny = int((ymax-ymin)/dx)+1
             y0 = ymin
 
     end select
 
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km", &
-                            x0=0.0_wp,dx=dx,nx=int(xmax/dx)+1, &
+                            x0=0.0_wp,dx=dx,nx=nx, &
                             y0=y0,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
@@ -162,7 +168,11 @@ program yelmo_trough
 
             ! ===== Intialize topography and set parameters =========
         
-            yelmo1%bnd%z_bed = 10000.0_wp - s06_alpha*(yelmo1%grd%x - minval(yelmo1%grd%x))
+            ! The tilted bed is not periodic in x: carry the slope as a uniform
+            ! background slope (ytopo slope_bg_x), added to the surface and bed
+            ! gradients; z_bed and z_srf only contain the periodic (flat) part.
+            yelmo1%tpo%par%slope_bg_x = -s06_alpha
+            yelmo1%bnd%z_bed = 10000.0_wp
 
             yelmo1%tpo%now%H_ice = s06_H0
 
@@ -190,7 +200,9 @@ program yelmo_trough
 
             ! ===== Intialize topography and set parameters =========
         
-            yelmo1%bnd%z_bed = 10000.0_wp - s06_alpha*(yelmo1%grd%x - minval(yelmo1%grd%x))
+            ! Tilted bed as a uniform background slope (see RAYMOND above)
+            yelmo1%tpo%par%slope_bg_x = -s06_alpha
+            yelmo1%bnd%z_bed = 10000.0_wp
 
             yelmo1%tpo%now%H_ice = s06_H0
             yelmo1%bnd%H_ice_ref = s06_H0 
@@ -342,6 +354,28 @@ end if
     
 contains
     
+    function periodic_npts(l,dx,name) result(n)
+        ! Number of points in a periodic direction of length l (true wrap,
+        ! period n*dx, no halo): l must be a multiple of dx.
+
+        implicit none
+
+        real(wp),         intent(IN) :: l
+        real(wp),         intent(IN) :: dx
+        character(len=*), intent(IN) :: name
+        integer :: n
+
+        n = nint(l/dx)
+        if (abs(n*dx-l) .gt. 1e-6_wp*l) then
+            write(*,*) "yelmo_trough:: Error: "//name//" must be a multiple of dx in a periodic direction."
+            write(*,*) name//", dx = ", l, dx
+            stop
+        end if
+
+        return
+
+    end function periodic_npts
+
     subroutine define_calving_front(calv_mask,xx,x_cf)
         ! Define a calving mask in the x direction where 
         ! beyond the position x_cf ice will be calved. 
