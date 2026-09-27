@@ -70,7 +70,9 @@ program yelmo_mismip
         ! When to apply time modifications
         time_mod_1 = 15000.0   ! Switch from Stnd => P75S
         time_mod_2 = 15100.0   ! Switch back from P75S => Stnd
-        time_end   = time_mod_2 + 1000.0
+
+        ! Protocol end time, unless time_end > 0 is given in the parameter file
+        if (time_end .le. 0.0) time_end = time_mod_2 + 1000.0
 
         !time_mod_1 = 20000.0
         !time_mod_2 = time_mod_1
@@ -110,7 +112,9 @@ program yelmo_mismip
 
         ATT_time   = 15e3
         ATT_dt     = 10e3 
-        time_end   = ATT_time + n_att*ATT_dt !+ 100e3
+
+        ! Protocol end time, unless time_end > 0 is given in the parameter file
+        if (time_end .le. 0.0) time_end = ATT_time + n_att*ATT_dt
         dt2D_out   = 500.0 
         
         write(*,*) "time_init = ", time_init 
