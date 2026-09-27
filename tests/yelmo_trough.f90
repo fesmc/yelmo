@@ -73,12 +73,15 @@ program yelmo_trough
     call nml_read(path_par,"ctrl","wc",           wc)            ! [km] Trough parameter
     call nml_read(path_par,"ctrl","x_cf",         x_cf)          ! [km] Trough parameter
     
-    ! Schoof domain parameters
-    call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)      ! [m/m] Constant slope
-    call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)         ! [m]   Constant ice thickness
-    call nml_read(path_par,"ctrl_schoof","W",    s06_W)          ! [m]   Half-width weak till
-    call nml_read(path_par,"ctrl_schoof","m",    s06_m)          ! []    Exponent
-    
+    ! Schoof domain parameters (only needed by the slab domains)
+    select case(trim(domain))
+        case("SLAB-S06","RAYMOND")
+            call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)  ! [m/m] Constant slope
+            call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)     ! [m]   Constant ice thickness
+            call nml_read(path_par,"ctrl_schoof","W",    s06_W)      ! [m]   Half-width weak till
+            call nml_read(path_par,"ctrl_schoof","m",    s06_m)      ! []    Exponent
+    end select
+
     ! Simulation parameters 
     call nml_read(path_par,"ctrl","Tsrf_const",   Tsrf_const)    ! [degC]  Surface temperature
     call nml_read(path_par,"ctrl","smb_const",    smb_const)     ! [m/yr]  Surface mass balance

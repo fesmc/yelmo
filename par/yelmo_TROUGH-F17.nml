@@ -26,13 +26,6 @@
 
 /
 
-&ctrl_schoof
-    alpha           = 1e-3
-    H0              = 1000.0
-    W               = 25e3
-    m               = 1.55 
-/
-
 &yelmo
     domain          = "TROUGH-F17"
     grid_name       = "TROUGH-F17"
