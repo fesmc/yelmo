@@ -1088,26 +1088,6 @@ end if
 
     end subroutine calc_basal_stress
 
-    elemental subroutine limit_vel(u,u_lim)
-        ! Apply a velocity limit (for stability)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: u 
-        real(wp), intent(IN)    :: u_lim
-
-        real(wp), parameter :: tol = TOL_UNDERFLOW
-        
-        u = min(u, u_lim)
-        u = max(u,-u_lim)
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
-
-        return 
-
-    end subroutine limit_vel
-    
     function calc_staggered_margin(var0,var1,f0,f1) result(var_mid)
         ! Calculate a staggered point but taking upstream point at the margin 
 

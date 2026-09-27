@@ -1230,8 +1230,11 @@ contains
 
         real(wp), parameter :: tol = TOL_UNDERFLOW
 
-        u = min(u, u_lim)
-        u = max(u,-u_lim)
+        ! Explicit comparisons (not min/max) so that a NaN passes through
+        ! unchanged and is caught by yelmo_check_kill, instead of being
+        ! silently mapped to +u_lim.
+        if (u .gt.  u_lim) u =  u_lim
+        if (u .lt. -u_lim) u = -u_lim
 
         ! Also avoid underflow errors 
         if (abs(u) .lt. tol) u = 0.0 

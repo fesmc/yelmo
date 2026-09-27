@@ -25,7 +25,6 @@ module velocity_general
     public :: set_inactive_margins
     public :: calc_ice_flux
     public :: calc_vel_ratio
-    public :: limit_vel
 
     public :: picard_calc_error 
     public :: picard_calc_error_angle 
@@ -1743,26 +1742,6 @@ end if
 
     end function calc_vel_ratio
 
-    elemental subroutine limit_vel(u,u_lim)
-        ! Apply a velocity limit (for stability)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: u 
-        real(wp), intent(IN)    :: u_lim
-
-        real(wp), parameter :: tol = 1e-10
-        
-        u = min(u, u_lim)
-        u = max(u,-u_lim)
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
-
-        return 
-
-    end subroutine limit_vel
-    
     subroutine picard_calc_error(corr,ux,uy,ux_prev,uy_prev)
         ! Calculate the current error, ie, the 'correction vector'
         ! as defined by De Smedt et al. (2010):
