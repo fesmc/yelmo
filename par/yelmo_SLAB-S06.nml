@@ -2,8 +2,6 @@
     symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
     ! This file is run with the trough driver (yelmo_trough.x, `runme -e trough`),
     ! which dispatches on ctrl.domain; the slab parameters are in &ctrl_schoof.
-    ! The separate yelmo_slab.x program (`make slab`) uses a different &ctrl
-    ! layout and cannot be run with this file.
 
     domain       = "SLAB-S06"           ! "SLAB-S06", "RAYMOND"
 

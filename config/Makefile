@@ -194,13 +194,6 @@ trough : yelmo-static
 		@echo "    yelmo_trough.x is ready."
 		@echo " "
 
-slab : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_slab.x tests/yelmo_slab.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_slab.x is ready."
-		@echo " "
-
 mask_ice : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_mask_ice.x tests/yelmo_mask_ice.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
