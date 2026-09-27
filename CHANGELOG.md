@@ -25,8 +25,42 @@ little. MISMIP3D and DIVA runs change more.
   overburden closure with `cf_ref = 1e4`, which froze the bed.
 - **`k24_eta_w` in the par files is now SI** (5.70e-11 Pa s). The old value was a
   stale per-year one, about 3e7 times too large.
-- **Requires FastHydrology dev ≥ `5c83050`** (new `hydro_calc_N`, and
-  `hydro_init_state` now takes `H_ice`).
+- **Removed parameters:** `yelmo.cfl_diff_max` (it was unused, and so was the
+  placeholder `dt_diff` output) and `ydyn.cb_sia` (it was read, but its code block
+  was empty). Delete them from external par files.
+- **New parameters:**
+  - `yelmo.log_mb_check` (default false) prints a global mass-budget check every
+    step. It replaces the hard-coded `check_mb`.
+  - `ytopo.slope_bg_x` and `ytopo.slope_bg_y` (default 0) add a uniform background
+    slope to the surface and bed gradients. They are for periodic domains whose
+    geometry is tilted; the tilt itself is not in `z_srf`/`z_bed`.
+- **`yelmo.pc_filter_vel` (default true) changed meaning.** The velocity
+  solution is no longer filtered. The thickness update is advected with the mean
+  of the current and previous solutions, a true two-step mean (before, it was a
+  running average over all past steps). All velocity outputs are now mutually
+  consistent. TROUGH mean H changes by +1.4%, mostly from a shift in surge timing.
+- **Periodic benchmark grids:**
+  - TROUGH-F17, MISMIP+ and MISMIP3D use a y-grid centred on y = 0 with
+    `ny = ly/dx` rows, so the period is exactly ly. Before, both walls were rows,
+    which made the channel one cell too wide. The run stops if ly/dx is not an
+    integer.
+  - SLAB-S06 and RAYMOND are now periodic in both directions for every component,
+    and carry their bed tilt as `slope_bg_x`.
+  - TROUGH (8 km, 5 ka) volume per unit width changes by −3.7%; MISMIP+ by about −0.5%.
+- **Benchmark drivers:**
+  - MISMIP+ runs again.
+  - SLAB-S06 uses constant N_eff = 1 Pa and no thermal scaling of c_bed. Before,
+    the flow was about 1e-6 m/yr.
+  - The MISMIP driver honours `ctrl.time_end > 0` (≤ 0 runs to the protocol end)
+    and reports `x_gl` on the centreline and a new `x_gl_edge` at the channel wall.
+  - The TROUGH and MISMIP drivers initialise the level set from the ice thickness.
+    Before, all marine ice calved at t = 0 when `use_lsf` was on.
+  - The TROUGH driver writes a restart.
+  - The `yelmo_slab.x` program and the `make slab` target are retired. SLAB-S06
+    runs through `-e trough`.
+- **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
+  `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
+  `hydro_init`.
 
 ### Answer-changing fixes
 
@@ -55,8 +89,12 @@ little. MISMIP3D and DIVA runs change more.
 - **Periodic boundaries:** there is now one true-wrap convention everywhere (period
   n, no halo; `periodic-x` wraps in x and is infinite in y). Beta staggering, the
   halo routines and the impl-lis advection builder follow it. The thermodynamics
-  now solves the periodic edge columns instead of copying them. Non-periodic runs
-  are unchanged. The ISMIP-HOM shift error drops from 0.22 to 1e-6.
+  now solves the periodic edge columns instead of copying them. The SSA masks, the
+  predictor-corrector mask, the CFL check and the f_grnd_acx/acy edges wrap too.
+  FastHydrology is told which directions are periodic, so it no longer overwrites
+  their rims. Non-periodic runs are unchanged. The ISMIP-HOM shift error drops from
+  0.22 to 1e-6, and ISMIP-HOM uses `slope_bg_x` instead of a tilted geometry that
+  jumped at the wrap. MISMIP+ is now mirror-symmetric to 1e-3 m.
 - **Mass conservation:** the 10% `mb_resid` overshoot is applied only where ice is
   removed. The margin thickness limit can no longer add ice at fractional cells.
 - **Linear solver:** an all-zero RHS returns x = 0. Before, Lis returned NaN, which
@@ -65,16 +103,31 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Non-default options
 
-- **Calving:** the ISMIP7 retreat now follows the flow direction on ac-nodes, and
-  uses thermal forcing relative to the local seawater freezing point (new
-  `calc_T_freeze_sw`) and the true water depth. Eigencalving is zero unless both
-  eigenvalues are positive.
-- **LSF:** advected with its own all-dynamic mask, no longer held at 0 where ice is
-  not allowed. Ocean cells are pinned to lsf = +1.
+- **Calving:**
+  - The ISMIP7 retreat now acts along the front normal (−∇lsf), so a stagnant
+    front also retreats.
+  - It uses thermal forcing relative to the local seawater freezing point (new
+    `calc_T_freeze_sw`) and the true water depth.
+  - Negative subglacial discharge is clipped to 0 instead of giving NaN.
+  - Eigencalving is zero unless both eigenvalues are positive.
+- **LSF:**
+  - The level set is advected by its own advective-form upwind solver
+    (∂φ/∂t + w·∇φ = 0, subcycled for CFL), independent of `ytopo.solver`. Before,
+    it reused the flux-form thickness solver, which added a −φ∇·w term.
+  - The ice velocity is extended into the ocean from ice faces, taking the nearest
+    source on either side, so the result no longer depends on sweep order.
+    CalvingMIP stays mirror-symmetric (exp1 V +0.13%).
+  - The level set has its own all-dynamic mask and is no longer held at 0 where ice
+    is not allowed. Ocean cells are pinned to lsf = +1.
+  - The `LSFsnap` time counter no longer overflows.
 - **SSA:** fixes for `visc_method = 0` and `2`, and for the energy solver with the
   "mask" boundary condition.
-- **Grounding line:** fixes for `taud_gl_method = 2, 3` and `beta_gl_stag = 4`,
-  which removes a N–S asymmetry in TROUGH.
+- **Grounding line:**
+  - Fixes for `taud_gl_method = 2, 3` and `beta_gl_stag = 4` remove a N–S
+    asymmetry in TROUGH.
+  - `beta_gl_stag = 4` now integrates velocity rather than flux (Gladstone et al.
+    2010). The MISMIP3D RF hysteresis gap goes from 464 to 365 km.
+- **K24 hydrology:** the latent heat is taken from Yelmo's `L_ice`.
 - **Discharge:** `dmb_method = 1` no longer scales `dist_grline` by dx a second time.
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
 
@@ -89,6 +142,13 @@ little. MISMIP3D and DIVA runs change more.
 - Domains with no regions file default to `regions = 0` (Greenland keeps 1.3).
 - New `write_metrics` option writing `yelmo_metrics.nc`.
 - The restart read no longer writes a debug `yelmo_restart_init.nc`.
+- The SSA "beta appears to be zero" warning only counts rows that are actually
+  solved. MISMIP3D printed it 176 times from boundary rows.
+- The mass-budget check (`log_mb_check`) reports the absolute residual and the
+  residual relative to the gross throughput. The old percentage error blew up at
+  equilibrium.
+- Domains without a dedicated case mark borders as fixed only in non-periodic
+  directions. Eurasia stops with an error if the regions file has no Eurasia codes.
 
 ### Other
 
@@ -96,7 +156,13 @@ little. MISMIP3D and DIVA runs change more.
   `hyd_N`/`hyd_W_til`. `yhyd.is_external` lets a host model own N_eff.
 - `hyd%now%q` is written to restarts. MISMIP3D is handled in
   `ybound_define_mask_ice`.
-- Removed dead code: `calc_adv3D_timestep*`, `dt_adv3D` and `index_north`/`south`.
+- Removed dead code:
+  - `calc_adv3D_timestep*`, `dt_adv3D`, `index_north`/`south` and
+    `calc_diff2D_timestep`.
+  - Unused staggering, boundary, regularisation and extrapolation helpers.
+  - The unused SIA basal-velocity routines, `ydyn_set_borders`,
+    `update_ssa_mask_convergence` and `grounding_line_flux.f90`.
+- Test drivers: output timing uses 64-bit integers.
 - New docs page on numerical precision (why the symmetry check needs double
   precision for DIVA, and a plan for double-precision internals).
 
