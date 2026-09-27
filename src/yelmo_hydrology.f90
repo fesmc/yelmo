@@ -9,6 +9,7 @@ module yelmo_hydrology
     ! copies (or subgrid-averages, ydyn.neff_nxi) into dyn%now%N_eff.
 
     use yelmo_defs
+    use yelmo_tools, only : boundary_code, get_periodic_directions
     use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update, SEC_PER_YEAR
     use fast_hydrology_k24, only : k24_finalize_par
 
@@ -21,11 +22,13 @@ module yelmo_hydrology
 
 contains
 
-    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy, c)
+    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy, c, boundaries)
         ! Load fasthydrology parameters from the yelmo namelist. The grid
         ! spacing is passed to hydro_init so the user does not have to
         ! keep dx / dy in sync in the namelist (they are no longer
-        ! namelist-loaded by fasthydrology).
+        ! namelist-loaded by fasthydrology), and so are the periodic
+        ! directions of the domain, so that fasthydrology's neighbour
+        ! stencils wrap there and its border BC is not applied.
 
         type(hydro_class),        intent(INOUT) :: hyd
         character(len=*),         intent(IN)    :: filename
@@ -33,10 +36,17 @@ contains
         integer,                  intent(IN)    :: nx, ny
         real(wp),                 intent(IN)    :: dx, dy
         type(ybound_const_class), intent(IN)    :: c        ! Physical constants of the domain
+        character(len=*),         intent(IN)    :: boundaries
+
+        ! Local variables
+        logical :: per_x, per_y
+
+        call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
 
         ! Defaults overlay and typo validation now happen inside
         ! hydro_init (fast_hydrology) using input/yelmo_defaults.nml.
-        call hydro_init(hyd, filename, nx, ny, dx, dy, group=group)
+        call hydro_init(hyd, filename, nx, ny, dx, dy, group=group, &
+                        periodic_x=per_x, periodic_y=per_y)
 
         ! fasthydrology hard-codes rho_ice, rho_w and g, and reads the
         ! marine closure's rho_sw from &yhyd (marine_rho_sw). Replace them

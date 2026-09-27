@@ -821,12 +821,6 @@ contains
 
         write(*,*) "yelmo_init:: thermodynamics initialized."
 
-        ! == hydrology (fasthydrology) ==
-
-        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c)
-
-        write(*,*) "yelmo_init:: hydrology initialized."
-
         ! === Yelmo IO tables ===
         
         ! Load variable io tables
@@ -921,6 +915,14 @@ contains
                 dom%thrm%par%boundaries = "zeros"
 
         end select 
+
+        ! == hydrology (fasthydrology) ==
+        ! (after the boundary treatment is set: its periodic directions are passed on)
+
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c, &
+                           dom%tpo%par%boundaries)
+
+        write(*,*) "yelmo_init:: hydrology initialized."
 
         ! == boundary == 
         
