@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>calving – Yelmo</title>
+<title>vertical-velocity – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../yelmo-variables.html" rel="next">
-<link href="../physics/enthalpy-transition-plan.html" rel="prev">
+<link href="../physics/thermodynamics.html" rel="next">
+<link href="../physics/mass_conservation/solvers.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -198,7 +198,7 @@ window.Quarto = {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/vertical-velocity.html">Vertical velocity — <code>uz</code> and <code>uz_star</code></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -314,7 +314,7 @@ window.Quarto = {
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/vertical-velocity.html" class="sidebar-item-text sidebar-link">
+  <a href="../physics/vertical-velocity.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Vertical velocity — <code>uz</code> and <code>uz_star</code></span></a>
   </div>
 </li>
@@ -332,7 +332,7 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link active">
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Calving schemes</span></a>
   </div>
 </li>
@@ -436,48 +436,357 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link active" data-scroll-target="#calving-schemes">Calving schemes</a>
+  <li><a href="#vertical-velocity-uz-and-uz_star" id="toc-vertical-velocity-uz-and-uz_star" class="nav-link active" data-scroll-target="#vertical-velocity-uz-and-uz_star">Vertical velocity — <code>uz</code> and <code>uz_star</code></a>
   <ul class="collapse">
-  <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
+  <li><a href="#the-vertical-coordinate" id="toc-the-vertical-coordinate" class="nav-link" data-scroll-target="#the-vertical-coordinate">The vertical coordinate</a></li>
+  <li><a href="#uz-the-physical-vertical-velocity" id="toc-uz-the-physical-vertical-velocity" class="nav-link" data-scroll-target="#uz-the-physical-vertical-velocity"><code>uz</code> — the physical vertical velocity</a>
+  <ul class="collapse">
+  <li><a href="#continuum-form" id="toc-continuum-form" class="nav-link" data-scroll-target="#continuum-form">Continuum form</a></li>
+  <li><a href="#discrete-form" id="toc-discrete-form" class="nav-link" data-scroll-target="#discrete-form">Discrete form</a></li>
+  <li><a href="#the-three-methods" id="toc-the-three-methods" class="nav-link" data-scroll-target="#the-three-methods">The three methods</a></li>
+  <li><a href="#practical-caveats" id="toc-practical-caveats" class="nav-link" data-scroll-target="#practical-caveats">Practical caveats</a></li>
+  </ul></li>
+  <li><a href="#uz_star-the-sigma-relative-advective-velocity" id="toc-uz_star-the-sigma-relative-advective-velocity" class="nav-link" data-scroll-target="#uz_star-the-sigma-relative-advective-velocity"><code>uz_star</code> — the sigma-relative advective velocity</a>
+  <ul class="collapse">
+  <li><a href="#why-it-exists" id="toc-why-it-exists" class="nav-link" data-scroll-target="#why-it-exists">Why it exists</a></li>
+  <li><a href="#what-it-represents" id="toc-what-it-represents" class="nav-link" data-scroll-target="#what-it-represents">What it represents</a></li>
+  </ul></li>
+  <li><a href="#the-two-c_x-are-not-the-same" id="toc-the-two-c_x-are-not-the-same" class="nav-link" data-scroll-target="#the-two-c_x-are-not-the-same">The two <code>c_x</code> are not the same</a></li>
+  <li><a href="#which-one-do-i-use" id="toc-which-one-do-i-use" class="nav-link" data-scroll-target="#which-one-do-i-use">Which one do I use?</a></li>
+  <li><a href="#where-each-field-is-used-in-the-code" id="toc-where-each-field-is-used-in-the-code" class="nav-link" data-scroll-target="#where-each-field-is-used-in-the-code">Where each field is used in the code</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/vertical-velocity.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/calving.html">Calving schemes</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/vertical-velocity.html">Vertical velocity — <code>uz</code> and <code>uz_star</code></a></li></ol></nav></header>
 
 
 
 
-<section id="calving-schemes" class="level1">
-<h1>Calving schemes</h1>
-<p>Here is a summary of calving schemes.</p>
-<section id="lipscomb-et-al.-2019" class="level2">
-<h2 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h2>
+<section id="vertical-velocity-uz-and-uz_star" class="level1">
+<h1>Vertical velocity — <code>uz</code> and <code>uz_star</code></h1>
+<p>Yelmo carries <strong>two</strong> distinct vertical velocity fields, both defined on vertical <code>ac</code>-nodes (cell edges, <code>nz_ac = nz_aa + 1</code>) and both owned by the dynamics class (<code>dyn%now%uz</code>, <code>dyn%now%uz_star</code>):</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>uz</code></td>
+<td><span class="math inline">w</span></td>
+<td>the <strong>physical</strong> vertical velocity, in a fixed (Eulerian) frame</td>
+</tr>
+<tr class="even">
+<td><code>uz_star</code></td>
+<td><span class="math inline">w^\star</span></td>
+<td>the <strong>sigma-relative</strong> advective vertical velocity, <span class="math inline">w^\star = H\,\mathrm{D}\zeta/\mathrm{D}t</span></td>
+</tr>
+</tbody>
+</table>
+<p>They are not interchangeable, and confusing them is easy because both have units of <span class="math inline">\mathrm{m\,a^{-1}}</span> and both are “a vertical velocity”. This page derives each one, maps it onto the code, and states the rule for which to use where.</p>
+<p>Both are computed together in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_general.f90"><code>src/physics/velocity_general.f90</code></a>, dispatched from <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_dynamics.f90"><code>src/yelmo_dynamics.f90</code></a> by the <code>ydyn.uz_method</code> parameter.</p>
+<section id="the-vertical-coordinate" class="level2">
+<h2 class="anchored" data-anchor-id="the-vertical-coordinate">The vertical coordinate</h2>
+<p>Yelmo uses a terrain-following, time-dependent sigma coordinate</p>
 <p><span class="math display">
-c = k_\tau \tau_{\rm ec}
+\zeta \;=\; \frac{z - b(x,y,t)}{H(x,y,t)},
+\qquad \zeta = 0 \ \text{at the base},\quad \zeta = 1 \ \text{at the surface},
 </span></p>
-<p>where <span class="math inline">k_\tau</span> (m yr<span class="math inline">^{-1}</span> Pa<span class="math inline">^{-1}</span>) is an empirical constant and <span class="math inline">\tau_{\rm ec}</span> (Pa) is the effective calving stress, which is defined by:</p>
+<p>with <span class="math inline">b</span> the ice base, <span class="math inline">s = b + H</span> the surface, and <span class="math inline">H</span> the thickness. The <span class="math inline">\zeta</span> surfaces both <strong>tilt</strong> (they follow <span class="math inline">b</span> and <span class="math inline">s</span>) and <strong>move in time</strong> (as <span class="math inline">b</span> and <span class="math inline">s</span> evolve). Every subtlety below follows from those two facts.</p>
+<p>The metric terms we will need are</p>
 <p><span class="math display">
-\tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
+\frac{\partial \zeta}{\partial z} = \frac{1}{H},
+\qquad
+\frac{\partial \zeta}{\partial x}\bigg|_z
+= -\frac{1}{H}\Bigl[(1-\zeta)\,\frac{\partial b}{\partial x} + \zeta\,\frac{\partial s}{\partial x}\Bigr],
 </span></p>
-<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
-<p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
+<p>and identically for <span class="math inline">y</span> and <span class="math inline">t</span>. These are Greve and Blatter (2009), Eqs. 5.131–5.132, and they appear verbatim in the code as the <code>c_x</code>, <code>c_y</code>, <code>c_t</code> factors — <strong>but with two different normalisations</strong>, which is the single most important detail on this page (see <a href="#the-two-c_x-are-not-the-same">below</a>).</p>
+</section>
+<section id="uz-the-physical-vertical-velocity" class="level2">
+<h2 class="anchored" data-anchor-id="uz-the-physical-vertical-velocity"><code>uz</code> — the physical vertical velocity</h2>
+<section id="continuum-form" class="level3">
+<h3 class="anchored" data-anchor-id="continuum-form">Continuum form</h3>
+<p>Ice is treated as incompressible, so</p>
 <p><span class="math display">
-a \lambda^2 + b \lambda + c = 0
+\frac{\partial u}{\partial x}\bigg|_z + \frac{\partial v}{\partial y}\bigg|_z + \frac{\partial w}{\partial z} \;=\; 0 .
+</span></p>
+<p>Integrating upward from the base, anchored by the basal kinematic boundary condition (Greve and Blatter, 2009, Eq. 5.31),</p>
+<p><span class="math display">
+w_b \;=\; \frac{\partial b}{\partial t} \;+\; u_b\,\frac{\partial b}{\partial x} \;+\; v_b\,\frac{\partial b}{\partial y} \;+\; \dot b ,
+</span></p>
+<p>gives</p>
+<p><span class="math display">
+w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + \frac{\partial v}{\partial y}\bigg|_{z'} \right) \mathrm{d}z' .
+</span></p>
+<p>Note the derivatives inside the integral are at <strong>constant <span class="math inline">z</span></strong> — true partial derivatives. This is the crux of the discrete implementation.</p>
+</section>
+<section id="discrete-form" class="level3">
+<h3 class="anchored" data-anchor-id="discrete-form">Discrete form</h3>
+<p>The model stores <span class="math inline">u</span> and <span class="math inline">v</span> on constant-<span class="math inline">\zeta</span> layers, so a naive horizontal difference at fixed vertical index <span class="math inline">k</span> yields <span class="math inline">\partial u/\partial x|_\zeta</span>, <em>not</em> <span class="math inline">\partial u/\partial x|_z</span>. The two are related by the chain rule:</p>
+<p><span class="math display">
+\frac{\partial u}{\partial x}\bigg|_z
+\;=\; \frac{\partial u}{\partial x}\bigg|_\zeta
+\;+\; \frac{\partial \zeta}{\partial x}\,\frac{\partial u}{\partial \zeta} .
+</span></p>
+<p>The code applies exactly this correction. In <code>calc_uz_3D</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">c_x = -H_inv * ( (1.0-zeta_now)*dzbdx_aa + zeta_now*dzsdx_aa )   ! = dzeta/dx</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">c_y = -H_inv * ( (1.0-zeta_now)*dzbdy_aa + zeta_now*dzsdy_aa )   ! = dzeta/dy</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>dudx_aa <span class="kw">=</span> <span class="op">&lt;</span>du<span class="kw">/</span>dx at constant zeta<span class="op">&gt;</span>  <span class="kw">+</span>  c_x<span class="kw">*</span>dudz_aa               <span class="co">! -&gt; du/dx at constant z</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>dvdy_aa <span class="kw">=</span> <span class="op">&lt;</span>dv<span class="kw">/</span>dy at constant zeta<span class="op">&gt;</span>  <span class="kw">+</span>  c_y<span class="kw">*</span>dvdz_aa               <span class="co">! -&gt; dv/dy at constant z</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>where <code>dudz_aa</code> <span class="math inline">= \partial u/\partial\zeta</span>. Note the <code>H_inv</code>: here <code>c_x</code> <span class="math inline">= \partial\zeta/\partial x</span>.</p>
+<p>The corrected divergence is then integrated upward (Greve and Blatter, 2009, Eq. 5.95), with <span class="math inline">H\,\Delta\zeta = \Delta z</span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>uz(i,j,<span class="dv">1</span>) <span class="kw">=</span> dzbdt_now <span class="kw">+</span> f_bmb<span class="kw">*</span>bmb(i,j) <span class="kw">+</span> ux_aa<span class="kw">*</span>dzbdx_aa <span class="kw">+</span> uy_aa<span class="kw">*</span>dzbdy_aa<span class="co">   ! basal KBC</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>uz(i,j,k) <span class="kw">=</span> uz(i,j,k<span class="kw">-</span><span class="dv">1</span>) <span class="kw">-</span> H_now<span class="kw">*</span>(zeta_ac(k)<span class="kw">-</span>zeta_ac(k<span class="kw">-</span><span class="dv">1</span>))<span class="kw">*</span>(dudx_aa<span class="kw">+</span>dvdy_<span class="co">aa)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>with <code>dzbdt_now = dzsdt_now - dhdt_now</code> (the base rate is deduced from the surface and thickness rates, so no explicit bedrock-uplift input is needed, and the expression is valid for grounded <em>and</em> floating ice).</p>
+<p><strong>The sigma-ness is removed, not embedded.</strong> The coordinate corrections are applied to the <em>horizontal derivatives</em> precisely so that what gets integrated is the true constant-<span class="math inline">z</span> divergence. What comes out, <code>uz</code>, is honest physical <span class="math inline">w</span> in a fixed frame.</p>
+</section>
+<section id="the-three-methods" class="level3">
+<h3 class="anchored" data-anchor-id="the-three-methods">The three methods</h3>
+<p><code>ydyn.uz_method</code> selects among three implementations that differ only in how the horizontal derivatives are evaluated — all three produce the same quantity:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th><code>uz_method</code></th>
+<th>Routine</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1 (<code>uz_aa</code>)</td>
+<td><code>calc_uz_3D_aa</code></td>
+<td>simplest; plain finite differences on <code>aa</code>-nodes</td>
+</tr>
+<tr class="even">
+<td>2 (<code>uz_nodes</code>)</td>
+<td><code>calc_uz_3D</code></td>
+<td>Gaussian-quadrature sub-node averaging</td>
+</tr>
+<tr class="odd">
+<td>3 (<code>uz_jac</code>)</td>
+<td><code>calc_uz_3D_jac</code></td>
+<td><strong>default</strong>; uses the precomputed 3D velocity Jacobian <code>jvel</code> from <code>calc_jacobian_vel_3D_uxyterms</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a>). Most stable and most correct.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="practical-caveats" class="level3">
+<h3 class="anchored" data-anchor-id="practical-caveats">Practical caveats</h3>
+<ul>
+<li><strong>The surface kinematic BC is not enforced.</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward. The corresponding surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is computed but the redistribution correction is commented out in all three routines. So <code>uz</code> is <em>exactly divergence-consistent and exactly satisfies the basal BC</em>; any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. “Consistent with mass conservation” should be read in that precise sense.</li>
+<li><strong>Stability clamps.</strong> The basal value is floored at <code>uz_min = -10 m/yr</code>, and <code>calc_uz_3D_jac</code> additionally clamps <span class="math inline">|w| \le</span> <code>uz_lim = 10 m/yr</code> throughout. Values below <code>TOL_UNDERFLOW</code> are zeroed. These are numerical guards that only bite when something is already going wrong, but they do make <code>uz</code> mildly non-physical near the bed in those cases.</li>
+<li><strong>Ice-free points</strong> get <code>uz = dzbdt - max(smb,0)</code> and <code>uz_star = uz</code>.</li>
+</ul>
+</section>
+</section>
+<section id="uz_star-the-sigma-relative-advective-velocity" class="level2">
+<h2 class="anchored" data-anchor-id="uz_star-the-sigma-relative-advective-velocity"><code>uz_star</code> — the sigma-relative advective velocity</h2>
+<section id="why-it-exists" class="level3">
+<h3 class="anchored" data-anchor-id="why-it-exists">Why it exists</h3>
+<p>Consider advecting any scalar <span class="math inline">X</span> (enthalpy, temperature, age, a tracer). The material derivative is a physical statement:</p>
+<p><span class="math display">
+\frac{\mathrm{D}X}{\mathrm{D}t}
+= \frac{\partial X}{\partial t}\bigg|_z
++ u\,\frac{\partial X}{\partial x}\bigg|_z
++ v\,\frac{\partial X}{\partial y}\bigg|_z
++ w\,\frac{\partial X}{\partial z} .
+</span></p>
+<p>But a sigma-coordinate solver cannot evaluate <span class="math inline">\partial X/\partial x|_z</span> directly — differencing <span class="math inline">X</span> across neighbouring columns at fixed layer index <span class="math inline">k</span> gives <span class="math inline">\partial X/\partial x|_\zeta</span>. Substituting the chain rule <span class="math inline">\partial X/\partial f|_z = \partial X/\partial f|_\zeta + (\partial\zeta/\partial f)\,\partial X/\partial\zeta</span> for <span class="math inline">f \in \{t,x,y\}</span>, and <span class="math inline">\partial X/\partial z = H^{-1}\partial X/\partial\zeta</span>, all the leftover pieces collapse into a single vertical term:</p>
+<p><span class="math display">
+\frac{\mathrm{D}X}{\mathrm{D}t}
+= \frac{\partial X}{\partial t}\bigg|_\zeta
++ u\,\frac{\partial X}{\partial x}\bigg|_\zeta
++ v\,\frac{\partial X}{\partial y}\bigg|_\zeta
++ \underbrace{\frac{\mathrm{D}\zeta}{\mathrm{D}t}}_{\textstyle \equiv\, w^\star/H}\,\frac{\partial X}{\partial \zeta} ,
 </span></p>
 <p>where</p>
 <p><span class="math display">
-a = 1.0 \\
-b = -(\tau_{\rm xx} + \tau_{\rm yy}) \\
-c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
+\frac{\mathrm{D}\zeta}{\mathrm{D}t}
+= \frac{\partial\zeta}{\partial t}
++ u\,\frac{\partial\zeta}{\partial x}
++ v\,\frac{\partial\zeta}{\partial y}
++ \frac{w}{H} .
 </span></p>
-<p>glissade_velo_higher.F90:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>tau_xz(k,i,j) <span class="kw">=</span> tau_xz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> du_dz            <span class="co">! 2 * efvs * eps_xz</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>tau_yz(k,i,j) <span class="kw">=</span> tau_yz(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> dv_dz            <span class="co">! 2 * efvs * eps_yz</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>tau_xx(k,i,j) <span class="kw">=</span> tau_xx(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> du_dx     <span class="co">! 2 * efvs * eps_xx</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>tau_yy(k,i,j) <span class="kw">=</span> tau_yy(k,i,j) <span class="kw">+</span> <span class="fl">2.d0</span> <span class="kw">*</span> efvs_qp <span class="kw">*</span> dv_dy     <span class="co">! 2 * efvs * eps_yy</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>tau_xy(k,i,j) <span class="kw">=</span> tau_xy(k,i,j) <span class="kw">+</span> efvs_qp <span class="kw">*</span> (dv_dx <span class="kw">+</span> du_dy)  <span class="co">! 2 * efvs * eps_xy</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Multiplying through by <span class="math inline">H</span> defines</p>
+<p><span class="math display">
+\boxed{\;
+w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
+\;=\; w
+\;+\; u\,\underbrace{H\frac{\partial\zeta}{\partial x}}_{c_x}
+\;+\; v\,\underbrace{H\frac{\partial\zeta}{\partial y}}_{c_y}
+\;+\; \underbrace{H\frac{\partial\zeta}{\partial t}}_{c_t}
+\;}
+</span></p>
+<p>which is Greve and Blatter (2009), Eq. 5.148, and exactly the code:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">c_x = -( (1.0-zeta_now)*dzbdx_aa  + zeta_now*dzsdx_aa )   ! = H * dzeta/dx</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">c_y = -( (1.0-zeta_now)*dzbdy_aa  + zeta_now*dzsdy_aa )   ! = H * dzeta/dy</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">c_t = -( (1.0-zeta_now)*dzbdt_now + zeta_now*dzsdt_now )  ! = H * dzeta/dt</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>uz_star(i,j,k) <span class="kw">=</span> uz(i,j,k) <span class="kw">+</span> ux_aa<span class="kw">*</span>c_x <span class="kw">+</span> uy_aa<span class="kw">*</span>c_y <span class="kw">+</span> c_t</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The vertical advection term is then <span class="math inline">w^\star\,\partial X/\partial z</span>, with <span class="math inline">\partial X/\partial z</span> formed as <span class="math inline">\Delta X / (H\,\Delta\zeta)</span>. This is why the factor <span class="math inline">H^{-1}</span> is <strong>deliberately not applied</strong> when <code>uz_star</code> is built — it is supplied by each consumer’s advection step. <code>uz_star</code> therefore has units of <span class="math inline">\mathrm{m\,a^{-1}}</span>.</p>
+</section>
+<section id="what-it-represents" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-represents">What it represents</h3>
+<p><span class="math inline">w^\star</span> is the parcel’s velocity <strong>relative to the moving sigma surfaces</strong>, expressed with the dimensions of a vertical velocity. Concretely:</p>
+<ul>
+<li><span class="math inline">w^\star = 0</span> <span class="math inline">\iff</span> the parcel stays on its <span class="math inline">\zeta</span> layer (it may still be moving vertically in physical space, if the layer itself is moving).</li>
+<li><span class="math inline">w^\star</span> is what tells you the rate at which ice <em>crosses</em> model layers.</li>
+</ul>
+<p>This is the moving-mesh (ALE) mesh-relative velocity, and the direct analogue of <span class="math inline">\omega</span> in atmospheric sigma coordinates or the diasurface velocity in ocean models. It is a genuine geometric/kinematic quantity — <strong>not</strong> a numerical artifact. It is, however, <em>coordinate-relative</em> rather than <em>frame-relative</em>: it only means anything once you have chosen a terrain-following vertical coordinate. The presence of <span class="math inline">c_t</span> makes this vivid — that term exists purely because the coordinate surfaces move in time, which has nothing to do with numerics.</p>
+</section>
+</section>
+<section id="the-two-c_x-are-not-the-same" class="level2">
+<h2 class="anchored" data-anchor-id="the-two-c_x-are-not-the-same">The two <code>c_x</code> are not the same</h2>
+<p>Within the <em>same subroutine</em>, <code>c_x</code> is defined twice with different normalisations. This trips people up:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Context</th>
+<th>Code</th>
+<th>Value</th>
+<th>Multiplies</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>uz</code> loop</td>
+<td><code>c_x = -H_inv * (...)</code></td>
+<td><span class="math inline">\partial\zeta/\partial x</span></td>
+<td><span class="math inline">\partial u/\partial\zeta</span> (a <strong>velocity derivative</strong>)</td>
+</tr>
+<tr class="even">
+<td><code>uz_star</code> loop</td>
+<td><code>c_x = -(...)</code></td>
+<td><span class="math inline">H\,\partial\zeta/\partial x</span></td>
+<td><span class="math inline">u</span> (the <strong>velocity itself</strong>)</td>
+</tr>
+</tbody>
+</table>
+<p>The corresponding physical distinction is worth stating outright, because it is the most common misconception about these two fields:</p>
+<ul>
+<li>The corrections that build <strong><code>uz</code></strong> involve <strong>derivatives of <span class="math inline">u</span> and <span class="math inline">v</span></strong> (<span class="math inline">\partial u/\partial\zeta</span>, <span class="math inline">\partial v/\partial\zeta</span>). They arise from converting constant-<span class="math inline">\zeta</span> velocity gradients into constant-<span class="math inline">z</span> ones so that incompressibility can be integrated.</li>
+<li>The corrections that build <strong><code>uz_star</code></strong> involve <strong><span class="math inline">u</span> and <span class="math inline">v</span> themselves, undifferentiated</strong>, multiplied by <em>geometry slopes</em> — plus <span class="math inline">c_t</span> from the coordinate’s time dependence. They arise from evaluating the <em>scalar’s</em> horizontal gradient at constant <span class="math inline">\zeta</span> instead of constant <span class="math inline">z</span>.</li>
+</ul>
+<p>Different corrections, different origins, same routine.</p>
+</section>
+<section id="which-one-do-i-use" class="level2">
+<h2 class="anchored" data-anchor-id="which-one-do-i-use">Which one do I use?</h2>
+<p>The rule is determined entirely by <strong>what coordinate your derivative or integration is taken in</strong> — not by whether the code is “numerical”.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Eulerian advection of a scalar with horizontal gradients at constant <span class="math inline">\zeta</span></td>
+<td><strong><code>uz_star</code></strong></td>
+</tr>
+<tr class="even">
+<td>Lagrangian particle trajectory integrating physical <span class="math inline">z</span>: <span class="math inline">\mathrm{d}z/\mathrm{d}t = w</span></td>
+<td><strong><code>uz</code></strong></td>
+</tr>
+<tr class="odd">
+<td>Lagrangian particle tracked by layer, integrating <span class="math inline">\mathrm{d}\zeta/\mathrm{d}t</span></td>
+<td><strong><code>uz_star</code></strong><span class="math inline">/H</span></td>
+</tr>
+<tr class="even">
+<td>Reporting/diagnosing the physical vertical velocity, coupling to an external model</td>
+<td><strong><code>uz</code></strong></td>
+</tr>
+<tr class="odd">
+<td>Vertical CFL constraint for the 3D advection above</td>
+<td><strong><code>uz_star</code></strong></td>
+</tr>
+</tbody>
+</table>
+<p>Put briefly: <strong>integrate <span class="math inline">z</span> → <code>uz</code>; integrate <span class="math inline">\zeta</span> → <code>uz_star</code>.</strong> Anything reasoning in physical space wants <code>uz</code>; anything stepping through the model’s own layers wants <code>uz_star</code>.</p>
+<p>A worked example of the second row: to hand <span class="math inline">(u, v, w)</span> to an offline Lagrangian particle tracer that integrates <span class="math inline">\dot x = u,\ \dot y = v,\ \dot z = w</span>, pass <code>ux</code>, <code>uy</code>, <code>uz</code> — never <code>uz_star</code>. (Note the basal <code>uz_min</code> clamp above if trajectories approach the bed.)</p>
+</section>
+<section id="where-each-field-is-used-in-the-code" class="level2">
+<h2 class="anchored" data-anchor-id="where-each-field-is-used-in-the-code">Where each field is used in the code</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Consumer</th>
+<th>Field</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Enthalpy/temperature vertical advection</td>
+<td><code>uz_star</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_thermodynamics.f90"><code>yelmo_thermodynamics.f90</code></a> → <code>calc_ytherm_enthalpy_3D</code></td>
+</tr>
+<tr class="even">
+<td>Age (<code>dep_time</code>) and <code>enh_bnd</code> tracer advection</td>
+<td><code>uz_star</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90"><code>yelmo_material.f90</code></a> → <code>calc_tracer_3D</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90"><code>ice_tracer.f90</code></a>)</td>
+</tr>
+<tr class="odd">
+<td>Velocity Jacobian <code>jvel</code></td>
+<td><code>uz</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a> → <code>calc_jacobian_vel_3D_*</code></td>
+</tr>
+<tr class="even">
+<td><code>uz_b</code>, <code>uz_s</code> diagnostics</td>
+<td><code>uz</code></td>
+<td><code>yelmo_dynamics.f90</code></td>
+</tr>
+<tr class="odd">
+<td>Output / restart / C API</td>
+<td>both</td>
+<td><code>yelmo_io.f90</code>, <code>yelmo_c_api.f90</code></td>
+</tr>
+</tbody>
+</table>
+<p>Both fields are <strong>diagnostic</strong>: they are recomputed from the velocity solution every dynamics step and carry no prognostic state, even though both are written to the restart file.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>3D CFL timestep
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>There is no 3D advective CFL limit: <code>set_adaptive_timestep</code> in <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_timesteps.f90"><code>yelmo_timesteps.f90</code></a> only applies the 2D (depth-averaged) advective CFL. Should a 3D constraint ever be added, it must be driven by <code>uz_star</code>, since that is the velocity at which scalars actually cross model layers.</p>
+</div>
+</div>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li>Greve, R. and Blatter, H. (2009). <em>Dynamics of Ice Sheets and Glaciers.</em> Springer. — Eq. 5.31 (basal kinematic BC), Eq. 5.95 (upward integration of <span class="math inline">w</span>), Eqs. 5.131–5.132 (sigma metric terms), Eq. 5.148 (<span class="math inline">w^\star</span>).</li>
+<li><a href="https://doi.org/10.5194/gmd-13-2805-2020">Robinson et al.&nbsp;(2020)</a> — Yelmo model description.</li>
+<li>The Glimmer ice-sheet model <a href="https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html">documentation</a>, whose algorithm the <code>uz</code> integration follows.</li>
+</ul>
 
 
 </section>
@@ -891,13 +1200,13 @@ c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../physics/enthalpy-transition-plan.html" class="pagination-link" aria-label="Enthalpy transition plan (ytherm)">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Enthalpy transition plan (ytherm)</span>
+      <a href="../physics/mass_conservation/solvers.html" class="pagination-link" aria-label="Numerical solution of the continuity equation">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Numerical solution of the continuity equation</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../yelmo-variables.html" class="pagination-link" aria-label="Variables">
-        <span class="nav-page-text">Variables</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
+        <span class="nav-page-text">Thermodynamics</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -906,4 +1215,4 @@ c = \tau_{\rm xx}*\tau_{\rm yy} - \tau_{\rm xy}^2
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/calving.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/vertical-velocity.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

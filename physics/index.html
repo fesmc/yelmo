@@ -279,6 +279,12 @@ window.Quarto = {
   </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/vertical-velocity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Vertical velocity — <code>uz</code> and <code>uz_star</code></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -377,6 +383,12 @@ window.Quarto = {
  <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../numerics-precision.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical precision</span></a>
+  </div>
+</li>
       </ul>
   </li>
     </ul>
@@ -392,6 +404,7 @@ window.Quarto = {
   <li><a href="#physics" id="toc-physics" class="nav-link active" data-scroll-target="#physics">Physics</a>
   <ul class="collapse">
   <li><a href="#momentum-balance" id="toc-momentum-balance" class="nav-link" data-scroll-target="#momentum-balance">Momentum balance</a></li>
+  <li><a href="#vertical-velocity" id="toc-vertical-velocity" class="nav-link" data-scroll-target="#vertical-velocity">Vertical velocity</a></li>
   <li><a href="#mass-conservation" id="toc-mass-conservation" class="nav-link" data-scroll-target="#mass-conservation">Mass conservation</a></li>
   <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link" data-scroll-target="#thermodynamics">Thermodynamics</a></li>
   <li><a href="#calving" id="toc-calving" class="nav-link" data-scroll-target="#calving">Calving</a></li>
@@ -444,10 +457,14 @@ window.Quarto = {
 </table>
 <p>DIVA is the recommended choice in Yelmo and is solved as a single 2D problem for the depth-averaged horizontal velocity. SSA is recovered from DIVA in the limit of vanishing vertical shear, and SIA is recovered in the limit of vanishing membrane stresses and large basal drag. All three formulations share the same driving stress, the same Glen viscosity, and (where applicable) the same family of friction laws — see <a href="../parameters.html">Parameters</a> for the parameter choices.</p>
 <p>The fourth page in this subsection documents how the DIVA / SSA momentum balance is <a href="../physics/momentum/solvers.html">discretised and solved</a>, including the two solvers currently supported: the <strong>residual</strong> assembler inherited from Yelmo v1, and the <strong>energy</strong> assembler that minimises a discrete energy functional.</p>
-<p>The vertical velocity <span class="math inline">w</span> is diagnosed from incompressibility once <span class="math inline">u, v</span> are known:</p>
+</section>
+<section id="vertical-velocity" class="level2">
+<h2 class="anchored" data-anchor-id="vertical-velocity">Vertical velocity</h2>
+<p>The <a href="../physics/vertical-velocity.html">vertical velocity</a> <span class="math inline">w</span> is diagnosed from incompressibility once <span class="math inline">u, v</span> are known, anchored at the base by the basal kinematic boundary condition:</p>
 <p><span class="math display">
-w = u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} - \int_b^z \left( \frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} \right) dz'
+w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partial x} + v_b \frac{\partial b}{\partial y} + \dot b}_{w_b} \; - \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + \frac{\partial v}{\partial y}\bigg|_{z'} \right) \mathrm{d}z'
 </span></p>
+<p>Alongside <span class="math inline">w</span> (<code>uz</code>), Yelmo also forms <span class="math inline">w^\star</span> (<code>uz_star</code>), the <strong>sigma-relative</strong> advective vertical velocity used by every scalar advection scheme that takes horizontal gradients at constant <span class="math inline">\zeta</span> — thermodynamics and the age/tracer solver. The two are distinct and not interchangeable; see <a href="../physics/vertical-velocity.html">Vertical velocity</a>.</p>
 </section>
 <section id="mass-conservation" class="level2">
 <h2 class="anchored" data-anchor-id="mass-conservation">Mass conservation</h2>

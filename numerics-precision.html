@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>yelmo-variables-ydata – Yelmo</title>
+<title>numerics-precision – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -23,6 +23,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -33,8 +68,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./notes.html" rel="next">
-<link href="./yelmo-variables-yhyd.html" rel="prev">
+<link href="./optimization.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -120,7 +154,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ydata.html">ydata</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li><li class="breadcrumb-item"><a href="./numerics-precision.html">Numerical precision</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -307,7 +341,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link active">
+  <a href="./yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ydata</span></a>
   </div>
 </li>
@@ -342,7 +376,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
+  <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Numerical precision</span></a>
   </div>
 </li>
@@ -358,159 +392,117 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#ydata" id="toc-ydata" class="nav-link active" data-scroll-target="#ydata">ydata</a></li>
+  <li><a href="#numerical-precision" id="toc-numerical-precision" class="nav-link active" data-scroll-target="#numerical-precision">Numerical precision</a>
+  <ul class="collapse">
+  <li><a href="#current-state" id="toc-current-state" class="nav-link" data-scroll-target="#current-state">Current state</a></li>
+  <li><a href="#why-it-matters-symmetry-regression-check" id="toc-why-it-matters-symmetry-regression-check" class="nav-link" data-scroll-target="#why-it-matters-symmetry-regression-check">Why it matters: symmetry regression check</a></li>
+  <li><a href="#building-in-double-precision-for-regression-checks" id="toc-building-in-double-precision-for-regression-checks" class="nav-link" data-scroll-target="#building-in-double-precision-for-regression-checks">Building in double precision (for regression checks)</a></li>
+  <li><a href="#plan-double-precision-internals-wp-interfaces" id="toc-plan-double-precision-internals-wp-interfaces" class="nav-link" data-scroll-target="#plan-double-precision-internals-wp-interfaces">Plan: double-precision internals, <code>wp</code> interfaces</a></li>
+  </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ydata.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/numerics-precision.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ydata.html">ydata</a></li></ol></nav></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./notes.html">Notes</a></li><li class="breadcrumb-item"><a href="./numerics-precision.html">Numerical precision</a></li></ol></nav></header>
 
 
 
 
-<section id="ydata" class="level1">
-<h1>ydata</h1>
+<section id="numerical-precision" class="level1">
+<h1>Numerical precision</h1>
+<section id="current-state" class="level2">
+<h2 class="anchored" data-anchor-id="current-state">Current state</h2>
+<p>Yelmo and its Fortran dependencies are compiled in single precision. The working precision <code>wp</code> is hard-coded in each package:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 3%">
-<col style="width: 18%">
-<col style="width: 20%">
-<col style="width: 12%">
-<col style="width: 45%">
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>id</th>
-<th>variable</th>
-<th>dimensions</th>
-<th>units</th>
-<th>long_name</th>
+<th>Package</th>
+<th>File</th>
+<th>Setting</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>1</td>
-<td>pd_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD ice thickness</td>
+<td>yelmo</td>
+<td><code>src/yelmo_defs.f90</code></td>
+<td><code>wp = sp</code></td>
 </tr>
 <tr class="even">
-<td>2</td>
-<td>pd_z_srf</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD surface elevation</td>
+<td>fesm-utils</td>
+<td><code>src/precision.f90</code></td>
+<td><code>wp = sp</code></td>
 </tr>
 <tr class="odd">
-<td>3</td>
-<td>pd_z_bed</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD bedrock elevation</td>
+<td>FastHydrology</td>
+<td><code>src/fast_hydrology.f90</code>, <code>src/bucket.f90</code>, <code>src/closures.f90</code></td>
+<td><code>wp = sp</code></td>
 </tr>
 <tr class="even">
-<td>4</td>
-<td>pd_H_grnd</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD overburden ice thickness</td>
+<td>tracer</td>
+<td><code>src/tracer_precision.f90</code></td>
+<td><code>wp = sp</code>, <code>prec_time = sp</code></td>
 </tr>
 <tr class="odd">
-<td>5</td>
-<td>pd_mask_bed</td>
-<td>xc, yc</td>
-<td>-</td>
-<td>PD mask</td>
-</tr>
-<tr class="even">
-<td>6</td>
-<td>pd_ux_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity in the x-direction</td>
-</tr>
-<tr class="odd">
-<td>7</td>
-<td>pd_uy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity in the y-direction</td>
-</tr>
-<tr class="even">
-<td>8</td>
-<td>pd_uxy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface velocity magnitude</td>
-</tr>
-<tr class="odd">
-<td>9</td>
-<td>pd_T_srf</td>
-<td>xc, yc</td>
-<td>K</td>
-<td>PD surface temperature</td>
-</tr>
-<tr class="even">
-<td>10</td>
-<td>pd_smb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD surface mass balance</td>
-</tr>
-<tr class="odd">
-<td>11</td>
-<td>pd_depth_iso</td>
-<td>xc, yc, pd_age_iso</td>
-<td>m</td>
-<td>PD depth of specific isochrones</td>
-</tr>
-<tr class="even">
-<td>12</td>
-<td>pd_err_H_ice</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in ice thickness</td>
-</tr>
-<tr class="odd">
-<td>13</td>
-<td>pd_err_z_srf</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in surface elevation</td>
-</tr>
-<tr class="even">
-<td>14</td>
-<td>pd_err_z_bed</td>
-<td>xc, yc</td>
-<td>m</td>
-<td>PD error in bedrock elevation</td>
-</tr>
-<tr class="odd">
-<td>15</td>
-<td>pd_err_smb_ref</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD error in surface mass balance</td>
-</tr>
-<tr class="even">
-<td>16</td>
-<td>pd_err_uxy_s</td>
-<td>xc, yc</td>
-<td>m/yr</td>
-<td>PD error in surface velocity magnitude</td>
-</tr>
-<tr class="odd">
-<td>17</td>
-<td>pd_err_depth_iso</td>
-<td>xc, yc, pd_age_iso</td>
-<td>m</td>
-<td>PD error in isochrone depth</td>
+<td>elsa</td>
+<td><code>src/elsa_precision.f90</code></td>
+<td><code>wp = dp</code></td>
 </tr>
 </tbody>
 </table>
+<p>There is no build switch to change this. Interfaces between packages pass <code>wp</code> arrays, so all packages above must agree on <code>wp</code>.</p>
+<p>Some solvers already work internally in double precision:</p>
+<ul>
+<li>Lis (<code>solver_linear.F90</code>) solves in double precision; the matrix is assembled in <code>wp</code> and converted.</li>
+<li>FastHydrology’s K24 transport copies its <code>wp</code> inputs to <code>dp</code>, solves, and converts the result back (<code>hydro_update</code>, <code>TRANSPORT_K24</code> branch). This is the template for the plan below.</li>
+</ul>
+</section>
+<section id="why-it-matters-symmetry-regression-check" class="level2">
+<h2 class="anchored" data-anchor-id="why-it-matters-symmetry-regression-check">Why it matters: symmetry regression check</h2>
+<p>The EISMINT-moving symmetry check (<code>symmetry_check</code> in the <code>&amp;ctrl</code> group, <code>src/yelmo_symmetry.f90</code>) compares the solution with its mirror images, normalised by the maximum ice thickness, against a tolerance of 1e-3.</p>
+<p>With the SIA solver the check passes in single precision. With <code>ydyn.solver = "diva"</code> it fails (Linf/Hmax ≈ 1.7e-3), although every DIVA operation is symmetric: with exactly symmetric inputs the solver output is symmetric to 4e-7 (sp) and 2e-13 (dp). The cause is dynamical. Thin grounded frontal cells switch on and off every 100-300 yr (grounded cells have <code>f_ice = 1</code> whenever <code>H_ice &gt; 0</code>), and the eight mirror-image cells slowly drift out of phase with an e-folding time of ~1.7 kyr. Single-precision round-off (~1e-7) grows to a phase slip after ~18 kyr. In double precision the asymmetry at 25 kyr is ~4e-12.</p>
+<p>The symmetry check is therefore meaningful for DIVA only in double precision.</p>
+</section>
+<section id="building-in-double-precision-for-regression-checks" class="level2">
+<h2 class="anchored" data-anchor-id="building-in-double-precision-for-regression-checks">Building in double precision (for regression checks)</h2>
+<p>Build a separate copy; do not modify the shared checkouts.</p>
+<ol type="1">
+<li>Copy fesm-utils, FastHydrology, tracer and yelmo into a scratch tree and link them to each other there (<code>fesm-utils</code>, <code>FastHydrology</code>, <code>tracer</code> symlinks inside each package, as in a normal setup). elsa can be linked as is.</li>
+<li>Set <code>wp = dp</code> in every file listed in the table above, and also <code>prec_time = dp</code> in tracer.</li>
+<li>Add <code>-fdefault-real-8 -fdefault-double-8</code> to <code>FFLAGS_BASE</code> in the yelmo <code>Makefile</code>. This is currently required because some calls pass default-real literals to <code>wp</code> dummy arguments (e.g.&nbsp;in <code>solver_ssa_ac.f90</code>), which fail to compile with <code>wp = dp</code> otherwise.</li>
+<li>Build in dependency order: <code>make fesmutils-static</code>, <code>make fasthydro-static</code>, <code>make tracer-static</code>, then <code>make yelmo-static benchmarks</code> in yelmo.</li>
+</ol>
+<p>Run the check with, for example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/sym-diva-dp <span class="at">-n</span> par/yelmo_EISMINT_moving.nml <span class="at">-p</span> ctrl.time_end=25e3 ydyn.solver=diva</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="plan-double-precision-internals-wp-interfaces" class="level2">
+<h2 class="anchored" data-anchor-id="plan-double-precision-internals-wp-interfaces">Plan: double-precision internals, <code>wp</code> interfaces</h2>
+<p>Rather than switching the whole model to double precision, the plan is to run the precision-sensitive internal calculations in <code>dp</code> while all interfaces (derived types, module arguments, I/O) stay in <code>wp</code>, following the K24 pattern:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">! inputs wp -&gt; dp</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>H_dp <span class="kw">=</span> <span class="dt">real(H_ice, dp)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">call solve_something_dp(x_dp, H_dp, ...)</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">! result dp -&gt; wp</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>x <span class="kw">=</span> <span class="dt">real(x_dp, wp)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Candidates, in order of expected benefit:</p>
+<ul>
+<li>Picard iteration of the SSA/DIVA momentum balance, including viscosity and effective-drag updates and the convergence measure.</li>
+<li>DIVA vertical integrals (F-integrals) and basal velocity.</li>
+<li>Vertical column solvers in thermodynamics (tridiagonal enthalpy and temperature solves).</li>
+<li>Implicit advection matrix assembly (the Lis solve is already <code>dp</code>).</li>
+</ul>
+<p>Prerequisites:</p>
+<ul>
+<li>Make yelmo <code>wp</code>-clean, so that it compiles with <code>wp = dp</code> without <code>-fdefault-real-8</code>. Literals passed to <code>wp</code> arguments need a <code>_wp</code> kind.</li>
+<li>Add a double-precision build of the symmetry check to the regression tests.</li>
+</ul>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -921,14 +913,11 @@ ul.task-list li input[type="checkbox"] {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./yelmo-variables-yhyd.html" class="pagination-link" aria-label="yhyd">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">yhyd</span>
+      <a href="./optimization.html" class="pagination-link" aria-label="Basal friction optimization">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./notes.html" class="pagination-link" aria-label="Notes">
-        <span class="nav-page-text">Notes</span> <i class="bi bi-arrow-right-short"></i>
-      </a>
   </div>
 </nav>
 </div> <!-- /content -->
@@ -936,4 +925,4 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ydata.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/numerics-precision.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
