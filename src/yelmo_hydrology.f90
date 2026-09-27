@@ -68,7 +68,7 @@ contains
         type(ytopo_class),  intent(IN)    :: tpo
         real(wp),           intent(IN)    :: time
 
-        call hydro_init_state(hyd, bnd%z_bed, tpo%now%f_ice, tpo%now%f_grnd, time)
+        call hydro_init_state(hyd, tpo%now%H_ice, bnd%z_bed, tpo%now%f_ice, tpo%now%f_grnd, time)
 
         return
 
