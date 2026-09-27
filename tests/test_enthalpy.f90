@@ -325,7 +325,7 @@ contains
             ! Kleiner (2015) Exp A. Basal melt (bmb<0) adds water, freeze-on
             ! (bmb>0) removes it; floored at zero. Same water-equivalent
             ! conversion as the solver's W_til_predicted.
-            col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
+            col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_ice/c%rho_w)*dt)
 
             ! Sample steady basal melt (as +melt, mm/a) in the warm and cold phases
             if (trim(experiment) .eq. "kleiner-a") then
@@ -540,7 +540,7 @@ contains
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=use_int2)
                     end if
                     ! basal water bookkeeping (as in run_experiment)
-                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
+                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_ice/c%rho_w)*dt)
                     time = time + dt
                 end do
                 if (isolv .eq. 1) then; Tb_t = col%T_ice(1)-c%T0
@@ -593,7 +593,7 @@ contains
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     end if
-                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_w/c%rho_ice)*dt)
+                    col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_ice/c%rho_w)*dt)
                     time = time + dt
                 end do
                 if (isolv .eq. 1) then; Tb_t2 = col%T_ice(1)-c%T0; else; Tb_e2 = col%T_ice(1)-c%T0; end if

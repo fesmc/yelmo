@@ -591,6 +591,11 @@ contains
         ! This rate should be passed to the isostasy module as needed.
         call yelmo_update_z_bed_restart_rate(dom,time)
 
+        ! Write the numerics/speed metrics file (no-op unless write_metrics=.TRUE.;
+        ! self-gated to the write_metrics_dt cadence). Suppressed during
+        ! equilibration by yelmo_update_equil, where model time is inconsistent.
+        call yelmo_write_metrics(dom,time_now)
+
         ! ! ajr: diagnostics 
         ! if (time .gt. 100.0 .and. dom%dyn%par%ssa_iter_now .ge. 5) then 
         !     stop 
@@ -634,9 +639,11 @@ contains
             ! necessary, but potentially helps to get things going safely. 
             dom%dyn%par%ssa_iter_max = max(dom_ref%dyn%par%ssa_iter_max,5)
             
-            ! Do not log timesteps for equilibration period,
-            ! since time will be inconsistent.
-            dom%par%log_timestep     = .FALSE. 
+            ! Do not log timesteps or write the metrics file for the
+            ! equilibration period, since time will be inconsistent.
+            ! (Both are restored by dom%par = dom_ref%par after the loop.)
+            dom%par%log_timestep     = .FALSE.
+            dom%par%write_metrics    = .FALSE.
 
             ! Allow at least n=10 timestep redo iterations. Not strictly
             ! necessary, but potentially helps to get things going safely. 
@@ -674,22 +681,23 @@ contains
 
     end subroutine yelmo_update_equil
     
-    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group)
-        ! Initialize a yelmo domain, including the grid itself, 
+    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr)
+        ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
-        !$ use omp_lib 
+        !$ use omp_lib
 
         implicit none
 
-        type(yelmo_class) :: dom 
-        character(len=*),  intent(IN) :: filename 
-        character(len=*),  intent(IN) :: grid_def 
-        real(wp),          intent(IN) :: time 
-        logical, optional, intent(IN) :: load_topo 
+        type(yelmo_class) :: dom
+        character(len=*),  intent(IN) :: filename
+        character(len=*),  intent(IN) :: grid_def
+        real(wp),          intent(IN) :: time
+        logical, optional, intent(IN) :: load_topo
         character(len=*),  intent(IN), optional :: domain
-        character(len=*),  intent(IN), optional :: grid_name 
+        character(len=*),  intent(IN), optional :: grid_name
         character(len=*),  intent(IN), optional :: group
+        character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics)
 
         ! Local variables
         integer :: n_threads 
@@ -702,6 +710,11 @@ contains
         else
             nml_group = "yelmo"         ! Default parameter block name
         end if
+
+        ! Output folder for files yelmo writes internally (regions, metrics).
+        ! Defaults to the current working directory; the driver may override it.
+        dom%outfldr = ""
+        if (present(outfldr)) dom%outfldr = trim(outfldr)
 
         ! ==== GLOBAL INIT CHECKS ============================================
         
@@ -940,8 +953,9 @@ contains
 
         ! Initialize region: global domain
         ! Writing to file will only take place if user-program calls yelmo_regions_write(),
-        ! which uses the flag specified below. Note currently this assumes outfldr="./" too.
-        call yelmo_region_init(dom%reg,"global",mask=(dom%bnd%mask_ice /= MASK_ICE_NONE),write_to_file=.TRUE.)
+        ! which uses the flag specified below. The output path comes from dom%outfldr.
+        call yelmo_region_init(dom%reg,"global",mask=(dom%bnd%mask_ice /= MASK_ICE_NONE), &
+                               write_to_file=.TRUE.,outfldr=dom%outfldr)
 
         ! Initialize regional averaging domains too (global region + zero subdomains for now)
         ! If regional subdomains are desired, this call will be made explicitly outside the program
@@ -1497,7 +1511,10 @@ contains
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
-        
+
+        call nml_read(filename,group,"write_metrics",    par%write_metrics,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"write_metrics_dt", par%write_metrics_dt, defaults_file=def_file,defaults_group=def_yelmo)
+
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)
         if (present(grid_name))  par%grid_name = trim(grid_name)

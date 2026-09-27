@@ -16,6 +16,10 @@
 
 ## v2.3 (2026-07-15)
 
+> **Note:** ISMIPHOM aborts at startup in this release (`ydyn.solver = "l1l2"`
+> outlived the L1L2 solver). Fixed in v2.3.1 — use that instead. Other
+> configurations are unaffected.
+
 Enthalpy is now the default thermodynamics solver, a passive-tracer subsystem is
 added, and the horizontal thermal advection is rewritten. This release also folds
 in the fesm-utils/coords compatibility shift and a large dynamics/topography

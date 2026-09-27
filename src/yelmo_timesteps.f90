@@ -1379,8 +1379,12 @@ end if
         ytime%ssa_iter_avg  = MV
 
         ! Initially, since we don't know pc_dt and pc_eta for
-        ! previous timesteps, we should not use this information. 
-        ytime%pc_active = .FALSE. 
+        ! previous timesteps, we should not use this information.
+        ytime%pc_active = .FALSE.
+
+        ! Metrics output state (yelmo_metrics.nc created lazily on first write)
+        ytime%metrics_time_write = MV
+        ytime%metrics_init_done  = .FALSE.
 
         return
 
