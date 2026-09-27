@@ -165,28 +165,61 @@ contains
 
     end subroutine perturb_friction
 
-    function find_x_gl(xx,yy,H_grnd) result(x_gl)
-        ! Find the position of the grounding line in the x-direction 
+    function find_x_gl(xx,yy,H_grnd,y_abs) result(x_gl)
+        ! Find the position of the grounding line in the x-direction,
+        ! averaged over the row(s) whose |y| is nearest y_abs: y_abs=0 gives
+        ! the centreline, y_abs=ymax the channel wall (for an odd number of
+        ! rows the wall lies between two mirror-image rows, which are averaged).
         implicit none 
 
         real(dp), intent(IN) :: xx(:,:) 
         real(dp), intent(IN) :: yy(:,:) 
         real(prec), intent(IN) :: H_grnd(:,:) 
+        real(prec), intent(IN) :: y_abs 
         real(prec) :: x_gl 
 
         ! Local variables 
-        integer :: i, j, nx, ny 
-        integer :: inow, jnow 
-        real(prec) :: f_grnd 
+        integer :: j, ny, n 
+        real(dp), allocatable :: dist(:) 
 
-        nx = size(xx,1)
         ny = size(xx,2) 
 
-        ! Determine y index of y=0km
-        jnow = minloc(abs(yy(1,:)),dim=1) 
+        allocate(dist(ny))
+        dist = abs(abs(yy(1,:)) - y_abs)
+
+        x_gl = 0.0 
+        n    = 0 
+        do j = 1, ny 
+            if (dist(j) .le. minval(dist) + 1e-6_dp*(xx(2,1)-xx(1,1))) then 
+                x_gl = x_gl + find_x_gl_row(xx(:,j),H_grnd(:,j))
+                n    = n + 1 
+            end if 
+        end do 
+
+        x_gl = x_gl / real(n,prec) 
+
+        return 
+        
+    end function find_x_gl
+
+    function find_x_gl_row(x,H_grnd) result(x_gl)
+        ! Find the position of the grounding line along one row
+
+        implicit none 
+
+        real(dp),   intent(IN) :: x(:) 
+        real(prec), intent(IN) :: H_grnd(:) 
+        real(prec) :: x_gl 
+
+        ! Local variables 
+        integer :: i, nx 
+        integer :: inow 
+        real(prec) :: f_grnd 
+
+        nx = size(x,1)
 
         ! Determine x index of grounding line
-        if (H_grnd(1,jnow) .le. 0.0) then 
+        if (H_grnd(1) .le. 0.0) then 
             ! No grounded ice 
 
             x_gl = 0.0 
@@ -194,7 +227,7 @@ contains
         else 
             ! Grounded ice exists, find grounding line
             do i = 1, nx-1 
-                if (H_grnd(i,jnow) .gt. 0.0 .and. H_grnd(i+1,jnow) .le. 0.0) then 
+                if (H_grnd(i) .gt. 0.0 .and. H_grnd(i+1) .le. 0.0) then 
                     inow = i 
                     exit 
                 end if 
@@ -205,14 +238,14 @@ contains
             ! Interpolation: H = H1 + f*(H2-H1), so when H = 0
             ! f = -H1 / (H2-H1)  
             ! f_grnd of index inow should be a fraction of the cell 
-            f_grnd = -H_grnd(inow,jnow) / (H_grnd(inow+1,jnow)-H_grnd(inow,jnow))
-            x_gl   = xx(inow,jnow) + f_grnd*(xx(inow+1,jnow)-xx(inow,jnow))
+            f_grnd = -H_grnd(inow) / (H_grnd(inow+1)-H_grnd(inow))
+            x_gl   = x(inow) + f_grnd*(x(inow+1)-x(inow))
 
         end if 
 
         return 
         
-    end function find_x_gl
+    end function find_x_gl_row
 
     subroutine find_x_gl_2D(x_gl,x_gl_std,xx,yy,f_grnd)
         ! Find the position of the grounding line in the x-direction 
