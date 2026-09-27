@@ -1364,10 +1364,11 @@ end if
         ! in the vertical. vz is centered on aa-nodes in the horizontal, but staggered on zeta_ac nodes
         ! in the vertical. 
 
-        ! Note: this routine does not appear to be as stable for, e.g., Laurentide simulations.
-        ! Perhaps it deserves further investigation, but for production runs, the routine
-        ! above calc_jacobian_vel_3D is recommended! 
-        
+        ! Note: this is the routine used by calc_ydyn (the alternative is
+        ! calc_strain_rate_tensor_jac above). It was once reported to be less stable
+        ! in, e.g., Laurentide simulations; that report predates the fix of the
+        ! vertical faces used for dzx/dzy (2026-09) and has not been re-tested.
+
         implicit none
         
         type(strain_3D_class), intent(INOUT) :: strn            ! [yr^-1] on aa-nodes (3D)
