@@ -1677,8 +1677,8 @@ end if
     end subroutine set_inactive_margins
 
     subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy,boundaries)
-        ! Calculate the ice flux at a given point.
-        ! Note: calculated on ac-nodes.
+        ! Calculate the ice flux through each cell face (ac-nodes), using the
+        ! upwind ice thickness, as in the advection solvers (impl-lis, expl-upwind).
         ! qq      [m3 a-1] 
         ! ux,uy   [m a-1]
         ! H_ice   [m] 
@@ -1723,7 +1723,11 @@ end if
         do j = 1, ny 
         do i = 1, i2 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(ip1,j))) * dx 
+            if (ux_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dy
+            else
+                area_ac = H_ice(ip1,j) * dy
+            end if
             qq_acx(i,j) = area_ac*ux_bar(i,j)
         end do 
         end do 
@@ -1732,7 +1736,11 @@ end if
         do j = 1, j2 
         do i = 1, nx 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,jp1))) * dy 
+            if (uy_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dx
+            else
+                area_ac = H_ice(i,jp1) * dx
+            end if
             qq_acy(i,j) = area_ac*uy_bar(i,j)
         end do 
         end do 
