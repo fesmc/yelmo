@@ -7,7 +7,7 @@
 
     ! Timing parameters 
     time_init    = 0.0                  ! [yr] Starting time 
-    time_end     = 20e3                 ! [yr] Ending time 
+    time_end     = 0.0                  ! [yr] Ending time; <= 0: experiment protocol end (Stnd: 16.1 ka, RF: 85 ka)
     dtt          = 5.0                  ! [yr] Main loop timestep 
     dt2D_out     = 100.0                ! [yr] Frequency of writing 2D output files 
 

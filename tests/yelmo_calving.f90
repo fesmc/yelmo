@@ -8,6 +8,7 @@ program yelmo_calving
     use topography, only: calc_ice_fraction_new
 
     use calving_benchmarks
+    use, intrinsic :: iso_fortran_env, only : int64
     
     implicit none
 
@@ -205,12 +206,13 @@ program yelmo_calving
         ! == MODEL OUTPUT =======================================================
 
         ! Standard yelmo 2D output at user-specified frequency
-        if (mod(nint(time*100),nint(ctl%dt2D_out*100))==0) then
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(time*100,int64),nint(ctl%dt2D_out*100,int64))==0) then
             call yelmo_write_step(yelmo1,ctl%file2D,time=time)
         end if
 
         ! Standard yelmo 1D regional output at main-loop timestep
-        if (mod(nint(time*100),nint(ctl%dt1D_out*100))==0) then
+        if (mod(nint(time*100,int64),nint(ctl%dt1D_out*100,int64))==0) then
             call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time)
         end if
 
@@ -357,9 +359,10 @@ contains
         type(control_type), intent(IN) :: ctl
         real(wp),           intent(IN) :: time
 
-        integer :: hundredths
+        integer(int64) :: hundredths
 
-        hundredths = nint(time*100)
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        hundredths = nint(time*100,int64)
 
         select case(trim(ctl%exp))
 
@@ -373,23 +376,23 @@ contains
 
             case("exp3")
                 ! 100-yearly scalars + 2D on Time100
-                if (mod(hundredths, 10000) == 0) then
+                if (mod(hundredths, 10000_int64) == 0) then
                     call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time100")
                     call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
                 end if
                 ! Yearly profiles on Time1
-                if (mod(hundredths, 100) == 0) then
+                if (mod(hundredths, 100_int64) == 0) then
                     call calvingmip_write_profiles(ylmo,ctl%file_cmip,time,"Time1")
                 end if
 
             case("exp2","exp4","exp5")
                 ! Yearly scalars + profiles on Time1
-                if (mod(hundredths, 100) == 0) then
+                if (mod(hundredths, 100_int64) == 0) then
                     call calvingmip_write_scalars(ylmo,ctl%file_cmip,time,"Time1")
                     call calvingmip_write_profiles(ylmo,ctl%file_cmip,time,"Time1")
                 end if
                 ! 100-yearly 2D on Time100
-                if (mod(hundredths, 10000) == 0) then
+                if (mod(hundredths, 10000_int64) == 0) then
                     call calvingmip_write_2D(ylmo,ctl%file_cmip,time)
                 end if
 

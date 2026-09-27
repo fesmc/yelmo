@@ -12,6 +12,7 @@ program yelmo_benchmarks
     use ice_benchmarks 
     use mismip3D 
     use timestepping
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -471,7 +472,8 @@ end if
         end select 
 
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(ts%time*100),nint(dt2D_out*100))==0) then 
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(ts%time*100,int64),nint(dt2D_out*100,int64))==0) then 
             call write_step_2D(yelmo1,file2D,time=ts%time) 
             !call yelmo_write_step(yelmo1,file2D,time) 
 
@@ -482,7 +484,7 @@ end if
             
         end if 
 
-        if (mod(nint(ts%time*100),nint(dt1D_out*100))==0) then 
+        if (mod(nint(ts%time*100,int64),nint(dt1D_out*100,int64))==0) then 
             call yelmo_write_reg_step(yelmo1,file1D,time=ts%time) 
         end if 
 

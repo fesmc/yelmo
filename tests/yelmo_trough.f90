@@ -8,6 +8,7 @@ program yelmo_trough
     use ncio 
     use yelmo 
     use deformation 
+    use lsf_module, only : LSFinit
     use timestepping
 
     implicit none 
@@ -53,6 +54,7 @@ program yelmo_trough
     ! Define input and output locations 
     file2D     = trim(outfldr)//"yelmo2D.nc"
     file1D     = trim(outfldr)//"yelmo1D.nc"
+    file_restart = trim(outfldr)//"yelmo_restart.nc"
     
     ! Define the domain, grid and experiment from parameter file
     call nml_read(path_par,"ctrl","domain",       domain)        ! TROUGH-F17, MISMIP+
@@ -73,12 +75,15 @@ program yelmo_trough
     call nml_read(path_par,"ctrl","wc",           wc)            ! [km] Trough parameter
     call nml_read(path_par,"ctrl","x_cf",         x_cf)          ! [km] Trough parameter
     
-    ! Schoof domain parameters
-    call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)      ! [m/m] Constant slope
-    call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)         ! [m]   Constant ice thickness
-    call nml_read(path_par,"ctrl_schoof","W",    s06_W)          ! [m]   Half-width weak till
-    call nml_read(path_par,"ctrl_schoof","m",    s06_m)          ! []    Exponent
-    
+    ! Schoof domain parameters (only needed by the slab domains)
+    select case(trim(domain))
+        case("SLAB-S06","RAYMOND")
+            call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)  ! [m/m] Constant slope
+            call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)     ! [m]   Constant ice thickness
+            call nml_read(path_par,"ctrl_schoof","W",    s06_W)      ! [m]   Half-width weak till
+            call nml_read(path_par,"ctrl_schoof","m",    s06_m)      ! []    Exponent
+    end select
+
     ! Simulation parameters 
     call nml_read(path_par,"ctrl","Tsrf_const",   Tsrf_const)    ! [degC]  Surface temperature
     call nml_read(path_par,"ctrl","smb_const",    smb_const)     ! [m/yr]  Surface mass balance
@@ -236,6 +241,11 @@ program yelmo_trough
     ! Define calving front 
     call define_calving_front(yelmo1%bnd%calv_mask,yelmo1%grd%x*1e-3,x_cf)
 
+    ! Initialize the LSF mask from the topography, if not restarting
+    if (.not. yelmo1%par%use_restart) then
+        call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
+    end if
+
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
 
@@ -291,6 +301,9 @@ end if
     ! Write summary 
     write(*,*) "====== "//trim(domain)//" ======="
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
+
+    ! Write a restart file
+    call yelmo_restart_write(yelmo1,file_restart,ts%time)
 
     ! Finalize program
     call yelmo_end(yelmo1,time=ts%time)
