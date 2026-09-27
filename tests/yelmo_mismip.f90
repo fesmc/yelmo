@@ -9,6 +9,7 @@ program yelmo_mismip
     use lsf_module, only : LSFinit
 
     use mismip3D 
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -242,11 +243,12 @@ program yelmo_mismip
         call mismip3D_boundaries(yelmo1%bnd%T_srf,yelmo1%bnd%smb,yelmo1%bnd%Q_geo,yelmo1%bnd%calv_mask,yelmo1%bnd%c%T0,experiment=experiment)
 
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(time*100),nint(dt2D_out*100))==0) then  
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(time*100,int64),nint(dt2D_out*100,int64))==0) then  
             call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl)    
         end if 
 
-        if (mod(nint(time*100),nint((5.0*dtt)*100))==0) then
+        if (mod(nint(time*100,int64),nint((5.0*dtt)*100,int64))==0) then
             write(*,"(a,2f14.4,a10,g14.3,f10.2)") "time = ",  &
                 time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl 
         end if 

@@ -2,8 +2,6 @@
     symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
     ! This file is run with the trough driver (yelmo_trough.x, `runme -e trough`),
     ! which dispatches on ctrl.domain; the slab parameters are in &ctrl_schoof.
-    ! The separate yelmo_slab.x program (`make slab`) uses a different &ctrl
-    ! layout and cannot be run with this file.
 
     domain       = "SLAB-S06"           ! "SLAB-S06", "RAYMOND"
 
@@ -178,7 +176,6 @@
     ssa_iter_rel        = 0.7             ! [--] Relaxation fraction [0:1] to stabilize ssa iterations
     ssa_iter_conv       = 1e-4            ! [--] L2 relative error convergence limit to exit ssa iterations
     taud_lim            = 2e5             ! [Pa] Maximum allowed driving stress
-    cb_sia              = 0.0             ! [m a-1 Pa-1] Bed roughness coefficient for SIA sliding
 
     neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
 

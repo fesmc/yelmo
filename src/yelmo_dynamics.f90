@@ -421,16 +421,6 @@ contains
 
         end if 
 
-        ! Additionally, check if using SIA only, then apply SIA sliding as desired 
-        if ( (use_sia .and. .not. use_ssa) .and. dyn%par%cb_sia .gt. 0.0) then 
-            ! Calculate basal velocity from Weertman sliding law (Greve 1997)
-                    
-            ! call calc_velocity_basal_sia_00(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
-            !                                 tpo%now%H_ice,tpo%now%dzsdx,tpo%now%dzsdy,thrm%now%f_pmp, &
-            !                                 dyn%par%zeta_aa,dyn%par%dx,dyn%par%cb_sia,bnd%c%rho_ice,bnd%c%g)
-            
-        end if 
-
         ! 3. Join SIA and SSA solutions (SIA+SSA) =====
 
         ! Calculate the 3D horizontal velocity field (sum of shear and basal sliding)
@@ -893,7 +883,6 @@ contains
         call nml_read(filename,group_ydyn,"ssa_iter_conv",      par%ssa_iter_conv,      init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         call nml_read(filename,group_ydyn,"taud_lim",           par%taud_lim,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"cb_sia",             par%cb_sia,             init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         call nml_read(filename,group_ytill,"method",            par%till_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"scale_zb",          par%till_scale_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
