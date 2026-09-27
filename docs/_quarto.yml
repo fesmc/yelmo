@@ -68,6 +68,7 @@ website:
           - yelmo-io.md
           - remapping.md
           - optimization.md
+          - numerics-precision.md
 
 format:
   html:
