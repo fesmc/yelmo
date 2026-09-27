@@ -278,19 +278,12 @@ contains
                 ! Step 1: Perform predictor step for topography
                 ! Get predicted new ice thickness and store it for later use
                 ! call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,dom%tpo%par%topo_fixed)
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor")
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor", &
+                                                                                        filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 2: Calculate dynamics for predicted ice thickness 
 
                 call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time_now)
-
-                if (dom%par%pc_filter_vel) then 
-                    
-                    ! Modify ux/y_bar to use the average between the current and previous velocity solutions
-                    dom%dyn%now%ux_bar = 0.5_wp*dom%dyn%now%ux_bar + 0.5_wp*dom%dyn%now%ux_bar_prev
-                    dom%dyn%now%uy_bar = 0.5_wp*dom%dyn%now%uy_bar + 0.5_wp*dom%dyn%now%uy_bar_prev
-                    
-                end if 
 
                 if (update_others_pc) then
                     ! Now, using old topography still, update additional fields.
@@ -313,7 +306,8 @@ contains
                 ! Get corrected ice thickness and store it for later use
                 
                 ! Call corrector step for topography
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"corrector")
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"corrector", &
+                                                                                        filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 4: Determine truncation error for ice thickness
 
@@ -1434,6 +1428,11 @@ contains
             end if
             
             call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time)
+
+            ! No previous velocity solution exists yet, so the initial
+            ! solution also serves as the previous one (see pc_filter_vel)
+            dom%dyn%now%ux_bar_prev = dom%dyn%now%ux_bar
+            dom%dyn%now%uy_bar_prev = dom%dyn%now%uy_bar
 
             ! Calculate material information again with updated dynamics
         
