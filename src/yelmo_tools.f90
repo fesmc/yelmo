@@ -760,7 +760,7 @@ contains
 
     end function stagger_ab_acy
     
-    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,margin2nd,zero_outside,boundaries)
+    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -773,6 +773,7 @@ contains
         logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
+        real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
         
         ! Local variables 
         integer  :: i, j, nx, ny 
@@ -861,6 +862,9 @@ end if
 
         end select
 
+        ! Add the background slope, so that the limit below bounds the total slope
+        if (present(slope_bg)) dvardx = dvardx + slope_bg
+
         ! Finally, ensure that gradient is beneath desired limit 
         call minmax(dvardx,grad_lim)
 
@@ -868,7 +872,7 @@ end if
 
     end subroutine calc_gradient_acx
     
-subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside,boundaries)
+subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -881,6 +885,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
+        real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
         
         ! Local variables 
         integer  :: i, j, nx, ny 
@@ -968,6 +973,9 @@ end if
                 dvardy(:,ny) = dvardy(:,ny-1)
 
         end select
+
+        ! Add the background slope, so that the limit below bounds the total slope
+        if (present(slope_bg)) dvardy = dvardy + slope_bg
 
         ! Finally, ensure that gradient is beneath desired limit 
         call minmax(dvardy,grad_lim)

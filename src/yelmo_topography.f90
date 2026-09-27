@@ -1059,14 +1059,14 @@ end if
 
 if (.TRUE.) then
         ! New routines 
-        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries)
-        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
         call calc_gradient_acx(tpo%now%dHidx,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
         call calc_gradient_acy(tpo%now%dHidy,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
         
-        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries)
-        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
 else
         bcx = trim(tpo%par%boundaries)
         if (trim(bcx) .eq. "periodic-x") bcx = "periodic"
@@ -1405,6 +1405,8 @@ end if
         call nml_read(filename,group_ytopo,"surf_gl_method",    par%surf_gl_method,   init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"grad_lim",          par%grad_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"slope_bg_x",        par%slope_bg_x,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
+        call nml_read(filename,group_ytopo,"slope_bg_y",        par%slope_bg_y,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"dHdt_dyn_lim",      par%dHdt_dyn_lim,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"margin_flt_subgrid",par%margin_flt_subgrid,init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
