@@ -8,6 +8,7 @@ program yelmo_trough
     use ncio 
     use yelmo 
     use deformation 
+    use lsf_module, only : LSFinit
     use timestepping
 
     implicit none 
@@ -53,6 +54,7 @@ program yelmo_trough
     ! Define input and output locations 
     file2D     = trim(outfldr)//"yelmo2D.nc"
     file1D     = trim(outfldr)//"yelmo1D.nc"
+    file_restart = trim(outfldr)//"yelmo_restart.nc"
     
     ! Define the domain, grid and experiment from parameter file
     call nml_read(path_par,"ctrl","domain",       domain)        ! TROUGH-F17, MISMIP+
@@ -239,6 +241,11 @@ program yelmo_trough
     ! Define calving front 
     call define_calving_front(yelmo1%bnd%calv_mask,yelmo1%grd%x*1e-3,x_cf)
 
+    ! Initialize the LSF mask from the topography, if not restarting
+    if (.not. yelmo1%par%use_restart) then
+        call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
+    end if
+
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
 
@@ -294,6 +301,9 @@ end if
     ! Write summary 
     write(*,*) "====== "//trim(domain)//" ======="
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
+
+    ! Write a restart file
+    call yelmo_restart_write(yelmo1,file_restart,ts%time)
 
     ! Finalize program
     call yelmo_end(yelmo1,time=ts%time)

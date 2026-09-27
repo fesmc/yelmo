@@ -7,6 +7,7 @@ program yelmo_mismip
     use yelmo 
     use yelmo_tools, only : stagger_aa_acx, stagger_aa_acy
     use deformation 
+    use lsf_module, only : LSFinit
 
     use mismip3D 
 
@@ -165,6 +166,11 @@ program yelmo_mismip
     ! Intialize topography 
     call mismip3D_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
                             yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,experiment)
+
+    ! Initialize the LSF mask from the topography, if not restarting
+    if (.not. yelmo1%par%use_restart) then
+        call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
+    end if
     
     time     = time_init 
     yelmo1%dyn%par%use_ssa = .TRUE. 
