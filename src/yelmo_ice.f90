@@ -151,9 +151,9 @@ contains
             ! === Diagnose different adaptive timestep limits ===
 
             ! Calculate adaptive time step from CFL constraints 
-            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff, &
+            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv, &
                                 dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
-                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max)
+                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
@@ -1494,7 +1494,6 @@ contains
         call nml_read(filename,group,"dt_method",     par%dt_method,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"dt_min",        par%dt_min,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"cfl_max",       par%cfl_max,       defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"cfl_diff_max",  par%cfl_diff_max,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_method",     par%pc_method,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
@@ -1560,10 +1559,6 @@ contains
         ! Range checks
         if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: cfl_max must be in (0,1]; got ", par%cfl_max
-            stop "Program stopped."
-        end if
-        if (par%cfl_diff_max .le. 0.0_wp .or. par%cfl_diff_max .gt. 1.0_wp) then
-            write(io_unit_err,*) "yelmo_par_load:: error: cfl_diff_max must be in (0,1]; got ", par%cfl_diff_max
             stop "Program stopped."
         end if
         if (par%nz_aa .lt. 2) then

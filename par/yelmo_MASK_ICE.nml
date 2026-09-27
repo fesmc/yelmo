@@ -82,7 +82,6 @@
     dt_method       = 2                 ! adaptive, predictor-corrector
     dt_min          = 0.01
     cfl_max         = 0.1
-    cfl_diff_max    = 0.12
     pc_method       = "AB-SAM"
     pc_controller   = "PI42"
     pc_use_H_pred   = False

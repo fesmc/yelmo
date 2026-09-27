@@ -1054,7 +1054,6 @@ module yelmo_defs
         integer             :: dt_method 
         real(wp)            :: dt_min
         real(wp)            :: cfl_max 
-        real(wp)            :: cfl_diff_max 
         character (len=56)  :: pc_method
         character (len=56)  :: pc_controller
         logical             :: pc_use_H_pred 
@@ -1085,7 +1084,6 @@ module yelmo_defs
         real(wp), allocatable :: pc_tau_masked(:,:)
         
         real(wp), allocatable :: dt_adv(:,:) 
-        real(wp), allocatable :: dt_diff(:,:)
         
         ! Timing information
         real(wp)   :: model_speed 
