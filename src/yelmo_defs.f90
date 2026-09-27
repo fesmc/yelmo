@@ -1035,6 +1035,7 @@ module yelmo_defs
         
         ! Data logging
         logical             :: log_timestep
+        logical             :: log_mb_check
 
         ! Numerics/speed metrics output (yelmo_metrics.nc)
         logical             :: write_metrics

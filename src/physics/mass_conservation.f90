@@ -55,16 +55,25 @@ contains
 
         ! Local variables
         integer  :: npts
-        real(wp) :: tot_dHidt
-        real(wp) :: tot_components
-        real(wp) :: tot_mb_net
-        real(wp) :: tot_cmb
-        real(wp) :: tot_dHidt_dyn
-        real(wp) :: conv
+        ! Totals are accumulated in double precision, so that the check
+        ! does not add summation round-off of its own
+        real(dp) :: tot_dHidt
+        real(dp) :: tot_components
+        real(dp) :: tot_mb_net
+        real(dp) :: tot_cmb
+        real(dp) :: tot_dHidt_dyn
+        real(dp) :: tot_gross
+        real(dp) :: conv
+        real(dp) :: resid
+        real(dp) :: resid_rel
+        character(len=4) :: flag
 
-        real(wp) :: percent_error
-
-        real(wp), parameter :: tol_mb = 1e-6
+        ! Tolerance on the relative residual: with every tendency passed through
+        ! apply_tendency, the residual is only working-precision round-off of the
+        ! per-cell updates, found to be <~0.3*epsilon(wp) of the gross throughput
+        ! (EISMINT, TROUGH). 100*epsilon leaves ample headroom while still
+        ! flagging any real leak (1e-5 of the throughput for wp=sp).
+        real(dp), parameter :: tol_rel = 100.0_dp*epsilon(1.0_wp)
 
         ! Determine conversion factor to units of interest from [m^3/yr]
 
@@ -72,15 +81,15 @@ contains
 
             case("m^3/yr")
 
-                conv = 1.0 
+                conv = 1.0_dp
 
             case("km^3/yr")
 
-                conv = 1e-9
+                conv = 1e-9_dp
 
             case("Sv")
 
-                conv = 1e-6 / sec_year
+                conv = 1e-6_dp / real(sec_year,dp)
 
             case DEFAULT
 
@@ -92,20 +101,30 @@ contains
 
         ! Calculate totals, initially [m^3/yr] => [units]
  
-        tot_dHidt       = sum(dHidt)*dx*dx      * conv
-        tot_mb_net      = sum(mb_net)*dx*dx     * conv
-        tot_cmb         = sum(cmb)*dx*dx        * conv
-        tot_dHidt_dyn   = sum(dHidt_dyn)*dx*dx  * conv
+        tot_dHidt       = sum(real(dHidt,dp))     * real(dx,dp)**2 * conv
+        tot_mb_net      = sum(real(mb_net,dp))    * real(dx,dp)**2 * conv
+        tot_cmb         = sum(real(cmb,dp))       * real(dx,dp)**2 * conv
+        tot_dHidt_dyn   = sum(real(dHidt_dyn,dp)) * real(dx,dp)**2 * conv
 
-        ! Get total of components and percent error
+        ! Gross throughput: sum of the magnitudes of the same component fluxes
+        ! per cell, so opposing fluxes do not cancel (non-zero at equilibrium)
+        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
+                                                        * real(dx,dp)**2 * conv
+
+        ! Get total of components and residual, absolute [units] and relative
+        ! to the gross throughput
         ! (dHidt_dyn integrates to the net flux across the domain boundary,
         ! so it must be included for the budget to close)
         tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
-        percent_error  = (tot_components - tot_dHidt) / (tot_dHidt+tol_mb) * 100.0 
+        resid          = tot_components - tot_dHidt
+        resid_rel      = resid / max(tot_gross,tiny(tot_gross))
 
-        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,3g13.4)") &
+        flag = ""
+        if (abs(resid_rel) .gt. tol_rel) flag = "FAIL"
+
+        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,3g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
-                    tot_dHidt, tot_components, percent_error, " | ", &
+                    tot_dHidt, tot_components, resid, resid_rel, flag, " | ", &
                     tot_dHidt_dyn, tot_mb_net, tot_cmb
 
         return

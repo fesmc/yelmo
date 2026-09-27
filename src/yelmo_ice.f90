@@ -25,7 +25,7 @@ module yelmo_ice
     use yelmo_regions 
 
     use topography, only : remove_englacial_lakes
-    use mass_conservation, only : calc_G_boundaries, check_mass_conservation, apply_tendency
+    use mass_conservation, only : calc_G_boundaries, apply_tendency
     use variable_io, only : load_var_io_table
     !$  use omp_lib
 
@@ -75,7 +75,6 @@ contains
 
         logical, parameter :: update_others_pc  = .FALSE. 
         logical, parameter :: very_verbose      = .FALSE. 
-        logical, parameter :: check_mb          = .FALSE. 
 
 
         ! Safety: check status of model object, 
@@ -122,7 +121,7 @@ contains
         dom%time%ssa_iter_avg = missing_value
 
         ! Initialize rate averages
-        call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=check_mb)
+        call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=dom%par%log_mb_check)
 
         allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
         
@@ -422,7 +421,7 @@ contains
             call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"advance",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Update time averaging of instantaneous rates
-            call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=check_mb)
+            call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=dom%par%log_mb_check)
 
             ! if (time_now .ge. 10.0) then 
             !     write(*,*) time_now
@@ -529,7 +528,7 @@ contains
         if (dt_max_0 .gt. 0.0_wp) then
             ! Finalize averaging of instantaneous rates 
             ! (only if a timestep was calculated, otherwise maintain rates that were there)
-            call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt_max_0,step="final",overwrite=.TRUE.,check_mb=check_mb)
+            call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt_max_0,step="final",overwrite=.TRUE.,check_mb=dom%par%log_mb_check)
         end if
 
         ! Update regional calculations (for entire domain and subdomains)
@@ -569,13 +568,6 @@ contains
 
             ! write(*,*) "time2: ", time, time_now, dom%tpo%par%time, dom%tpo%par%time_calv, &
             !                                     dom%thrm%par%time, dom%mat%par%time, dom%dyn%par%time
-
-
-            ! Check mass conservation if desired (uncomment)
-            ! call check_mass_conservation(dom%tpo%now%H_ice,dom%tpo%now%f_ice,dom%tpo%now%f_grnd,dom%tpo%now%dHidt, &
-            !                 dom%tpo%now%mb_applied,dom%tpo%now%calv,dom%tpo%now%mb_dyn,dom%bnd%smb,dom%tpo%now%bmb, &
-            !                 dom%tpo%now%fmb,dom%tpo%now%mb_resid,dom%grd%G%dx,dom%bnd%c%sec_year,time_now,dt_max_0, &
-            !                 units="km^3/yr",label="final")
 
         end if 
 
@@ -1494,6 +1486,7 @@ contains
         call nml_read(filename,group,"restart_H_ice", par%restart_H_ice, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"restart_relax", par%restart_relax, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"log_timestep",  par%log_timestep,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"log_mb_check",  par%log_mb_check,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"disable_kill",  par%disable_kill,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"zeta_scale",    par%zeta_scale,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"zeta_exp",      par%zeta_exp,      defaults_file=def_file,defaults_group=def_yelmo)

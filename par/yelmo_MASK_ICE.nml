@@ -74,6 +74,7 @@
     restart_H_ice   = False
     restart_relax   = 1e3
     log_timestep    = False
+    log_mb_check    = False
     disable_kill    = True              ! Keep the test running even if PC tolerance is exceeded
     zeta_scale      = "exp"
     zeta_exp        = 2.0
