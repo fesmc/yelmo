@@ -415,7 +415,7 @@ end if
 
     end subroutine calc_pc_tau_heun
 
-    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,boundaries)
+    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,cfl_max,boundaries)
         ! Calculate the timestep following algorithm for 
         ! a general predictor-corrector (pc) method.
         ! Implemented followig Cheng et al (2017, GMD)
@@ -433,6 +433,7 @@ end if
         real(wp), intent(IN)  :: dx                   ! [m]
         integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
+        real(wp), intent(IN)  :: cfl_max              ! [--]   Courant-number backstop on dt (yelmo.pc_cfl_max)
         character(len=*), intent(IN) :: boundaries      ! Boundary conditions of the advection (ytopo)
 
         ! Local variables
@@ -544,9 +545,10 @@ end if
         ! The pc-error controller is the primary timestep limiter here; this CFL
         ! cap is only a hard backstop. Courant number 1.0 (the marginal stability
         ! edge for explicit advection) proved unstable at the nonlinear SIA moving
-        ! margin (grid-axis 2dx oscillations breaking dome symmetry), so use 0.5
-        ! as a safety factor without being as restrictive as the diagnostic cfl_max.
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp,boundaries=boundaries) )
+        ! margin (grid-axis 2dx oscillations breaking dome symmetry), so the
+        ! default is 0.5 (yelmo.pc_cfl_max), a safety factor without being as
+        ! restrictive as the cfl_max used by dt_method=1.
+        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=cfl_max,boundaries=boundaries) )
         dtmax_now = min(dtmax,dt_adv) 
 
         ! Finally, ensure timestep is within prescribed limits
