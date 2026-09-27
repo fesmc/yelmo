@@ -37,6 +37,12 @@ contains
                 group = "EISMINT"        
             case("MISMIP","MISMIP3D")
                 group = "MISMIP3D"
+            case("MISMIP+","MISMIPplus")
+                group = "MISMIPplus"
+            case("ISMIPHOM","ISMIP-HOM")
+                group = "ISMIPHOM"
+            case("CALVINGMIP","CalvingMIP")
+                group = "CALVINGMIP"
             case("TROUGH")
                 group = "TROUGH"
             case DEFAULT
@@ -49,16 +55,16 @@ contains
 
         init_pars = .TRUE. 
         
-        call nml_read(filename,phys_const,"sec_year",    c%sec_year,   init=init_pars)
-        call nml_read(filename,phys_const,"g",           c%g,          init=init_pars)
-        call nml_read(filename,phys_const,"T0",          c%T0,         init=init_pars)
-        call nml_read(filename,phys_const,"rho_ice",     c%rho_ice,    init=init_pars)
-        call nml_read(filename,phys_const,"rho_w",       c%rho_w,      init=init_pars)
-        call nml_read(filename,phys_const,"rho_sw",      c%rho_sw,     init=init_pars)
-        call nml_read(filename,phys_const,"rho_a",       c%rho_a,      init=init_pars)
-        call nml_read(filename,phys_const,"rho_rock",    c%rho_rock,   init=init_pars)
-        call nml_read(filename,phys_const,"L_ice",       c%L_ice,      init=init_pars)
-        call nml_read(filename,phys_const,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
+        call nml_read(filename,group,"sec_year",    c%sec_year,   init=init_pars)
+        call nml_read(filename,group,"g",           c%g,          init=init_pars)
+        call nml_read(filename,group,"T0",          c%T0,         init=init_pars)
+        call nml_read(filename,group,"rho_ice",     c%rho_ice,    init=init_pars)
+        call nml_read(filename,group,"rho_w",       c%rho_w,      init=init_pars)
+        call nml_read(filename,group,"rho_sw",      c%rho_sw,     init=init_pars)
+        call nml_read(filename,group,"rho_a",       c%rho_a,      init=init_pars)
+        call nml_read(filename,group,"rho_rock",    c%rho_rock,   init=init_pars)
+        call nml_read(filename,group,"L_ice",       c%L_ice,      init=init_pars)
+        call nml_read(filename,group,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
 
         ! Define conversion factors too
 
@@ -71,7 +77,8 @@ contains
         c%conv_millionkm3_Gt  = (1e6) * (1e9) *c%conv_m3_Gt     ! [1e6km3/1] * [1e9m^3/km^3] * conv
         
         c%area_seasurf        = 3.618e8                         ! [km^2]
-        c%conv_km3_sle        = (1e-3) / 394.7                  ! [m/mm] / [km^3 to raise ocean by 1mm] => m sle, see https://sealevel.info/conversion_factors.html
+        ! [m sle / km^3 ice]: km^3 ice => m^3 liquid water, spread over the ocean surface area
+        c%conv_km3_sle        = (c%rho_ice/c%rho_w) * (1e9) / (c%area_seasurf*1e6)
 
         if (yelmo_log) then
             write(*,*) ""
@@ -158,18 +165,19 @@ contains
         !
         ! ====================================
 
-        ! First assign default region values
+        ! First assign default region values (used if no regions file is loaded)
         bnd%region_mask = 1.0
         select case(trim(domain))
-            case("North")
-                bnd%regions = bnd%index_north
-            case("Antarctica")
-                bnd%regions = bnd%index_south
             case("Greenland")
+                ! The Greenland domain is centered on the Greenland region
                 bnd%regions = bnd%index_grl
             case DEFAULT
-                ! Assign a default value everywhere
-                bnd%regions = 1.0
+                ! No region information: mark all points as unclassified (0).
+                ! Note: the hemisphere codes (North=1.0, Antarctica=2.0) cannot be
+                ! used as defaults, since in the REGIONS files they denote points
+                ! outside of any land subregion (open ocean), which is where
+                ! ybound_define_mask_ice (and user code) forbids ice.
+                bnd%regions = 0.0
 
         end select
 
@@ -224,7 +232,8 @@ contains
         select case(trim(domain))
 
             case ("North")
-                ! Allow ice everywhere except the open ocean
+                ! Allow ice everywhere except the open ocean (region 1.0 in the
+                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
                 where (bnd%regions .eq. 1.0) bnd%mask_ice = MASK_ICE_NONE
                 bnd%mask_ice(1,:)  = MASK_ICE_NONE
@@ -249,6 +258,8 @@ contains
                 where (bnd%regions .eq. 1.0)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
 
             case ("Antarctica")
+                ! Allow ice everywhere except the open ocean (region 2.0 in the
+                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
                 where (bnd%regions .eq. 2.0) bnd%mask_ice = MASK_ICE_NONE
                 bnd%mask_ice(1,:)  = MASK_ICE_NONE

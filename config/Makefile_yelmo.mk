@@ -40,7 +40,8 @@ $(objdir)/grounding_line_flux.o: $(srcdir)/physics/grounding_line_flux.f90 $(obj
 $(objdir)/calving_aa.o: $(srcdir)/physics/calving/calving_aa.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
-$(objdir)/calving_ac.o: $(srcdir)/physics/calving/calving_ac.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
+$(objdir)/calving_ac.o: $(srcdir)/physics/calving/calving_ac.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o \
+                                                        $(objdir)/thermodynamics.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/lsf_module.o: $(srcdir)/physics/calving/lsf_module.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o \

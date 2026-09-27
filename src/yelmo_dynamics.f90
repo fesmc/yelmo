@@ -12,6 +12,7 @@ module yelmo_dynamics
                             calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
+    use fast_hydrology, only : hydro_calc_N
 
     use velocity_general
 
@@ -749,19 +750,18 @@ contains
 !     end subroutine calc_ydyn_ssa
     
     subroutine calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
-        ! Pipe the effective pressure from the hyd (fasthydrology)
-        ! component into dyn%now%N_eff, optionally averaging over
-        ! Gaussian-quadrature / subgrid sample points selected by
-        ! dyn%par%neff_nxi. The N-closure (overburden / marine / till /
-        ! two-value) lives inside fasthydrology now; this routine is
-        ! purely a grid-side interpolation hook.
+        ! Effective pressure for the dynamics, dyn%now%N_eff, optionally
+        ! averaged over Gaussian-quadrature / subgrid sample points selected
+        ! by dyn%par%neff_nxi. The N-closure (overburden / marine / till)
+        ! lives inside fasthydrology; hydro_calc_N evaluates it here on the
+        ! geometry the dynamics is about to use (H_ice_dyn, f_ice_dyn), with
+        ! the current till water W_til. Copying hyd%now%N instead would lag
+        ! the geometry by up to two steps (calc_yhyd runs after calc_ydyn),
+        ! giving N = 0 (and beta = 0) at newly iced or grounded points.
         !
-        ! An external coupled host (e.g. a Julia hydrology model driving
-        ! Yelmo via YelmoMirror) owns N_eff by setting hyd.bkt_N_closure=-1
-        ! and pushing its value into hyd%now%N directly (yelmo_set_var2D
-        ! "hyd_N"); apply_N_closure then leaves hyd%now%N untouched, and
-        ! this routine's normal copy below carries it into dyn%now%N_eff -
-        ! no separate flag needed here.
+        ! For K24 and for an external coupled host (hyd.bkt_N_closure=-1,
+        ! N pushed into hyd%now%N via yelmo_set_var2D "hyd_N"), N is part
+        ! of the hydrology state and hydro_calc_N returns hyd%now%N.
 
         implicit none
 
@@ -774,6 +774,7 @@ contains
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1, nxi
+        real(wp), allocatable :: N_now(:,:)
         real(wp), allocatable :: Neff_int(:,:)
         real(wp) :: wt2D
         type(gq2D_class) :: gq2D
@@ -785,13 +786,18 @@ contains
             stop
         end if
 
-        ! Cell-centered fast path - just copy hyd%now%N
+        ! N on the current dynamics geometry
+        allocate(N_now(size(dyn%now%N_eff,1),size(dyn%now%N_eff,2)))
+        call hydro_calc_N(hyd, N_now, tpo%now%H_ice_dyn, bnd%z_bed, bnd%z_sl, &
+                          tpo%now%f_ice_dyn, tpo%now%f_grnd)
+
+        ! Cell-centered fast path
         if (dyn%par%neff_nxi .eq. 0) then
-            dyn%now%N_eff = hyd%now%N
+            dyn%now%N_eff = N_now
             return
         end if
 
-        ! Subgrid path: average hyd%now%N over interpolation nodes
+        ! Subgrid path: average N_now over interpolation nodes
         call gq2D_init(gq2D)
         BC = boundary_code(dyn%par%boundaries)
 
@@ -816,11 +822,11 @@ contains
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             if (dyn%par%neff_nxi .eq. 1) then
-                call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),hyd%now%N,dyn%par%dx,dyn%par%dy, &
+                call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),N_now,dyn%par%dx,dyn%par%dy, &
                                       i,j,im1,ip1,jm1,jp1)
                 dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
             else
-                call calc_subgrid_array(Neff_int,hyd%now%N,nxi,i,j,im1,ip1,jm1,jp1)
+                call calc_subgrid_array(Neff_int,N_now,nxi,i,j,im1,ip1,jm1,jp1)
                 dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
             end if
 
@@ -1332,15 +1338,7 @@ contains
 
             case("periodic") 
 
-                ux(1,:)  = ux(nx-1,:) 
-                ux(nx,:) = ux(2,:) 
-                ux(:,1)  = ux(:,ny-1)
-                ux(:,ny) = ux(:,2) 
-
-                uy(1,:)  = uy(nx-1,:) 
-                uy(nx,:) = uy(2,:) 
-                uy(:,1)  = uy(:,ny-1)
-                uy(:,ny) = uy(:,2) 
+                ! True wrap (period nx, ny): all points are interior, do nothing
 
             case("MISMIP3D")
 

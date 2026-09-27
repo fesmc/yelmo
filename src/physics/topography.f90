@@ -1,6 +1,8 @@
 module topography 
 
-    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal
+    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal, &
+                           MASK_FRNT_ICE_FREE, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
+                           MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
 
@@ -747,19 +749,14 @@ contains
         real(wp) :: f_neighb(4) 
         integer  :: BC
 
-        integer, parameter :: val_ice_free  = -1 
-        integer, parameter :: val_flt       = 1
-        integer, parameter :: val_marine    = 1 !2
-        integer, parameter :: val_grnd      = 3
-        
         nx = size(mask_frnt,1) 
         ny = size(mask_frnt,2) 
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Initialize mask to zero everywhere to start 
-        mask_frnt = 0
+        ! Initialize mask to non-front everywhere to start 
+        mask_frnt = MASK_FRNT_NONE
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,f_neighb)
         do j = 1, ny
@@ -777,25 +774,25 @@ contains
                 if (f_grnd(i,j) .gt. 0.0 .and. (z_sl(i,j) .le. z_bed(i,j)) ) then 
                     ! Ice front grounded above sea level 
 
-                    mask_frnt(i,j) = val_grnd 
+                    mask_frnt(i,j) = MASK_FRNT_GRND 
 
                 else if (f_grnd(i,j) .gt. 0.0) then 
                     ! Ice front grounded below sea level 
 
-                    mask_frnt(i,j) = val_marine 
+                    mask_frnt(i,j) = MASK_FRNT_MARINE 
 
                 else
                     ! Floating ice front 
 
-                    mask_frnt(i,j) = val_flt 
+                    mask_frnt(i,j) = MASK_FRNT_FLOAT 
 
                 end if 
 
                 ! Ensure adjacent ice-free points are marked too
-                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = val_ice_free
-                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = val_ice_free
-                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = val_ice_free
-                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = val_ice_free
+                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = MASK_FRNT_ICE_FREE
+                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = MASK_FRNT_ICE_FREE
+                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = MASK_FRNT_ICE_FREE
+                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = MASK_FRNT_ICE_FREE
 
             end if 
 
@@ -1112,6 +1109,7 @@ contains
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: Hg_nb(9)
         real(wp) :: Hg_int(gz_nx,gz_nx)
         integer  :: BC
 
@@ -1134,7 +1132,13 @@ contains
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (maxval(H_grnd(im1:ip1,jm1:jp1)) .ge. 0.0 .and. minval(H_grnd(im1:ip1,jm1:jp1)) .lt. 0.0) then 
+            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
+            ! empty where the neighbor indices wrap around the domain)
+            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
+                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
+                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
+
+            if (maxval(Hg_nb) .ge. 0.0 .and. minval(Hg_nb) .lt. 0.0) then
                 ! Point contains grounding line, get grounded area  
                 
                 call calc_subgrid_array(Hg_int, H_grnd,gz_nx,i,j,im1,ip1,jm1,jp1)
@@ -1999,6 +2003,7 @@ end if
         integer  :: i, j, i1, j1, nx, ny
         integer  :: im1, ip1, jm1, jp1 
         real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4, Hg_mid  
+        real(wp) :: Hg_nb(9)
         real(wp) :: wt 
         integer  :: BC
 
@@ -2027,19 +2032,25 @@ end if
         allocate(Hg_int(nxi,nxi))
         allocate(bmb_int(nxi,nxi))
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_int,i1,j1,wt)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
         do j = 1, ny 
         do i = 1, nx
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (minval(H_grnd(im1:ip1,jm1:jp1)) .ge. gz_Hg1) then 
+            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
+            ! empty where the neighbor indices wrap around the domain)
+            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
+                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
+                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
+
+            if (minval(Hg_nb) .ge. gz_Hg1) then
                 ! Entire cell is grounded
 
                 bmb(i,j) = bmb_grnd(i,j)
             
-            else if (maxval(H_grnd(im1:ip1,jm1:jp1)) .lt. gz_Hg0) then 
+            else if (maxval(Hg_nb) .lt. gz_Hg0) then
                 ! Entire cell is floating
 
                 bmb(i,j) = bmb_shlf(i,j) 

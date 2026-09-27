@@ -438,7 +438,7 @@ contains
         mask_grl  = (ylmo%tpo%now%H_ice .gt. 0.0 .and. ylmo%tpo%now%f_grnd .gt. 0.0 &
                                                     .and. ylmo%tpo%now%mask_grz .eq. 0.0)
         mask_frnt = (ylmo%tpo%now%H_ice .gt. 0.0 .and. ylmo%tpo%now%f_grnd .eq. 0.0 &
-                                                    .and. ylmo%tpo%now%mask_frnt .eq. 1.0)
+                                                    .and. ylmo%tpo%now%mask_frnt .eq. MASK_FRNT_FLOAT)
         mask_NW = .FALSE.; mask_NE = .FALSE.; mask_SW = .FALSE.; mask_SE = .FALSE.
         do j = 1, ylmo%grd%G%ny
         do i = 1, ylmo%grd%G%nx

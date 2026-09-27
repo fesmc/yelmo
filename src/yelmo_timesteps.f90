@@ -679,8 +679,7 @@ end if
 
     end function calc_pi_rho_PID1
 
-    subroutine set_adaptive_timestep(dt,dt_adv,dt_diff,dt_adv3D, &
-                        ux,uy,uz,ux_bar,uy_bar,H_ice,dHicedt,zeta_ac, &
+    subroutine set_adaptive_timestep(dt,dt_adv,dt_diff,ux_bar,uy_bar,dHicedt, &
                         dx,dtmin,dtmax,cfl_max,cfl_diff_max)
         ! Determine value of adaptive timestep to be consistent with 
         ! min/max timestep range and maximum allowed step of model 
@@ -690,16 +689,10 @@ end if
 
         real(wp), intent(OUT) :: dt             ! [a] Current timestep 
         real(wp), intent(OUT) :: dt_adv(:,:)     ! [a] Diagnosed maximum advective timestep (vertical ave)
-        real(wp), intent(OUT) :: dt_diff(:,:)    ! [a] Diagnosed maximum diffusive timestep (vertical ave) 
-        real(wp), intent(OUT) :: dt_adv3D(:,:,:) ! [a] Diagnosed maximum advective timestep (3D) 
-        real(wp), intent(IN)  :: ux(:,:,:)       ! [m a-1]
-        real(wp), intent(IN)  :: uy(:,:,:)       ! [m a-1]
-        real(wp), intent(IN)  :: uz(:,:,:)       ! [m a-1]
+        real(wp), intent(OUT) :: dt_diff(:,:)    ! [a] Diagnosed maximum diffusive timestep (vertical ave)
         real(wp), intent(IN)  :: ux_bar(:,:)     ! [m a-1]
         real(wp), intent(IN)  :: uy_bar(:,:)     ! [m a-1]
-        real(wp), intent(IN)  :: H_ice(:,:)      ! [m]
         real(wp), intent(IN)  :: dHicedt(:,:)    ! [m a-1]
-        real(wp), intent(IN)  :: zeta_ac(:)      ! [--] 
         real(wp), intent(IN)  :: dx, dtmin, dtmax ! [a]
         real(wp), intent(IN)  :: cfl_max
         real(wp), intent(IN)  :: cfl_diff_max
@@ -721,9 +714,7 @@ end if
         !dt_diff  = calc_diff2D_timestep(D2D,dx,dx,cfl_diff_max) 
         dt_diff = 1000.0     ! Prescribe something just to avoid compiler warnings 
         ! ajr: diffusivity D2D is not available right now (SIA solver does not calculate it)
-        ! So, diffusivity needs to be diagnosed, to be able to estimate dt_diff properly. 
-
-        dt_adv3D = 1000.0    ! Prescribe something just to avoid compiler warnings 
+        ! So, diffusivity needs to be diagnosed, to be able to estimate dt_diff properly.
 
         ! Get minimum from adv and diffusive timesteps
         dt_adv_min  = minval(dt_adv)
@@ -1176,14 +1167,14 @@ end if
 
     end subroutine yelmo_timestep_write
 
-    subroutine ytime_init(ytime,nx,ny,nz,dt_min,pc_eps)
+    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps)
 
         type(ytime_class), intent(INOUT) :: ytime
-        integer,    intent(IN) :: nx, ny, nz 
-        real(wp), intent(IN) :: dt_min, pc_eps 
+        integer,    intent(IN) :: nx, ny
+        real(wp), intent(IN) :: dt_min, pc_eps
 
         ! Allocate ytime object
-        call ytime_alloc(ytime,nx,ny,nz)
+        call ytime_alloc(ytime,nx,ny)
 
         ytime%log_timestep_file = "timesteps.nc" 
         
@@ -1194,8 +1185,7 @@ end if
 
         ! Initialize arrays to zero 
         ytime%dt_adv        = 0.0 
-        ytime%dt_diff       = 0.0 
-        ytime%dt_adv3D      = 0.0 
+        ytime%dt_diff       = 0.0
 
         ytime%pc_tau        = 0.0 
         ytime%pc_tau_masked = 0.0 
@@ -1226,20 +1216,19 @@ end if
 
     end subroutine ytime_init
     
-    subroutine ytime_alloc(ytime,nx,ny,nz)
+    subroutine ytime_alloc(ytime,nx,ny)
 
-        implicit none 
+        implicit none
 
         type(ytime_class), intent(INOUT) :: ytime
-        integer :: nx, ny, nz 
+        integer :: nx, ny
 
         ! Ensure object is deallocated first
-        call ytime_dealloc(ytime) 
+        call ytime_dealloc(ytime)
 
-        ! Allocate timestep arrays 
+        ! Allocate timestep arrays
         allocate(ytime%dt_adv(nx,ny))
         allocate(ytime%dt_diff(nx,ny))
-        allocate(ytime%dt_adv3D(nx,ny,nz))
         
         ! Allocate truncation error array 
         allocate(ytime%pc_tau(nx,ny))
@@ -1261,7 +1250,6 @@ end if
         
         if (allocated(ytime%dt_adv))        deallocate(ytime%dt_adv)
         if (allocated(ytime%dt_diff))       deallocate(ytime%dt_diff)
-        if (allocated(ytime%dt_adv3D))      deallocate(ytime%dt_adv3D)
         
         if (allocated(ytime%pc_tau))        deallocate(ytime%pc_tau)
         if (allocated(ytime%pc_tau_masked)) deallocate(ytime%pc_tau_masked)

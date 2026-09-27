@@ -6,7 +6,8 @@ module thermodynamics
 
     use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW, io_unit_err
 
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, set_boundaries_3D_aa
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
+                            set_boundaries_3D_aa
     
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
@@ -35,6 +36,14 @@ module thermodynamics
     real(wp), parameter, public :: cp_a = 146.3_wp       ! [J kg-1 K-1]
     real(wp), parameter, public :: cp_b = 7.253_wp       ! [J kg-1 K-2]
 
+    ! Seawater freezing point coefficients, Jenkins (1991):
+    ! T_f = a1*S + b1 + c1*z_b [degC], with z_b<0 the elevation below sea level.
+    ! Used by calc_T_freeze_sw and calc_T_base_shlf_approx.
+    real(wp), parameter :: Tf_a1 = - 0.0575      ! [degC / PSU]
+    real(wp), parameter :: Tf_b1 =   0.0901      ! [degC]
+    real(wp), parameter :: Tf_c1 =   7.61E-4     ! [degC / m]
+    real(wp), parameter :: Tf_S0 =   34.75       ! [g / kg == PSU] Constant reference salinity
+
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
     public :: calc_advec_vertical_column
@@ -49,6 +58,7 @@ module thermodynamics
     public :: calc_T_pmp
     public :: calc_f_pmp
     public :: calc_T_base_shlf_approx
+    public :: calc_T_freeze_sw
     public :: define_temp_linear_3D
     public :: define_temp_robin_3D
     public :: define_temp_linear_column
@@ -497,7 +507,7 @@ contains
         nz = size(advecxy,3)
 
         ! Determine number of sub-steps from the domain-max horizontal Courant number
-        cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt)
+        cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries)
         nsub = max(1, ceiling(cfl/cfl_safe))
         if (nsub .gt. nmax) then
             write(io_unit_err,"(a,i0,a,g12.4,a,g12.4)") &
@@ -511,8 +521,10 @@ contains
 
             advecxy = 0.0_wp
 
-            do j = 2, ny-1
-            do i = 2, nx-1
+            ! Compute on all points with BC-aware neighbors, then overwrite
+            ! the non-periodic border points according to the boundary treatment
+            do j = 1, ny
+            do i = 1, nx
                 call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
             end do
             end do
@@ -533,8 +545,8 @@ contains
 
                 a_sub = 0.0_wp
 
-                do j = 2, ny-1
-                do i = 2, nx-1
+                do j = 1, ny
+                do i = 1, nx
                     call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
                 end do
                 end do
@@ -559,7 +571,7 @@ contains
 
     end subroutine calc_advec_horizontal_3D
 
-    function calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt) result(cfl)
+    function calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries) result(cfl)
         ! Domain-max horizontal Courant number of the explicit thermal advection over dt.
         ! Uses the per-layer ac-node face velocities the flux-form scheme actually sees
         ! (the larger of the two bounding faces in each direction, as in
@@ -574,24 +586,49 @@ contains
         real(wp), intent(IN) :: H_ice(:,:)    ! nx,ny     aa-nodes
         real(wp), intent(IN) :: dx
         real(wp), intent(IN) :: dt
+        character(len=*), intent(IN) :: boundaries
         real(wp) :: cfl
 
         ! Local variables
         integer  :: i, j, k, nx, ny, nz
+        integer  :: i1, i2, j1, j2
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        logical  :: per_x, per_y
         real(wp) :: ux_now, uy_now, c
 
         nx = size(ux,1)
         ny = size(ux,2)
         nz = size(ux,3)
 
+        ! Include all points in periodic directions (true wrap), otherwise
+        ! only the interior (the border values are set by the boundary treatment)
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
         cfl = 0.0_wp
 
-        do j = 2, ny-1
-        do i = 2, nx-1
+        do j = j1, j2
+        do i = i1, i2
             if (H_ice(i,j) .gt. 0.0_wp) then
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                 do k = 1, nz
-                    ux_now = max(abs(ux(i-1,j,k)),abs(ux(i,j,k)))
-                    uy_now = max(abs(uy(i,j-1,k)),abs(uy(i,j,k)))
+                    ux_now = max(abs(ux(im1,j,k)),abs(ux(i,j,k)))
+                    uy_now = max(abs(uy(i,jm1,k)),abs(uy(i,j,k)))
                     c = dt * (ux_now/dx + uy_now/dx)
                     if (c .gt. cfl) cfl = c
                 end do
@@ -730,7 +767,7 @@ contains
             else 
                 ! No Q_strn outside of ice sheet 
                 
-                Q_strn(i,j,k) = 0.0_wp 
+                Q_strn(i,j,:) = 0.0_wp 
 
             end if 
 
@@ -810,7 +847,7 @@ contains
                     else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
                         dQsdT_y = (Qs(i,jp1,k) - Qs(i,j,k)) / (T(i,jp1,k) - T(i,j,k) + eps)
                     else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_x = 0.0
+                        dQsdT_y = 0.0
                     end if
 
                     ! Vertical derivatives
@@ -1149,15 +1186,14 @@ contains
         real(wp) :: T_base_shlf
 
         ! Local variables 
-        real(wp), parameter :: a1 = - 0.0575      ! [degC / PSU]
-        real(wp), parameter :: b1 =   0.0901      ! [degC]
-        real(wp), parameter :: c1 =   7.61E-4     ! [degC / m]
-        real(wp), parameter :: S0 =   34.75       ! [g / kg == PSU]
         real(wp) :: f_scalar, H_grnd_lim 
 
+        ! Seawater freezing point at the depth of the shelf base (the draft).
         ! Freezing point decreases with depth: the Jenkins (1991) depth term is
         ! c1*z_b with z_b<0 the base elevation, i.e. minus c1 times the draft.
-        T_base_shlf = a1*S0 + b1 - c1*(rho_ice/rho_sw)*H_ice + T0
+        ! Same as calc_T_freeze_sw((rho_ice/rho_sw)*H_ice,T0), but written out
+        ! to keep the original floating-point evaluation order (answer-preserving).
+        T_base_shlf = Tf_a1*Tf_S0 + Tf_b1 - Tf_c1*(rho_ice/rho_sw)*H_ice + T0
 
         ! Additionally ensure that the shelf temperature is approaching the pressure melting point
         ! as the grounding line is reached 
@@ -1173,6 +1209,25 @@ contains
         return 
 
     end function calc_T_base_shlf_approx
+
+    elemental function calc_T_freeze_sw(depth,T0) result(T_f)
+        ! Freezing temperature of seawater [K] at a given depth
+        ! below sea level, following Jenkins (1991), assuming
+        ! a constant salinity S0.
+
+        implicit none 
+
+        real(wp), intent(IN) :: depth           ! [m] Depth below sea level (positive down)
+        real(wp), intent(IN) :: T0              ! [K] Reference freezing temperature (273.15 K)
+        real(wp) :: T_f
+
+        ! Freezing point decreases with depth: the Jenkins (1991) depth term is
+        ! c1*z_b with z_b = -depth the elevation, i.e. minus c1 times the depth.
+        T_f = Tf_a1*Tf_S0 + Tf_b1 - Tf_c1*depth + T0
+
+        return 
+
+    end function calc_T_freeze_sw
     
     subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral)
         ! Define a linear vertical temperature profile
@@ -1195,7 +1250,8 @@ contains
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa
-        real(wp) :: T_base, T_pmp
+        real(wp) :: T_base
+        real(wp), allocatable :: T_pmp(:,:,:)
         logical  :: use_int
 
         use_int = .false.
@@ -1205,8 +1261,14 @@ contains
         ny    = size(T_ice,2)
         nz_aa = size(T_ice,3)
 
+        allocate(T_pmp(nx,ny,nz_aa))
+
         do j = 1, ny 
         do i = 1, nx
+
+            do k = 1, nz_aa
+                T_pmp(i,j,k) = calc_T_pmp(H_ice(i,j),zeta_aa(k),T0,T_pmp_beta,rho_ice,g)
+            end do
 
             if (H_ice(i,j) .gt. 0.0) then
                 ! Ice is present, define linear temperature profile with frozen bed (-10 degC)
@@ -1220,14 +1282,14 @@ contains
 
             end if 
 
-            ! Assume zero water content 
-            omega = 0.0_wp 
-
-            ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
-            call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
-
         end do
         end do
+
+        ! Assume zero water content 
+        omega = 0.0_wp 
+
+        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
 
         return
 

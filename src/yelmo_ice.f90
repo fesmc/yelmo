@@ -152,10 +152,9 @@ contains
             ! === Diagnose different adaptive timestep limits ===
 
             ! Calculate adaptive time step from CFL constraints 
-            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff,dom%time%dt_adv3D, &
-                                dom%dyn%now%ux,dom%dyn%now%uy,dom%dyn%now%uz,dom%dyn%now%ux_bar,dom%dyn%now%uy_bar, &
-                                dom%tpo%now%H_ice,dom%tpo%now%dHidt,dom%par%zeta_ac, &
-                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max) 
+            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff, &
+                                dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
+                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
@@ -789,7 +788,7 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
@@ -837,7 +836,7 @@ contains
 
         ! == hydrology (fasthydrology) ==
 
-        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp))
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c)
 
         write(*,*) "yelmo_init:: hydrology initialized."
 
@@ -898,14 +897,15 @@ contains
                 dom%thrm%par%boundaries = "periodic"
                 
             case("ISMIPHOM","slab","periodic","periodic-xy") 
-                ! Periodic boundary conditions in x and y, eg: X_1 = X_n-1; X_n = X_2
+                ! Periodic boundary conditions in x and y: true wrap with period n,
+                ! i.e., X_0 == X_n and X_n+1 == X_1 (no halo/ghost cells)
 
                 dom%tpo%par%boundaries  = "periodic"
                 dom%dyn%par%boundaries  = "periodic"
                 dom%thrm%par%boundaries = "periodic"
             
             case("periodic-x") 
-                ! Periodic boundary conditions in x-direction,
+                ! Periodic boundary conditions in x-direction (true wrap, period nx),
                 ! infinite in y-direction
                 dom%tpo%par%boundaries  = "periodic-x"
                 dom%dyn%par%boundaries  = "periodic-x"
@@ -1507,7 +1507,6 @@ contains
         call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel, defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel,   defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)

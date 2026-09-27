@@ -19,7 +19,7 @@
     domain          = "ISMIPHOM"
     grid_name       = "ISMIPHOM"
     grid_path       = "none"
-    phys_const      = "TROUGH"
+    phys_const      = "ISMIPHOM"
     experiment      = "periodic"        ! "None", "EISMINT", "MISMIP3D", "BUELER",  to apply special boundary conditions   
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
@@ -48,7 +48,6 @@
     pc_controller   = "PI42"            ! PI42, H312b, H312PID, H321PID, PID1
     pc_use_H_pred   = False             ! Use predicted H_ice instead of corrected H_ice 
     pc_filter_vel   = False             ! Use mean vel. solution of current and previous timestep
-    pc_corr_vel     = False             ! Calculate dynamics again for corrected H_ice
     pc_n_redo       = 5                 ! How many times can the same iteration be repeated (when high error exists)
     pc_tol          = 5.0               ! [m/a] Tolerance threshold to redo timestep
     pc_eps          = 1e-3              ! Predictor-corrector tolerance 
@@ -216,7 +215,7 @@
     k24_coupling_length              = 1.0e4
     k24_long_coupling_water          = 5.0
     k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 1.8e-3
+    k24_eta_w                        = 5.703855806525211e-11 ! eta_w [Pa s] = 1.8e-3 per year
     k24_W_min                        = 1.0e-8
     k24_W_max                        = 0.015
 /

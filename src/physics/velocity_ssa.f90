@@ -72,10 +72,10 @@ contains
         real(wp), intent(INOUT) :: uy_b(:,:)          ! [m/yr]
         real(wp), intent(INOUT) :: taub_acx(:,:)      ! [Pa]
         real(wp), intent(INOUT) :: taub_acy(:,:)      ! [Pa]
-        real(wp), intent(OUT)   :: visc_eff(:,:,:)    ! [Pa yr]
+        real(wp), intent(INOUT) :: visc_eff(:,:,:)    ! [Pa yr]
         real(wp), intent(OUT)   :: visc_eff_int(:,:)  ! [Pa yr m]
-        integer,  intent(OUT)   :: ssa_mask_acx(:,:)  ! [-]
-        integer,  intent(OUT)   :: ssa_mask_acy(:,:)  ! [-]
+        integer,  intent(INOUT) :: ssa_mask_acx(:,:)  ! [-]
+        integer,  intent(INOUT) :: ssa_mask_acy(:,:)  ! [-]
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
         integer,  intent(OUT)   :: ssa_iter_now 
@@ -185,6 +185,8 @@ contains
 
                 case(0)
                     ! Impose constant viscosity value 
+                    ! (no relaxation, since visc_eff_nm1 holds the viscosity diagnosed
+                    !  at the end of the previous call, see below)
 
                     visc_eff = par%visc_const 
 
@@ -195,12 +197,18 @@ contains
                     call calc_visc_eff_3D_nodes(visc_eff,ux_b,uy_b,ATT,H_ice,f_ice,zeta_aa, &
                                                     dx,dy,n_glen,par%eps_0,par%boundaries)
 
+                    ! Apply Picard relaxation to viscosity solution in log-space (e.g. Sandip et al., gmd, 2023)
+                    call picard_relax_visc(visc_eff,visc_eff_nm1,rel=par%ssa_iter_rel)
+
                 case(2) 
                     ! Calculate 3D effective viscosity, using velocity solution from previous iteration
                     ! Use minimal staggering stencil (directly to aa-nodes)
 
                     call calc_visc_eff_3D_aa(visc_eff,ux_b,uy_b,ATT,H_ice,f_ice,zeta_aa, &
                                                     dx,dy,n_glen,par%eps_0,par%boundaries)
+
+                    ! Apply Picard relaxation to viscosity solution in log-space (e.g. Sandip et al., gmd, 2023)
+                    call picard_relax_visc(visc_eff,visc_eff_nm1,rel=par%ssa_iter_rel)
 
                 case DEFAULT 
 
@@ -209,9 +217,6 @@ contains
                     stop 
 
             end select
-            
-            ! Apply Picard relaxation to viscosity solution in log-space (e.g. Sandip et al., gmd, 2023)
-            call picard_relax_visc(visc_eff,visc_eff_nm1,rel=par%ssa_iter_rel)
             
             ! Calculate depth-integrated effective viscosity
             ! Note L19 uses eta_bar*H in the ssa equation. Yelmo uses eta_int=eta_bar*H directly.
@@ -625,12 +630,6 @@ end if
                     ! Calculate effective viscosity on ab-nodes
                     visc_eff(i,j,k) = 0.5_wp*(eps_sq_aa)**(p1) * ATT_aa**(p2)
 
-                end do 
-
-            else 
-
-                do k = 1, nz 
-                    visc_eff(i,j,k) = 0.0_wp 
                 end do 
 
             end if 
