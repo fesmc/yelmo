@@ -55,16 +55,25 @@ contains
 
         ! Local variables
         integer  :: npts
-        real(wp) :: tot_dHidt
-        real(wp) :: tot_components
-        real(wp) :: tot_mb_net
-        real(wp) :: tot_cmb
-        real(wp) :: tot_dHidt_dyn
-        real(wp) :: conv
+        ! Totals are accumulated in double precision, so that the check
+        ! does not add summation round-off of its own
+        real(dp) :: tot_dHidt
+        real(dp) :: tot_components
+        real(dp) :: tot_mb_net
+        real(dp) :: tot_cmb
+        real(dp) :: tot_dHidt_dyn
+        real(dp) :: tot_gross
+        real(dp) :: conv
+        real(dp) :: resid
+        real(dp) :: resid_rel
+        character(len=4) :: flag
 
-        real(wp) :: percent_error
-
-        real(wp), parameter :: tol_mb = 1e-6
+        ! Tolerance on the relative residual: with every tendency passed through
+        ! apply_tendency, the residual is only working-precision round-off of the
+        ! per-cell updates, found to be <~0.3*epsilon(wp) of the gross throughput
+        ! (EISMINT, TROUGH). 100*epsilon leaves ample headroom while still
+        ! flagging any real leak (1e-5 of the throughput for wp=sp).
+        real(dp), parameter :: tol_rel = 100.0_dp*epsilon(1.0_wp)
 
         ! Determine conversion factor to units of interest from [m^3/yr]
 
@@ -72,15 +81,15 @@ contains
 
             case("m^3/yr")
 
-                conv = 1.0 
+                conv = 1.0_dp
 
             case("km^3/yr")
 
-                conv = 1e-9
+                conv = 1e-9_dp
 
             case("Sv")
 
-                conv = 1e-6 / sec_year
+                conv = 1e-6_dp / real(sec_year,dp)
 
             case DEFAULT
 
@@ -92,19 +101,31 @@ contains
 
         ! Calculate totals, initially [m^3/yr] => [units]
  
-        tot_dHidt       = sum(dHidt)*dx*dx      * conv
-        tot_mb_net      = sum(mb_net)*dx*dx     * conv
-        tot_cmb         = sum(cmb)*dx*dx        * conv
-        tot_dHidt_dyn   = sum(dHidt_dyn)*dx*dx  * conv
+        tot_dHidt       = sum(real(dHidt,dp))     * real(dx,dp)**2 * conv
+        tot_mb_net      = sum(real(mb_net,dp))    * real(dx,dp)**2 * conv
+        tot_cmb         = sum(real(cmb,dp))       * real(dx,dp)**2 * conv
+        tot_dHidt_dyn   = sum(real(dHidt_dyn,dp)) * real(dx,dp)**2 * conv
 
-        ! Get total of components and percent error
-        tot_components = tot_mb_net + tot_cmb
-        percent_error  = (tot_components - tot_dHidt) / (tot_dHidt+tol_mb) * 100.0 
+        ! Gross throughput: sum of the magnitudes of the same component fluxes
+        ! per cell, so opposing fluxes do not cancel (non-zero at equilibrium)
+        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
+                                                        * real(dx,dp)**2 * conv
 
-        write(*,"(a8,a,2f9.3,a3,2g14.4,g10.3,a3,2g13.4,a3,g13.4)") &
+        ! Get total of components and residual, absolute [units] and relative
+        ! to the gross throughput
+        ! (dHidt_dyn integrates to the net flux across the domain boundary,
+        ! so it must be included for the budget to close)
+        tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
+        resid          = tot_components - tot_dHidt
+        resid_rel      = resid / max(tot_gross,tiny(tot_gross))
+
+        flag = ""
+        if (abs(resid_rel) .gt. tol_rel) flag = "FAIL"
+
+        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,3g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
-                    tot_dHidt, tot_components, percent_error, " | ", &
-                    tot_mb_net, tot_cmb !, " | ", tot_dHidt_dyn
+                    tot_dHidt, tot_components, resid, resid_rel, flag, " | ", &
+                    tot_dHidt_dyn, tot_mb_net, tot_cmb
 
         return
 
@@ -658,7 +679,7 @@ contains
 
         H_tmp = H_ice_new
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,H_eff,H_max)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff,H_max)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -679,7 +700,13 @@ contains
                                 H_tmp(i,jm1),H_tmp(i,jp1)])
 
                 if ( H_eff .gt. H_max) then 
-                    H_ice_new(i,j) = H_max 
+                    ! Limit the effective thickness to H_max and convert it
+                    ! back to a grid-mean thickness (inverse of calc_H_eff)
+                    if (f_ice(i,j) .gt. 0.0_wp) then
+                        H_ice_new(i,j) = H_max*f_ice(i,j)
+                    else
+                        H_ice_new(i,j) = H_max
+                    end if
                 end if
                 
             end if
@@ -703,6 +730,14 @@ contains
 
                 ! Do nothing - this should be handled by the ice advection routine
                 ! if the default choice ytopo.solver="impl-lis" is used.
+
+            case("periodic-x")
+                ! Periodic x: nothing to do (handled by the ice advection routine).
+                ! Infinite y: set border points equal to inner neighbors, as
+                ! for "infinite", since subsequently the mb forcing is applied.
+
+                H_ice_new(:,1)  = H_ice_new(:,2)
+                H_ice_new(:,ny) = H_ice_new(:,ny-1)
 
             case("infinite")
                 ! Set border points equal to inner neighbors 
@@ -754,16 +789,17 @@ contains
         where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 
         ! Determine rate of mass balance related to changes applied here.
-        ! For MASK_ICE_FIXED (imposed) cells use no overshoot, so apply_tendency
-        ! lands exactly on H_ice_ref each step (no drift from a persistent
-        ! dyn inflow/outflow imbalance). For other cells keep the 10% safety
-        ! margin so the apply_tendency clip-to-zero handles the MASK_ICE_NONE
-        ! path robustly.
+        ! Where ice is removed completely (H_ice_new == 0), overshoot by 10%
+        ! so that apply_tendency's clip-to-zero removes it robustly (no
+        ! round-off remnant). Everywhere else (MASK_ICE_FIXED imposed values,
+        ! margin reduction, boundary copies) use the exact rate, so that
+        ! apply_tendency lands on H_ice_new (to round-off) without over- or
+        ! undershooting it.
         if (dt .ne. 0.0) then
-            where (mask_ice .eq. MASK_ICE_FIXED)
-                mb_resid = (H_ice_new - H_ice) / dt
-            elsewhere
+            where (H_ice_new .eq. 0.0_wp .and. mask_ice .ne. MASK_ICE_FIXED)
                 mb_resid = 1.1_wp * (H_ice_new - H_ice) / dt
+            elsewhere
+                mb_resid = (H_ice_new - H_ice) / dt
             end where
         else
             mb_resid = 0.0
@@ -908,7 +944,7 @@ contains
 
     end subroutine calc_G_relaxation
 
-    subroutine extend_floating_slab(H_ice,f_grnd,H_slab,n_ext)
+    subroutine extend_floating_slab(H_ice,f_grnd,H_slab,n_ext,boundaries)
         ! Extend ice field so that there is always 
         ! floating ice next to grounded marine margins
         ! Extended ice should be very thin, will 
@@ -921,11 +957,13 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:) 
         real(wp), intent(IN)    :: H_slab       ! Typically 1 or 0.1 m. 
         integer,  intent(IN)    :: n_ext        ! Number of points to extend slab
+        character(len=*), intent(IN) :: boundaries 
         
         ! Local variables 
         integer :: i, j, nx, ny, iter 
         integer :: im1, ip1, jm1, jp1
         logical :: is_marine 
+        integer :: BC
 
         logical  :: ms4(4)
         real(wp) :: Hi4(4) 
@@ -943,29 +981,16 @@ contains
         mask_slab = .FALSE. 
         H_new     = H_ice 
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         do iter = 1, n_ext
 
             do j = 1, ny 
             do i = 1, nx 
 
-                ! BC: Periodic boundary conditions
-                im1 = i-1
-                if (im1 == 0) then
-                    im1 = nx
-                end if
-                ip1 = i+1
-                if (ip1 == nx+1) then
-                    ip1 = 1
-                end if
-
-                jm1 = j-1
-                if (jm1 == 0) then
-                    jm1 = ny
-                end if
-                jp1 = j+1
-                if (jp1 == ny+1) then
-                    jp1 = 1
-                end if
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
                 if ( f_grnd(i,j) .eq. 0.0 .and. H_ice(i,j) .eq. 0.0 ) then 
                     ! Floating ice-free ocean point
@@ -1005,7 +1030,7 @@ contains
 
     end subroutine extend_floating_slab
 
-    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,dt)
+    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,dt,boundaries)
         ! Eliminate fractional ice covered points that only 
         ! have fractional ice neighbors. 
 
@@ -1015,14 +1040,19 @@ contains
         real(wp), intent(IN)  :: H_ice(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
         real(wp), intent(IN)  :: dt 
+        character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_new(:,:) 
+        integer :: BC
 
         nx = size(H_ice,1) 
         ny = size(H_ice,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         allocate(H_new(nx,ny)) 
 
@@ -1032,24 +1062,8 @@ contains
         do j = 1, ny 
         do i = 1, nx 
 
-            ! BC: Periodic boundary conditions
-            im1 = i-1
-            if (im1 == 0) then
-                im1 = nx
-            end if
-            ip1 = i+1
-            if (ip1 == nx+1) then
-                ip1 = 1
-            end if
-
-            jm1 = j-1
-            if (jm1 == 0) then
-                jm1 = ny
-            end if
-            jp1 = j+1
-            if (jp1 == ny+1) then
-                jp1 = 1
-            end if
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             if (f_ice(i,j) .gt. 0.0 .and. f_ice(i,j) .lt. 1.0) then 
                 ! Fractional ice-covered point 

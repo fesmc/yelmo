@@ -119,10 +119,6 @@ make trough
 runme -r -e trough -n par/yelmo_SLAB-S06.nml -o output/benchmarks/slab
 ```
 
-Note: the `make slab` target builds a separate slab program
-(`yelmo_slab.x`, used in Robinson, 2022) and is **not** the SLAB-S06
-benchmark.
-
 ## trough-f17
 
 Idealized trough geometry ([Feldmann and Levermann, 2017](https://doi.org/10.5194/tc-11-1745-2017))

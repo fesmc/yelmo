@@ -5,6 +5,7 @@ module calving_ac
     use yelmo_defs, only : sp, dp, wp, prec, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     use topography, only : calc_H_eff 
+    use thermodynamics, only : calc_T_freeze_sw
 
     implicit none 
     private 
@@ -71,15 +72,15 @@ contains
                 eps_eff(i,j) = 0.0_wp 
 
             else if (eps_eig_1(i,j) .eq. 0.0 .and. eps_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no stresses available, 
-                ! use maximum value of eps_eff from upstream neighbors.
+                ! Margin point was likely just advected, no strain rates available, 
+                ! use the mean of the non-zero eps_eff values of ice-covered neighbors.
 
                 eps_eff_neighb = 0.0_wp 
 
-                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = eps_eig_1(im1,j) * eps_eig_2(im1,j)
-                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = eps_eig_1(ip1,j) * eps_eig_2(ip1,j)
-                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = eps_eig_1(i,jm1) * eps_eig_2(i,jm1)
-                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = eps_eig_1(i,jp1) * eps_eig_2(i,jp1)
+                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = calc_eps_eff_now_ac(eps_eig_1(im1,j),eps_eig_2(im1,j))
+                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = calc_eps_eff_now_ac(eps_eig_1(ip1,j),eps_eig_2(ip1,j))
+                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = calc_eps_eff_now_ac(eps_eig_1(i,jm1),eps_eig_2(i,jm1))
+                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = calc_eps_eff_now_ac(eps_eig_1(i,jp1),eps_eig_2(i,jp1))
 
                 n = count(eps_eff_neighb.ne.0.0_wp)
 
@@ -90,9 +91,9 @@ contains
                 end if 
 
             else 
-                ! Stresses are available at this margin point. 
+                ! Strain rates are available at this margin point. 
                 ! Calculate the effective strain rate directly.
-                eps_eff(i,j) = eps_eig_1(i,j) * eps_eig_2(i,j)
+                eps_eff(i,j) = calc_eps_eff_now_ac(eps_eig_1(i,j),eps_eig_2(i,j))
                 
             end if 
             
@@ -103,6 +104,23 @@ contains
         return 
 
     end subroutine calc_eps_eff_ac
+    
+    elemental function calc_eps_eff_now_ac(eeig1,eeig2) result(eps_eff) 
+        ! Effective strain rate for eigencalving, Levermann et al. (2012):
+        ! eps_eff = e+ * e- if both eigenvalues are positive (divergent 
+        ! spreading in both directions), otherwise zero (no calving).
+
+        implicit none 
+
+        real(wp), intent(IN) :: eeig1 
+        real(wp), intent(IN) :: eeig2
+        real(wp) :: eps_eff
+
+        eps_eff = max(eeig1,0.0_wp) * max(eeig2,0.0_wp)
+
+        return 
+
+    end function calc_eps_eff_now_ac
     
     subroutine calc_tau_eff_ac(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2,boundaries)
         ! Effective stress rates. Based on additional of principal stresses.
@@ -384,25 +402,40 @@ contains
     !
     ! ===================================================================
 
-    subroutine calc_fmb_ismip7(cr_acx,cr_acy,z_bed,Qd,TF,dx,f_ice,boundaries)
+    subroutine calc_fmb_ismip7(cr_acx,cr_acy,lsf,z_bed,z_sl,Qd,T_ocn,T0,dx,f_ice,boundaries)
         ! Calculate the retreat rate of marine terminating glaciers based on ISMIP7 protocol
         ! 
-        ! m = (a h_w q^alpha + b) TF^beta [m/yr]
-        ! q = 86400*Q/A [m3/s]
+        ! m = (a h_w q^alpha + b) TF^beta [m/d]
+        ! q = 86400*Q/A [m/d]
         !
         ! a, alpha, b, beta: constants
-        ! h_w: water depth
-        ! Q: subglacial discharge (units?)
-        ! A: submerged ice area
-        ! TF: thermal forcing [degC?/K?]
-
+        ! h_w: water depth at the terminus, z_sl - z_bed [m]
+        ! Q: subglacial discharge [m3/s]
+        ! A: submerged area of the terminus face, h_w*dx [m2]
+        ! TF: thermal forcing, T_ocn - T_f(h_w) [K]
+        !
+        ! T_f is the seawater freezing point following Jenkins (1991),
+        ! evaluated at the water depth h_w assuming a constant salinity 
+        ! (see calc_T_freeze_sw). The retreat rate m is converted to [m/yr]
+        ! and applied on ac-nodes along the inward front normal -n, with
+        ! n = grad(lsf)/|grad(lsf)| the outward normal (lsf > 0 is ocean).
+        ! The front then retreats at rate m independently of the ice flow
+        ! (in the LSF velocity w = u + cr), so a stagnant front also retreats.
+        ! Where |grad(lsf)| = 0 (away from the front) there is no normal and
+        ! the retreat rate is zero; the level set is not moved there anyway.
+        ! Note: with lsf_method="snap" the lsf is saturated to +-1 next to
+        ! the front, so the normal is only resolved as axis-aligned or
+        ! diagonal directions; "redist" gives a smoother normal.
 
         implicit none 
 
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
+        real(wp), intent(IN)    :: lsf(:,:)                 ! Level-set function (aa-nodes, lsf > 0 is ocean)
         real(wp), intent(IN)    :: z_bed(:,:)               ! Bedrock elevation [m]
+        real(wp), intent(IN)    :: z_sl(:,:)                ! Sea level [m]
         real(wp), intent(IN)    :: Qd(:,:)                  ! subglacial discharge [m3/s]
-        real(wp), intent(IN)    :: TF(:,:)                  ! Thermal forcing [K]
+        real(wp), intent(IN)    :: T_ocn(:,:)               ! Ocean temperature [K]
+        real(wp), intent(IN)    :: T0                       ! Reference freezing temperature [K]
         real(wp), intent(IN)    :: dx                       ! Resolution [m]
         real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
         character(len=*), intent(IN) :: boundaries 
@@ -410,13 +443,16 @@ contains
         ! local variables
         integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
         real(wp) :: a, b, alpha, beta, m_acx, m_acy
-        real(wp), allocatable :: m_aa(:,:)
+        real(wp) :: gx, gy, gxy
+        real(wp), allocatable :: m_aa(:,:), h_w(:,:), TF(:,:)
         integer  :: BC
 
         nx = size(z_bed,1)
         ny = size(z_bed,2) 
 
         allocate(m_aa(nx,ny))
+        allocate(h_w(nx,ny))
+        allocate(TF(nx,ny))
 
         a     = 3.0e-4
         b     = 0.15
@@ -424,19 +460,23 @@ contains
         beta  = 1.18
         m_aa  = 0.0_wp
 
-        m_aa  = 365.25*(a*MAX(0.0,-1.0*z_bed)*((86400.0*Qd/(MAX(0.0,-1.0*z_bed)*dx+1e-8))**alpha)+b)*&
-                (MAX(0.0_wp, TF - 273.15)**beta) ! is in m/yr
+        ! Water depth and thermal forcing relative to the local freezing point
+        h_w   = MAX(0.0_wp, z_sl - z_bed)
+        TF    = MAX(0.0_wp, T_ocn - calc_T_freeze_sw(h_w,T0))
+
+        ! Discharge is a non-negative volume flux (q**alpha is NaN for q < 0)
+        m_aa  = 365.25*(a*h_w*((86400.0*MAX(0.0_wp,Qd)/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,m_acx,m_acy,gx,gy,gxy)
         do j = 1, ny
             do i = 1, nx
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                     
-                ! Stagger 1st ppal stress into ac-nodes                        
+                ! Stagger retreat rate into ac-nodes                        
                 m_acx = 0.5*(m_aa(i,j)+m_aa(ip1,j))
                 m_acy = 0.5*(m_aa(i,j)+m_aa(i,jp1))
                         
@@ -455,14 +495,39 @@ contains
                     m_acy = m_aa(i,jp1)
                 end if
 
-                ! Compute calving-rates on ac-nodes
-                cr_acx(i,j) = -1.0*MAX(0.0_wp,m_acx)
-                cr_acy(i,j) = -1.0*MAX(0.0_wp,m_acy)
+                ! Compute calving-rates on ac-nodes (retreat along the inward
+                ! front normal). grad(lsf) on each ac-node: normal component
+                ! from the two adjacent aa-nodes, tangential component from
+                ! the centred difference averaged over them. Only the
+                ! direction is needed, so the common 1/dx factor is dropped
+                ! (dx = dy).
+
+                ! x-direction
+                gx  = lsf(ip1,j) - lsf(i,j)
+                gy  = 0.25_wp*(lsf(i,jp1)+lsf(ip1,jp1)-lsf(i,jm1)-lsf(ip1,jm1))
+                gxy = sqrt(gx**2 + gy**2)
+                if (gxy .gt. 0.0_wp) then
+                    cr_acx(i,j) = -(gx/gxy)*MAX(0.0_wp,m_acx)
+                else
+                    cr_acx(i,j) = 0.0_wp
+                end if
+
+                ! y-direction
+                gy  = lsf(i,jp1) - lsf(i,j)
+                gx  = 0.25_wp*(lsf(ip1,j)+lsf(ip1,jp1)-lsf(im1,j)-lsf(im1,jp1))
+                gxy = sqrt(gx**2 + gy**2)
+                if (gxy .gt. 0.0_wp) then
+                    cr_acy(i,j) = -(gy/gxy)*MAX(0.0_wp,m_acy)
+                else
+                    cr_acy(i,j) = 0.0_wp
+                end if
             end do
         end do
         !$omp end parallel do
 
         deallocate(m_aa)
+        deallocate(h_w)
+        deallocate(TF)
 
         return 
 
@@ -740,133 +805,4 @@ contains
         
     end subroutine calvmip_exp5_aa
     
-    ! ===================================================================
-    !
-    !                 Ocean extrapolation routines
-    !
-    ! ===================================================================
-
-    subroutine extrapolate_ocn_laplace_simple(mask_fill,mask_orig,mask)
-        ! Routine to extrapolate values using the Laplace equation.
-        ! Assumes that value 0 in mask represents ice-free points
-                
-        implicit none
-            
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        integer(wp), intent(IN) :: mask(:,:)
-                
-        ! Local variables
-        integer :: i, j, iter
-        real(wp) :: error, tol
-        real(wp), allocatable :: mask_new(:,:)
-                
-        ! Allocate memory for the temporary array
-        allocate(mask_new(size(mask_orig,1), size(mask_orig,2)))
-                
-        ! Initialize variables
-        mask_fill = mask_orig
-        mask_new  = mask_orig
-        tol       = 1e-2_wp      ! Tolerance for convergence
-        error     = tol + 1.0_wp
-        iter      = 0
-                
-        ! Jacobi iteration
-        do while (error > tol)
-            error = 0.0_wp
-            iter = iter + 1
-                
-            do i = 2, size(mask_orig,1)-1
-                do j = 2, size(mask_orig,2)-1
-                    if (mask(i,j) .eq. 0) then
-                        mask_new(i,j) = 0.25_wp * (mask_fill(i+1,j) + mask_fill(i-1,j) + mask_fill(i,j+1) + mask_fill(i,j-1))
-                        error = error + abs(mask_new(i,j) - mask_fill(i,j))
-                    end if
-                end do
-            end do
-            mask_fill = mask_new
-        end do
-                
-        deallocate(mask_new)
-        
-        return
-            
-    end subroutine extrapolate_ocn_laplace_simple
-
-    subroutine extrapolate_ocn_neighbor(mask_fill, mask_orig, mask)
-        ! Routine to extrapolate values using neighboring land points.
-        ! Assumes that value 0 in mask represents ocean points
-        
-        implicit none
-        
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        integer(wp), intent(IN) :: mask(:,:)
-        
-        ! Local variables
-        integer :: i, j, iter, count_changes
-        integer :: nx, ny
-        real(wp), allocatable :: mask_new(:,:)
-        real(wp) :: sum_neighbors
-        integer  :: num_neighbors
-        
-        ! Allocate memory for the temporary array
-        nx = size(mask_orig, 1)
-        ny = size(mask_orig, 2)
-        allocate(mask_new(nx, ny))
-        
-        ! Initialize variables
-        mask_fill     = mask_orig
-        mask_new      = mask_orig
-        iter          = 0
-        count_changes = 1
-        
-        ! Iterate until no more changes are detected
-        do while (count_changes .gt. 0)
-            count_changes = 0
-            iter = iter + 1
-        
-            do i = 2, nx-1
-                do j = 2, ny-1
-                    if (mask(i,j) .eq. 0 .and. mask_fill(i,j) .eq. 0) then
-                        ! Calculate the sum of neighboring land points
-                        sum_neighbors = 0.0_wp
-                        num_neighbors = 0
-        
-                        if (mask_fill(i+1,j) == 1) then
-                            sum_neighbors = sum_neighbors + 1.0_wp
-                            num_neighbors = num_neighbors + 1
-                        end if
-                        if (mask_fill(i-1,j) == 1) then
-                            sum_neighbors = sum_neighbors + 1.0_wp
-                            num_neighbors = num_neighbors + 1
-                        end if
-                        if (mask_fill(i,j+1) == 1) then
-                            sum_neighbors = sum_neighbors + 1.0_wp
-                            num_neighbors = num_neighbors + 1
-                        end if
-                        if (mask_fill(i,j-1) == 1) then
-                            sum_neighbors = sum_neighbors + 1.0_wp
-                            num_neighbors = num_neighbors + 1
-                        end if
-        
-                        ! Update the ocean point based on the average of neighboring land points
-                        if (num_neighbors .gt. 0) then
-                            mask_new(i,j) = sum_neighbors / num_neighbors
-                            count_changes = count_changes + 1
-                        end if
-                    end if
-                end do
-            end do
-        
-            ! Update mask_fill with the new values
-            mask_fill = mask_new
-        end do
-        
-        deallocate(mask_new)
-        
-        return
-        
-    end subroutine extrapolate_ocn_neighbor        
-
 end module calving_ac

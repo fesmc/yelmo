@@ -69,14 +69,6 @@ contains
         mat%now%strn2D = dyn%now%strn2D
         mat%now%f_shear_bar = dyn%now%strn2D%f_shear 
         
-        ! Calculate the deviatoric stress tensor and 2D average
-        ! Use the strain rate tensor that is calculated in the dynamics module
-        ! ajr: for now, only calculate the 2D stress tensor directly. This is 
-        ! currently only used for calving, and so only horizontal stresses are
-        ! needed (ie, assume constant vertical profile for horizontal velocity)
-        !call calc_stress_tensor(mat%now%strs,mat%now%strs2D,mat%now%visc,mat%now%strn,mat%par%zeta_aa) 
-        call calc_stress_tensor_2D(mat%now%strs2D,mat%now%visc_bar,mat%now%strn2D)
-
         ! 1. Update enhancement factor ======================
 
         select case(trim(mat%par%enh_method))
@@ -247,7 +239,16 @@ contains
         mat%now%visc_bar = calc_vertical_integrated_2D(mat%now%visc,mat%par%zeta_aa)
         call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice,tpo%now%f_ice, &
                                                     mat%par%zeta_aa,dyn%par%boundaries)
-        
+
+        ! 3. Calculate the deviatoric stress tensor and 2D average
+        ! (after visc_bar is updated above, so strain and viscosity are consistent)
+        ! Use the strain rate tensor that is calculated in the dynamics module
+        ! ajr: for now, only calculate the 2D stress tensor directly. This is 
+        ! currently only used for calving, and so only horizontal stresses are
+        ! needed (ie, assume constant vertical profile for horizontal velocity)
+        !call calc_stress_tensor(mat%now%strs,mat%now%strs2D,mat%now%visc,mat%now%strn,mat%par%zeta_aa) 
+        call calc_stress_tensor_2D(mat%now%strs2D,mat%now%visc_bar,mat%now%strn2D)
+
         return
         
     end subroutine calc_ymat

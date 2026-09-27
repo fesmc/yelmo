@@ -8,7 +8,8 @@ module lsf_module
     ! Public surface:
     !   - LSFinit         : initialise phi to +-1 from H_ice / z_bed / z_sl
     !   - LSFupdate       : advect phi at w = u_bar + cr (extrapolated into
-    !                       the ocean), then saturate to [-1, 1]
+    !                       the ocean) with a dedicated advective-form
+    !                       upwind solver, then saturate to [-1, 1]
     !   - LSFredistance   : Sussman/Osher Hamilton-Jacobi redistancing to
     !                       restore |grad phi| ~= 1 without moving the
     !                       zero level set. Replaces the older ad-hoc
@@ -18,9 +19,9 @@ module lsf_module
     ! ----------------------------------------------------------------------
 
     use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err
-    use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes
+    use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     use topography,        only : calc_H_eff
-    use solver_advection,  only : calc_advec2D
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none
 
@@ -64,52 +65,94 @@ contains
 
     end subroutine LSFinit
 
-    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,mask_ice,dx,dy,dt,solver,boundaries)
+    subroutine LSFupdate(dlsf,lsf,cr_acx,cr_acy,u_acx,v_acy,dx,dy,dt,boundaries)
+        ! Advect the LSF with the front velocity w = u_bar + cr:
+        !
+        !   d phi / dt + w . grad phi = 0
+        !
+        ! i.e. the level-set equation in advective form (phi is not a
+        ! conserved quantity, so no phi*div(w) term as in the flux-form
+        ! ice-thickness solvers). w lives on the ac-nodes, where the
+        ! calving rates are defined; see calc_lsf_advec_rate for the
+        ! upwind discretisation. The explicit update is sub-cycled so that
+        ! it is stable for any model timestep dt.
 
         implicit none
 
-        real(wp),       intent(INOUT) :: dlsf(:,:)               ! advected LSF field
+        real(wp),       intent(INOUT) :: dlsf(:,:)               ! [1/yr] LSF rate of change
         real(wp),       intent(INOUT) :: lsf(:,:)                ! LSF to be advected (aa-nodes)
         real(wp),       intent(INOUT) :: cr_acx(:,:),cr_acy(:,:) ! [m/yr] calving rate (vertical)
         real(wp),       intent(IN)    :: u_acx(:,:)              ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: v_acy(:,:)              ! [m/a] 2D velocity, y-direction (ac-nodes)
-        integer,        intent(IN)    :: mask_ice(:,:)           ! Advection mask
         real(wp),       intent(IN)    :: dx                      ! [m] Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                      ! [m] Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                      ! [a]   Timestep
-        character(len=*), intent(IN)  :: solver                  ! Solver to use for the LSF advection equation
-        character(len=*), intent(IN)  :: boundaries              ! Boundary condition string (passed to advection)
+        character(len=*), intent(IN)  :: boundaries              ! Boundary condition string (neighbour indices)
 
         ! Local variables
-        integer  :: nx, ny
-        real(wp), allocatable :: wx(:,:), wy(:,:), mask_lsf(:,:)
-        real(wp), allocatable :: var_dot(:,:)                    ! [dvar/dt] Source term for variable. Not used in LSF.
+        integer  :: i, j, n, nx, ny, n_sub
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: w_max, rate_max, dt_max, dt_sub
+        real(wp), allocatable :: wx(:,:), wy(:,:), lsf_n(:,:), lsf_dot(:,:)
+
+        real(wp), parameter :: cfl = 0.5_wp                      ! CFL number on max|w|
 
         nx = size(lsf,1)
         ny = size(lsf,2)
         allocate(wx(nx,ny))
         allocate(wy(nx,ny))
-        allocate(mask_lsf(nx,ny))
-        allocate(var_dot(nx,ny))
+        allocate(lsf_n(nx,ny))
+        allocate(lsf_dot(nx,ny))
 
-        ! Initialize variables
-        dlsf     = 0.0_wp  ! LSF change in a time dt
-        mask_lsf = 1.0_wp  ! Allow all LSF mask to be advected
-        var_dot  = 0.0_wp
+        BC = boundary_code(boundaries)
+
+        dlsf = 0.0_wp  ! LSF change in a time dt
+
+        ! Only advect if dt > 0
+        if (dt .le. 0.0_wp) return
 
         ! Net LSF velocity: dynamic velocity + calving retreat rate
         wx = u_acx + cr_acx
         wy = v_acy + cr_acy
 
-        ! Extrapolate LSF velocities outside of the ice domain so that
-        ! upwind advection near the front sees a non-zero front velocity.
-        call extrapolate_ocn_acx(wx,wx,u_acx)
-        call extrapolate_ocn_acy(wy,wy,v_acy)
+        ! Extrapolate the front velocity from the faces adjacent to ice
+        ! into the ocean, so that upwind advection near the front sees it
+        ! (also where u = 0, i.e. a stagnant front retreating at rate cr).
+        call extrapolate_ocn_acx(wx,lsf,boundaries)
+        call extrapolate_ocn_acy(wy,lsf,boundaries)
 
-        ! Compute the advected LSF field
-        call calc_advec2D(dlsf,lsf,mask_lsf,wx,wy,var_dot, &
-                            mask_ice,dx,dy,dt,solver,boundaries)
-        call apply_tendency_lsf(lsf,dlsf,dt,adjust_lsf=.FALSE.)
+        ! Sub-step size: CFL = 0.5 on max|w| over the domain, and at most the
+        ! positivity limit of the face-upwind update, dt*(a+b+c+d) <= 1, with
+        ! a,b,c,d the inflow speeds/dx through the four cell faces (only
+        ! binding where the flow converges on a cell from several sides).
+        w_max    = max(maxval(abs(wx)),maxval(abs(wy)))
+        rate_max = 0.0_wp
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1) reduction(max:rate_max)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            rate_max = max(rate_max, (max(wx(im1,j),0.0_wp) - min(wx(i,j),0.0_wp)) / dx &
+                                   + (max(wy(i,jm1),0.0_wp) - min(wy(i,j),0.0_wp)) / dy)
+        end do
+        end do
+        !$omp end parallel do
+
+        dt_max = dt
+        if (w_max    .gt. 0.0_wp) dt_max = min(dt_max, cfl*min(dx,dy)/w_max)
+        if (rate_max .gt. 0.0_wp) dt_max = min(dt_max, 1.0_wp/rate_max)
+        n_sub  = ceiling(dt/dt_max)
+        dt_sub = dt / real(n_sub,wp)
+
+        ! Advect with explicit sub-steps
+        lsf_n = lsf
+        do n = 1, n_sub
+            call calc_lsf_advec_rate(lsf_dot,lsf,wx,wy,dx,dy,BC)
+            lsf = lsf + dt_sub*lsf_dot
+        end do
+
+        ! Rate of change over the whole timestep (before saturation)
+        dlsf = (lsf - lsf_n) / dt
 
         ! Saturate to [-1, 1] as a guardrail against upwind diffusion.
         ! LSFredistance is what restores |grad phi| ~= 1; this just keeps
@@ -262,7 +305,8 @@ contains
         end do
 
         if (dt_lsf .gt. 0.0_wp) then
-            if (mod(nint(time_now*100),nint(dt_lsf*100)) == 0) then
+            ! int64: a default integer overflows for |time_now| > ~2.1e7 yr
+            if (mod(nint(time_now*100,int64),nint(dt_lsf*100,int64)) == 0) then
                 where(lsf .gt. 0.0_wp) lsf =  1.0_wp
                 where(lsf .le. 0.0_wp) lsf = -1.0_wp
             end if
@@ -278,57 +322,56 @@ contains
     !
     ! ===================================================================
 
-    subroutine apply_tendency_lsf(lsf,lsf_dot,dt,adjust_lsf)
+    subroutine calc_lsf_advec_rate(lsf_dot,lsf,wx,wy,dx,dy,BC)
+        ! Rate of change of the LSF, lsf_dot = -w . grad(lsf), from
+        ! first-order upwinding with the face (ac-node) velocities.
+        ! In x, for cell i with faces i-1/2 (wx(im1,j)) and i+1/2 (wx(i,j)):
+        !
+        !   (w phi_x)_i = max(w_{i-1/2},0) * (phi_i     - phi_{i-1}) / dx
+        !               + min(w_{i+1/2},0) * (phi_{i+1} - phi_i    ) / dx
+        !
+        ! i.e. each face that carries flow into the cell contributes the
+        ! one-sided gradient on its side (and y likewise). This is the
+        ! donor-cell flux form minus phi_i*div(w), so it reduces to the
+        ! standard upwind scheme where w is uniform, and it uses the front
+        ! velocity exactly on the face where the calving rate is defined.
+        ! Stable and monotone for dt*(a+b+c+d) <= 1 (see LSFupdate).
 
         implicit none
 
-        real(wp), intent(INOUT) :: lsf(:,:)
-        real(wp), intent(INOUT) :: lsf_dot(:,:)
-        real(wp), intent(IN)    :: dt
-        logical, optional, intent(IN) :: adjust_lsf
+        real(wp), intent(OUT) :: lsf_dot(:,:)
+        real(wp), intent(IN)  :: lsf(:,:)
+        real(wp), intent(IN)  :: wx(:,:)                        ! [m/yr] LSF velocity (acx-nodes)
+        real(wp), intent(IN)  :: wy(:,:)                        ! [m/yr] LSF velocity (acy-nodes)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy
+        integer,  intent(IN)  :: BC
 
         ! Local variables
         integer :: i, j, nx, ny
-        real(wp) :: lsf_prev
-        real(wp) :: dlsfdt
-        logical  :: allow_adjust_lsf
+        integer :: im1, ip1, jm1, jp1
 
-        if (dt .gt. 0.0) then
-            ! Only apply this routine if dt > 0!
+        nx = size(lsf,1)
+        ny = size(lsf,2)
 
-            allow_adjust_lsf = .FALSE.
-            if (present(adjust_lsf)) allow_adjust_lsf = adjust_lsf
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
 
-            nx = size(lsf,1)
-            ny = size(lsf,2)
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            !$omp parallel do collapse(2) private(i,j,lsf_prev,dlsfdt)
-            do j = 1, ny
-            do i = 1, nx
+            lsf_dot(i,j) = -( max(wx(im1,j),0.0_wp) * (lsf(i,j)   - lsf(im1,j)) / dx &
+                            + min(wx(i,j),  0.0_wp) * (lsf(ip1,j) - lsf(i,j)  ) / dx &
+                            + max(wy(i,jm1),0.0_wp) * (lsf(i,j)   - lsf(i,jm1)) / dy &
+                            + min(wy(i,j),  0.0_wp) * (lsf(i,jp1) - lsf(i,j)  ) / dy )
 
-                ! Store previous value
-                lsf_prev = lsf(i,j)
-
-                ! Now update lsf with tendency for this timestep
-                lsf(i,j) = lsf_prev + dt*lsf_dot(i,j)
-
-                ! Calculate actual current rate of change
-                dlsfdt = (lsf(i,j) - lsf_prev) / dt
-
-                ! Update lsf rate to match rate of change perfectly
-                if (allow_adjust_lsf) then
-                    lsf_dot(i,j) = dlsfdt
-                end if
-
-            end do
-            end do
-            !$omp end parallel do
-
-        end if
+        end do
+        end do
+        !$omp end parallel do
 
         return
 
-    end subroutine apply_tendency_lsf
+    end subroutine calc_lsf_advec_rate
 
     ! ===================================================================
     !
@@ -336,102 +379,161 @@ contains
     !
     ! ===================================================================
 
-    subroutine extrapolate_ocn_acx(mask_fill,mask_orig,mask_ac)
-        ! Fill ocean cells along the x-axis by nearest-filled-neighbour
-        ! sweep. A cell is treated as "ocean" if mask_ac == 0 there.
-        ! Single forward+backward pass per row: O(nx*ny) total work.
+    subroutine extrapolate_ocn_acx(wx,lsf,boundaries)
+        ! Extrapolate the LSF velocity on acx-nodes into the ocean along
+        ! each row. Source faces are those adjacent to ice (lsf <= 0 in at
+        ! least one of the two neighbouring cells, consistent with calving
+        ! where lsf > 0), i.e. interior and front faces. They keep their
+        ! value u + cr, so the retreat rate is extended from a stagnant
+        ! (u = 0) front too. See extrapolate_ocn_1D for the fill rule.
 
         implicit none
 
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        real(wp), intent(IN)    :: mask_ac(:,:)
+        real(wp),         intent(INOUT) :: wx(:,:)
+        real(wp),         intent(IN)    :: lsf(:,:)
+        character(len=*), intent(IN)    :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny
-        logical, allocatable :: filled(:,:)
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
+        logical, allocatable :: src(:)
 
-        nx = size(mask_orig,1)
-        ny = size(mask_orig,2)
-        allocate(filled(nx,ny))
+        nx = size(wx,1)
+        ny = size(wx,2)
+        allocate(src(nx))
 
-        filled    = mask_ac .ne. 0.0_wp
-        mask_fill = mask_orig
-
-        if (sum(mask_orig) .eq. 0.0_wp) then
-            deallocate(filled)
-            return
-        end if
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
         do j = 1, ny
-            ! Forward sweep: rightward fill.
-            do i = 2, nx
-                if (.not. filled(i,j) .and. filled(i-1,j)) then
-                    mask_fill(i,j) = mask_fill(i-1,j)
-                    filled(i,j)    = .true.
-                end if
+            do i = 1, nx
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                src(i) = (lsf(i,j) .le. 0.0_wp) .or. (lsf(ip1,j) .le. 0.0_wp)
             end do
-            ! Backward sweep: leftward fill (catches any unfilled left tails).
-            do i = nx-1, 1, -1
-                if (.not. filled(i,j) .and. filled(i+1,j)) then
-                    mask_fill(i,j) = mask_fill(i+1,j)
-                    filled(i,j)    = .true.
-                end if
-            end do
+            call extrapolate_ocn_1D(wx(:,j),src,per_x)
         end do
 
-        deallocate(filled)
+        deallocate(src)
 
         return
 
     end subroutine extrapolate_ocn_acx
 
-    subroutine extrapolate_ocn_acy(mask_fill,mask_orig,mask_ac)
-        ! Same as extrapolate_ocn_acx but along the y-axis.
+    subroutine extrapolate_ocn_acy(wy,lsf,boundaries)
+        ! Same as extrapolate_ocn_acx but on acy-nodes, along each column.
 
         implicit none
 
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        real(wp), intent(IN)    :: mask_ac(:,:)
+        real(wp),         intent(INOUT) :: wy(:,:)
+        real(wp),         intent(IN)    :: lsf(:,:)
+        character(len=*), intent(IN)    :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny
-        logical, allocatable :: filled(:,:)
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
+        logical, allocatable :: src(:)
 
-        nx = size(mask_orig,1)
-        ny = size(mask_orig,2)
-        allocate(filled(nx,ny))
+        nx = size(wy,1)
+        ny = size(wy,2)
+        allocate(src(ny))
 
-        filled    = mask_ac .ne. 0.0_wp
-        mask_fill = mask_orig
-
-        if (sum(mask_orig) .eq. 0.0_wp) then
-            deallocate(filled)
-            return
-        end if
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
         do i = 1, nx
-            ! Forward sweep: upward fill.
-            do j = 2, ny
-                if (.not. filled(i,j) .and. filled(i,j-1)) then
-                    mask_fill(i,j) = mask_fill(i,j-1)
-                    filled(i,j)    = .true.
-                end if
+            do j = 1, ny
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                src(j) = (lsf(i,j) .le. 0.0_wp) .or. (lsf(i,jp1) .le. 0.0_wp)
             end do
-            ! Backward sweep: downward fill.
-            do j = ny-1, 1, -1
-                if (.not. filled(i,j) .and. filled(i,j+1)) then
-                    mask_fill(i,j) = mask_fill(i,j+1)
-                    filled(i,j)    = .true.
-                end if
-            end do
+            call extrapolate_ocn_1D(wy(i,:),src,per_y)
         end do
 
-        deallocate(filled)
+        deallocate(src)
 
         return
 
     end subroutine extrapolate_ocn_acy
+
+    subroutine extrapolate_ocn_1D(var,src,periodic)
+        ! Fill the non-source points of a line with the value of the
+        ! nearest source point, or with the mean of the two nearest ones
+        ! (left and right) if they are equally far. Unlike a sequential
+        ! sweep, the result does not depend on the sweep direction, so
+        ! mirror symmetries of the domain are preserved. The line wraps
+        ! around if periodic; otherwise points beyond the outermost source
+        ! point take its value. A line without source points is unchanged.
+        ! Two sweeps: O(n).
+
+        implicit none
+
+        real(wp), intent(INOUT) :: var(:)
+        logical,  intent(IN)    :: src(:)
+        logical,  intent(IN)    :: periodic
+
+        ! Local variables
+        integer :: k, m, n, k0, k_src, dl, dr
+        integer, allocatable :: kl(:), kr(:)
+
+        n = size(var)
+
+        if (.not. any(src)) return
+
+        allocate(kl(n))
+        allocate(kr(n))
+
+        ! Nearest source point to the left of each point (0: none).
+        ! Sweep rightward; if periodic, start just after the last source
+        ! point so that the wrap-around is included.
+        k0    = 0
+        k_src = 0
+        if (periodic) k0    = findloc(src,.TRUE.,dim=1,back=.TRUE.)
+        if (periodic) k_src = k0
+        do m = 1, n
+            k = modulo(k0+m-1,n) + 1
+            if (src(k)) k_src = k
+            kl(k) = k_src
+        end do
+
+        ! Nearest source point to the right of each point (0: none).
+        ! Sweep leftward, likewise.
+        k0    = n+1
+        k_src = 0
+        if (periodic) k0    = findloc(src,.TRUE.,dim=1)
+        if (periodic) k_src = k0
+        do m = 1, n
+            k = modulo(k0-m-1,n) + 1
+            if (src(k)) k_src = k
+            kr(k) = k_src
+        end do
+
+        do k = 1, n
+            if (src(k)) cycle
+            if (kl(k) .eq. 0) then
+                var(k) = var(kr(k))
+            else if (kr(k) .eq. 0) then
+                var(k) = var(kl(k))
+            else
+                dl = modulo(k-kl(k),n)
+                dr = modulo(kr(k)-k,n)
+                if (dl .lt. dr) then
+                    var(k) = var(kl(k))
+                else if (dr .lt. dl) then
+                    var(k) = var(kr(k))
+                else
+                    var(k) = 0.5_wp*(var(kl(k))+var(kr(k)))
+                end if
+            end if
+        end do
+
+        deallocate(kl)
+        deallocate(kr)
+
+        return
+
+    end subroutine extrapolate_ocn_1D
 
 end module lsf_module

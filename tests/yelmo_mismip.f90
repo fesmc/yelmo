@@ -5,10 +5,11 @@ program yelmo_mismip
     use nml 
     use ncio 
     use yelmo 
-    use yelmo_tools, only : stagger_aa_acx, stagger_aa_acy
     use deformation 
+    use lsf_module, only : LSFinit
 
     use mismip3D 
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -24,14 +25,12 @@ program yelmo_mismip
     real(prec) :: xmax, ymin, ymax 
     real(prec) :: dx 
     integer    :: i, j, nx, ny 
-    real(prec) :: x_gl, x_gl_stnd
+    real(prec) :: x_gl, x_gl_edge, x_gl_stnd
     real(prec) :: time_mod_1, time_mod_2 
 
     integer :: n_att, n_att_tot, q_att, q
     real(prec), allocatable :: ATT_values(:)
     real(prec) :: ATT_time, ATT_dt 
-    logical    :: is_converged, exit_loop 
-    real(prec) :: err  
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
 
@@ -41,8 +40,10 @@ program yelmo_mismip
     ! Assume program is running from the output folder
     outfldr = "./"
 
+    ! Determine the parameter file from the command line 
+    call yelmo_load_command_line_args(path_par)
+
     ! Define input and output locations 
-    path_par     = trim(outfldr)//"yelmo_MISMIP3D.nml" 
     file2D       = trim(outfldr)//"yelmo2D.nc"
     file1D       = trim(outfldr)//"yelmo1D.nc"
     file_restart = trim(outfldr)//"yelmo_restart.nc"
@@ -70,7 +71,9 @@ program yelmo_mismip
         ! When to apply time modifications
         time_mod_1 = 15000.0   ! Switch from Stnd => P75S
         time_mod_2 = 15100.0   ! Switch back from P75S => Stnd
-        time_end   = time_mod_2 + 1000.0
+
+        ! Protocol end time, unless time_end > 0 is given in the parameter file
+        if (time_end .le. 0.0) time_end = time_mod_2 + 1000.0
 
         !time_mod_1 = 20000.0
         !time_mod_2 = time_mod_1
@@ -110,7 +113,9 @@ program yelmo_mismip
 
         ATT_time   = 15e3
         ATT_dt     = 10e3 
-        time_end   = ATT_time + n_att*ATT_dt !+ 100e3
+
+        ! Protocol end time, unless time_end > 0 is given in the parameter file
+        if (time_end .le. 0.0) time_end = ATT_time + n_att*ATT_dt
         dt2D_out   = 500.0 
         
         write(*,*) "time_init = ", time_init 
@@ -126,10 +131,21 @@ program yelmo_mismip
 
     end if 
     
-    ! Define the domain and grid
+    ! Define the domain and grid. The channel is periodic in y (true wrap,
+    ! period ny*dx, no halo): centred grid y_j = (j-jc)*dx with jc = ny/2+1,
+    ! so that y=0 is a row and the period is exactly ymax-ymin. For even ny
+    ! the wall y=ymin is a row, for odd ny the wall lies midway between the
+    ! first and last rows.
     ymax =  50.0
     ymin = -50.0
-    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1,y0=ymin,dy=dx,ny=int((ymax-ymin)/dx)+1)
+    ny   = nint((ymax-ymin)/dx)
+    if (abs(ny*dx-(ymax-ymin)) .gt. 1e-6*(ymax-ymin)) then
+        write(*,*) "yelmo_mismip:: Error: the domain width (ymax-ymin) must be a multiple of dx."
+        write(*,*) "ymax-ymin, dx = ", ymax-ymin, dx
+        stop
+    end if
+    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1, &
+                            y0=-real(ny/2,prec)*dx,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
 
@@ -161,6 +177,11 @@ program yelmo_mismip
     ! Intialize topography 
     call mismip3D_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
                             yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,experiment)
+
+    ! Initialize the LSF mask from the topography, if not restarting
+    if (.not. yelmo1%par%use_restart) then
+        call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
+    end if
     
     time     = time_init 
     yelmo1%dyn%par%use_ssa = .TRUE. 
@@ -168,12 +189,10 @@ program yelmo_mismip
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
 
-    ! Write initial state 
-    x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd)
-    call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl) 
-
-    ! Set exit to false
-    exit_loop   = .FALSE. 
+    ! Write initial state (grounding line on the centreline y=0 and at the channel wall)
+    x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
+    x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
+    call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl,x_gl_edge=x_gl_edge) 
 
     ! Advance timesteps
     do n = 1, ceiling((time_end-time_init)/dtt)
@@ -190,32 +209,6 @@ program yelmo_mismip
                     q_att = min(q_att+1,n_att)
                     yelmo1%mat%par%rf_const = ATT_values(q_att)
                     ATT_time = time
-                end if 
-
-            case("RF-converge")
-                ! Apply convergence criteria to step rate factor 
-
-                is_converged = .FALSE. 
-                err = sqrt(sum(yelmo1%tpo%now%dHidt**2)/yelmo1%grd%npts)
-                if (err .lt. 1e-2) is_converged =.TRUE. 
-
-                if (time .gt. ATT_time+ATT_dt) then 
-                    ! Ensure minimum time per step has been reached before checking convergence
-
-                    write(*,*) "err: ", time, ATT_time, err, yelmo1%mat%par%rf_const, q_att 
-                
-                    if (is_converged .and. q_att == n_att) then 
-                        ! If output timestep also reached,
-                        ! then time to kill simulation 
-                        if (mod(time,dt2D_out)==0) exit_loop = .TRUE. 
-                    else if (is_converged) then
-                        ! Time to step ATT_value 
-                        q_att = min(q_att+1,n_att)
-                        yelmo1%mat%par%rf_const = ATT_values(q_att)
-                        ATT_time = time 
-                        dt2D_out = 500.0
-                    end if   
-
                 end if 
 
             case("Stnd")
@@ -255,26 +248,23 @@ program yelmo_mismip
         ! == Yelmo ice sheet ===================================================
         call yelmo_update(yelmo1,time)
 
-        x_gl = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd)
+        x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
+        x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
         
         ! == Update boundaries 
         
         call mismip3D_boundaries(yelmo1%bnd%T_srf,yelmo1%bnd%smb,yelmo1%bnd%Q_geo,yelmo1%bnd%calv_mask,yelmo1%bnd%c%T0,experiment=experiment)
 
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(time*100),nint(dt2D_out*100))==0) then  
-            call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl)    
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(time*100,int64),nint(dt2D_out*100,int64))==0) then  
+            call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl,x_gl_edge=x_gl_edge)    
         end if 
 
-        if (mod(nint(time*100),nint((5.0*dtt)*100))==0) then
-            write(*,"(a,2f14.4,a10,g14.3,f10.2)") "time = ",  &
-                time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl 
+        if (mod(nint(time*100,int64),nint((5.0*dtt)*100,int64))==0) then
+            write(*,"(a,2f14.4,a10,g14.3,2f10.2)") "time = ",  &
+                time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl, x_gl_edge 
         end if 
-
-        if (exit_loop) exit
-
-        ! AJR: diagnostics for instability, higher output frequency near P75S
-        if (time .ge. 11.5e3) dt2D_out = dtt
 
     end do
 
@@ -296,7 +286,7 @@ program yelmo_mismip
 
 contains
 
-    subroutine write_step_2D(ylmo,filename,time,x_gl)
+    subroutine write_step_2D(ylmo,filename,time,x_gl,x_gl_edge)
 
         implicit none 
         
@@ -304,6 +294,7 @@ contains
         character(len=*),  intent(IN) :: filename
         real(prec), intent(IN) :: time
         real(prec), intent(IN) :: x_gl
+        real(prec), intent(IN) :: x_gl_edge
 
         ! Local variables
         integer    :: ncid, n, i, j, nx, ny  
@@ -329,8 +320,10 @@ contains
         ! 1D variables of interest 
         call nc_write(filename,"x_rf",ylmo%mat%par%rf_const,units="", &
             long_name="Rate factor",dim1="time",start=[n],count=[1],ncid=ncid)
-        call nc_write(filename,"x_gl",x_gl,units="", &
-            long_name="Grounding line position",dim1="time",start=[n],count=[1],ncid=ncid)
+        call nc_write(filename,"x_gl",x_gl,units="km", &
+            long_name="Grounding line position (centreline, y=0)",dim1="time",start=[n],count=[1],ncid=ncid)
+        call nc_write(filename,"x_gl_edge",x_gl_edge,units="km", &
+            long_name="Grounding line position (channel wall, |y|=ly/2)",dim1="time",start=[n],count=[1],ncid=ncid)
 
         ! == yelmo_topography ==
         call nc_write(filename,"H_ice",ylmo%tpo%now%H_ice,units="m",long_name="Ice thickness", &

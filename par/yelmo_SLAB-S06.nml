@@ -1,12 +1,7 @@
 &ctrl
     symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
-    ! NOTE: tests/yelmo_slab.f90 reads several extra parameters from this
-    ! &ctrl group that are not currently defined here (H0, H_stdev, nx, ny,
-    ! alpha, nt, n_dx, n_dt, dx_range, dt_range, conv_tol). Running
-    ! yelmo_slab.x against this file will fail at nml_read("ctrl","H0",...).
-    ! The "schoof" companion values (H0, alpha) live in &ctrl_schoof below
-    ! and the slab driver needs updating to read from either group. Until
-    ! that lands, this file is a configuration template only.
+    ! This file is run with the trough driver (yelmo_trough.x, `runme -e trough`),
+    ! which dispatches on ctrl.domain; the slab parameters are in &ctrl_schoof.
 
     domain       = "SLAB-S06"           ! "SLAB-S06", "RAYMOND"
 
@@ -61,6 +56,7 @@
     restart_H_ice   = False             ! Take H_ice from restart file
     restart_relax   = 1e3               ! [yrs] Years to relax from restart=>input topography
     log_timestep    = False 
+    log_mb_check    = False
     disable_kill    = False             ! Disable automatic kill if unstable
     zeta_scale      = "exp"             ! "linear", "exp", "tanh"
     zeta_exp        = 2.0  
@@ -68,12 +64,10 @@
     dt_method       = 0                 ! 0: no internal timestep, 1: adaptive, cfl, 2: adaptive, pc
     dt_min          = 0.01              ! [a] Minimum timestep 
     cfl_max         = 0.1               ! Maximum value is 1.0, lower will be more stable
-    cfl_diff_max    = 0.12              ! Bueler et al (2007), Eq. 25  
     pc_method       = "FE-SBE"          ! "FE-SBE", "AB-SAM", "HEUN"
     pc_controller   = "PI42"            ! PI42, H312b, H312PID, H321PID, PID1
     pc_use_H_pred   = True              ! Use predicted H_ice instead of corrected H_ice 
     pc_filter_vel   = False             ! Use mean vel. solution of current and previous timestep
-    pc_corr_vel     = False             ! Calculate dynamics again for corrected H_ice
     pc_n_redo       = 1                 ! How many times can the same iteration be repeated (when high error exists)
     pc_tol          = 5.0               ! [m/a] Tolerance threshold to redo timestep
     pc_eps          = 1.0               ! Predictor-corrector tolerance 
@@ -169,7 +163,8 @@
     H_grnd_lim          = 500.0           ! [m] For beta_gl_scale=1, reduce beta linearly between H_grnd=0 and H_grnd_lim 
     beta_min            = 0.0             ! [Pa a m-1] Minimum value of beta allowed for grounded ice (for stability)
     eps_0               = 1e-6            ! [1/a] Regularization term for effective viscosity - minimum strain rate
-    scale_T             = 1               ! 0: no scaling of c_bed with T, 1: linearly increase c_bed to c_bed_frozen=cf_ref*N_eff for cold ice
+    scale_T             = 0               ! 0: no scaling of c_bed with T, 1: linearly increase c_bed to c_bed_frozen=cf_ref*N_eff for cold ice
+                                          ! SLAB-S06: 0, so the (cold) bed keeps c_bed = cb_ref = analytical tau_c
     T_frz               = -3.0            ! Temperature below which ice considered fully frozen (linear increase in friction )
     ssa_solver          = "residual"    ! "residual" | "energy"
     ssa_lis_opt_residual= "-i bicgsafe -p jacobi -maxiter 1000 -tol 1.0e-6 -initx_zeros false"  ! See Lis library
@@ -181,7 +176,6 @@
     ssa_iter_rel        = 0.7             ! [--] Relaxation fraction [0:1] to stabilize ssa iterations
     ssa_iter_conv       = 1e-4            ! [--] L2 relative error convergence limit to exit ssa iterations
     taud_lim            = 2e5             ! [Pa] Maximum allowed driving stress
-    cb_sia              = 0.0             ! [m a-1 Pa-1] Bed roughness coefficient for SIA sliding
 
     neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
 
@@ -212,12 +206,13 @@
     W_til_bc         = 0.0 ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 1      ! 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_N_closure     = 0      ! 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+                               ! SLAB-S06: CONST with const_N=1 Pa, so c_bed = cb_ref (analytical tau_c)
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
     bkt_floating_mode = 1      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
 
     ! ---- closures (no prefix) ----
-    const_N         = 1.0e7  ! [Pa] N_CLOSURE_CONST (legacy yneff.const)
+    const_N         = 1.0    ! [Pa] N_CLOSURE_CONST (legacy yneff.const)
     marine_p        = 1.0
     marine_rho_sw   = 1028.0
     till_N0         = 1000.0 ! legacy yneff.N0
@@ -230,7 +225,7 @@
     k24_substrate_type               = 2
     k24_flux_solver                  = 0
     k24_manning_exponent             = 3.0
-    k24_latent_heat_water            = 3.35e5
+    k24_latent_heat_water            = 3.335e5
     k24_bed_thickness                = 0.1
     k24_manning_coefficient_exponent = 1.25
     k24_bed_friction_exponent        = 1.5
@@ -241,7 +236,7 @@
     k24_coupling_length              = 1.0e4
     k24_long_coupling_water          = 5.0
     k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 1.8e-3
+    k24_eta_w                        = 5.703855806525211e-11 ! eta_w [Pa s] = 1.8e-3 per year
     k24_W_min                        = 1.0e-8
     k24_W_max                        = 0.015
 /
