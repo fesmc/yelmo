@@ -31,8 +31,6 @@ program yelmo_mismip
     integer :: n_att, n_att_tot, q_att, q
     real(prec), allocatable :: ATT_values(:)
     real(prec) :: ATT_time, ATT_dt 
-    logical    :: is_converged, exit_loop 
-    real(prec) :: err  
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
 
@@ -42,8 +40,10 @@ program yelmo_mismip
     ! Assume program is running from the output folder
     outfldr = "./"
 
+    ! Determine the parameter file from the command line 
+    call yelmo_load_command_line_args(path_par)
+
     ! Define input and output locations 
-    path_par     = trim(outfldr)//"yelmo_MISMIP3D.nml" 
     file2D       = trim(outfldr)//"yelmo2D.nc"
     file1D       = trim(outfldr)//"yelmo1D.nc"
     file_restart = trim(outfldr)//"yelmo_restart.nc"
@@ -182,9 +182,6 @@ program yelmo_mismip
     x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd)
     call write_step_2D(yelmo1,file2D,time=time,x_gl=x_gl) 
 
-    ! Set exit to false
-    exit_loop   = .FALSE. 
-
     ! Advance timesteps
     do n = 1, ceiling((time_end-time_init)/dtt)
 
@@ -200,32 +197,6 @@ program yelmo_mismip
                     q_att = min(q_att+1,n_att)
                     yelmo1%mat%par%rf_const = ATT_values(q_att)
                     ATT_time = time
-                end if 
-
-            case("RF-converge")
-                ! Apply convergence criteria to step rate factor 
-
-                is_converged = .FALSE. 
-                err = sqrt(sum(yelmo1%tpo%now%dHidt**2)/yelmo1%grd%npts)
-                if (err .lt. 1e-2) is_converged =.TRUE. 
-
-                if (time .gt. ATT_time+ATT_dt) then 
-                    ! Ensure minimum time per step has been reached before checking convergence
-
-                    write(*,*) "err: ", time, ATT_time, err, yelmo1%mat%par%rf_const, q_att 
-                
-                    if (is_converged .and. q_att == n_att) then 
-                        ! If output timestep also reached,
-                        ! then time to kill simulation 
-                        if (mod(time,dt2D_out)==0) exit_loop = .TRUE. 
-                    else if (is_converged) then
-                        ! Time to step ATT_value 
-                        q_att = min(q_att+1,n_att)
-                        yelmo1%mat%par%rf_const = ATT_values(q_att)
-                        ATT_time = time 
-                        dt2D_out = 500.0
-                    end if   
-
                 end if 
 
             case("Stnd")
@@ -280,11 +251,6 @@ program yelmo_mismip
             write(*,"(a,2f14.4,a10,g14.3,f10.2)") "time = ",  &
                 time, maxval(yelmo1%tpo%now%H_ice), trim(experiment), yelmo1%mat%par%rf_const, x_gl 
         end if 
-
-        if (exit_loop) exit
-
-        ! AJR: diagnostics for instability, higher output frequency near P75S
-        if (time .ge. 11.5e3) dt2D_out = dtt
 
     end do
 
