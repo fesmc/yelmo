@@ -5,7 +5,7 @@ module yelmo_thermodynamics
     use yelmo_defs 
     use yelmo_grid, only : calc_zeta
     use yelmo_tools, only : smooth_gauss_2D, smooth_gauss_3D, gauss_values, fill_borders_2D, fill_borders_3D, &
-            stagger_aa_ab, boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
+            boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     
     use thermodynamics 
     use ice_enthalpy

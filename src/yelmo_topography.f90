@@ -15,7 +15,6 @@ module yelmo_topography
     use discharge
 
     use runge_kutta 
-    use derivatives
     use distances
 
     implicit none
@@ -1025,7 +1024,6 @@ end if
         type(ybound_class), intent(IN)    :: bnd 
 
         ! Local variables
-        character(len=256) :: bcx, bcy
         integer  :: gz_nx, gz_ny
         logical  :: gz_perx, gz_pery
         integer,  allocatable :: mask_src(:,:)
@@ -1057,8 +1055,6 @@ end if
         ! Calculate the surface slope
         ! call calc_gradient_ac(tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%z_srf,tpo%par%dx)
 
-if (.TRUE.) then
-        ! New routines 
         call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
         call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
@@ -1067,33 +1063,6 @@ if (.TRUE.) then
         
         call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
         call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
-else
-        bcx = trim(tpo%par%boundaries)
-        if (trim(bcx) .eq. "periodic-x") bcx = "periodic"
-        bcy = trim(tpo%par%boundaries)
-        if (trim(bcy) .eq. "periodic-y") bcy = "periodic"
-        
-        call calc_dvdx_2D(tpo%now%dzsdx_aa,tpo%now%z_srf,tpo%par%dx,tpo%now%f_ice .gt. 0.0_wp,bcx,tpo%par%grad_lim)
-        call calc_dvdy_2D(tpo%now%dzsdy_aa,tpo%now%z_srf,tpo%par%dy,tpo%now%f_ice .gt. 0.0_wp,bcy,tpo%par%grad_lim)
-        
-        call calc_dvdx_2D(tpo%now%dHidx_aa,tpo%now%H_ice,tpo%par%dx,tpo%now%f_ice .gt. 0.0_wp,bcx,tpo%par%grad_lim)
-        call calc_dvdy_2D(tpo%now%dHidy_aa,tpo%now%H_ice,tpo%par%dy,tpo%now%f_ice .gt. 0.0_wp,bcy,tpo%par%grad_lim)
-        
-        call calc_dvdx_2D(tpo%now%dzbdx_aa,tpo%now%z_base,tpo%par%dx,tpo%now%f_ice .gt. 0.0_wp,bcx,tpo%par%grad_lim)
-        call calc_dvdy_2D(tpo%now%dzbdy_aa,tpo%now%z_base,tpo%par%dy,tpo%now%f_ice .gt. 0.0_wp,bcy,tpo%par%grad_lim)
-        
-        ! Stagger to acx and acy nodes
-
-        tpo%now%dzsdx = stagger_aa_acx(tpo%now%dzsdx_aa)
-        tpo%now%dzsdy = stagger_aa_acy(tpo%now%dzsdy_aa)
-        
-        tpo%now%dHidx = stagger_aa_acx(tpo%now%dHidx_aa)
-        tpo%now%dHidy = stagger_aa_acy(tpo%now%dHidy_aa)
-        
-        tpo%now%dzbdx = stagger_aa_acx(tpo%now%dzbdx_aa)
-        tpo%now%dzbdy = stagger_aa_acy(tpo%now%dzbdy_aa)
-
-end if
 
         ! ajr: experimental, doesn't seem to work properly yet! ===>
         ! Modify surface slope gradient at the grounding line if desired 
