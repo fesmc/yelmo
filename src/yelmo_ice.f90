@@ -871,13 +871,7 @@ contains
                 dom%dyn%par%boundaries  = "TROUGH"
                 dom%thrm%par%boundaries = "TROUGH"
 
-            case("SLAB")
-
-                dom%tpo%par%boundaries  = "infinite"
-                dom%dyn%par%boundaries  = "periodic"
-                dom%thrm%par%boundaries = "periodic"
-                
-            case("ISMIPHOM","slab","periodic","periodic-xy") 
+            case("SLAB","ISMIPHOM","slab","periodic","periodic-xy") 
                 ! Periodic boundary conditions in x and y: true wrap with period n,
                 ! i.e., X_0 == X_n and X_n+1 == X_1 (no halo/ghost cells)
 

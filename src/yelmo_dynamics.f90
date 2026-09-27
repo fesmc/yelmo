@@ -28,7 +28,6 @@ module yelmo_dynamics
     ! use solver_ssa_ab
 
     use basal_dragging  
-    use grounding_line_flux 
 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa
 
@@ -638,62 +637,6 @@ contains
 !             dyn%now%visc_eff_int = calc_visc_eff_2D(dyn%now%ux_b,dyn%now%uy_b,dyn%now%duxdz_bar*0.0,dyn%now%duydz_bar*0.0, &
 !                                                     tpo%now%H_ice,mat%now%ATT,dyn%par%zeta_aa,dyn%par%dx,dyn%par%dy,mat%par%n_glen)
             
-!             !   X. Prescribe grounding-line flux 
-! if (.FALSE.) then
-!             ! Testing prescribed grounding-line flux/vel - experimental!!!
-
-!             ! Calculate the analytical grounding-line flux 
-!             call calc_grounding_line_flux(dyn%now%qq_gl_acx,dyn%now%qq_gl_acy,tpo%now%H_ice,mat%now%ATT_bar, &
-!                         dyn%now%c_bed,dyn%now%ux_b,dyn%now%uy_b,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
-!                         mat%par%n_glen,dyn%par%beta_q,Q0=0.61_wp,f_drag=0.6_wp,glf_method="power")
-
-!             ! Where qq_gl is present, prescribe velocity and set mask to -1
-
-!             ! Restore original ssa mask (without grounding line flags)
-!             dyn%now%ssa_mask_acx = ssa_mask_acx
-!             dyn%now%ssa_mask_acy = ssa_mask_acy
-            
-!             write(*,*) "glf"
-
-!             ! acx nodes 
-!             do j = 1, ny 
-!             do i = 1, nx-1
-
-!                 H_mid = 0.5*(tpo%now%H_ice(i,j)+tpo%now%H_ice(i+1,j))
-                
-!                 if (dyn%now%qq_gl_acx(i,j) .ne. 0.0 .and. H_mid .gt. 0.0) then 
-!                     ! Prescribe velocity at this point 
-
-!                     if (j == 3) then 
-!                         write(*,*) "glf", i, dyn%now%ux_b(i,j), dyn%now%qq_gl_acx(i,j) / H_mid
-!                     end if 
-                    
-! !                     dyn%now%ux_b(i,j) = dyn%now%qq_gl_acx(i,j) / H_mid 
-! !                     dyn%now%ssa_mask_acx(i,j) = -1
-
-!                 end if 
-
-!             end do 
-!             end do 
-
-!             ! acy nodes 
-!             do j = 1, ny-1 
-!             do i = 1, nx
-
-!                 H_mid = 0.5*(tpo%now%H_ice(i,j)+tpo%now%H_ice(i,j+1))
-                
-!                 if (dyn%now%qq_gl_acy(i,j) .ne. 0.0 .and. H_mid .gt. 0.0) then 
-!                     ! Prescribe velocity at this point 
-
-!                     dyn%now%uy_b(i,j) = dyn%now%qq_gl_acy(i,j) / H_mid 
-!                     dyn%now%ssa_mask_acy(i,j) = -1
-                    
-!                 end if 
-
-!             end do 
-!             end do
-! end if 
-
 !             !   3. Calculate SSA solution
 
 ! if (.TRUE.) then 

@@ -11,7 +11,6 @@ module solver_ssa_ac
 
     private 
     public :: set_ssa_masks
-    public :: update_ssa_mask_convergence
     public :: ssa_diagnostics_write_init
     public :: ssa_diagnostics_write_step
 
@@ -1105,58 +1104,6 @@ contains
         
     end subroutine set_ssa_masks
     
-    subroutine update_ssa_mask_convergence(ssa_mask_acx,ssa_mask_acy,err_x,err_y,err_lim)
-        ! Update grounded ice ssa_masks, by prescribing vel at points that have
-        ! already converged well.
-
-        implicit none 
-
-        integer, intent(INOUT) :: ssa_mask_acx(:,:) 
-        integer, intent(INOUT) :: ssa_mask_acy(:,:) 
-        real(wp), intent(IN) :: err_x(:,:) 
-        real(wp), intent(IN) :: err_y(:,:) 
-        real(wp), intent(IN) :: err_lim 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-
-        nx = size(ssa_mask_acx,1)
-        ny = size(ssa_mask_acx,2) 
-
-        ! Initially set candidate 'converged' points to -2
-        where (ssa_mask_acx .eq. 1 .and. err_x .lt. err_lim)
-            ssa_mask_acx = -2 
-        end where 
-
-        where (ssa_mask_acy .eq. 1 .and. err_y .lt. err_lim)
-            ssa_mask_acy = -2 
-        end where 
-        
-        ! Fill in neighbors of points that are still ssa (mask=1) to keep things clean 
-        do j = 2, ny-1 
-        do i = 2, nx-1 
-            
-            ! acx
-            if (ssa_mask_acx(i,j) .eq. 1) then
-                where (ssa_mask_acx(i-1:i+1,j-1:j+1) .eq. -2) ssa_mask_acx(i-1:i+1,j-1:j+1) = 1
-            end if 
-
-            ! acy 
-            if (ssa_mask_acy(i,j) .eq. 1) then
-                where (ssa_mask_acy(i-1:i+1,j-1:j+1) .eq. -2) ssa_mask_acy(i-1:i+1,j-1:j+1) = 1
-            end if 
-            
-        end do 
-        end do 
-
-        ! Finally, replace temporary -2 values with -1 to prescribe ssa vel here 
-        where (ssa_mask_acx .eq. -2) ssa_mask_acx = -1 
-        where (ssa_mask_acy .eq. -2) ssa_mask_acy = -1 
-        
-        return 
-
-    end subroutine update_ssa_mask_convergence
-
 ! === INTERNAL ROUTINES ==== 
 
     subroutine stagger_visc_aa_ab(visc_ab,visc,H_ice,f_ice,boundaries)
