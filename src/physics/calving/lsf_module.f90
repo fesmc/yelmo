@@ -22,6 +22,7 @@ module lsf_module
     use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes
     use topography,        only : calc_H_eff
     use solver_advection,  only : calc_advec2D
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none
 
@@ -270,7 +271,8 @@ contains
         end do
 
         if (dt_lsf .gt. 0.0_wp) then
-            if (mod(nint(time_now*100),nint(dt_lsf*100)) == 0) then
+            ! int64: a default integer overflows for |time_now| > ~2.1e7 yr
+            if (mod(nint(time_now*100,int64),nint(dt_lsf*100,int64)) == 0) then
                 where(lsf .gt. 0.0_wp) lsf =  1.0_wp
                 where(lsf .le. 0.0_wp) lsf = -1.0_wp
             end if

@@ -456,7 +456,8 @@ contains
         h_w   = MAX(0.0_wp, z_sl - z_bed)
         TF    = MAX(0.0_wp, T_ocn - calc_T_freeze_sw(h_w,T0))
 
-        m_aa  = 365.25*(a*h_w*((86400.0*Qd/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
+        ! Discharge is a non-negative volume flux (q**alpha is NaN for q < 0)
+        m_aa  = 365.25*(a*h_w*((86400.0*MAX(0.0_wp,Qd)/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         ! Set boundary condition code

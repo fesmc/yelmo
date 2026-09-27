@@ -43,10 +43,12 @@ contains
         ! with yelmo's domain constants, so that N and p_w are consistent
         ! with yelmo's overburden and flotation criterion (e.g. marine N
         ! vanishes where yelmo's H_grnd does), then refresh the K24
-        ! parameters derived from them.
+        ! parameters derived from them. The K24 latent heat is likewise
+        ! taken from yelmo's L_ice, so melt/opening terms match ytherm.
         hyd%par%k24%ice_density        = real(c%rho_ice, dp)
         hyd%par%k24%water_density      = real(c%rho_w,   dp)
         hyd%par%k24%gravity            = real(c%g,       dp)
+        hyd%par%k24%latent_heat_water  = real(c%L_ice,   dp)
         hyd%par%closures%rho_ice       = c%rho_ice
         hyd%par%closures%g             = c%g
         hyd%par%closures%marine%rho_sw = c%rho_sw
