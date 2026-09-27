@@ -87,7 +87,7 @@ print(
 
 # # Check the output 
 # cd output/test 
-# ncview yelmo2D.nc 
+# ncview yelmo.nc 
 # """
 
 # print(instructions)

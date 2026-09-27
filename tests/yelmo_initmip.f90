@@ -134,8 +134,8 @@ program yelmo_test
     end if 
 
     ! Define input and output locations
-    t2Dsm%filename = "yelmo2Dsm.nc"
-    t2D%filename   = "yelmo2D.nc"
+    t2Dsm%filename = "yelmo_sm.nc"
+    t2D%filename   = "yelmo.nc"
     file_restart   = "yelmo_restart.nc"
 
     ! === Initialize timestepping ===
@@ -483,8 +483,8 @@ contains
 
         !     if (ts%time .eq. time_r+dtt_now) then 
 
-        !         file1D_r       = "yelmo1D_r.nc"
-        !         file2D_r       = "yelmo2D_r.nc"
+        !         file1D_r       = "yelmo_ts_r.nc"
+        !         file2D_r       = "yelmo_r.nc"
         !         file_restart_r = "yelmo_restart_r.nc"
 
         !         ctl%dt2D_out = dtt_now

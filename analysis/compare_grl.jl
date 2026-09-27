@@ -3,7 +3,7 @@
 # Compare the enthalpy (method="enth") and temperature (method="temp")
 # thermodynamics solvers on the realistic initmip-Greenland domain.
 #
-# Reads the yelmo1D.nc (time series) and yelmo2D.nc (maps) of an enth and a
+# Reads the yelmo_ts.nc (time series) and yelmo.nc (maps) of an enth and a
 # temp run and writes comparison figures (Makie/CairoMakie, styled after
 # Robinson et al., 2020) into analysis/figures/. This is the 2D real-domain
 # counterpart to compare_enth_temp.jl (EISMINT); it is the validation that
@@ -66,7 +66,7 @@ end
 
 "Load 1D time-series diagnostics."
 function load_1d(dir)
-    ds = NCDataset(joinpath(dir, "yelmo1D.nc"))
+    ds = NCDataset(joinpath(dir, "yelmo_ts.nc"))
     out = Dict{String,Any}()
     out["time"] = ncget(ds, "time") ./ 1e3        # kyr
     for v in ("V_ice", "A_ice", "V_sle", "uxy_s", "uxy_bar", "dzsdt")
@@ -79,7 +79,7 @@ end
 "Load final-time 2D maps. Basal fields are taken from the base level (k=1) of
 the 3D T_prime; f_pmp/uxy_s are 2D."
 function load_2d(dir)
-    ds = NCDataset(joinpath(dir, "yelmo2D.nc"))
+    ds = NCDataset(joinpath(dir, "yelmo.nc"))
     out = Dict{String,Any}()
     out["xc"] = ncget(ds, "xc")
     out["yc"] = ncget(ds, "yc")

@@ -158,8 +158,8 @@ program yelmo_test
     outfldr = "./"
 
     ! Define input and output locations 
-    file1D       = trim(outfldr)//"yelmo1D.nc"
-    file2D       = trim(outfldr)//"yelmo2D.nc"
+    file1D       = trim(outfldr)//"yelmo_ts.nc"
+    file2D       = trim(outfldr)//"yelmo.nc"
     
     file_restart_init = trim(outfldr)//"yelmo_restart_init.nc"
     file_restart      = trim(outfldr)//"yelmo_restart.nc"

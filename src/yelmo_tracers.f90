@@ -388,7 +388,7 @@ contains
     subroutine ytrc_calc_stats(trc)
         ! Refresh the tracer backend's gridded (Eulerian) statistics from the
         ! current particle cloud. Called each step from calc_ytrc, so the stats
-        ! read into yelmo2D.nc are always current. No-op unless the tracer backend
+        ! read into yelmo.nc are always current. No-op unless the tracer backend
         ! runs with stats enabled.
 
         implicit none

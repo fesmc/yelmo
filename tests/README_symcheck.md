@@ -81,17 +81,17 @@ done
 
 # 3. Diff symmetry. The residual baseline reaches machine precision
 #    (~1e-7); the energy solver should match it to within a few percent.
-julia tests/symcheck.jl tmp/sym/energy/exp1/yelmo2D.nc tmp/sym/residual/exp1/yelmo2D.nc
+julia tests/symcheck.jl tmp/sym/energy/exp1/yelmo.nc tmp/sym/residual/exp1/yelmo.nc
 ```
 
 Healthy output (post-fix):
 
 ```
-tmp/sym/energy/exp1/yelmo2D.nc
+tmp/sym/energy/exp1/yelmo.nc
   shape=(65, 65)  Hmax= 1296.22  …
   asym L-R   : Linf=4.492e-03  L1=2.553e-04
   …
-tmp/sym/residual/exp1/yelmo2D.nc
+tmp/sym/residual/exp1/yelmo.nc
   shape=(65, 65)  Hmax= 1281.16  …
   asym L-R   : Linf=2.382e-07  L1=3.154e-08
   …

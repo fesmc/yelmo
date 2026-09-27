@@ -105,9 +105,9 @@ contains
         reg%write = write_to_file
 
         if (trim(reg%name) .ne. "global") then
-            reg%fnm   = trim(outpath)//"yelmo1D_"//trim(reg%name)//".nc"
+            reg%fnm   = trim(outpath)//"yelmo_ts_"//trim(reg%name)//".nc"
         else
-            reg%fnm   = trim(outpath)//"yelmo1D.nc"
+            reg%fnm   = trim(outpath)//"yelmo_ts.nc"
         end if
 
         ! Allocate and define the region mask

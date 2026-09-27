@@ -14,7 +14,7 @@
 # The tracer's gridded stats (trc_count on depth_norm, trc_depth_iso on time_iso)
 # are written into <OUTDIR>/yelmo_restart.nc via the restart path. The benchmark
 # driver's 2D writer emits a fixed variable list, so they do not appear in
-# yelmo2D.nc unless a driver requests them by name.
+# yelmo.nc unless a driver requests them by name.
 #
 # Note on time_iso: the isochrone targets come from ytrc%time_iso (default in
 # input/yelmo_defaults.nml). Arrays cannot be set with `runme -p` (a comma list
