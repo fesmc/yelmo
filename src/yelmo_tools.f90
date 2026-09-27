@@ -369,17 +369,19 @@ contains
 
 if (margin2nd) then 
             ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
+            ! Following Saito et al (2007) by applying a second-order, upwind gradient:
+            ! the standard one-sided difference (3*V0 - 4*V1 + V2)/(2*dx), taken from
+            ! the two ice-covered points upstream of the margin
 
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then 
                 ! Ice-free to the right
 
-                if (f_ice(im1,j) .eq. 1.0) then 
+                if (im1 .ne. i .and. f_ice(im1,j) .eq. 1.0) then 
                     V0 = var(ip1,j)
                     if (zero_outside) V0 = 0.0 
                     V1 = var(i,j)
                     V2 = var(im1,j)
-                    dvardx(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dx
+                    dvardx(i,j) = (1.0*V2-4.0*V1+3.0*V0)/(2.0*dx)
                 else 
                     dvardx(i,j) = 0.0
                 end if 
@@ -396,7 +398,7 @@ if (margin2nd) then
                         if (zero_outside) V0 = 0.0 
                         V1 = var(ip1,j)
                         V2 = var(ip2,j)
-                        dvardx(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dx
+                        dvardx(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/(2.0*dx)
                     else 
                         dvardx(i,j) = 0.0
                     end if
@@ -481,17 +483,19 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
 
 if (margin2nd) then 
             ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
+            ! Following Saito et al (2007) by applying a second-order, upwind gradient:
+            ! the standard one-sided difference (3*V0 - 4*V1 + V2)/(2*dx), taken from
+            ! the two ice-covered points upstream of the margin
 
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then 
                 ! Ice-free to the top
 
-                if (f_ice(i,jm1) .eq. 1.0) then 
+                if (jm1 .ne. j .and. f_ice(i,jm1) .eq. 1.0) then 
                     V0 = var(i,jp1)
                     if (zero_outside) V0 = 0.0 
                     V1 = var(i,j)
                     V2 = var(i,jm1)
-                    dvardy(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dy
+                    dvardy(i,j) = (1.0*V2-4.0*V1+3.0*V0)/(2.0*dy)
                 else 
                     dvardy(i,j) = 0.0
                 end if 
@@ -508,7 +512,7 @@ if (margin2nd) then
                         if (zero_outside) V0 = 0.0 
                         V1 = var(i,jp1)
                         V2 = var(i,jp2)
-                        dvardy(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dy
+                        dvardy(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/(2.0*dy)
                     else 
                         dvardy(i,j) = 0.0
                     end if
