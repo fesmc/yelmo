@@ -260,6 +260,10 @@ contains
                             dyn%par%dx,dyn%par%dy,dyn%par%boundaries)
         dyn%now%qq        = calc_magnitude_from_staggered(dyn%now%qq_acx,dyn%now%qq_acy,tpo%now%f_ice,dyn%par%boundaries)
 
+        ! Diagnose ice flux across the grounding line
+        call calc_grounding_line_flux(dyn%now%qq_gl_acx,dyn%now%qq_gl_acy,dyn%now%qq_acx,dyn%now%qq_acy, &
+                                        tpo%now%f_grnd,tpo%now%f_ice,dyn%par%boundaries)
+
         dyn%now%taub      = calc_magnitude_from_staggered(dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice,dyn%par%boundaries)
         dyn%now%taud      = calc_magnitude_from_staggered(dyn%now%taud_acx,dyn%now%taud_acy,tpo%now%f_ice,dyn%par%boundaries)
 

@@ -24,6 +24,7 @@ module velocity_general
     public :: calc_lateral_bc_stress_2D
     public :: set_inactive_margins
     public :: calc_ice_flux
+    public :: calc_grounding_line_flux
     public :: calc_vel_ratio
 
     public :: picard_calc_error 
@@ -1739,6 +1740,69 @@ end if
         return 
 
     end subroutine calc_ice_flux
+
+    subroutine calc_grounding_line_flux(qq_gl_acx,qq_gl_acy,qq_acx,qq_acy,f_grnd,f_ice,boundaries)
+        ! Ice flux across the grounding line [m3 a-1], on ac-nodes: the ice flux
+        ! (qq_acx/qq_acy, see calc_ice_flux) through faces between a (partially)
+        ! grounded cell (f_grnd > 0) and a floating ice cell (f_grnd = 0, f_ice > 0),
+        ! and zero elsewhere. As for qq, the sign gives the direction (+x/+y).
+        ! Grounding-line cells are defined as in calc_distance_to_grounding_line.
+
+        implicit none
+
+        real(wp), intent(OUT) :: qq_gl_acx(:,:)  ! [m3 a-1] Grounding-line flux (acx nodes)
+        real(wp), intent(OUT) :: qq_gl_acy(:,:)  ! [m3 a-1] Grounding-line flux (acy nodes)
+        real(wp), intent(IN)  :: qq_acx(:,:)     ! [m3 a-1] Ice flux (acx nodes)
+        real(wp), intent(IN)  :: qq_acy(:,:)     ! [m3 a-1] Ice flux (acy nodes)
+        real(wp), intent(IN)  :: f_grnd(:,:)     ! [--]     Grounded fraction, aa-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)      ! [--]     Ice-covered fraction, aa-nodes
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+
+        nx = size(f_grnd,1)
+        ny = size(f_grnd,2)
+
+        BC = boundary_code(boundaries)
+
+        qq_gl_acx = 0.0_wp
+        qq_gl_acy = 0.0_wp
+
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(ip1,j),f_ice(i,j),f_ice(ip1,j))) then
+                qq_gl_acx(i,j) = qq_acx(i,j)
+            end if
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(i,jp1),f_ice(i,j),f_ice(i,jp1))) then
+                qq_gl_acy(i,j) = qq_acy(i,j)
+            end if
+
+        end do
+        end do
+
+        return
+
+    contains
+
+        pure logical function is_gl_face(fg0,fg1,fi0,fi1)
+            ! Face between a (partially) grounded cell and a floating ice cell
+
+            implicit none
+
+            real(wp), intent(IN) :: fg0, fg1, fi0, fi1
+
+            is_gl_face = (fg0 .gt. 0.0_wp .and. fg1 .eq. 0.0_wp .and. fi1 .gt. 0.0_wp) .or. &
+                         (fg1 .gt. 0.0_wp .and. fg0 .eq. 0.0_wp .and. fi0 .gt. 0.0_wp)
+
+        end function is_gl_face
+
+    end subroutine calc_grounding_line_flux
 
     elemental function calc_vel_ratio(uxy_base,uxy_srf) result(f_vbvs)
 
