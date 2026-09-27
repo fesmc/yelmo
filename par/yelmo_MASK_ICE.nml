@@ -184,7 +184,6 @@
     ssa_iter_rel        = 0.7
     ssa_iter_conv       = 1e-2
     taud_lim            = 2e5
-    cb_sia              = 0.0
 
     neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
 

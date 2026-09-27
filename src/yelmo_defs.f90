@@ -418,7 +418,6 @@ module yelmo_defs
         real(wp)   :: ssa_iter_rel 
         real(wp)   :: ssa_iter_conv 
         real(wp)   :: taud_lim 
-        real(wp)   :: cb_sia
 
         ! Till-scaling parameters
         integer    :: till_method 

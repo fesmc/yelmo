@@ -240,35 +240,4 @@ contains
         
     end subroutine calc_uxy_sia_3D
 
-    subroutine calc_basal_stress(taub_acx,taub_acy,beta_acx,beta_acy,ux_b,uy_b)
-        ! Calculate the basal stress resulting from sliding (friction times velocity)
-        ! Note: calculated on ac-nodes.
-        ! taub [Pa] 
-        ! beta [Pa a m-1]
-        ! u    [m a-1]
-        ! taub = beta*u (here defined with taub in the same direction as u)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: taub_acx(:,:)   ! [Pa] Basal stress (acx nodes)
-        real(wp), intent(OUT) :: taub_acy(:,:)   ! [Pa] Basal stress (acy nodes)
-        real(wp), intent(IN)  :: beta_acx(:,:)   ! [Pa a m-1] Basal friction (acx nodes)
-        real(wp), intent(IN)  :: beta_acy(:,:)   ! [Pa a m-1] Basal friction (acy nodes)
-        real(wp), intent(IN)  :: ux_b(:,:)       ! [m a-1] Basal velocity (acx nodes)
-        real(wp), intent(IN)  :: uy_b(:,:)       ! [m a-1] Basal velocity (acy nodes)
-        
-        real(wp), parameter :: tol = 1e-3_wp 
-
-        ! Calculate basal stress 
-        taub_acx = beta_acx * ux_b 
-        taub_acy = beta_acy * uy_b 
-
-        ! Avoid underflows
-        where(abs(taub_acx) .lt. tol) taub_acx = 0.0_wp 
-        where(abs(taub_acy) .lt. tol) taub_acy = 0.0_wp 
-        
-        return 
-
-    end subroutine calc_basal_stress
-
 end module velocity_sia
