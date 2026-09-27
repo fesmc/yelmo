@@ -153,11 +153,12 @@ contains
             ! Calculate adaptive time step from CFL constraints 
             call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv, &
                                 dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
-                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max)
+                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%tpo%par%boundaries)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
-                                    dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller)
+                                    dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
+                                    dom%tpo%par%boundaries)
 
             ! ajr restart check:
             ! write(*,*) "Set timestep: ", n, time_now, dt_pi, dt_max
