@@ -679,8 +679,8 @@ end if
 
     end function calc_pi_rho_PID1
 
-    subroutine set_adaptive_timestep(dt,dt_adv,dt_diff,ux_bar,uy_bar,dHicedt, &
-                        dx,dtmin,dtmax,cfl_max,cfl_diff_max)
+    subroutine set_adaptive_timestep(dt,dt_adv,ux_bar,uy_bar,dHicedt, &
+                        dx,dtmin,dtmax,cfl_max)
         ! Determine value of adaptive timestep to be consistent with 
         ! min/max timestep range and maximum allowed step of model 
         ! to line up with control time steps
@@ -689,16 +689,14 @@ end if
 
         real(wp), intent(OUT) :: dt             ! [a] Current timestep 
         real(wp), intent(OUT) :: dt_adv(:,:)     ! [a] Diagnosed maximum advective timestep (vertical ave)
-        real(wp), intent(OUT) :: dt_diff(:,:)    ! [a] Diagnosed maximum diffusive timestep (vertical ave)
         real(wp), intent(IN)  :: ux_bar(:,:)     ! [m a-1]
         real(wp), intent(IN)  :: uy_bar(:,:)     ! [m a-1]
         real(wp), intent(IN)  :: dHicedt(:,:)    ! [m a-1]
         real(wp), intent(IN)  :: dx, dtmin, dtmax ! [a]
         real(wp), intent(IN)  :: cfl_max
-        real(wp), intent(IN)  :: cfl_diff_max
         
         ! Local variables 
-        real(wp) :: dt_adv_min, dt_diff_min 
+        real(wp) :: dt_adv_min 
         real(wp) :: x 
         logical    :: is_unstable
         real(wp), parameter :: dtmax_cfl   = 20.0_wp 
@@ -706,27 +704,18 @@ end if
         real(wp), parameter :: rate_lim    = 1.0_wp   ! Reduction in timestep for instability 
         real(wp), parameter :: rate_scalar = 0.05_wp  ! Reduction in timestep for instability 
 
-        ! Timestep limits determined from CFL conditions for general advective
-        ! velocity, as well as diagnosed diffusive magnitude
-        ! (adapted from Bueler et al., 2007)
+        ! Timestep limit determined from CFL condition for general advective
+        ! velocity (adapted from Bueler et al., 2007)
 
         dt_adv   = calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max)
-        !dt_diff  = calc_diff2D_timestep(D2D,dx,dx,cfl_diff_max) 
-        dt_diff = 1000.0     ! Prescribe something just to avoid compiler warnings 
-        ! ajr: diffusivity D2D is not available right now (SIA solver does not calculate it)
-        ! So, diffusivity needs to be diagnosed, to be able to estimate dt_diff properly.
 
-        ! Get minimum from adv and diffusive timesteps
+        ! Get minimum advective timestep
         dt_adv_min  = minval(dt_adv)
-        dt_diff_min = minval(dt_diff)
         
-        ! Note: It's not clear whether dt_diff is working well, so for now
-        ! it is not applied as a limit. Furthermore, although dt_adv should
-        ! be consistent with the CFL limit, it does not guarantee that a 
-        ! fully coupled thermodynamic model will remain stable. 
+        ! Note: although dt_adv should be consistent with the CFL limit,
+        ! it does not guarantee that a fully coupled thermodynamic model
+        ! will remain stable. 
 
-        ! Choose minimum timestep between advective and diffusive limits 
-        !dt = min(dt_adv_min,dt_diff_min)
         dt = dt_adv_min 
 
         ! Apply additional reduction in timestep as it gets smaller
@@ -827,27 +816,6 @@ end if
 
     end subroutine set_to_nearest_timestep
 
-
-
-    elemental function calc_diff2D_timestep(D,dx,dy,cfl_diff_max) result(dt)
-        ! Calculate maximum diffusion time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! Equation obtained from Bueler et al. (2007), Eq. 25:
-        ! dt/2 * (1/dx^2 + 1/dy^2)*max(D) <= cfl_diff_max = 0.12 
-        ! dt = cfl_diff_max * 2.0 / ((1/dx^2+1/dy^2)*max(D))
-
-        implicit none 
-        
-        real(wp), intent(IN) :: D, dx, dy
-        real(wp), intent(IN) :: cfl_diff_max       ! Maximum Courant number, default cfl_diff_max=0.12
-        real(wp) :: dt 
-
-        dt = (2.0*cfl_diff_max) / ((1.0/(dx**2)+1.0/(dy**2))*max(abs(D),1e-5))
-        
-        return 
-
-    end function calc_diff2D_timestep
-    
     function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
@@ -1185,7 +1153,6 @@ end if
 
         ! Initialize arrays to zero 
         ytime%dt_adv        = 0.0 
-        ytime%dt_diff       = 0.0
 
         ytime%pc_tau        = 0.0 
         ytime%pc_tau_masked = 0.0 
@@ -1228,7 +1195,6 @@ end if
 
         ! Allocate timestep arrays
         allocate(ytime%dt_adv(nx,ny))
-        allocate(ytime%dt_diff(nx,ny))
         
         ! Allocate truncation error array 
         allocate(ytime%pc_tau(nx,ny))
@@ -1249,7 +1215,6 @@ end if
         type(ytime_class), intent(INOUT) :: ytime
         
         if (allocated(ytime%dt_adv))        deallocate(ytime%dt_adv)
-        if (allocated(ytime%dt_diff))       deallocate(ytime%dt_diff)
         
         if (allocated(ytime%pc_tau))        deallocate(ytime%pc_tau)
         if (allocated(ytime%pc_tau_masked)) deallocate(ytime%pc_tau_masked)

@@ -39,7 +39,7 @@ module yelmo_topography
     
 contains
     
-    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,dta,time,topo_fixed,pc_step,use_H_pred)
+    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,dta,time,topo_fixed,pc_step,use_H_pred,filter_vel)
 
         implicit none 
 
@@ -53,12 +53,15 @@ contains
         logical,            intent(IN)    :: topo_fixed  
         character(len=*),   intent(IN)    :: pc_step 
         logical, optional,  intent(IN)    :: use_H_pred
+        logical, optional,  intent(IN)    :: filter_vel     ! Advect with mean of current and previous velocity solutions
 
         ! Local variables 
         integer  :: i, j, nx, ny
         real(wp) :: dt  
         real(wp), allocatable :: dHidt_now(:,:) 
         real(wp), allocatable :: H_prev(:,:)
+        real(wp), allocatable :: ux_adv(:,:)
+        real(wp), allocatable :: uy_adv(:,:)
 
         logical, parameter :: use_rk4 = .FALSE. 
 
@@ -67,6 +70,8 @@ contains
 
         allocate(dHidt_now(nx,ny))
         allocate(H_prev(nx,ny))
+        allocate(ux_adv(nx,ny))
+        allocate(uy_adv(nx,ny))
 
         ! Initialize time if necessary 
         if (tpo%par%time .gt. dble(time)) then 
@@ -85,6 +90,18 @@ contains
 
         ! Get ice thickness entering routine
         H_prev = tpo%now%H_ice 
+
+        ! Depth-averaged velocity used to advect ice thickness: the current
+        ! solution, or optionally the mean of the current and previous solutions.
+        ! Only the advection sees the mean; dyn%now fields remain the true solution.
+        ux_adv = dyn%now%ux_bar
+        uy_adv = dyn%now%uy_bar
+        if (present(filter_vel)) then
+            if (filter_vel) then
+                ux_adv = 0.5_wp*(dyn%now%ux_bar + dyn%now%ux_bar_prev)
+                uy_adv = 0.5_wp*(dyn%now%uy_bar + dyn%now%uy_bar_prev)
+            end if
+        end if
 
         ! Step 1: Go through predictor-corrector-advance steps
 
@@ -108,11 +125,11 @@ contains
                     call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
 if (use_rk4) then
-                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
+                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
-                    call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
+                    call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
 end if
@@ -140,10 +157,10 @@ end if
                     call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
 if (use_rk4) then
-                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,dyn%now%ux_bar,dyn%now%uy_bar, &
+                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
-                    call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,dyn%now%ux_bar,dyn%now%uy_bar, &
+                    call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
                  
 end if

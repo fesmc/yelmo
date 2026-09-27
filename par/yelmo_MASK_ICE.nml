@@ -74,6 +74,7 @@
     restart_H_ice   = False
     restart_relax   = 1e3
     log_timestep    = False
+    log_mb_check    = False
     disable_kill    = True              ! Keep the test running even if PC tolerance is exceeded
     zeta_scale      = "exp"
     zeta_exp        = 2.0
@@ -81,7 +82,6 @@
     dt_method       = 2                 ! adaptive, predictor-corrector
     dt_min          = 0.01
     cfl_max         = 0.1
-    cfl_diff_max    = 0.12
     pc_method       = "AB-SAM"
     pc_controller   = "PI42"
     pc_use_H_pred   = False
