@@ -90,7 +90,8 @@ contains
                 ! Tracers should be calculated here (see above)
 
                 ! Pre-calculate the contribution of horizontal advection to column solution
-                call calc_advec_horizontal_column(advecxy,X_ice,ux,uy,dx,i,j,ulim=5000.0_prec)
+                ! (from X_prev: neighbours i-1/j-1 of X_ice have already been updated in this sweep)
+                call calc_advec_horizontal_column(advecxy,X_prev,ux,uy,dx,i,j,ulim=5000.0_prec)
                 
                 ! Calculate the updated basal value of X from 
                 ! basal mass balance including additional thinning term
@@ -217,7 +218,7 @@ contains
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         
@@ -363,7 +364,7 @@ contains
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
-        ! so nz_ac = nz_aa - 1 
+        ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
         

@@ -5,6 +5,7 @@ program yelmo_ismiphom
     use nml 
     use ncio  
     use yelmo 
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -88,6 +89,12 @@ program yelmo_ismiphom
     
     ! === Define initial topography =====
 
+    ! Note: the inclined plane z = -x*tan(alpha) of the experiments is not periodic.
+    ! It is therefore carried as a uniform background slope (ytopo slope_bg_x),
+    ! which is added to the surface and bed gradients, while z_srf and z_bed only
+    ! contain the periodic part of the geometry. The output z_srf and z_bed
+    ! thus do not include the tilt.
+
     select case(trim(experiment))
 
         case("EXPA")
@@ -96,7 +103,8 @@ program yelmo_ismiphom
             alpha = 0.5*pi/180.0_prec       ! [rad] 
             omega = 2.0_prec*pi / (L*1e3)   ! [rad/m]
 
-            yelmo1%tpo%now%z_srf = -yelmo1%grd%x * tan(alpha)
+            yelmo1%tpo%par%slope_bg_x = -tan(alpha)
+            yelmo1%tpo%now%z_srf = 0.0
             yelmo1%bnd%z_bed     = yelmo1%tpo%now%z_srf - 1000.0 + 500.0 * sin(omega*yelmo1%grd%x) * sin(omega*yelmo1%grd%y)
 
             yelmo1%tpo%now%H_ice = yelmo1%tpo%now%z_srf - yelmo1%bnd%z_bed
@@ -134,7 +142,8 @@ program yelmo_ismiphom
             alpha = 0.1*pi/180.0_prec       ! [rad] 
             omega = 2.0_prec*pi / (L*1e3)   ! [rad/km]
 
-            yelmo1%tpo%now%z_srf = -yelmo1%grd%x * tan(alpha)
+            yelmo1%tpo%par%slope_bg_x = -tan(alpha)
+            yelmo1%tpo%now%z_srf = 0.0
             yelmo1%bnd%z_bed     = yelmo1%tpo%now%z_srf - 1000.0
 
             yelmo1%tpo%now%H_ice = yelmo1%tpo%now%z_srf - yelmo1%bnd%z_bed
@@ -157,7 +166,8 @@ program yelmo_ismiphom
             ! Define topography (linear downward sloping bed)
             alpha = 0.005           ! [rad] 
             
-            yelmo1%tpo%now%z_srf = -yelmo1%grd%x * tan(alpha)
+            yelmo1%tpo%par%slope_bg_x = -tan(alpha)
+            yelmo1%tpo%now%z_srf = 0.0
             yelmo1%bnd%z_bed     = yelmo1%tpo%now%z_srf - 1000.0
 
             yelmo1%tpo%now%H_ice = yelmo1%tpo%now%z_srf - yelmo1%bnd%z_bed
@@ -214,11 +224,12 @@ program yelmo_ismiphom
         call yelmo_update(yelmo1,time)
 
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(time*100),nint(dt2D_out*100))==0) then 
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(time*100,int64),nint(dt2D_out*100,int64))==0) then 
             call write_step_2D(yelmo1,file2D,time=time)  
         end if 
 
-        if (mod(nint(time*100),nint(dt1D_out*100))==0) then 
+        if (mod(nint(time*100,int64),nint(dt1D_out*100,int64))==0) then 
             call yelmo_write_reg_step(yelmo1,file1D,time=time) 
         end if 
 

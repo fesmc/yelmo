@@ -20,34 +20,18 @@ module yelmo_tools
     public :: get_region_indices
     public :: get_neighbor_indices
     public :: get_neighbor_indices_bc_codes
+    public :: get_periodic_directions
     public :: calc_magnitude 
     public :: calc_magnitude_from_staggered
-    public :: stagger_ac_aa
-    public :: stagger_aa_ab
-    public :: stagger_aa_ab_ice 
-    public :: stagger_ab_aa 
-    public :: stagger_ab_aa_ice
-    public :: stagger_aa_acx
-    public :: stagger_aa_acy
-    public :: stagger_acx_aa
-    public :: stagger_acy_aa
-    public :: stagger_ab_acx
-    public :: stagger_ab_acy 
 
     public :: calc_gradient_acx
     public :: calc_gradient_acy
-
-    public :: calc_gradient_ac_gl
 
     public :: mean_mask
     public :: minmax
 
     public :: set_boundaries_2D_aa
     public :: set_boundaries_3D_aa
-    public :: set_boundaries_2D_acx
-    public :: set_boundaries_3D_acx
-    public :: set_boundaries_2D_acy 
-    public :: set_boundaries_3D_acy 
 
     public :: fill_borders_2D
     public :: fill_borders_3D 
@@ -57,8 +41,6 @@ module yelmo_tools
     public :: gauss_values
 
     public :: adjust_topography_gradients 
-    
-    public :: regularize2D 
 
     ! Integration functions
     public :: test_integration
@@ -110,6 +92,8 @@ contains
     end subroutine get_region_indices
 
     subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+        ! String-based wrapper of get_neighbor_indices_bc_codes, so that
+        ! both interfaces share one definition of each boundary treatment.
 
         implicit none
 
@@ -124,36 +108,7 @@ contains
         
         character(len=*), intent(IN) :: boundaries
 
-        select case(trim(boundaries))
-
-            case("infinite","mask")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx)
-                jm1 = max(j-1,1)
-                jp1 = min(j+1,ny)
-
-            case("MISMIP3D","TROUGH")
-                im1 = max(i-1,1)
-                ip1 = min(i+1,nx) 
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-                
-            case DEFAULT 
-                ! periodic, periodic-x (for now treat the same way)
-
-                im1 = i-1
-                if (im1 .eq. 0)    im1 = nx 
-                ip1 = i+1
-                if (ip1 .eq. nx+1) ip1 = 1 
-
-                jm1 = j-1
-                if (jm1 .eq. 0)    jm1 = ny
-                jp1 = j+1
-                if (jp1 .eq. ny+1) jp1 = 1 
-
-        end select 
+        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,boundary_code(boundaries))
 
         return
 
@@ -194,8 +149,10 @@ contains
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
 
-            case DEFAULT
-                ! Periodic, periodic-x (for now treat the same way)
+            case(BND_PERIODIC)
+                ! Periodic in x and y: true wrap with period nx (ny), i.e.,
+                ! cells 1 and nx (1 and ny) are neighbors and every grid
+                ! point is a regular interior point (no halo/ghost cells).
 
                 im1 = i-1
                 if (im1 .eq. 0)    im1 = nx
@@ -207,11 +164,69 @@ contains
                 jp1 = j+1
                 if (jp1 .eq. ny+1) jp1 = 1
 
+            case(BND_PERIODIC_X)
+                ! Periodic in x (true wrap, period nx),
+                ! infinite (clamped) in y
+
+                im1 = i-1
+                if (im1 .eq. 0)    im1 = nx
+                ip1 = i+1
+                if (ip1 .eq. nx+1) ip1 = 1
+
+                jm1 = max(j-1,1)
+                jp1 = min(j+1,ny)
+
+            case DEFAULT
+
+                write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
+                stop
+
         end select
 
         return
 
     end subroutine get_neighbor_indices_bc_codes
+
+    subroutine get_periodic_directions(per_x,per_y,BC)
+        ! Which directions wrap (true wrap, no halo cells) for a boundary
+        ! code, consistent with get_neighbor_indices_bc_codes. In a periodic
+        ! direction every point is an interior point, so loops must cover
+        ! the full index range and no border values may be overwritten.
+
+        implicit none
+
+        logical, intent(OUT) :: per_x
+        logical, intent(OUT) :: per_y
+        integer, intent(IN)  :: BC
+
+        select case(BC)
+
+            case(BND_ZEROS,BND_INFINITE)
+                per_x = .FALSE.
+                per_y = .FALSE.
+
+            case(BND_MISMIP3D,BND_TROUGH)
+                per_x = .FALSE.
+                per_y = .TRUE.
+
+            case(BND_PERIODIC)
+                per_x = .TRUE.
+                per_y = .TRUE.
+
+            case(BND_PERIODIC_X)
+                per_x = .TRUE.
+                per_y = .FALSE.
+
+            case DEFAULT
+
+                write(io_unit_err,*) "get_periodic_directions:: Error: boundary code not recognized: ", BC
+                stop
+
+        end select
+
+        return
+
+    end subroutine get_periodic_directions
 
     function boundary_code(boundaries) result(code)
 
@@ -305,428 +320,7 @@ contains
 
     end function calc_magnitude_from_staggered
 
-    function stagger_ac_aa(u,v) result(umag)
-        ! Calculate the centered (aa-node) magnitude of a scalar 
-        ! from the staggered (ac-node) components
-
-        implicit none 
-        
-        real(wp), intent(IN)  :: u(:,:), v(:,:)    ! acx-, acy-nodes 
-        real(wp) :: umag(size(u,1),size(u,2))      ! aa-nodes 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        integer :: im1, ip1, jm1, jp1 
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        umag = 0.0_wp 
-
-        do j = 1, ny
-        do i = 1, nx 
-            ! BC: Periodic boundary conditions
-            im1 = i-1
-            if (im1 == 0) then
-                im1 = nx
-            end if
-            ip1 = i+1
-            if (ip1 == nx+1) then
-                ip1 = 1
-            end if
-
-            jm1 = j-1
-            if (jm1 == 0) then
-                jm1 = ny
-            end if
-            jp1 = j+1
-            if (jp1 == ny+1) then
-                jp1 = 1
-            end if
-
-            umag(i,j) = 0.25_wp*(u(i,j)+u(im1,j)+v(i,j)+v(i,jm1))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_ac_aa
-    
-    function stagger_aa_ab(u) result(ustag)
-        ! Stagger from Aa => Ab
-        ! Four point average from corner Aa nodes to central Ab node 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-        integer :: im1, ip1, jm1, jp1 
-        
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 1, nx
-            ! BC: Periodic boundary conditions
-            ip1 = i+1
-            if (ip1 == nx+1) then
-                ip1 = 1
-            end if
-            jp1 = j+1
-            if (jp1 == ny+1) then
-                jp1 = 1
-            end if
-
-            ustag(i,j) = 0.25_wp*(u(ip1,jp1)+u(ip1,j)+u(i,jp1)+u(i,j))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_aa_ab
-    
-    function stagger_aa_ab_ice(u,H_ice,f_ice) result(ustag)
-        ! Stagger from Aa => Ab
-        ! Four point average from corner Aa nodes to central Ab node 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp), intent(IN)  :: H_ice(:,:) 
-        real(wp), intent(IN)  :: f_ice(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny, k   
-        integer :: im1, ip1, jm1, jp1 
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! BC: Periodic boundary conditions
-            ip1 = i+1
-            if (ip1 == nx+1) then
-                ip1 = 1
-            end if
-            jp1 = j+1
-            if (jp1 == ny+1) then
-                jp1 = 1
-            end if
-
-            k = 0
-            ustag(i,j) = 0.0
-            if (f_ice(i,j) .gt. 0.0) then
-                ustag(i,j) = ustag(i,j) + u(i,j)
-                k = k+1
-            end if
-
-            if (f_ice(ip1,j) .gt. 0.0) then
-                ustag(i,j) = ustag(i,j) + u(ip1,j)
-                k = k+1
-            end if
-
-            if (f_ice(i,jp1) .gt. 0.0) then
-                ustag(i,j) = ustag(i,j) + u(i,jp1)
-                k = k+1
-            end if
-
-            if (f_ice(ip1,jp1) .gt. 0.0) then
-                ustag(i,j) = ustag(i,j) + u(ip1,jp1)
-                k = k+1
-            end if
-            
-            if (k .gt. 0) then 
-                ustag(i,j) = ustag(i,j) / real(k,wp)
-            else 
-                ustag(i,j) = 0.25_wp*(u(ip1,jp1)+u(ip1,j)+u(i,jp1)+u(i,j))
-            end if 
-
-        end do 
-        end do 
-
-        return
-
-    end function stagger_aa_ab_ice
-    
-    function stagger_ab_aa(u) result(ustag)
-        ! Stagger from Ab => Aa
-        ! Four point average from corner Ab nodes to central Aa node 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-        integer :: im1, jm1, ip1, jp1
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 1, nx
-            ! BC: Periodic boundary conditions
-            im1 = i-1
-            if (im1 == 0) then
-                im1 = nx
-            end if
-            jm1 = j-1
-            if (jm1 == 0) then
-                jm1 = ny
-            end if
-
-            ustag(i,j) = 0.25_wp*(u(i,j)+u(im1,j)+u(i,jm1)+u(im1,jm1))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_ab_aa
-    
-    function stagger_ab_aa_ice(u,H_ice,f_ice) result(ustag)
-        ! Stagger from ab => aa
-        ! Four point average from corner ab-nodes to central aa-node 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp), intent(IN)  :: H_ice(:,:) 
-        real(wp), intent(IN)  :: f_ice(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny, k   
-        integer :: im1, jm1, ip1, jp1 
-        real(wp), allocatable ::H_ice_ab(:,:) 
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        allocate(H_ice_ab(nx,ny))
-
-        H_ice_ab = stagger_aa_ab_ice(H_ice,H_ice,f_ice) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! BC: Periodic boundary conditions
-            im1 = i-1
-            if (im1 == 0) then
-                im1 = nx
-            end if
-
-            jm1 = j-1
-            if (jm1 == 0) then
-                jm1 = ny
-            end if
-
-            k = 0 
-            ustag(i,j) = 0.0 
-            if (H_ice_ab(i,j) .gt. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(i,j) 
-                k = k+1
-            end if 
-
-            if (H_ice_ab(im1,j) .gt. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(im1,j) 
-                k = k+1 
-            end if 
-            
-            if (H_ice_ab(i,jm1) .gt. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(i,jm1) 
-                k = k+1 
-            end if 
-            
-            if (H_ice_ab(im1,jm1) .gt. 0.0) then 
-                ustag(i,j) = ustag(i,j) + u(im1,jm1) 
-                k = k+1 
-            end if 
-            
-            if (k .gt. 0) then 
-                ustag(i,j) = ustag(i,j) / real(k,wp)
-            else 
-                ustag(i,j) = 0.25_wp*(u(im1,jm1)+u(im1,j)+u(i,jm1)+u(i,j))
-            end if 
-
-        end do 
-        end do 
-
-        return
-
-    end function stagger_ab_aa_ice
-    
-    function stagger_aa_acx(u) result(ustag)
-        ! Stagger from Aa => Ac, x-direction 
-
-        implicit none
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 1, nx-1
-            ustag(i,j) = 0.5_wp*(u(i,j)+u(i+1,j))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_aa_acx
-    
-    function stagger_aa_acy(u) result(ustag)
-        ! Stagger from Aa => Ac 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny-1 
-        do i = 1, nx
-            ustag(i,j) = 0.5_wp*(u(i,j)+u(i,j+1))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_aa_acy
-    
-    function stagger_acx_aa(u) result(ustag)
-        ! Stagger from Aa => Ac, x-direction 
-
-        implicit none
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 2, nx
-            ustag(i,j) = 0.5_wp*(u(i-1,j)+u(i,j))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_acx_aa
-    
-    function stagger_acy_aa(u) result(ustag)
-        ! Stagger from Aa => Ac 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 2, ny
-        do i = 1, nx
-            ustag(i,j) = 0.5_wp*(u(i,j-1)+u(i,j))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_acy_aa
-    
-    function stagger_ab_acx(u) result(ustag)
-        ! Stagger from Ab => Ac, x-direction 
-
-        implicit none
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 2, ny 
-        do i = 1, nx
-            ustag(i,j) = 0.5_wp*(u(i,j)+u(i,j-1))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_ab_acx
-    
-    function stagger_ab_acy(u) result(ustag)
-        ! Stagger from Ab => Ac 
-
-        implicit none 
-
-        real(wp), intent(IN)  :: u(:,:) 
-        real(wp) :: ustag(size(u,1),size(u,2)) 
-
-        ! Local variables 
-        integer :: i, j, nx, ny  
-
-        nx = size(u,1)
-        ny = size(u,2) 
-
-        ustag = 0.0_wp 
-
-        do j = 1, ny 
-        do i = 2, nx
-            ustag(i,j) = 0.5_wp*(u(i,j)+u(i-1,j))
-        end do 
-        end do 
-
-        return
-
-    end function stagger_ab_acy
-    
-    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,margin2nd,zero_outside,boundaries)
+    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -739,6 +333,7 @@ contains
         logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
+        real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
         
         ! Local variables 
         integer  :: i, j, nx, ny 
@@ -753,7 +348,7 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,ip2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -792,8 +387,10 @@ if (margin2nd) then
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then
                 ! Ice-free to the left
 
-                if (ip1 .lt. nx) then 
-                    ip2 = ip1+1 
+                ! Neighbor to the right of ip1 (equals ip1 at a non-periodic border)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,ip1,j,nx,ny,BC)
+
+                if (ip2 .ne. ip1) then 
                     if (f_ice(ip2,j) .eq. 1.0) then
                         V0 = var(i,j)
                         if (zero_outside) V0 = 0.0 
@@ -825,6 +422,9 @@ end if
 
         end select
 
+        ! Add the background slope, so that the limit below bounds the total slope
+        if (present(slope_bg)) dvardx = dvardx + slope_bg
+
         ! Finally, ensure that gradient is beneath desired limit 
         call minmax(dvardx,grad_lim)
 
@@ -832,7 +432,7 @@ end if
 
     end subroutine calc_gradient_acx
     
-subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside,boundaries)
+subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -845,6 +445,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
+        real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
         
         ! Local variables 
         integer  :: i, j, nx, ny 
@@ -859,7 +460,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,jp2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -898,8 +499,10 @@ if (margin2nd) then
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
                 ! Ice-free to the bottom
 
-                if (jp1 .lt. ny) then 
-                    jp2 = jp1+1 
+                ! Neighbor above jp1 (equals jp1 at a non-periodic border)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,i,jp1,nx,ny,BC)
+
+                if (jp2 .ne. jp1) then 
                     if (f_ice(i,jp2) .eq. 1.0) then
                         V0 = var(i,j)
                         if (zero_outside) V0 = 0.0 
@@ -925,11 +528,14 @@ end if
         ! is the same, not the variable itself.
         select case(trim(boundaries))
 
-            case("infinite","mask")
+            case("infinite","mask","periodic-x")
                 dvardy(:,1)  = dvardy(:,2)
                 dvardy(:,ny) = dvardy(:,ny-1)
 
         end select
+
+        ! Add the background slope, so that the limit below bounds the total slope
+        if (present(slope_bg)) dvardy = dvardy + slope_bg
 
         ! Finally, ensure that gradient is beneath desired limit 
         call minmax(dvardy,grad_lim)
@@ -938,198 +544,6 @@ end if
 
     end subroutine calc_gradient_acy
     
-    subroutine calc_gradient_ac_gl(dvardx,dvardy,var,H_ice, &
-                                      f_grnd_acx,f_grnd_acy,dx,method,grad_lim)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: dvardx(:,:)
-        real(wp), intent(OUT) :: dvardy(:,:) 
-        real(wp), intent(IN)  :: var(:,:) 
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_grnd_acx(:,:)
-        real(wp), intent(IN)  :: f_grnd_acy(:,:)
-        real(wp), intent(IN)  :: dx 
-        integer,    intent(IN)  :: method           ! Which gl gradient calculation to use
-        real(wp), intent(IN)  :: grad_lim         ! Very high limit == 0.05, low limit < 0.01 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        real(wp) :: dy
-        real(wp) :: dvardx_1, dvardx_2 
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2) 
-
-        dy = dx 
-
-        select case(method)
-
-            case(0)  
-                ! Do nothing, use the standard no-subgrid treatment 
-
-            case(1)
-                ! Weighted average using the grounded fraction (ac-nodes)
-                ! or one-sided choice
-                ! between surface slope and virtual slope of 
-                ! floating ice (using ice thickness)
-
-                ! x-direction 
-                do j = 1, ny 
-                do i = 1, nx-1 
-
-                    if ( f_grnd_acx(i,j) .gt. 0.0 .and. f_grnd_acx(i,j) .lt. 1.0) then 
-                        ! Grounding line point (ac-node)
-
-                        ! Get slope of grounded point and virtual floating point (using H_ice),
-                        ! then assume slope is the weighted average of the two 
-                        dvardx_1    = (var(i+1,j)-var(i,j)) / dx 
-                        dvardx_2    = 0.0 !(H_ice(i+1,j)-H_ice(i,j)) / dx 
-                        dvardx(i,j) = f_grnd_acx(i,j)*dvardx_1 + (1.0-f_grnd_acx(i,j))*dvardx_2  
-                        
-                        ! Limit the slope 
-                        call minmax(dvardx(i,j),grad_lim)  
-                                   
-                    end if 
-
-                end do 
-                end do 
-
-                ! y-direction 
-                do j = 1, ny-1 
-                do i = 1, nx 
-
-                    if ( f_grnd_acy(i,j) .gt. 0.0 .and. f_grnd_acy(i,j) .lt. 1.0) then 
-                        ! Grounding line point (ac-node)
-
-                        ! Get slope of grounded point and virtual floating point (using H_ice),
-                        ! then assume slope is the weighted average of the two 
-                        dvardx_1    = (var(i,j+1)-var(i,j)) / dx 
-                        dvardx_2    = 0.0 !(H_ice(i,j+1)-H_ice(i,j)) / dx 
-                        dvardy(i,j) = f_grnd_acy(i,j)*dvardx_1 + (1.0-f_grnd_acy(i,j))*dvardx_2  
-                        
-                        ! Limit the slope 
-                        call minmax(dvardy(i,j),grad_lim)  
-                         
-                    end if 
-
-                end do 
-                end do 
-
-            case(2)
-                ! One-sided differences upstream and downstream of the grounding line
-                ! analgous to Feldmann et al. (2014, JG)
-
-                ! x-direction 
-                do j = 1, ny 
-                do i = 1, nx-1 
-
-                    if ( f_grnd_acx(i,j) .gt. 0.0 .and. f_grnd_acx(i,j) .lt. 1.0) then 
-                        ! Grounding line point (ac-node)
-
-                        if (f_grnd_acx(i,j) .gt. 0.5) then 
-                            ! Consider grounded 
-                            dvardx(i,j) = (var(i+1,j)-var(i,j)) / dx 
-                        else 
-                            ! Consider floating 
-                            !dvardx(i,j) = (H_ice(i+1,j)-H_ice(i,j)) / dx
-                            dvardx(i,j) = 0.0 
-                        end if 
-
-                        ! Limit the slope 
-                        call minmax(dvardx(i,j),grad_lim)  
-
-                    end if 
-
-                end do 
-                end do 
-
-                ! y-direction 
-                do j = 1, ny-1 
-                do i = 1, nx 
-
-                    if ( f_grnd_acy(i,j) .gt. 0.0 .and. f_grnd_acy(i,j) .lt. 1.0) then 
-                        ! Grounding line point (ac-node)
-
-                        if (f_grnd_acy(i,j) .gt. 0.5) then 
-                            ! Consider grounded 
-                            dvardy(i,j) = (var(i,j+1)-var(i,j)) / dy 
-                        else 
-                            ! Consider floating 
-!                             dvardy(i,j) = (H_ice(i,j+1)-H_ice(i,j)) / dy
-                            dvardy(i,j) = 0.0 
-                        end if 
-                        
-                        ! Limit the slope 
-                        call minmax(dvardy(i,j),grad_lim)  
-
-                    end if 
-
-                end do 
-                end do 
-
-            case DEFAULT  
-                
-                write(*,*) "calc_gradient_ac_gl:: Error: grad_gl_method not recognized."
-                write(*,*) "grad_gl_method = ", method 
-                stop 
-
-        end select
-
-        return 
-
-    end subroutine calc_gradient_ac_gl
-
-    subroutine find_upstream_neighbor(i0,j0,i,j,ux,uy)
-        ! From point [i,j], determine the indices
-        ! of the best defined upstream point, as 
-        ! determined from the velocity components ux and uy. 
-
-        implicit none 
-
-        integer, intent(OUT) :: i0 
-        integer, intent(OUT) :: j0
-        integer, intent(IN)  :: i 
-        integer, intent(IN)  :: j
-        integer, intent(IN)  :: ux(:,:) 
-        integer, intent(IN)  :: uy(:,:) 
-
-        ! Local variables
-        integer :: im1, ip1, jm1, jp1 
-        integer :: nx, ny 
-        real(wp) :: ux_aa
-        real(wp) :: uy_aa
-        
-        nx = size(ux,1) 
-        ny = size(ux,2) 
-
-        ! Define neighbor indices
-        im1 = max(i-1,1)
-        ip1 = min(i+1,nx)
-        jm1 = max(j-1,1)
-        jp1 = min(j+1,ny)
-        
-        ! Determine upstream node(s) 
-
-        ux_aa = 0.5*(ux(i,j)+ux(im1,j))
-        uy_aa = 0.5*(uy(i,j)+uy(i,jm1))
-        
-        if (ux_aa .ge. 0.0) then 
-            i0 = im1
-        else 
-            i0 = ip1 
-        end if 
-
-        if (uy_aa .ge. 0.0) then 
-            j0 = jm1
-        else 
-            j0 = jp1  
-        end if 
-        
-        return 
-
-    end subroutine find_upstream_neighbor
-
     function mean_mask(var,mask) result(ave)
 
         implicit none 
@@ -1195,19 +609,14 @@ end if
 
             case("periodic","periodic-xy") 
 
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-
-                var(:,1:2)     = var(:,ny-3:ny-2)
-                var(:,ny-1:ny) = var(:,3:4)
+                ! Periodic x and y: true wrap (period nx, ny), all points
+                ! are interior points, so there are no halo cells to set.
 
             case("periodic-x")
 
-                ! Periodic x
-                var(1:2,:)     = var(nx-3:nx-2,:)
-                var(nx-1:nx,:) = var(3:4,:)
-                
-                ! Infinite (free-slip too)
+                ! Periodic x: true wrap (period nx), nothing to set.
+
+                ! Infinite y (free-slip too)
                 var(:,1)  = var(:,2)
                 var(:,ny) = var(:,ny-1)
 
@@ -1282,283 +691,96 @@ end if
 
     end subroutine set_boundaries_3D_aa
 
-    subroutine set_boundaries_2D_acx(var_acx,boundaries)
+    subroutine fill_borders_2D(var,nfill,fill,fill_x,fill_y)
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(INOUT) :: var_acx(:,:) 
-        character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(INOUT) :: var(:,:)
+        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in
+        real(wp), intent(IN), optional :: fill(:,:) ! Values to impose
+        logical,  intent(IN), optional :: fill_x    ! Fill the x-borders? (default: true)
+        logical,  intent(IN), optional :: fill_y    ! Fill the y-borders? (default: true)
 
-        ! Local variables 
-        integer :: nx, ny  
+        ! Local variables
+        integer :: i, j, nx, ny, q
+        logical :: do_x, do_y
 
-        nx = size(var_acx,1) 
-        ny = size(var_acx,2) 
+        nx = size(var,1)
+        ny = size(var,2)
 
-        select case(trim(boundaries))
+        do_x = .TRUE.
+        if (present(fill_x)) do_x = fill_x
+        do_y = .TRUE.
+        if (present(fill_y)) do_y = fill_y
 
-            case("periodic") 
+        if (present(fill)) then
+            ! Fill with prescribed values from array 'fill'
 
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
-                var_acx(:,1)    = var_acx(:,ny-1)
-                var_acx(:,ny)   = var_acx(:,2) 
-                
-            case("periodic-x") 
-                
-                var_acx(1,:)    = var_acx(nx-2,:) 
-                var_acx(nx-1,:) = var_acx(2,:) 
-                var_acx(nx,:)   = var_acx(3,:) 
-                var_acx(:,1)    = var_acx(:,2)
-                var_acx(:,ny)   = var_acx(:,ny-1) 
+            do q = 1, nfill
+                if (do_x) then
+                    var(q,:)      = fill(nfill+1,:)
+                    var(nx-q+1,:) = fill(nx-nfill,:)
+                end if
+                if (do_y) then
+                    var(:,q)      = fill(:,nfill+1)
+                    var(:,ny-q+1) = fill(:,ny-nfill)
+                end if
+            end do
 
-            case("infinite","mask")
+        else
+            ! Fill with interior neighbor values
 
-                var_acx(1,:)    = var_acx(2,:)
-                var_acx(nx-1,:) = var_acx(nx-2,:)
-                var_acx(nx,:)   = var_acx(nx-1,:)
-                var_acx(:,1)    = var_acx(:,2)
-                var_acx(:,ny)   = var_acx(:,ny-1)
+            do q = 1, nfill
+                if (do_x) then
+                    var(q,:)      = var(nfill+1,:)
+                    var(nx-q+1,:) = var(nx-nfill,:)
+                end if
+                if (do_y) then
+                    var(:,q)      = var(:,nfill+1)
+                    var(:,ny-q+1) = var(:,ny-nfill)
+                end if
+            end do
 
-            case("MISMIP3D","TROUGH")
-
-                !var_acx(1,:)    = var_acx(2,:)
-                var_acx(nx-1,:) = var_acx(nx-2,:)
-                var_acx(nx,:)   = var_acx(nx-1,:) 
-                var_acx(:,1)    = var_acx(:,2)
-                var_acx(:,ny)   = var_acx(:,ny-1) 
-
-        end select 
-
-        return 
-
-    end subroutine set_boundaries_2D_acx
-
-    subroutine set_boundaries_3D_acx(var_acx,boundaries)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var_acx(:,:,:) 
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer :: nx, ny  
-
-        nx = size(var_acx,1) 
-        ny = size(var_acx,2) 
-
-        select case(trim(boundaries))
-
-            case("periodic") 
-
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
-                var_acx(:,1,:)    = var_acx(:,ny-1,:)
-                var_acx(:,ny,:)   = var_acx(:,2,:) 
-                
-            case("periodic-x") 
-                
-                var_acx(1,:,:)    = var_acx(nx-2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(2,:,:) 
-                var_acx(nx,:,:)   = var_acx(3,:,:) 
-                var_acx(:,1,:)    = var_acx(:,2,:)
-                var_acx(:,ny,:)   = var_acx(:,ny-1,:) 
-
-            case("infinite","mask")
-
-                var_acx(1,:,:)    = var_acx(2,:,:)
-                var_acx(nx-1,:,:) = var_acx(nx-2,:,:)
-                var_acx(nx,:,:)   = var_acx(nx-1,:,:)
-                var_acx(:,1,:)    = var_acx(:,2,:)
-                var_acx(:,ny,:)   = var_acx(:,ny-1,:)
-
-            case("MISMIP3D","TROUGH") 
-                
-                var_acx(1,:,:)    = var_acx(2,:,:) 
-                var_acx(nx-1,:,:) = var_acx(nx-2,:,:) 
-                var_acx(nx,:,:)   = var_acx(nx-1,:,:) 
-                var_acx(:,1,:)    = var_acx(:,2,:)
-                var_acx(:,ny,:)   = var_acx(:,ny-1,:) 
-
-        end select 
-
-        return 
-
-    end subroutine set_boundaries_3D_acx
-    
-    subroutine set_boundaries_2D_acy(var_acy,boundaries)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var_acy(:,:) 
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer :: nx, ny  
-
-        nx = size(var_acy,1) 
-        ny = size(var_acy,2) 
-
-        select case(trim(boundaries))
-
-            case("periodic") 
-
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
-                var_acy(:,1)    = var_acy(:,ny-2)
-                var_acy(:,ny-1) = var_acy(:,2) 
-                var_acy(:,ny)   = var_acy(:,3)
-
-            case("periodic-x") 
-                
-                var_acy(1,:)    = var_acy(nx-1,:) 
-                var_acy(nx,:)   = var_acy(2,:) 
-                var_acy(:,1)    = var_acy(:,2)
-                var_acy(:,ny-1) = var_acy(:,ny-2) 
-                var_acy(:,ny)   = var_acy(:,ny-1)
-
-            case("infinite","mask")
-
-                var_acy(1,:)    = var_acy(2,:)
-                var_acy(nx,:)   = var_acy(nx-1,:)
-                var_acy(:,1)    = var_acy(:,2)
-                var_acy(:,ny-1) = var_acy(:,ny-2)
-                var_acy(:,ny)   = var_acy(:,ny-1)
-
-            case("MISMIP3D","TROUGH")
-
-                var_acy(1,:)    = var_acy(2,:)
-                var_acy(nx,:)   = var_acy(nx-1,:)
-                var_acy(:,1)    = var_acy(:,2)
-                var_acy(:,ny-1) = var_acy(:,ny-2)
-                var_acy(:,ny)   = var_acy(:,ny-1)
-
-        end select
+        end if
 
         return
 
-    end subroutine set_boundaries_2D_acy
-
-    subroutine set_boundaries_3D_acy(var_acy,boundaries)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var_acy(:,:,:) 
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer :: nx, ny  
-
-        nx = size(var_acy,1) 
-        ny = size(var_acy,2) 
-
-        select case(trim(boundaries))
-
-            case("periodic") 
-
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
-                var_acy(:,1,:)    = var_acy(:,ny-2,:)
-                var_acy(:,ny-1,:) = var_acy(:,2,:) 
-                var_acy(:,ny,:)   = var_acy(:,3,:)
-
-            case("periodic-x") 
-                
-                var_acy(1,:,:)    = var_acy(nx-1,:,:) 
-                var_acy(nx,:,:)   = var_acy(2,:,:) 
-                var_acy(:,1,:)    = var_acy(:,2,:)
-                var_acy(:,ny-1,:) = var_acy(:,ny-2,:) 
-                var_acy(:,ny,:)   = var_acy(:,ny-1,:)
-
-            case("infinite","mask")
-
-                var_acy(1,:,:)    = var_acy(2,:,:)
-                var_acy(nx,:,:)   = var_acy(nx-1,:,:)
-                var_acy(:,1,:)    = var_acy(:,2,:)
-                var_acy(:,ny-1,:) = var_acy(:,ny-2,:)
-                var_acy(:,ny,:)   = var_acy(:,ny-1,:)
-
-            case("MISMIP3D","TROUGH")
-                
-                var_acy(1,:,:)    = var_acy(2,:,:) 
-                var_acy(nx,:,:)   = var_acy(nx-1,:,:) 
-                var_acy(:,1,:)    = var_acy(:,2,:)
-                var_acy(:,ny-1,:) = var_acy(:,ny-2,:) 
-                var_acy(:,ny,:)   = var_acy(:,ny-1,:)
-
-        end select 
-
-        return 
-
-    end subroutine set_boundaries_3D_acy
-
-    subroutine fill_borders_2D(var,nfill,fill)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var(:,:) 
-        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in 
-        real(wp), intent(IN), optional :: fill(:,:) ! Values to impose 
-
-        ! Local variables 
-        integer :: i, j, nx, ny, q 
-        
-        nx = size(var,1)
-        ny = size(var,2)
-
-        if (present(fill)) then 
-            ! Fill with prescribed values from array 'fill' 
-
-            do q = 1, nfill 
-                var(q,:)      = fill(nfill+1,:)      
-                var(nx-q+1,:) = fill(nx-nfill,:)   
-                
-                var(:,q)      = fill(:,nfill+1)     
-                var(:,ny-q+1) = fill(:,ny-nfill)  
-            end do 
-
-        else 
-            ! Fill with interior neighbor values 
-
-            do q = 1, nfill 
-                var(q,:)      = var(nfill+1,:)      
-                var(nx-q+1,:) = var(nx-nfill,:)   
-                
-                var(:,q)      = var(:,nfill+1)     
-                var(:,ny-q+1) = var(:,ny-nfill)  
-            end do 
-
-        end if 
-
-        return 
-
     end subroutine fill_borders_2D
 
-    subroutine fill_borders_3D(var,nfill)
+    subroutine fill_borders_3D(var,nfill,fill_x,fill_y)
         ! 3rd dimension is not filled (should be vertical dimension)
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(INOUT) :: var(:,:,:) 
-        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in 
+        real(wp), intent(INOUT) :: var(:,:,:)
+        integer,    intent(IN)    :: nfill        ! How many neighbors to fill in
+        logical,  intent(IN), optional :: fill_x    ! Fill the x-borders? (default: true)
+        logical,  intent(IN), optional :: fill_y    ! Fill the y-borders? (default: true)
 
-        ! Local variables 
-        integer :: i, j, nx, ny, q 
-        
+        ! Local variables
+        integer :: i, j, nx, ny, q
+        logical :: do_x, do_y
+
         nx = size(var,1)
         ny = size(var,2)
 
-        do q = 1, nfill 
-            var(q,:,:)      = var(nfill+1,:,:)      
-            var(nx-q+1,:,:) = var(nx-nfill,:,:)   
-            
-            var(:,q,:)      = var(:,nfill+1,:)     
-            var(:,ny-q+1,:) = var(:,ny-nfill,:)  
-        end do 
+        do_x = .TRUE.
+        if (present(fill_x)) do_x = fill_x
+        do_y = .TRUE.
+        if (present(fill_y)) do_y = fill_y
 
-        return 
+        do q = 1, nfill
+            if (do_x) then
+                var(q,:,:)      = var(nfill+1,:,:)
+                var(nx-q+1,:,:) = var(nx-nfill,:,:)
+            end if
+            if (do_y) then
+                var(:,q,:)      = var(:,nfill+1,:)
+                var(:,ny-q+1,:) = var(:,ny-nfill,:)
+            end if
+        end do
+
+        return
 
     end subroutine fill_borders_3D
 
@@ -1845,153 +1067,6 @@ end if
         return
 
     end subroutine adjust_topography_gradients
-
-    subroutine regularize2D_gauss(var,H_ice,dx)
-        ! Ensure smoothness in 2D fields (ie, no checkerboard patterns)
-        ! ajr: doesnt work!
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var(:,:)       ! aa-nodes
-        real(wp), intent(IN)    :: H_ice(:,:)     ! aa-nodes
-        real(wp), intent(IN)    :: dx 
-
-        ! Local variables
-        integer    :: i, j, nx, ny  
-        integer    :: im1, ip1, jm1, jp1 
-        real(wp) :: varx(2), vary(2)
-        logical    :: check_x, check_y 
-        
-        logical, allocatable :: bad_pts(:,:) 
-
-        nx = size(var,1)
-        ny = size(var,2) 
-
-        allocate(bad_pts(nx,ny)) 
-
-        ! All points are good initially 
-        bad_pts = .FALSE. 
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            if (H_ice(i,j) .gt. 0.0) then 
-                ! Only check ice-covered points 
-
-                im1 = max(1, i-1)
-                ip1 = min(nx,i+1)
-                
-                jm1 = max(1, j-1)
-                jp1 = min(ny,j+1)
-
-                varx = [var(im1,j),var(ip1,j)]
-                where([H_ice(im1,j),H_ice(ip1,j)] .eq. 0.0_wp) varx = missing_value 
-
-                vary = [var(i,jm1),var(i,jp1)]
-                where([H_ice(i,jm1),H_ice(i,jp1)] .eq. 0.0_wp) vary = missing_value 
-                
-                ! Check if checkerboard exists in each direction 
-                check_x = (count(varx .gt. var(i,j) .and. varx.ne.missing_value) .eq. 2 .or. &
-                           count(varx .lt. var(i,j) .and. varx.ne.missing_value) .eq. 2) 
-
-                check_y = (count(vary .gt. var(i,j) .and. vary.ne.missing_value) .eq. 2 .or. &
-                           count(vary .lt. var(i,j) .and. vary.ne.missing_value) .eq. 2) 
-                
-                ! If check is true, mark point for later treatment 
-                if (check_x .or. check_y) bad_pts(i,j) = .TRUE.  
-
-            end if 
-
-        end do 
-        end do 
-
-        ! Now apply Gaussian smoothing to bad points, with a wide radius 
-        call smooth_gauss_2D(var,mask_apply=bad_pts,dx=dx,f_sigma=5.0_wp, &
-                                mask_use=H_ice.gt.0.0_wp .and. (.not. bad_pts))
-
-        return 
-
-    end subroutine regularize2D_gauss
-
-    subroutine regularize2D(var,H_ice,dx)
-        ! Ensure smoothness in 2D fields (ie, no checkerboard patterns)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: var(:,:)       ! aa-nodes
-        real(wp), intent(IN)    :: H_ice(:,:)     ! aa-nodes
-        real(wp), intent(IN)    :: dx 
-
-        ! Local variables
-        integer    :: i, j, nx, ny, n   
-        integer    :: im1, ip1, jm1, jp1 
-        real(wp), allocatable :: var0(:,:) 
-        real(wp) :: varx(2), vary(2), var9(3,3)
-        logical    :: check_x, check_y 
-        
-        integer    :: q, qmax, npts
-
-        qmax = 10
-
-        nx = size(var,1)
-        ny = size(var,2) 
-
-        allocate(var0(nx,ny))
-
-        do q = 1, qmax
-
-            var0 = var 
-            npts = 0
-
-        do j = 2, ny-1 
-        do i = 2, nx-1
-
-            if (H_ice(i,j) .gt. 0.0) then 
-                ! Only apply to ice-covered points 
-
-                im1 = max(1, i-1)
-                ip1 = min(nx,i+1)
-                
-                jm1 = max(1, j-1)
-                jp1 = min(ny,j+1)
-
-                varx = [var0(im1,j),var0(ip1,j)]
-                where([H_ice(im1,j),H_ice(ip1,j)] .eq. 0.0_wp) varx = missing_value 
-
-                vary = [var0(i,jm1),var0(i,jp1)]
-                where([H_ice(i,jm1),H_ice(i,jp1)] .eq. 0.0_wp) vary = missing_value 
-                
-                ! Check if checkerboard exists in each direction 
-                check_x = (count(varx .gt. var0(i,j) .and. varx.ne.missing_value) .eq. 2 .or. &
-                           count(varx .lt. var0(i,j) .and. varx.ne.missing_value) .eq. 2) 
-
-                check_y = (count(vary .gt. var0(i,j) .and. vary.ne.missing_value) .eq. 2 .or. &
-                           count(vary .lt. var0(i,j) .and. vary.ne.missing_value) .eq. 2) 
-                
-                if (check_x .or. check_y) then 
-                    ! Checkerboard exists, apply 9-point neighborhood average
-
-                    var9 = var0(i-1:i+1,j-1:j+1)
-                    where(H_ice(i-1:i+1,j-1:j+1) .eq. 0.0_wp) var9 = missing_value 
-
-                    n = count(var9 .ne. missing_value) 
-
-                    var(i,j) = sum(var9,mask=var9.ne.missing_value) / real(n,wp)
-                    npts     = npts + 1
-                end if 
-
-            end if 
-
-        end do 
-        end do 
-
-        if (npts .eq. 0) exit 
-
-        end do 
-
-        return 
-
-    end subroutine regularize2D
 
     ! === Generic integration functions ============
 

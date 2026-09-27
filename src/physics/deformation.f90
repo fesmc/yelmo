@@ -358,18 +358,10 @@ contains
         end do 
         !$omp end parallel do
 
-        ! Apply boundary conditions as needed 
-        if (trim(boundaries) .eq. "periodic") then
-
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
-            visc_eff_int(nx,:)   = visc_eff_int(2,:)
-            visc_eff_int(:,1)    = visc_eff_int(:,ny-1)
-            visc_eff_int(:,ny)   = visc_eff_int(:,2)
-
-        else if (trim(boundaries) .eq. "periodic-x") then 
+        ! Apply boundary conditions as needed. Periodic directions are a true
+        ! wrap (no halo cells), so their border points are not overwritten.
+        if (trim(boundaries) .eq. "periodic-x") then 
             
-            visc_eff_int(1,:)    = visc_eff_int(nx-1,:)
-            visc_eff_int(nx,:)   = visc_eff_int(2,:)
             visc_eff_int(:,1)    = visc_eff_int(:,2)
             visc_eff_int(:,ny)   = visc_eff_int(:,ny-1)
 
@@ -1177,6 +1169,19 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Reset strain rate fields to zero, since only fully ice-covered points
+        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
+        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
+        ! rely on zero eigenvalues there to fill in from neighbors).
+        strn%dxx     = 0.0_wp
+        strn%dyy     = 0.0_wp
+        strn%dxy     = 0.0_wp
+        strn%dxz     = 0.0_wp
+        strn%dyz     = 0.0_wp
+        strn%de      = 0.0_wp
+        strn%div     = 0.0_wp
+        strn%f_shear = 0.0_wp
+
         ! Calculate all strain rate tensor components on aa-nodes (horizontally and vertically)
         ! dxx = dxx
         ! dxy = 0.5*(dxy+dyx)
@@ -1351,10 +1356,11 @@ end if
         ! in the vertical. vz is centered on aa-nodes in the horizontal, but staggered on zeta_ac nodes
         ! in the vertical. 
 
-        ! Note: this routine does not appear to be as stable for, e.g., Laurentide simulations.
-        ! Perhaps it deserves further investigation, but for production runs, the routine
-        ! above calc_jacobian_vel_3D is recommended! 
-        
+        ! Note: this is the routine used by calc_ydyn (the alternative is
+        ! calc_strain_rate_tensor_jac above). It was once reported to be less stable
+        ! in, e.g., Laurentide simulations; that report predates the fix of the
+        ! vertical faces used for dzx/dzy (2026-09) and has not been re-tested.
+
         implicit none
         
         type(strain_3D_class), intent(INOUT) :: strn            ! [yr^-1] on aa-nodes (3D)
@@ -1399,6 +1405,19 @@ end if
         
         ! Get boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Reset strain rate fields to zero, since only fully ice-covered points
+        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
+        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
+        ! rely on zero eigenvalues there to fill in from neighbors).
+        strn%dxx     = 0.0_wp
+        strn%dyy     = 0.0_wp
+        strn%dxy     = 0.0_wp
+        strn%dxz     = 0.0_wp
+        strn%dyz     = 0.0_wp
+        strn%de      = 0.0_wp
+        strn%div     = 0.0_wp
+        strn%f_shear = 0.0_wp
 
         ! Calculate all strain rate tensor components on aa-nodes (horizontally and vertically)
         ! dxx = dxx
@@ -1455,15 +1474,18 @@ end if
 
                     ! Get dxz and dzx on aa-nodes 
                     ! (but also get dzx on aa-nodes vertically)
+                    ! Note: dzx is on vertical ac-nodes; the faces of aa-node k are ac-nodes k (below)
+                    ! and k+1 (above), so pass k+1 as upper and k as lower index to gq3D_to_nodes_acz
                     call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dxz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dyz and dzy on aa-nodes 
                     ! (but also get dzy on aa-nodes vertically)
+                    ! (dzy on vertical ac-nodes: faces k and k+1, as for dzx above)
                     call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dyz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 

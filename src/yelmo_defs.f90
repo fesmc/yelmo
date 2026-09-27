@@ -57,6 +57,13 @@ module yelmo_defs
     integer,  parameter :: MASK_ICE_FIXED   = 1     ! Ice thickness is prescribed (= H_ice_ref)
     integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
 
+    ! Values for tpo%now%mask_frnt (ice-front mask, see topography.f90:calc_ice_front)
+    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front
+    integer,  parameter :: MASK_FRNT_NONE     =  0  ! Not a front point
+    integer,  parameter :: MASK_FRNT_FLOAT    =  1  ! Floating ice front
+    integer,  parameter :: MASK_FRNT_MARINE   =  2  ! Ice front grounded below sea level
+    integer,  parameter :: MASK_FRNT_GRND     =  3  ! Ice front grounded above sea level
+
     ! Mathematical constants
     real(wp), parameter :: pi  = real(2._dp*acos(0.0_dp),wp)
     real(wp), parameter :: degrees_to_radians = real(pi / 180._dp,wp)  ! Conversion factor between radians and degrees
@@ -130,6 +137,8 @@ module yelmo_defs
         real(wp)           :: calv_grnd_max  
         real(wp)           :: grad_lim
         real(wp)           :: grad_lim_zb
+        real(wp)           :: slope_bg_x
+        real(wp)           :: slope_bg_y
         real(wp)           :: dHdt_dyn_lim
         real(wp)           :: dist_grz
         integer            :: gl_sep 
@@ -409,7 +418,6 @@ module yelmo_defs
         real(wp)   :: ssa_iter_rel 
         real(wp)   :: ssa_iter_conv 
         real(wp)   :: taud_lim 
-        real(wp)   :: cb_sia
 
         ! Till-scaling parameters
         integer    :: till_method 
@@ -440,7 +448,7 @@ module yelmo_defs
         integer    :: nx, ny, nz_aa, nz_ac 
         real(wp)   :: dx, dy
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         real(dp)   :: time
 
         integer    :: ssa_iter_now              ! Number of iterations used for Picard iteration to solve ssa this timestep
@@ -598,7 +606,7 @@ module yelmo_defs
         real(wp)   :: speed
 
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         
     end type 
 
@@ -672,7 +680,7 @@ module yelmo_defs
         integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
 
         real(wp), allocatable :: zeta_aa(:)          ! Layer centers (aa-nodes): nz_aa points
-        real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)          ! Layer borders (ac-nodes): nz_ac == nz_aa+1 points
 
     end type
 
@@ -702,7 +710,7 @@ module yelmo_defs
     
     type zeta_column_class 
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
 
         real(wp), allocatable :: dzeta_a(:)
         real(wp), allocatable :: dzeta_b(:)
@@ -836,8 +844,6 @@ module yelmo_defs
         type(ybound_const_class) :: c       ! Physical constants for the domain
 
         ! Region constants
-        real(wp)   :: index_north = 1.0   ! Northern Hemisphere region number
-        real(wp)   :: index_south = 2.0   ! Antarctica region number
         real(wp)   :: index_grl   = 1.3   ! Greenland region number
 
         ! Variables that save the current boundary conditions
@@ -1030,6 +1036,7 @@ module yelmo_defs
         
         ! Data logging
         logical             :: log_timestep
+        logical             :: log_mb_check
 
         ! Numerics/speed metrics output (yelmo_metrics.nc)
         logical             :: write_metrics
@@ -1048,12 +1055,10 @@ module yelmo_defs
         integer             :: dt_method 
         real(wp)            :: dt_min
         real(wp)            :: cfl_max 
-        real(wp)            :: cfl_diff_max 
         character (len=56)  :: pc_method
         character (len=56)  :: pc_controller
         logical             :: pc_use_H_pred 
-        logical             :: pc_filter_vel 
-        logical             :: pc_corr_vel 
+        logical             :: pc_filter_vel
         integer             :: pc_n_redo 
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
@@ -1063,7 +1068,7 @@ module yelmo_defs
         
         ! Sigma coordinates (internal parameter)
         real(wp), allocatable :: zeta_aa(:)   ! Layer centers (aa-nodes), plus base and surface: nz_aa points 
-        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa-1 points
+        real(wp), allocatable :: zeta_ac(:)   ! Layer borders (ac-nodes), plus base and surface: nz_ac == nz_aa+1 points
         
         ! Other internal parameters
         logical  :: use_restart 
@@ -1080,8 +1085,6 @@ module yelmo_defs
         real(wp), allocatable :: pc_tau_masked(:,:)
         
         real(wp), allocatable :: dt_adv(:,:) 
-        real(wp), allocatable :: dt_diff(:,:) 
-        real(wp), allocatable :: dt_adv3D(:,:,:)
         
         ! Timing information
         real(wp)   :: model_speed 

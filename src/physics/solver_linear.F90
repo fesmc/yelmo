@@ -122,6 +122,19 @@ contains
         type(linear_solver_class), intent(INOUT) :: lgs 
         character(len=*), intent(IN) :: lis_settings        ! LIS solver settings
 
+        if (all(lgs%b_value .eq. 0.0_dp)) then
+            ! Homogeneous system Ax=0: the solution is x=0. Iterative solvers
+            ! measure convergence relative to ||b||=0 and return NaN here.
+
+            lgs%x_value     = 0.0_dp
+            lgs%L2_rel_norm = 0.0_dp
+            lgs%lin_iter    = 0
+            lgs%solver_time = 0.0_wp
+
+            return
+
+        end if
+
 ! ==== PETSC SPECIFIC CODE =====
 #ifdef USEPETSC
     

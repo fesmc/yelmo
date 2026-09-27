@@ -23,15 +23,6 @@ note = "must be in (0, 1]"
 
 [[range]]
 group = "yelmo"
-name = "cfl_diff_max"
-min = 0.0
-max = 1.0
-min_inclusive = false
-max_inclusive = true
-note = "must be in (0, 1]"
-
-[[range]]
-group = "yelmo"
 name = "nz_aa"
 min = 2
 min_inclusive = true
