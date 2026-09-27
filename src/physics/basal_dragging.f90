@@ -603,26 +603,36 @@ contains
 
         end if 
 
-        select case(trim(boundaries))
+        ! Note: periodic directions need no treatment here, since the
+        ! staggering above uses BC-aware (wrapped) neighbor indices.
 
-            ! Note: periodic directions need no treatment here, since the
-            ! staggering above uses BC-aware (wrapped) neighbor indices.
+        ! x-direction borders
+        select case(trim(boundaries))
 
             case("infinite","MISMIP3D","mask")
 
                 beta_acx(1,:)    = beta_acx(2,:)
-                beta_acx(nx-1,:) = beta_acx(nx-2,:) 
-                beta_acx(nx,:)   = beta_acx(nx-2,:) 
-                beta_acx(:,1)    = beta_acx(:,2)
-                beta_acx(:,ny)   = beta_acx(:,ny-1) 
+                beta_acx(nx-1,:) = beta_acx(nx-2,:)
+                beta_acx(nx,:)   = beta_acx(nx-2,:)
 
-                beta_acy(1,:)    = beta_acy(2,:) 
-                beta_acy(nx,:)   = beta_acy(nx-1,:) 
+                beta_acy(1,:)    = beta_acy(2,:)
+                beta_acy(nx,:)   = beta_acy(nx-1,:)
+
+        end select
+
+        ! y-direction borders (MISMIP3D is periodic in y)
+        select case(trim(boundaries))
+
+            case("infinite","mask")
+
+                beta_acx(:,1)    = beta_acx(:,2)
+                beta_acx(:,ny)   = beta_acx(:,ny-1)
+
                 beta_acy(:,1)    = beta_acy(:,2)
-                beta_acy(:,ny-1) = beta_acy(:,ny-2) 
+                beta_acy(:,ny-1) = beta_acy(:,ny-2)
                 beta_acy(:,ny)   = beta_acy(:,ny-2)
 
-        end select 
+        end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
         where(beta_acx .gt. 0.0 .and. beta_acx .lt. beta_min) beta_acx = beta_min 
