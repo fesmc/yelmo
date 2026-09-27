@@ -33,10 +33,6 @@ $(objdir)/basal_dragging.o: $(srcdir)/physics/basal_dragging.f90 $(objdir)/yelmo
 							$(objdir)/yelmo_tools.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/grounding_line_flux.o: $(srcdir)/physics/grounding_line_flux.f90 $(objdir)/yelmo_defs.o \
-							$(objdir)/yelmo_tools.o
-	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
-
 $(objdir)/calving_aa.o: $(srcdir)/physics/calving/calving_aa.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
@@ -233,7 +229,6 @@ yelmo_libs = 		  $(objdir)/climate_adjustments.o \
 					   $(objdir)/ice_optimization.o
 
 yelmo_physics =  	   $(objdir)/basal_dragging.o \
-					   $(objdir)/grounding_line_flux.o \
 					   $(objdir)/calving_ac.o \
 					   $(objdir)/calving_aa.o \
 					   $(objdir)/lsf_module.o \
