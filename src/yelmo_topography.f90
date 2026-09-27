@@ -742,6 +742,8 @@ end if
         real(wp), allocatable :: mbal_now(:,:)
         !real(wp), allocatable :: u_acx_fill(:,:), v_acy_fill(:,:)
         integer  :: BC
+        integer  :: i1, i2, j1, j2
+        logical  :: per_x, per_y
 
         ! Make sure dt is not zero
         dt_kill = dt 
@@ -999,9 +1001,28 @@ end if
                     where(tpo%now%H_ice .le. 0.0 .and. tpo%now%lsf .lt. 0.0 .and. bnd%z_bed .lt. bnd%z_sl) tpo%now%lsf = 1.0_wp
         end select 
 
-        ! compute diagnostic fields for output
-        do j=2,ny-1
-        do i=2,nx-1
+        ! compute diagnostic fields for output (all points in periodic
+        ! directions, otherwise only the interior)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
+        do j=j1,j2
+        do i=i1,i2
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
             if (bnd%z_bed(i,j) .gt. bnd%z_sl(i,j)) then
                 ! No calving in points above sea-level
                 tpo%now%cmb_flt(i,j) = 0.0_wp
@@ -1015,8 +1036,8 @@ end if
             end if
 
             ! just compute cmb_flt and cmb_grnd in the border lsf points
-            if (tpo%now%H_ice(i,j) .gt. 0.0_wp .and. (tpo%now%H_ice(i+1,j) .gt. 0.0_wp .or. tpo%now%H_ice(i-1,j) .gt. 0.0_wp .or. &
-                                                      tpo%now%H_ice(i,j+1) .gt. 0.0_wp .or. tpo%now%H_ice(i,j-1) .gt. 0.0_wp)) then
+            if (tpo%now%H_ice(i,j) .gt. 0.0_wp .and. (tpo%now%H_ice(ip1,j) .gt. 0.0_wp .or. tpo%now%H_ice(im1,j) .gt. 0.0_wp .or. &
+                                                      tpo%now%H_ice(i,jp1) .gt. 0.0_wp .or. tpo%now%H_ice(i,jm1) .gt. 0.0_wp)) then
                 tpo%now%cmb_flt(i,j)  = 0.0_wp
                 tpo%now%cmb_grnd(i,j) = 0.0_wp
             end if

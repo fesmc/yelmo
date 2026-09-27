@@ -969,7 +969,7 @@ contains
  
     end subroutine calc_basal_heating_nodes
     
-    subroutine calc_basal_heating_simplestagger(Q_b,ux_b,uy_b,taub_acx,taub_acy,beta1,beta2,sec_year)
+    subroutine calc_basal_heating_simplestagger(Q_b,ux_b,uy_b,taub_acx,taub_acy,beta1,beta2,sec_year,boundaries)
          ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
          ! Note: grounded ice fraction f_grnd_acx/y not used here, because taub_acx/y already accounts
          ! for the grounded fraction via beta_acx/y: Q_b = tau_b*u = -beta*u*u.
@@ -982,25 +982,27 @@ contains
         real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
         real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
         real(wp), intent(IN)    :: sec_year
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables
         integer    :: i, j, nx, ny, n 
         integer    :: im1, ip1, jm1, jp1 
+        integer    :: BC
         real(wp) :: uxy_aa, taub_aa 
         real(wp) :: Q_b_now
 
         nx = size(Q_b,1)
         ny = size(Q_b,2)
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         ! First calculate basal frictional heating on ab-nodes 
         do j = 1, ny
         do i = 1, nx
             
-            ! Define neighbor indices
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1)
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
             uxy_aa  = sqrt( (0.5_wp*(ux_b(i,j)+ux_b(im1,j)))**2 &
                           + (0.5_wp*(uy_b(i,j)+uy_b(i,jm1)))**2 )

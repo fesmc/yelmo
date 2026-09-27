@@ -79,7 +79,8 @@ contains
             case(1)     ! "aa" == simple stagger to aa-nodes directly
                 ! Calculate the basal frictional heating (from aa-nodes)
                 call calc_basal_heating_simplestagger(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
-                                                    beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year)
+                                                    beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year, &
+                                                    boundaries=thrm%par%boundaries)
             case(2)   ! "nodes" == Gaussian quadrature to aa-node, default and best choice
                 ! Calculate the basal frictional heating (from quadrature-nodes)
                 call calc_basal_heating_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
