@@ -14,6 +14,21 @@ yelmo_restart_write
 
 These routines will be described briefly below.
 
+### Standard file names
+
+The Yelmo test programs and yelmox use the same file names as CLIMBER-X:
+
+| File | Contents |
+|---|---|
+| `yelmo.nc` | Main output: 2D and 3D fields at the output interval |
+| `yelmo_sm.nc` | Small output: a reduced set of 2D fields, written more often (initmip, yelmox) |
+| `yelmo_ts.nc` | Time series of global diagnostics (`yelmo_regions_write`) |
+| `yelmo_ts_<region>.nc` | Time series for sub-region `<region>` |
+| `yelmo_restart.nc` | Restart snapshot (`yelmo_restart_write`) |
+
+The time-series names are the defaults set by `yelmo_region_init`. For the other
+files, the calling program chooses the name.
+
 ### yelmo_write_init
 
 ```fortran
