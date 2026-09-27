@@ -1,6 +1,7 @@
 module solver_ssa_ac
 
-    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal
+    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal, &
+                           MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use solver_linear
@@ -10,7 +11,6 @@ module solver_ssa_ac
 
     private 
     public :: set_ssa_masks
-    public :: update_ssa_mask_convergence
     public :: ssa_diagnostics_write_init
     public :: ssa_diagnostics_write_step
 
@@ -108,6 +108,7 @@ contains
 
         integer :: im1, ip1, jm1, jp1 
         real(wp) :: N_aa_now
+        integer  :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
@@ -117,41 +118,6 @@ contains
             ! Object 'lgs' has not been initialized yet, do so now.
 
             call linear_solver_init(lgs,nx,ny,nvar=2,n_terms=9)
-
-        end if 
-
-        if (count(ssa_mask_acx .eq. 1) + count(ssa_mask_acy .eq. 1) .gt. 0) then 
-            ! Points exist for ssa solver to treat
-
-            ! Consistency check: ensure beta is defined well 
-            if ( ( count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0) .eq. 0 ) .or. & 
-                 ( count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0) .eq. 0 ) ) then  
-                ! No points found with a non-zero beta for grounded ice,
-                ! something was not well-defined/well-initialized, give a warning
-                ! with some statistics. In the actual solver, beta will
-                ! be given a small non-zero value for these points.
-
-                write(*,*)
-                write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
-                write(*,*) "count(ssa_mask_acx .eq. 1) = ", count(ssa_mask_acx .eq. 1)
-                write(*,*) "count(ssa_mask_acy .eq. 1) = ", count(ssa_mask_acy .eq. 1)
-                write(*,*) "count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0) = ", &
-                                        count(ssa_mask_acx .eq. 1 .and. beta_acx .gt. 0.0)
-                write(*,*) "count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0) = ", &
-                                        count(ssa_mask_acy .eq. 1 .and. beta_acy .gt. 0.0)
-                write(*,*)
-
-                ! write(*,*) 
-                ! write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Error: beta appears to be zero everywhere for grounded ice."
-                ! write(*,*) "range(beta_acx): ", minval(beta_acx), maxval(beta_acx)
-                ! write(*,*) "range(beta_acy): ", minval(beta_acy), maxval(beta_acy)
-                ! write(*,*) "range(ssa_mask_acx): ", minval(ssa_mask_acx), maxval(ssa_mask_acx)
-                ! write(*,*) "range(ssa_mask_acy): ", minval(ssa_mask_acy), maxval(ssa_mask_acy)
-                ! write(*,*) "Stopping."
-                ! write(*,*) 
-                ! stop 
-                
-            end if 
 
         end if 
 
@@ -241,6 +207,13 @@ contains
         lgs%a_ptr(1) = 1
 
         k = 0
+
+        ! Counters of inner grounded rows (and those with beta > 0) for the
+        ! beta consistency check after assembly
+        n_grnd_x = 0
+        n_beta_x = 0
+        n_grnd_y = 0
+        n_beta_y = 0
 
         do n=1, lgs%nmax-1, 2
 
@@ -480,6 +453,11 @@ contains
 
                 beta_now = beta_acx(i,j)
                 if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0) beta_now = beta_min
+
+                if (ssa_mask_acx(i,j) .eq. 1) then
+                    n_grnd_x = n_grnd_x + 1
+                    if (beta_acx(i,j) .gt. 0.0) n_beta_x = n_beta_x + 1
+                end if
 
                 ! -- vx terms -- 
 
@@ -764,6 +742,11 @@ contains
                 beta_now = beta_acy(i,j)
                 if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0) beta_now = beta_min
 
+                if (ssa_mask_acy(i,j) .eq. 1) then
+                    n_grnd_y = n_grnd_y + 1
+                    if (beta_acy(i,j) .gt. 0.0) n_beta_y = n_beta_y + 1
+                end if
+
                 ! -- vy terms -- 
 
                 nc = 2*lgs%ij2n(i,j)        ! column counter for uy(i,j)
@@ -828,6 +811,24 @@ contains
 
         end do
 
+        ! Consistency check: ensure beta is defined well for grounded ice.
+        ! Only inner rows (momentum equations with a friction term) are counted;
+        ! border and lateral-bc rows do not use beta.
+        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
+             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
+            ! No inner grounded points found with a non-zero beta,
+            ! something was not well-defined/well-initialized, give a warning
+            ! with some statistics. In the assembly above, beta=beta_min
+            ! was used for these points.
+
+            write(*,*)
+            write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
+            write(*,*) "inner grounded acx rows: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
+            write(*,*) "inner grounded acy rows: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
+            write(*,*)
+
+        end if
+
         ! Done: A, x and b matrices in Ax=b have been populated 
         ! and stored in lgs object. 
 
@@ -855,7 +856,7 @@ contains
 
 
     subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice, &
-                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc)
+                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc,boundaries)
         ! Define where ssa calculations should be performed
         ! Note: could be binary, but perhaps also distinguish 
         ! grounding line/zone to use this mask for later gl flux corrections
@@ -886,28 +887,28 @@ contains
         real(wp), intent(IN)  :: dx 
         logical,  intent(IN)  :: use_ssa       ! SSA is actually active now? 
         character(len=*), intent(IN) :: lateral_bc 
+        character(len=*), intent(IN) :: boundaries 
 
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
         real(wp) :: H_acx, H_acy
         logical  :: is_steep 
         logical  :: is_convergent 
         
         real(wp), allocatable :: mask_frnt_dyn(:,:)
 
-        ! Integer values for the mask_frnt should be consistent
-        ! with those defined in topography.f90:calc_ice_front().
+        ! mask_frnt values are the MASK_FRNT_* codes of yelmo_defs.
         ! val_disabled is an internal value only used in this routine.
-        integer, parameter :: val_ice_free  = -1 
-        integer, parameter :: val_flt       = 1
-        integer, parameter :: val_marine    = 2
-        integer, parameter :: val_grnd      = 3
         integer, parameter :: val_disabled  = 5 
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         allocate(mask_frnt_dyn(nx,ny))
 
         ! Initially no active ssa points, all velocities set to zero
@@ -948,8 +949,8 @@ contains
                     do j = 1, ny
                     do i = 1, nx
                     
-                        if ( mask_frnt(i,j) .eq. val_grnd .or. &
-                             mask_frnt(i,j) .eq. val_marine ) mask_frnt_dyn(i,j) = val_disabled
+                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND .or. &
+                             mask_frnt(i,j) .eq. MASK_FRNT_MARINE ) mask_frnt_dyn(i,j) = val_disabled
 
                     end do
                     end do
@@ -962,7 +963,7 @@ contains
                     do j = 1, ny
                     do i = 1, nx
                     
-                        if ( mask_frnt(i,j) .eq. val_grnd ) mask_frnt_dyn(i,j) = val_disabled
+                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND ) mask_frnt_dyn(i,j) = val_disabled
 
                     end do
                     end do
@@ -987,10 +988,7 @@ contains
             do i = 1, nx
 
                 ! Get neighbor indices
-                im1 = max(i-1,1) 
-                ip1 = min(i+1,nx) 
-                jm1 = max(j-1,1) 
-                jp1 = min(j+1,ny)
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
 
                 ! == x-direction ===
@@ -1037,8 +1035,8 @@ contains
                 end if 
 
                 ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. 5 .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. 5) ) then 
+                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
+                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. val_disabled) ) then 
                     ! Deactivated lateral boundary point 
 
                     ssa_mask_acx(i,j) = 4 
@@ -1089,8 +1087,8 @@ contains
                 end if 
 
                 ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. 5 .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. 5) ) then 
+                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
+                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. val_disabled) ) then 
                     ! Deactivated lateral boundary point 
 
                     ssa_mask_acy(i,j) = 4 
@@ -1106,58 +1104,6 @@ contains
         
     end subroutine set_ssa_masks
     
-    subroutine update_ssa_mask_convergence(ssa_mask_acx,ssa_mask_acy,err_x,err_y,err_lim)
-        ! Update grounded ice ssa_masks, by prescribing vel at points that have
-        ! already converged well.
-
-        implicit none 
-
-        integer, intent(INOUT) :: ssa_mask_acx(:,:) 
-        integer, intent(INOUT) :: ssa_mask_acy(:,:) 
-        real(wp), intent(IN) :: err_x(:,:) 
-        real(wp), intent(IN) :: err_y(:,:) 
-        real(wp), intent(IN) :: err_lim 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-
-        nx = size(ssa_mask_acx,1)
-        ny = size(ssa_mask_acx,2) 
-
-        ! Initially set candidate 'converged' points to -2
-        where (ssa_mask_acx .eq. 1 .and. err_x .lt. err_lim)
-            ssa_mask_acx = -2 
-        end where 
-
-        where (ssa_mask_acy .eq. 1 .and. err_y .lt. err_lim)
-            ssa_mask_acy = -2 
-        end where 
-        
-        ! Fill in neighbors of points that are still ssa (mask=1) to keep things clean 
-        do j = 2, ny-1 
-        do i = 2, nx-1 
-            
-            ! acx
-            if (ssa_mask_acx(i,j) .eq. 1) then
-                where (ssa_mask_acx(i-1:i+1,j-1:j+1) .eq. -2) ssa_mask_acx(i-1:i+1,j-1:j+1) = 1
-            end if 
-
-            ! acy 
-            if (ssa_mask_acy(i,j) .eq. 1) then
-                where (ssa_mask_acy(i-1:i+1,j-1:j+1) .eq. -2) ssa_mask_acy(i-1:i+1,j-1:j+1) = 1
-            end if 
-            
-        end do 
-        end do 
-
-        ! Finally, replace temporary -2 values with -1 to prescribe ssa vel here 
-        where (ssa_mask_acx .eq. -2) ssa_mask_acx = -1 
-        where (ssa_mask_acy .eq. -2) ssa_mask_acy = -1 
-        
-        return 
-
-    end subroutine update_ssa_mask_convergence
-
 ! === INTERNAL ROUTINES ==== 
 
     subroutine stagger_visc_aa_ab(visc_ab,visc,H_ice,f_ice,boundaries)
@@ -1234,8 +1180,11 @@ contains
 
         real(wp), parameter :: tol = TOL_UNDERFLOW
 
-        u = min(u, u_lim)
-        u = max(u,-u_lim)
+        ! Explicit comparisons (not min/max) so that a NaN passes through
+        ! unchanged and is caught by yelmo_check_kill, instead of being
+        ! silently mapped to +u_lim.
+        if (u .gt.  u_lim) u =  u_lim
+        if (u .lt. -u_lim) u = -u_lim
 
         ! Also avoid underflow errors 
         if (abs(u) .lt. tol) u = 0.0 

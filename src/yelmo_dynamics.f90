@@ -12,6 +12,7 @@ module yelmo_dynamics
                             calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
+    use fast_hydrology, only : hydro_calc_N
 
     use velocity_general
 
@@ -27,7 +28,6 @@ module yelmo_dynamics
     ! use solver_ssa_ab
 
     use basal_dragging  
-    use grounding_line_flux 
 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa
 
@@ -255,7 +255,7 @@ contains
         
         ! Diagnose ice flux 
         call calc_ice_flux(dyn%now%qq_acx,dyn%now%qq_acy,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice, &
-                            dyn%par%dx,dyn%par%dy)
+                            dyn%par%dx,dyn%par%dy,dyn%par%boundaries)
         dyn%now%qq        = calc_magnitude_from_staggered(dyn%now%qq_acx,dyn%now%qq_acy,tpo%now%f_ice,dyn%par%boundaries)
 
         dyn%now%taub      = calc_magnitude_from_staggered(dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice,dyn%par%boundaries)
@@ -357,7 +357,8 @@ contains
 
         ! Define grid points with ssa active (uses beta from previous timestep)
         call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice,tpo%now%f_ice, &
-                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc)
+                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+                    boundaries=dyn%par%boundaries)
 
         if (use_ssa .and. dyn%par%use_ssa .and. &
                 maxval(dyn%now%ssa_mask_acx+dyn%now%ssa_mask_acy) .gt. 0) then 
@@ -418,16 +419,6 @@ contains
             dyn%now%taub_acx = 0.0_wp 
             dyn%now%taub_acy = 0.0_wp 
 
-        end if 
-
-        ! Additionally, check if using SIA only, then apply SIA sliding as desired 
-        if ( (use_sia .and. .not. use_ssa) .and. dyn%par%cb_sia .gt. 0.0) then 
-            ! Calculate basal velocity from Weertman sliding law (Greve 1997)
-                    
-            ! call calc_velocity_basal_sia_00(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
-            !                                 tpo%now%H_ice,tpo%now%dzsdx,tpo%now%dzsdy,thrm%now%f_pmp, &
-            !                                 dyn%par%zeta_aa,dyn%par%dx,dyn%par%cb_sia,bnd%c%rho_ice,bnd%c%g)
-            
         end if 
 
         ! 3. Join SIA and SSA solutions (SIA+SSA) =====
@@ -491,7 +482,8 @@ contains
 
         ! Define grid points with ssa active (uses beta from previous timestep)
         call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice,tpo%now%f_ice, &
-                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc)
+                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+                    boundaries=dyn%par%boundaries)
 
         ! ajr: add these two statements for testing 2D flow (no flow in y-direction)
         ! Should consider whether this should be made into a parameter option of some kind,
@@ -645,62 +637,6 @@ contains
 !             dyn%now%visc_eff_int = calc_visc_eff_2D(dyn%now%ux_b,dyn%now%uy_b,dyn%now%duxdz_bar*0.0,dyn%now%duydz_bar*0.0, &
 !                                                     tpo%now%H_ice,mat%now%ATT,dyn%par%zeta_aa,dyn%par%dx,dyn%par%dy,mat%par%n_glen)
             
-!             !   X. Prescribe grounding-line flux 
-! if (.FALSE.) then
-!             ! Testing prescribed grounding-line flux/vel - experimental!!!
-
-!             ! Calculate the analytical grounding-line flux 
-!             call calc_grounding_line_flux(dyn%now%qq_gl_acx,dyn%now%qq_gl_acy,tpo%now%H_ice,mat%now%ATT_bar, &
-!                         dyn%now%c_bed,dyn%now%ux_b,dyn%now%uy_b,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
-!                         mat%par%n_glen,dyn%par%beta_q,Q0=0.61_wp,f_drag=0.6_wp,glf_method="power")
-
-!             ! Where qq_gl is present, prescribe velocity and set mask to -1
-
-!             ! Restore original ssa mask (without grounding line flags)
-!             dyn%now%ssa_mask_acx = ssa_mask_acx
-!             dyn%now%ssa_mask_acy = ssa_mask_acy
-            
-!             write(*,*) "glf"
-
-!             ! acx nodes 
-!             do j = 1, ny 
-!             do i = 1, nx-1
-
-!                 H_mid = 0.5*(tpo%now%H_ice(i,j)+tpo%now%H_ice(i+1,j))
-                
-!                 if (dyn%now%qq_gl_acx(i,j) .ne. 0.0 .and. H_mid .gt. 0.0) then 
-!                     ! Prescribe velocity at this point 
-
-!                     if (j == 3) then 
-!                         write(*,*) "glf", i, dyn%now%ux_b(i,j), dyn%now%qq_gl_acx(i,j) / H_mid
-!                     end if 
-                    
-! !                     dyn%now%ux_b(i,j) = dyn%now%qq_gl_acx(i,j) / H_mid 
-! !                     dyn%now%ssa_mask_acx(i,j) = -1
-
-!                 end if 
-
-!             end do 
-!             end do 
-
-!             ! acy nodes 
-!             do j = 1, ny-1 
-!             do i = 1, nx
-
-!                 H_mid = 0.5*(tpo%now%H_ice(i,j)+tpo%now%H_ice(i,j+1))
-                
-!                 if (dyn%now%qq_gl_acy(i,j) .ne. 0.0 .and. H_mid .gt. 0.0) then 
-!                     ! Prescribe velocity at this point 
-
-!                     dyn%now%uy_b(i,j) = dyn%now%qq_gl_acy(i,j) / H_mid 
-!                     dyn%now%ssa_mask_acy(i,j) = -1
-                    
-!                 end if 
-
-!             end do 
-!             end do
-! end if 
-
 !             !   3. Calculate SSA solution
 
 ! if (.TRUE.) then 
@@ -749,19 +685,18 @@ contains
 !     end subroutine calc_ydyn_ssa
     
     subroutine calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
-        ! Pipe the effective pressure from the hyd (fasthydrology)
-        ! component into dyn%now%N_eff, optionally averaging over
-        ! Gaussian-quadrature / subgrid sample points selected by
-        ! dyn%par%neff_nxi. The N-closure (overburden / marine / till /
-        ! two-value) lives inside fasthydrology now; this routine is
-        ! purely a grid-side interpolation hook.
+        ! Effective pressure for the dynamics, dyn%now%N_eff, optionally
+        ! averaged over Gaussian-quadrature / subgrid sample points selected
+        ! by dyn%par%neff_nxi. The N-closure (overburden / marine / till)
+        ! lives inside fasthydrology; hydro_calc_N evaluates it here on the
+        ! geometry the dynamics is about to use (H_ice_dyn, f_ice_dyn), with
+        ! the current till water W_til. Copying hyd%now%N instead would lag
+        ! the geometry by up to two steps (calc_yhyd runs after calc_ydyn),
+        ! giving N = 0 (and beta = 0) at newly iced or grounded points.
         !
-        ! An external coupled host (e.g. a Julia hydrology model driving
-        ! Yelmo via YelmoMirror) owns N_eff by setting hyd.bkt_N_closure=-1
-        ! and pushing its value into hyd%now%N directly (yelmo_set_var2D
-        ! "hyd_N"); apply_N_closure then leaves hyd%now%N untouched, and
-        ! this routine's normal copy below carries it into dyn%now%N_eff -
-        ! no separate flag needed here.
+        ! For K24 and for an external coupled host (hyd.bkt_N_closure=-1,
+        ! N pushed into hyd%now%N via yelmo_set_var2D "hyd_N"), N is part
+        ! of the hydrology state and hydro_calc_N returns hyd%now%N.
 
         implicit none
 
@@ -774,6 +709,7 @@ contains
         ! Local variables
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1, nxi
+        real(wp), allocatable :: N_now(:,:)
         real(wp), allocatable :: Neff_int(:,:)
         real(wp) :: wt2D
         type(gq2D_class) :: gq2D
@@ -785,13 +721,18 @@ contains
             stop
         end if
 
-        ! Cell-centered fast path - just copy hyd%now%N
+        ! N on the current dynamics geometry
+        allocate(N_now(size(dyn%now%N_eff,1),size(dyn%now%N_eff,2)))
+        call hydro_calc_N(hyd, N_now, tpo%now%H_ice_dyn, bnd%z_bed, bnd%z_sl, &
+                          tpo%now%f_ice_dyn, tpo%now%f_grnd)
+
+        ! Cell-centered fast path
         if (dyn%par%neff_nxi .eq. 0) then
-            dyn%now%N_eff = hyd%now%N
+            dyn%now%N_eff = N_now
             return
         end if
 
-        ! Subgrid path: average hyd%now%N over interpolation nodes
+        ! Subgrid path: average N_now over interpolation nodes
         call gq2D_init(gq2D)
         BC = boundary_code(dyn%par%boundaries)
 
@@ -816,11 +757,11 @@ contains
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             if (dyn%par%neff_nxi .eq. 1) then
-                call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),hyd%now%N,dyn%par%dx,dyn%par%dy, &
+                call gq2D_to_nodes_aa(gq2D,Neff_int(1,:),N_now,dyn%par%dx,dyn%par%dy, &
                                       i,j,im1,ip1,jm1,jp1)
                 dyn%now%N_eff(i,j) = sum(Neff_int(1,:)*gq2D%wt)/gq2D%wt_tot
             else
-                call calc_subgrid_array(Neff_int,hyd%now%N,nxi,i,j,im1,ip1,jm1,jp1)
+                call calc_subgrid_array(Neff_int,N_now,nxi,i,j,im1,ip1,jm1,jp1)
                 dyn%now%N_eff(i,j) = sum(Neff_int)/wt2D
             end if
 
@@ -887,7 +828,6 @@ contains
         call nml_read(filename,group_ydyn,"ssa_iter_conv",      par%ssa_iter_conv,      init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         call nml_read(filename,group_ydyn,"taud_lim",           par%taud_lim,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"cb_sia",             par%cb_sia,             init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
 
         call nml_read(filename,group_ytill,"method",            par%till_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"scale_zb",          par%till_scale_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
@@ -1305,87 +1245,6 @@ contains
 
     end subroutine ydyn_dealloc
     
-    subroutine ydyn_set_borders(ux,uy,boundaries)
-
-        implicit none 
-
-        real(wp),       intent(INOUT) :: ux(:,:) 
-        real(wp),       intent(INOUT) :: uy(:,:) 
-        character(len=*), intent(IN)    :: boundaries 
-
-        ! Local variables 
-        integer :: nx, ny 
-
-        nx = size(ux,1)
-        ny = size(ux,2) 
-
-        ! Post processing of velocity field ================
-
-        if (.TRUE.) then 
-            ! ajr: do not use yet, not well tested 
-
-        select case(trim(boundaries))
-
-            case("zeros","EISMINT")
-
-                ! Border values are zero by default, do nothing 
-
-            case("periodic") 
-
-                ux(1,:)  = ux(nx-1,:) 
-                ux(nx,:) = ux(2,:) 
-                ux(:,1)  = ux(:,ny-1)
-                ux(:,ny) = ux(:,2) 
-
-                uy(1,:)  = uy(nx-1,:) 
-                uy(nx,:) = uy(2,:) 
-                uy(:,1)  = uy(:,ny-1)
-                uy(:,ny) = uy(:,2) 
-
-            case("MISMIP3D")
-
-                ! === MISMIP3D =====
-
-                ! x=0, dome - zero velocity 
-                ux(1,:)    = 0.0       
-                uy(1,:)    = 0.0 
-
-                ! x=800km, no ice - zero by default 
-                ux(nx,:)   = 0.0 
-                uy(nx,:)   = 0.0 
-
-                ! y=-50km, free-slip condition, no tangential velocity   
-                uy(:,1)    = 0.0 
-
-                ! y=50km, free-slip condition, no tangential velocity  
-                uy(:,ny)     = 0.0 
-
-            case("infinite")
-                ! ajr: we should check setting border H values equal to inner neighbors
-
-                write(*,*) "calc_ice_thickness:: error: boundary method not implemented yet: "//trim(boundaries)
-                write(*,*) "TO DO!"
-                stop
-
-            case("mask")
-
-                ! Border velocity values are governed by the mask_ice mask
-                ! together with the "infinite"-style neighbor stencils used
-                ! by the dynamics solvers. No explicit border assignment here.
-
-            case DEFAULT
-
-                write(*,*) "calc_ice_thickness:: error: boundary method not recognized: "//trim(boundaries)
-                stop 
-
-        end select 
-        
-        end if 
-
-        return 
-
-    end subroutine ydyn_set_borders
-
     subroutine yelmo_write_init_ssa(filename,nx,ny,time_init)
 
         implicit none 

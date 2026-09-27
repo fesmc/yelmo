@@ -212,7 +212,7 @@ contains
                 ! Apply minimum of sed scaling and current cb_ref
                 ! sed scaling also goes from cf_ref to cf_min
 
-                !$omp parallel do collapse(2) private(i,j,lambda_bed)
+                !$omp parallel do collapse(2) private(i,j,lambda_bed,cb_ref_now)
                 do j = 1, ny 
                 do i = 1, nx 
 
@@ -229,6 +229,7 @@ contains
                     
                 end do
                 end do
+                !$omp end parallel do
 
             case(2,3)
                 ! Sediment scaling:
@@ -326,6 +327,7 @@ contains
                 if (T_frz .ge. 0.0) then
                     write(io_unit_err,*) "Error: calc_c_bed:: T_frz must be less than zero."
                     write(io_unit_err,*) "ydyn.T_frz = ", T_frz
+                    stop 
                 end if
 
                 do j = 1, ny 
@@ -436,17 +438,13 @@ contains
 
         end select 
 
-        ! 1a. Ensure beta is relatively smooth 
-!         call regularize2D(beta,H_ice,dx)
-!         call limit_gradient(beta,H_ice,dx,log=.TRUE.)
-
         ! 2. Scale beta as it approaches grounding line 
         select case(beta_gl_scale) 
 
             case(0) 
                 ! Apply fractional parameter at grounding line, no scaling when beta_gl_f=1.0
 
-                call scale_beta_gl_fraction(beta,f_grnd,beta_gl_f)
+                call scale_beta_gl_fraction(beta,f_grnd,beta_gl_f,boundaries)
 
             case(1) 
                 ! Apply H_grnd scaling, reducing beta linearly towards zero at the grounding line 
@@ -557,7 +555,7 @@ contains
             ! Calculate staggered beta_acx/acy fields from beta. 
 
             ! First calculate beta with a standard staggering approach 
-            call stagger_beta_aa_mean(beta_acx,beta_acy,beta,f_ice,f_grnd)
+            call stagger_beta_aa_mean(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
 
             ! Modify beta at the grounding line 
             select case(beta_gl_stag) 
@@ -571,25 +569,25 @@ contains
                 case(1) 
                     ! Apply upstream beta_aa value at ac-node with at least one neighbor H_grnd_aa > 0
 
-                    call stagger_beta_aa_gl_upstream(beta_acx,beta_acy,beta,f_ice,f_grnd)
+                    call stagger_beta_aa_gl_upstream(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
 
                 case(2) 
                     ! Apply downstream beta_aa value (==0.0) at ac-node with at least one neighbor H_grnd_aa > 0
 
-                    call stagger_beta_aa_gl_downstream(beta_acx,beta_acy,beta,f_ice,f_grnd)
+                    call stagger_beta_aa_gl_downstream(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
 
                 case(3)
                     ! Apply subgrid scaling fraction at the grounding line when staggering 
 
                     call stagger_beta_aa_gl_subgrid(beta_acx,beta_acy,beta,f_ice,f_grnd, &
-                                                    f_grnd_acx,f_grnd_acy)
+                                                    f_grnd_acx,f_grnd_acy,boundaries)
 
                 case(4)
                     ! Apply subgrid scaling fraction at the grounding line when staggering,
                     ! with subgrid weighting calculated from linearly interpolated flux. 
 
                     call stagger_beta_aa_gl_subgrid_flux(beta_acx,beta_acy,beta, &
-                                            H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy)
+                                            H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,boundaries)
 
                 case DEFAULT 
 
@@ -601,37 +599,36 @@ contains
 
         end if 
 
+        ! Note: periodic directions need no treatment here, since the
+        ! staggering above uses BC-aware (wrapped) neighbor indices.
+
+        ! x-direction borders
         select case(trim(boundaries))
-
-            case("periodic")
-
-                beta_acx(1,:)    = beta_acx(nx-2,:) 
-                beta_acx(nx-1,:) = beta_acx(2,:) 
-                beta_acx(nx,:)   = beta_acx(3,:) 
-                beta_acx(:,1)    = beta_acx(:,ny-1)
-                beta_acx(:,ny)   = beta_acx(:,2) 
-
-                beta_acy(1,:)    = beta_acy(nx-1,:) 
-                beta_acy(nx,:)   = beta_acy(2,:) 
-                beta_acy(:,1)    = beta_acy(:,ny-2)
-                beta_acy(:,ny-1) = beta_acy(:,2) 
-                beta_acy(:,ny)   = beta_acy(:,3)
 
             case("infinite","MISMIP3D","mask")
 
                 beta_acx(1,:)    = beta_acx(2,:)
-                beta_acx(nx-1,:) = beta_acx(nx-2,:) 
-                beta_acx(nx,:)   = beta_acx(nx-2,:) 
-                beta_acx(:,1)    = beta_acx(:,2)
-                beta_acx(:,ny)   = beta_acx(:,ny-1) 
+                beta_acx(nx-1,:) = beta_acx(nx-2,:)
+                beta_acx(nx,:)   = beta_acx(nx-2,:)
 
-                beta_acy(1,:)    = beta_acy(2,:) 
-                beta_acy(nx,:)   = beta_acy(nx-1,:) 
+                beta_acy(1,:)    = beta_acy(2,:)
+                beta_acy(nx,:)   = beta_acy(nx-1,:)
+
+        end select
+
+        ! y-direction borders (MISMIP3D is periodic in y)
+        select case(trim(boundaries))
+
+            case("infinite","mask")
+
+                beta_acx(:,1)    = beta_acx(:,2)
+                beta_acx(:,ny)   = beta_acx(:,ny-1)
+
                 beta_acy(:,1)    = beta_acy(:,2)
-                beta_acy(:,ny-1) = beta_acy(:,ny-2) 
+                beta_acy(:,ny-1) = beta_acy(:,ny-2)
                 beta_acy(:,ny)   = beta_acy(:,ny-2)
 
-        end select 
+        end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
         where(beta_acx .gt. 0.0 .and. beta_acx .lt. beta_min) beta_acx = beta_min 
@@ -1119,22 +1116,27 @@ contains
     !
     ! ================================================================================
 
-    subroutine scale_beta_gl_fraction(beta,f_grnd,f_gl)
+    subroutine scale_beta_gl_fraction(beta,f_grnd,f_gl,boundaries)
         ! Apply scalar between 0 and 1 to modify basal friction coefficient
         ! at the grounding line.
-        
+
         implicit none
-        
+
         real(wp), intent(INOUT) :: beta(:,:)     ! aa-nodes
         real(wp), intent(IN)    :: f_grnd(:,:)   ! aa-nodes
-        real(wp), intent(IN)    :: f_gl          ! Fraction parameter      
-        
+        real(wp), intent(IN)    :: f_gl          ! Fraction parameter
+        character(len=*), intent(IN) :: boundaries
+
         ! Local variables
         integer    :: i, j, nx, ny
-        integer    :: im1, ip1, jm1, jp1 
+        integer    :: im1, ip1, jm1, jp1
+        integer    :: BC
 
         nx = size(f_grnd,1)
-        ny = size(f_grnd,2) 
+        ny = size(f_grnd,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! Consistency check 
         if (f_gl .lt. 0.0 .or. f_gl .gt. 1.0) then 
@@ -1147,13 +1149,10 @@ contains
         do j = 1, ny
         do i = 1, nx
 
-            im1 = max(1, i-1)
-            ip1 = min(nx,i+1)
-            
-            jm1 = max(1, j-1)
-            jp1 = min(ny,j+1)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Check if point is at the grounding line 
+            ! Check if point is at the grounding line
             if (f_grnd(i,j) .gt. 0.0 .and. &
                 (f_grnd(im1,j) .eq. 0.0 .or. f_grnd(ip1,j) .eq. 0.0 .or. &
                  f_grnd(i,jm1) .eq. 0.0 .or. f_grnd(i,jp1) .eq. 0.0) ) then 
@@ -1272,7 +1271,7 @@ contains
     !
     ! ================================================================================
 
-    subroutine stagger_beta_aa_mean(beta_acx,beta_acy,beta,f_ice,f_grnd)
+    subroutine stagger_beta_aa_mean(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
         ! Stagger beta from aa-nodes to ac-nodes
         ! using simple staggering method, independent
         ! of any information about flotation, etc. 
@@ -1284,23 +1283,25 @@ contains
         real(wp), intent(IN)    :: beta(:,:)       ! aa-nodes
         real(wp), intent(IN)    :: f_ice(:,:)      ! aa-nodes
         real(wp), intent(IN)    :: f_grnd(:,:)     ! aa-nodes
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny
         integer :: im1, ip1, jm1, jp1 
+        integer :: BC
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! === Stagger to ac-nodes === 
         do j = 1, ny 
         do i = 1, nx
 
-            ! Get neighbor indices 
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1) 
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
             if (f_grnd(i,j) .eq. 0.0 .and. f_grnd(ip1,j) .eq. 0.0) then 
                 ! Fully floating node 
@@ -1347,7 +1348,7 @@ contains
         
     end subroutine stagger_beta_aa_mean
     
-    subroutine stagger_beta_aa_gl_upstream(beta_acx,beta_acy,beta,f_ice,f_grnd)
+    subroutine stagger_beta_aa_gl_upstream(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
         ! Modify basal friction coefficient by grounded/floating binary mask
         ! (via the grounded fraction)
         ! Analagous to method "NSEP" in Seroussi et al (2014): 
@@ -1361,25 +1362,27 @@ contains
         real(wp), intent(IN)    :: beta(:,:)        ! aa-nodes
         real(wp), intent(IN)    :: f_ice(:,:)       ! aa-nodes
         real(wp), intent(IN)    :: f_grnd(:,:)      ! aa-nodes    
+        character(len=*), intent(IN) :: boundaries
         
         ! Local variables
         integer    :: i, j, nx, ny
         integer    :: im1, ip1, jm1, jp1  
+        integer  :: BC
         logical    :: is_float 
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! === Stagger to ac-nodes === 
 
         do j = 1, ny 
         do i = 1, nx
 
-            ! Get neighbor indices 
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1) 
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
             ! grounding line, acx-nodes
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
@@ -1412,7 +1415,7 @@ contains
         
     end subroutine stagger_beta_aa_gl_upstream
     
-    subroutine stagger_beta_aa_gl_downstream(beta_acx,beta_acy,beta,f_ice,f_grnd)
+    subroutine stagger_beta_aa_gl_downstream(beta_acx,beta_acy,beta,f_ice,f_grnd,boundaries)
         ! Modify basal friction coefficient by grounded/floating binary mask
         ! (via the grounded fraction)
         ! Analagous to method "NSEP" in Seroussi et al (2014): 
@@ -1426,14 +1429,19 @@ contains
         real(wp), intent(IN)    :: beta(:,:)        ! aa-nodes
         real(wp), intent(IN)    :: f_ice(:,:)       ! aa-nodes
         real(wp), intent(IN)    :: f_grnd(:,:)      ! aa-nodes    
+        character(len=*), intent(IN) :: boundaries
         
         ! Local variables
         integer :: i, j, nx, ny
         integer :: im1, ip1, jm1, jp1 
+        integer  :: BC
         logical :: is_float 
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! === Stagger to ac-nodes === 
 
@@ -1441,11 +1449,8 @@ contains
         do j = 1, ny 
         do i = 1, nx
 
-            ! Get neighbor indices 
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1) 
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
             ! grounding line, acx-nodes
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
@@ -1478,7 +1483,7 @@ contains
         
     end subroutine stagger_beta_aa_gl_downstream
     
-    subroutine stagger_beta_aa_gl_subgrid(beta_acx,beta_acy,beta,f_ice,f_grnd,f_grnd_acx,f_grnd_acy)
+    subroutine stagger_beta_aa_gl_subgrid(beta_acx,beta_acy,beta,f_ice,f_grnd,f_grnd_acx,f_grnd_acy,boundaries)
         ! Modify basal friction coefficient by grounded/floating binary mask
         ! (via the grounded fraction)
         ! Analagous to method "NSEP" in Seroussi et al (2014): 
@@ -1494,24 +1499,26 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)          ! aa-nodes     
         real(wp), intent(IN)    :: f_grnd_acx(:,:)      ! ac-nodes     
         real(wp), intent(IN)    :: f_grnd_acy(:,:)      ! ac-nodes     
+        character(len=*), intent(IN) :: boundaries
         
         ! Local variables
         integer  :: i, j, nx, ny 
         integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
         real(wp) :: wt 
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         ! Apply simple staggering to ac-nodes
         do j = 1, ny 
         do i = 1, nx
 
-            ! Get neighbor indices 
-            im1 = max(i-1,1)
-            ip1 = min(i+1,nx)
-            jm1 = max(j-1,1) 
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
             ! grounding line, acx-nodes
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
@@ -1556,7 +1563,7 @@ contains
         
     end subroutine stagger_beta_aa_gl_subgrid
     
-    subroutine stagger_beta_aa_gl_subgrid_flux(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy)
+    subroutine stagger_beta_aa_gl_subgrid_flux(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,boundaries)
         ! Modify basal friction coefficient by grounded fraction 
         ! weighted by linear-interpolated flux. 
 
@@ -1572,26 +1579,28 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)        ! aa-nodes     
         real(wp), intent(IN)    :: f_grnd_acx(:,:)    ! ac-nodes     
         real(wp), intent(IN)    :: f_grnd_acy(:,:)    ! ac-nodes     
+        character(len=*), intent(IN) :: boundaries
         
         ! Local variables
         integer    :: i, j, nx, ny 
         integer    :: im1, ip1, jm1, jp1 
+        integer  :: BC
         real(wp)   :: ux_aa_a, ux_aa_b 
         real(wp)   :: uy_aa_a, uy_aa_b
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         ! Apply simple staggering to ac-nodes
 
         do j = 1, ny 
         do i = 1, nx
 
-            im1 = max(1, i-1)
-            ip1 = min(nx,i+1)
-            
-            jm1 = max(1, j-1)
-            jp1 = min(ny,j+1)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             ! acx-nodes
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
@@ -1659,6 +1668,8 @@ contains
         ! in cell between aa-nodes a and b, and u_tot is the sum of 
         ! all segments. Then:
         ! beta_ac = beta_a * (u_g/u_tot)
+        ! The velocity of each segment is u = q/H, with flux q and thickness H
+        ! interpolated linearly between the aa-nodes.
 
         ! Following "B2" approach proposed by Gladstone et al. (2010), 
         ! Eqs. 29, 30 & 31. 
@@ -1695,8 +1706,8 @@ contains
 
         do i = 1, nseg 
 
-            ! Get fraction along cell 
-            lambda = real(i-1,wp)/real(nseg-1,wp)
+            ! Get fraction along cell (segment midpoint)
+            lambda = (real(i,wp)-0.5_wp)/real(nseg,wp)
 
             ! Get thickness and flux for current segment 
             H_now = H_a*lambda + H_b*(1.0_wp-lambda) 
@@ -1709,14 +1720,15 @@ contains
                 u_now = 0.0_wp 
             end if 
 
-            ! Add to total 
-            uu_tot = uu_tot + q_now 
+            ! Add to total (velocity magnitude, so that the weight
+            ! is independent of the flow direction)
+            uu_tot = uu_tot + abs(u_now) 
 
             ! If in grounded region, add to grounded total
             ! (grounded node 'a' is at lambda=1, so the grounded fraction
             !  f_grnd_ac of the cell adjoins the lambda=1 end)
             if (lambda .gt. (1.0_wp - f_grnd_ac)) then
-                uu_grnd = uu_grnd + q_now 
+                uu_grnd = uu_grnd + abs(u_now) 
             end if 
 
         end do 

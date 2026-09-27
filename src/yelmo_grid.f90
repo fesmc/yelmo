@@ -147,15 +147,17 @@ contains
             ! NORTH DOMAINS =======================
             ! ESPG-3413 polar stereographic (lambda=-45, phi=70). The Eurasia
             ! and Greenland sub-domains use the same projection for consistency.
+            ! The NH domain spans x=[-4900,3900] km, y=[-5400,3400] km, as in
+            ! the ice_data/North grid files.
 
             case("NH-40KM")
-                x0=-4900.0_dp; y0=5400.0_dp; dx=40.0_dp; dy=40.0_dp; nx=221; ny=221
+                x0=-4900.0_dp; y0=-5400.0_dp; dx=40.0_dp; dy=40.0_dp; nx=221; ny=221
             case("NH-20KM")
-                x0=-4900.0_dp; y0=5400.0_dp; dx=20.0_dp; dy=20.0_dp; nx=441; ny=441
+                x0=-4900.0_dp; y0=-5400.0_dp; dx=20.0_dp; dy=20.0_dp; nx=441; ny=441
             case("NH-10KM")
-                x0=-4900.0_dp; y0=5400.0_dp; dx=10.0_dp; dy=10.0_dp; nx=881; ny=881
+                x0=-4900.0_dp; y0=-5400.0_dp; dx=10.0_dp; dy=10.0_dp; nx=881; ny=881
             case("NH-5KM")
-                x0=-4900.0_dp; y0=5400.0_dp; dx=5.0_dp;  dy=5.0_dp;  nx=1761; ny=1761
+                x0=-4900.0_dp; y0=-5400.0_dp; dx=5.0_dp;  dy=5.0_dp;  nx=1761; ny=1761
 
             ! EURASIA DOMAINS =======================
 

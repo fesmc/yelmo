@@ -3,7 +3,7 @@ module yelmo_timesteps
     use ncio 
 
     use yelmo_defs, only : sp, dp, wp, io_unit_err, ytime_class, MV, TOL_UNDERFLOW   
-    use yelmo_tools, only : get_neighbor_indices
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     
     use topography, only : calc_ice_fraction, calc_H_grnd
 
@@ -27,7 +27,6 @@ module yelmo_timesteps
     public :: yelmo_timestep_write
 
     public :: calc_adv2D_timestep1
-    public :: calc_adv3D_timestep1 
 
     public :: check_checkerboard 
 
@@ -182,6 +181,7 @@ contains
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, jm1, ip1, jp1 
+        integer :: BC
 
         real(wp), allocatable :: f_ice_pred(:,:) 
         real(wp), allocatable :: f_ice_corr(:,:) 
@@ -192,6 +192,9 @@ contains
         
         nx = size(mask,1)
         ny = size(mask,2) 
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         allocate(f_ice_pred(nx,ny))
         allocate(f_ice_corr(nx,ny))
@@ -213,10 +216,8 @@ if (.TRUE.) then
         do j = 1, ny 
         do i = 1, nx
 
-            im1 = max(i-1,1)
-            jm1 = max(j-1,1)
-            ip1 = min(i+1,nx)
-            jp1 = min(j+1,ny)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
             ! Define places that should not be checked 
 
@@ -234,8 +235,9 @@ if (.TRUE.) then
             else
                 ! Ice-covered points, further checks below
 
-                 if (count(f_ice_pred(im1:ip1,jm1:jp1).lt.1.0) .gt. 0 .or. &
-                     count(f_ice_corr(im1:ip1,jm1:jp1).lt.1.0) .gt. 0) then 
+                 ! (vector subscripts, so that the 3x3 neighborhood also wraps)
+                 if (count(f_ice_pred([im1,i,ip1],[jm1,j,jp1]).lt.1.0) .gt. 0 .or. &
+                     count(f_ice_corr([im1,i,ip1],[jm1,j,jp1]).lt.1.0) .gt. 0) then 
                     ! Point is at (or near) ice-margin point 
 
                     mask(i,j) = .FALSE. 
@@ -413,7 +415,7 @@ end if
 
     end subroutine calc_pc_tau_heun
 
-    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller)
+    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,boundaries)
         ! Calculate the timestep following algorithm for 
         ! a general predictor-corrector (pc) method.
         ! Implemented followig Cheng et al (2017, GMD)
@@ -431,6 +433,7 @@ end if
         real(wp), intent(IN)  :: dx                   ! [m]
         integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
+        character(len=*), intent(IN) :: boundaries      ! Boundary conditions of the advection (ytopo)
 
         ! Local variables
         real(wp) :: dt_n, dt_nm1, dt_nm2          ! [yr]   Timesteps (n:n-2)
@@ -543,7 +546,7 @@ end if
         ! edge for explicit advection) proved unstable at the nonlinear SIA moving
         ! margin (grid-axis 2dx oscillations breaking dome symmetry), so use 0.5
         ! as a safety factor without being as restrictive as the diagnostic cfl_max.
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp) )
+        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp,boundaries=boundaries) )
         dtmax_now = min(dtmax,dt_adv) 
 
         ! Finally, ensure timestep is within prescribed limits
@@ -680,9 +683,8 @@ end if
 
     end function calc_pi_rho_PID1
 
-    subroutine set_adaptive_timestep(dt,dt_adv,dt_diff,dt_adv3D, &
-                        ux,uy,uz,ux_bar,uy_bar,H_ice,dHicedt,zeta_ac, &
-                        dx,dtmin,dtmax,cfl_max,cfl_diff_max)
+    subroutine set_adaptive_timestep(dt,dt_adv,ux_bar,uy_bar,dHicedt, &
+                        dx,dtmin,dtmax,cfl_max,boundaries)
         ! Determine value of adaptive timestep to be consistent with 
         ! min/max timestep range and maximum allowed step of model 
         ! to line up with control time steps
@@ -691,22 +693,15 @@ end if
 
         real(wp), intent(OUT) :: dt             ! [a] Current timestep 
         real(wp), intent(OUT) :: dt_adv(:,:)     ! [a] Diagnosed maximum advective timestep (vertical ave)
-        real(wp), intent(OUT) :: dt_diff(:,:)    ! [a] Diagnosed maximum diffusive timestep (vertical ave) 
-        real(wp), intent(OUT) :: dt_adv3D(:,:,:) ! [a] Diagnosed maximum advective timestep (3D) 
-        real(wp), intent(IN)  :: ux(:,:,:)       ! [m a-1]
-        real(wp), intent(IN)  :: uy(:,:,:)       ! [m a-1]
-        real(wp), intent(IN)  :: uz(:,:,:)       ! [m a-1]
         real(wp), intent(IN)  :: ux_bar(:,:)     ! [m a-1]
         real(wp), intent(IN)  :: uy_bar(:,:)     ! [m a-1]
-        real(wp), intent(IN)  :: H_ice(:,:)      ! [m]
         real(wp), intent(IN)  :: dHicedt(:,:)    ! [m a-1]
-        real(wp), intent(IN)  :: zeta_ac(:)      ! [--] 
         real(wp), intent(IN)  :: dx, dtmin, dtmax ! [a]
         real(wp), intent(IN)  :: cfl_max
-        real(wp), intent(IN)  :: cfl_diff_max
+        character(len=*), intent(IN) :: boundaries  ! Boundary conditions of the advection (ytopo)
         
         ! Local variables 
-        real(wp) :: dt_adv_min, dt_diff_min 
+        real(wp) :: dt_adv_min 
         real(wp) :: x 
         logical    :: is_unstable
         real(wp), parameter :: dtmax_cfl   = 20.0_wp 
@@ -714,31 +709,18 @@ end if
         real(wp), parameter :: rate_lim    = 1.0_wp   ! Reduction in timestep for instability 
         real(wp), parameter :: rate_scalar = 0.05_wp  ! Reduction in timestep for instability 
 
-        ! Timestep limits determined from CFL conditions for general advective
-        ! velocity, as well as diagnosed diffusive magnitude
-        ! (adapted from Bueler et al., 2007)
+        ! Timestep limit determined from CFL condition for general advective
+        ! velocity (adapted from Bueler et al., 2007)
 
-        dt_adv   = calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max)
-        !dt_diff  = calc_diff2D_timestep(D2D,dx,dx,cfl_diff_max) 
-        dt_diff = 1000.0     ! Prescribe something just to avoid compiler warnings 
-        ! ajr: diffusivity D2D is not available right now (SIA solver does not calculate it)
-        ! So, diffusivity needs to be diagnosed, to be able to estimate dt_diff properly. 
+        dt_adv   = calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max,boundaries)
 
-!         dt_adv3D = calc_adv3D_timestep1(ux,uy,uz,dx,dx,H_ice,zeta_ac,cfl_max)
-!         dt_adv3D = calc_adv3D_timestep(ux,uy,uz,H_ice,zeta_ac,dx,dx,cfl_max)
-        dt_adv3D = 1000.0    ! Prescribe something just to avoid compiler warnings 
-
-        ! Get minimum from adv and diffusive timesteps
+        ! Get minimum advective timestep
         dt_adv_min  = minval(dt_adv)
-        dt_diff_min = minval(dt_diff)
         
-        ! Note: It's not clear whether dt_diff is working well, so for now
-        ! it is not applied as a limit. Furthermore, although dt_adv should
-        ! be consistent with the CFL limit, it does not guarantee that a 
-        ! fully coupled thermodynamic model will remain stable. 
+        ! Note: although dt_adv should be consistent with the CFL limit,
+        ! it does not guarantee that a fully coupled thermodynamic model
+        ! will remain stable. 
 
-        ! Choose minimum timestep between advective and diffusive limits 
-        !dt = min(dt_adv_min,dt_diff_min)
         dt = dt_adv_min 
 
         ! Apply additional reduction in timestep as it gets smaller
@@ -752,7 +734,7 @@ end if
         ! Check if additional timestep reduction is necessary,
         ! due to checkerboard patterning related to mass conservation.
         ! Reduce if necessary 
-        call check_checkerboard(is_unstable,dHicedt,rate_lim)
+        call check_checkerboard(is_unstable,dHicedt,rate_lim,boundaries)
         if (is_unstable) dt = rate_scalar*dt
 
         ! Finally, ensure timestep is within prescribed limits
@@ -839,28 +821,7 @@ end if
 
     end subroutine set_to_nearest_timestep
 
-
-
-    elemental function calc_diff2D_timestep(D,dx,dy,cfl_diff_max) result(dt)
-        ! Calculate maximum diffusion time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! Equation obtained from Bueler et al. (2007), Eq. 25:
-        ! dt/2 * (1/dx^2 + 1/dy^2)*max(D) <= cfl_diff_max = 0.12 
-        ! dt = cfl_diff_max * 2.0 / ((1/dx^2+1/dy^2)*max(D))
-
-        implicit none 
-        
-        real(wp), intent(IN) :: D, dx, dy
-        real(wp), intent(IN) :: cfl_diff_max       ! Maximum Courant number, default cfl_diff_max=0.12
-        real(wp) :: dt 
-
-        dt = (2.0*cfl_diff_max) / ((1.0/(dx**2)+1.0/(dy**2))*max(abs(D),1e-5))
-        
-        return 
-
-    end function calc_diff2D_timestep
-    
-    function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max) result(dt)
+    function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max,boundaries) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
         ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
@@ -877,10 +838,15 @@ end if
         real(wp), intent(IN) :: uy(:,:)           ! acy-nodes 
         real(wp), intent(IN) :: dx, dy
         real(wp), intent(IN) :: cfl_max           ! Maximum Courant number, default cfl_max=1.0
+        character(len=*), intent(IN) :: boundaries
         real(wp) :: dt(size(ux,1),size(ux,2))     ! aa-nodes 
 
         ! Local variables  
         integer :: i, j, nx, ny 
+        integer :: i1, i2, j1, j2
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
         real(wp) :: ux_now, uy_now 
 
         real(wp), parameter :: eps = 1e-1         ! [m/a] Small factor to avoid divide by zero 
@@ -888,14 +854,35 @@ end if
         nx = size(ux,1)
         ny = size(ux,2)
 
-        do j = 2, ny-1 
-        do i = 2, nx-1 
+        ! Include all points in periodic directions (true wrap), otherwise
+        ! only the interior (the border values are copied from it below)
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
-!             ux_now = abs( 0.5*(ux(i-1,j)+ux(i,j)) )
-!             uy_now = abs( 0.5*(uy(i,j-1)+uy(i,j)) )
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
 
-            ux_now = max(abs(ux(i-1,j)),abs(ux(i,j)))
-            uy_now = max(abs(uy(i,j-1)),abs(uy(i,j)))
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
+        do j = j1, j2 
+        do i = i1, i2 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+!             ux_now = abs( 0.5*(ux(im1,j)+ux(i,j)) )
+!             uy_now = abs( 0.5*(uy(i,jm1)+uy(i,j)) )
+
+            ux_now = max(abs(ux(im1,j)),abs(ux(i,j)))
+            uy_now = max(abs(uy(i,jm1)),abs(uy(i,j)))
             
             if (abs(ux_now) .lt. TOL_UNDERFLOW) ux_now = 0.0_wp 
             if (abs(uy_now) .lt. TOL_UNDERFLOW) uy_now = 0.0_wp 
@@ -908,86 +895,19 @@ end if
         end do 
         end do 
 
-        dt(1,:)  = dt(2,:)
-        dt(nx,:) = dt(nx-1,:) 
-        dt(:,1)  = dt(:,2)
-        dt(:,ny) = dt(:,ny-1)
+        if (.not. per_x) then
+            dt(1,:)  = dt(2,:)
+            dt(nx,:) = dt(nx-1,:) 
+        end if
+        if (.not. per_y) then
+            dt(:,1)  = dt(:,2)
+            dt(:,ny) = dt(:,ny-1)
+        end if
 
         return 
 
     end function calc_adv2D_timestep1
 
-    function calc_adv3D_timestep1(ux,uy,uz,dx,dy,H_ice,zeta_ac,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux(:,:,:)        ! acx-nodes
-        real(wp), intent(IN) :: uy(:,:,:)        ! acy-nodes
-        real(wp), intent(IN) :: uz(:,:,:)        ! acz-nodes  
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: H_ice(:,:)       ! aa-nodes 
-        real(wp), intent(IN) :: zeta_ac(:)       ! ac-nodes 
-        real(wp), intent(IN) :: cfl_max          ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt(size(ux,1),size(ux,2),size(ux,3))    ! aa-nodes 
-
-        ! Local variables  
-        integer :: i, j, k, nx, ny, nz_aa  
-        real(wp) :: ux_now, uy_now 
-        real(wp) :: dz 
-
-        nx    = size(ux,1)
-        ny    = size(ux,2)
-        nz_aa = size(zeta_ac)+1  
-
-        ! Set a high timestep to start 
-        dt = cfl_max * 1.0 / (1e-3)
-
-        do j = 2, ny-1 
-        do i = 2, nx-1 
-
-            if (H_ice(i,j) .gt. 0.0) then 
-
-!             ux_now = abs( 0.5*(ux(i-1,j)+ux(i,j)) )
-!             uy_now = abs( 0.5*(uy(i,j-1)+uy(i,j)) )
-
-            !ux_now = max(abs(ux(i-1,j)),abs(ux(i,j)))
-            !uy_now = max(abs(uy(i,j-1)),abs(uy(i,j)))
-            
-            !dt(i,j) = cfl_max * 1.0 / max(ux_now/dx + uy_now/dy,1e-3)
-
-!             dt(i,j) = cfl_max * 1.0 / max(abs(ux(i-1,j))/dx + abs(ux(i,j))/dx &
-!                                         + abs(uy(i,j-1))/dy + abs(uy(i,j))/dy,1e-3)
-            
-                do k = 2, nz_aa-1 
-
-                    dz = H_ice(i,j) * (zeta_ac(k)-zeta_ac(k-1))
-
-                    dt(i,j,k) = cfl_max * 1.0 / max(abs(ux(i-1,j,k))/(2.0*dx) + abs(ux(i,j,k))/(2.0*dx) &
-                                            + abs(uy(i,j-1,k))/(2.0*dy) + abs(uy(i,j,k))/(2.0*dy), &
-                                            + abs(uz(i,j,k-1))/(2.0*dz) + abs(uz(i,j,k))/(2.0*dz), 1e-3)
-    !                 dt(i,j,k) = cfl_max * 1.0 / max(abs(ux(i-1,j,k))/(2.0*dx) + abs(ux(i,j,k))/(2.0*dx) &
-    !                                         + abs(uy(i,j-1,k))/(2.0*dy) + abs(uy(i,j,k))/(2.0*dy), 1e-3)
-                
-                end do 
-
-            end if 
-
-        end do 
-        end do 
-
-        return 
-
-    end function calc_adv3D_timestep1
-    
     elemental function calc_adv2D_timestep(ux,uy,dx,dy,cfl_max) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
@@ -1069,165 +989,58 @@ end if
 
     end subroutine calc_adv2D_velocity
     
-    function calc_adv3D_timestep(ux,uy,uz,H_ice,zeta_ac,dx,dy,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-        ! Note: this is used by Bueler et al. (2007), but it seems 
-        ! to impose a very, very small timestep, given the vertical
-        ! velocity at the surface (ie, smb) essentially ends up being the
-        ! limiting condition. 
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux(:,:,:), uy(:,:,:), uz(:,:,:)
-        real(wp), intent(IN) :: H_ice(:,:) 
-        real(wp), intent(IN) :: zeta_ac(:) 
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: cfl_max             ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt 
-
-        ! Local variables 
-        integer    :: i, j, k, nx, ny, nz_aa 
-        real(wp) :: dt_check, dt_max 
-        real(wp) :: dz, ux_aa, uy_aa, uz_aa  
-
-        real(wp), parameter :: tol = 1e-5 
-
-        nx    = size(ux,1)
-        ny    = size(ux,2)
-        nz_aa = size(ux,3)
-
-        ! Start with a really high time step 
-        dt_max = cfl_max * 1.0 / tol 
-        dt     = dt_max
-
-!         write(*,*) "cfl_max = ", cfl_max 
-!         write(*,*) "dt_max  = ", dt_max 
-
-!         write(*,*) "calc_adv3D_timestep:: Error: This routine is not working yet."
-        
-!         stop 
-
-        ! Loop over horizontal grid points 
-        do j = 2, ny 
-        do i = 2, nx 
-
-            if (H_ice(i,j) .gt. 0.0) then 
-
-                ! Loop over the vertical layers
-                do k = 1, nz_aa-1 
-                    ux_aa = 0.5*(ux(i-1,j,k)+ux(i,j,k))
-                    uy_aa = 0.5*(uy(i,j-1,k)+uy(i,j,k))
-
-                    if (k .le. 1 .or. k .ge. nz_aa-1) then 
-                        ! No interpolation of vertical velocity at the base or surface
-                        uz_aa = uz(i,j,k) 
-                    else
-                        ! Interpolation to vertical aa-nodes
-                        uz_aa = 0.5*(uz(i,j,k-1)+uz(i,j,k))
-                    end if 
-
-                    if (k .le. 1) then 
-                        dz = 1e-5 
-                    else 
-                        dz = max(H_ice(i,j)*(zeta_ac(k)-zeta_ac(k-1)),1e-5)
-                    end if 
-                    
-                    dt_check = cfl_max * 1.0 / max(abs(ux_aa)/dx + abs(uy_aa)/dy + abs(uz_aa)/dz,tol)
-
-!                     write(*,*) i, j, k, dt_check, dt_max, ux_aa, ux_aa, uz_aa, &
-!                                     abs(ux_aa)/dx + abs(ux_aa)/dy + abs(uz_aa)/dz
-
-                    dt_max = min(dt_check,dt_max)
-                end do 
-
-            end if 
-
-        end do 
-        end do 
-
-!         stop 
-
-        return 
-
-    end function calc_adv3D_timestep
-    
-    subroutine calc_checkerboard(var_check,var,mask)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: var_check(:,:) 
-        real(wp), intent(IN)  :: var(:,:) 
-        logical,    intent(IN)  :: mask(:,:)  
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-
-        nx = size(var,1)
-        ny = size(var,2) 
-
-        ! First assume everything is stable 
-        var_check = 0.0_wp 
-
-        do j = 2, ny-1
-        do i = 2, nx-1 
-            
-            if (mask(i,j)) then 
-                ! For points of interest, check for checkerboard pattern in var 
-
-                if ( (var(i,j)*var(i-1,j) .lt. 0.0 .and. & 
-                      var(i,j)*var(i+1,j) .lt. 0.0) .or. & 
-                     (var(i,j)*var(i,j-1) .lt. 0.0 .and. & 
-                      var(i,j)*var(i,j+1) .lt. 0.0) ) then 
-                    ! Point has checkerboard pattern in at least one direction
-
-                    var_check = var 
-
-                end if 
-
-            end if 
-
-        end do 
-        end do  
-
-        return 
-
-    end subroutine calc_checkerboard
-
-    subroutine check_checkerboard(is_unstable,var,lim)
+    subroutine check_checkerboard(is_unstable,var,lim,boundaries)
 
         implicit none 
 
         logical,    intent(OUT) :: is_unstable
         real(wp), intent(IN)  :: var(:,:) 
         real(wp), intent(IN)  :: lim 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        integer :: i1, i2, j1, j2
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
 
         nx = size(var,1)
         ny = size(var,2) 
 
+        ! Check all points in periodic directions (true wrap), otherwise only the interior
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
         ! First assume everything is stable 
         is_unstable = .FALSE. 
 
-        do j = 2, ny-1
-        do i = 2, nx-1 
+        do j = j1, j2
+        do i = i1, i2 
  
             if (abs(var(i,j)) .ge. lim) then
                 ! Check for checkerboard pattern with var > lim
 
-                if ( (var(i,j)*var(i-1,j) .lt. 0.0 .and. & 
-                      var(i,j)*var(i+1,j) .lt. 0.0) .or. & 
-                     (var(i,j)*var(i,j-1) .lt. 0.0 .and. & 
-                      var(i,j)*var(i,j+1) .lt. 0.0) ) then 
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                if ( (var(i,j)*var(im1,j) .lt. 0.0 .and. & 
+                      var(i,j)*var(ip1,j) .lt. 0.0) .or. & 
+                     (var(i,j)*var(i,jm1) .lt. 0.0 .and. & 
+                      var(i,j)*var(i,jp1) .lt. 0.0) ) then 
                     ! Point has checkerboard pattern in at least one direction
 
                     is_unstable = .TRUE. 
@@ -1340,14 +1153,14 @@ end if
 
     end subroutine yelmo_timestep_write
 
-    subroutine ytime_init(ytime,nx,ny,nz,dt_min,pc_eps)
+    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps)
 
         type(ytime_class), intent(INOUT) :: ytime
-        integer,    intent(IN) :: nx, ny, nz 
-        real(wp), intent(IN) :: dt_min, pc_eps 
+        integer,    intent(IN) :: nx, ny
+        real(wp), intent(IN) :: dt_min, pc_eps
 
         ! Allocate ytime object
-        call ytime_alloc(ytime,nx,ny,nz)
+        call ytime_alloc(ytime,nx,ny)
 
         ytime%log_timestep_file = "timesteps.nc" 
         
@@ -1358,8 +1171,6 @@ end if
 
         ! Initialize arrays to zero 
         ytime%dt_adv        = 0.0 
-        ytime%dt_diff       = 0.0 
-        ytime%dt_adv3D      = 0.0 
 
         ytime%pc_tau        = 0.0 
         ytime%pc_tau_masked = 0.0 
@@ -1390,20 +1201,18 @@ end if
 
     end subroutine ytime_init
     
-    subroutine ytime_alloc(ytime,nx,ny,nz)
+    subroutine ytime_alloc(ytime,nx,ny)
 
-        implicit none 
+        implicit none
 
         type(ytime_class), intent(INOUT) :: ytime
-        integer :: nx, ny, nz 
+        integer :: nx, ny
 
         ! Ensure object is deallocated first
-        call ytime_dealloc(ytime) 
+        call ytime_dealloc(ytime)
 
-        ! Allocate timestep arrays 
+        ! Allocate timestep arrays
         allocate(ytime%dt_adv(nx,ny))
-        allocate(ytime%dt_diff(nx,ny))
-        allocate(ytime%dt_adv3D(nx,ny,nz))
         
         ! Allocate truncation error array 
         allocate(ytime%pc_tau(nx,ny))
@@ -1424,8 +1233,6 @@ end if
         type(ytime_class), intent(INOUT) :: ytime
         
         if (allocated(ytime%dt_adv))        deallocate(ytime%dt_adv)
-        if (allocated(ytime%dt_diff))       deallocate(ytime%dt_diff)
-        if (allocated(ytime%dt_adv3D))      deallocate(ytime%dt_adv3D)
         
         if (allocated(ytime%pc_tau))        deallocate(ytime%pc_tau)
         if (allocated(ytime%pc_tau_masked)) deallocate(ytime%pc_tau_masked)

@@ -8,7 +8,9 @@ program yelmo_trough
     use ncio 
     use yelmo 
     use deformation 
+    use lsf_module, only : LSFinit
     use timestepping
+    use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
 
@@ -34,7 +36,7 @@ program yelmo_trough
     real(wp), allocatable :: ux_ref(:,:) 
     real(wp), allocatable :: tau_c_ref(:,:)
 
-    real(wp) :: xmax, ymin, ymax 
+    real(wp) :: xmax, ymin, ymax, y0 
     integer  :: i, j, nx, ny 
     
     real(8)  :: cpu_start_time, cpu_end_time, cpu_dtime  
@@ -53,6 +55,7 @@ program yelmo_trough
     ! Define input and output locations 
     file2D     = trim(outfldr)//"yelmo2D.nc"
     file1D     = trim(outfldr)//"yelmo1D.nc"
+    file_restart = trim(outfldr)//"yelmo_restart.nc"
     
     ! Define the domain, grid and experiment from parameter file
     call nml_read(path_par,"ctrl","domain",       domain)        ! TROUGH-F17, MISMIP+
@@ -73,12 +76,15 @@ program yelmo_trough
     call nml_read(path_par,"ctrl","wc",           wc)            ! [km] Trough parameter
     call nml_read(path_par,"ctrl","x_cf",         x_cf)          ! [km] Trough parameter
     
-    ! Schoof domain parameters
-    call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)      ! [m/m] Constant slope
-    call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)         ! [m]   Constant ice thickness
-    call nml_read(path_par,"ctrl_schoof","W",    s06_W)          ! [m]   Half-width weak till
-    call nml_read(path_par,"ctrl_schoof","m",    s06_m)          ! []    Exponent
-    
+    ! Schoof domain parameters (only needed by the slab domains)
+    select case(trim(domain))
+        case("SLAB-S06","RAYMOND")
+            call nml_read(path_par,"ctrl_schoof","alpha",s06_alpha)  ! [m/m] Constant slope
+            call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)     ! [m]   Constant ice thickness
+            call nml_read(path_par,"ctrl_schoof","W",    s06_W)      ! [m]   Half-width weak till
+            call nml_read(path_par,"ctrl_schoof","m",    s06_m)      ! []    Exponent
+    end select
+
     ! Simulation parameters 
     call nml_read(path_par,"ctrl","Tsrf_const",   Tsrf_const)    ! [degC]  Surface temperature
     call nml_read(path_par,"ctrl","smb_const",    smb_const)     ! [m/yr]  Surface mass balance
@@ -97,9 +103,39 @@ program yelmo_trough
     xmax =  lx 
     ymax =  ly/2.0_wp
     ymin = -ly/2.0_wp
+
+    select case(trim(domain))
+
+        case("TROUGH-F17","MISMIP+")
+            ! Channel periodic in y (true wrap, period ny*dx, no halo): centred
+            ! grid y_j = (j-jc)*dx with jc = ny/2+1, so that y=0 is a row and the
+            ! period is exactly ly. For even ny the wall y=-ly/2 is a row, for
+            ! odd ny the wall lies midway between the first and last rows.
+
+            nx = int(xmax/dx)+1
+            ny = periodic_npts(ly,dx,"ly")
+            y0 = -real(ny/2,wp)*dx
+
+        case("SLAB-S06","RAYMOND")
+            ! Slab periodic in x and y (experiment "SLAB"): x_i = (i-1)*dx with
+            ! period exactly lx (no duplicated end column), and the same centred
+            ! y-grid as the channel above, with period exactly ly.
+
+            nx = periodic_npts(lx,dx,"lx")
+            ny = periodic_npts(ly,dx,"ly")
+            y0 = -real(ny/2,wp)*dx
+
+        case DEFAULT
+
+            nx = int(xmax/dx)+1
+            ny = int((ymax-ymin)/dx)+1
+            y0 = ymin
+
+    end select
+
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km", &
-                            x0=0.0_wp,dx=dx,nx=int(xmax/dx)+1, &
-                            y0=ymin,dy=dx,ny=int((ymax-ymin)/dx)+1)
+                            x0=0.0_wp,dx=dx,nx=nx, &
+                            y0=y0,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
 
@@ -132,7 +168,11 @@ program yelmo_trough
 
             ! ===== Intialize topography and set parameters =========
         
-            yelmo1%bnd%z_bed = 10000.0_wp - s06_alpha*(yelmo1%grd%x - minval(yelmo1%grd%x))
+            ! The tilted bed is not periodic in x: carry the slope as a uniform
+            ! background slope (ytopo slope_bg_x), added to the surface and bed
+            ! gradients; z_bed and z_srf only contain the periodic (flat) part.
+            yelmo1%tpo%par%slope_bg_x = -s06_alpha
+            yelmo1%bnd%z_bed = 10000.0_wp
 
             yelmo1%tpo%now%H_ice = s06_H0
 
@@ -160,7 +200,9 @@ program yelmo_trough
 
             ! ===== Intialize topography and set parameters =========
         
-            yelmo1%bnd%z_bed = 10000.0_wp - s06_alpha*(yelmo1%grd%x - minval(yelmo1%grd%x))
+            ! Tilted bed as a uniform background slope (see RAYMOND above)
+            yelmo1%tpo%par%slope_bg_x = -s06_alpha
+            yelmo1%bnd%z_bed = 10000.0_wp
 
             yelmo1%tpo%now%H_ice = s06_H0
             yelmo1%bnd%H_ice_ref = s06_H0 
@@ -236,6 +278,11 @@ program yelmo_trough
     ! Define calving front 
     call define_calving_front(yelmo1%bnd%calv_mask,yelmo1%grd%x*1e-3,x_cf)
 
+    ! Initialize the LSF mask from the topography, if not restarting
+    if (.not. yelmo1%par%use_restart) then
+        call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
+    end if
+
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
 
@@ -274,11 +321,12 @@ end if
         call yelmo_update(yelmo1,ts%time)
 
         ! == MODEL OUTPUT =======================================================
-        if (mod(nint(ts%time_elapsed*100),nint(dt2D_out*100))==0) then  
+        ! int64: a default integer overflows for |time| > ~2.1e7 yr
+        if (mod(nint(ts%time_elapsed*100,int64),nint(dt2D_out*100,int64))==0) then  
             call write_step_2D(yelmo1,file2D,time=ts%time)    
         end if 
 
-        if (mod(nint(ts%time_elapsed*100),nint(dt1D_out*100))==0) then 
+        if (mod(nint(ts%time_elapsed*100,int64),nint(dt1D_out*100,int64))==0) then 
             call yelmo_write_reg_step(yelmo1,file1D,time=ts%time) 
         end if
 
@@ -292,6 +340,9 @@ end if
     write(*,*) "====== "//trim(domain)//" ======="
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
 
+    ! Write a restart file
+    call yelmo_restart_write(yelmo1,file_restart,ts%time)
+
     ! Finalize program
     call yelmo_end(yelmo1,time=ts%time)
 
@@ -303,6 +354,28 @@ end if
     
 contains
     
+    function periodic_npts(l,dx,name) result(n)
+        ! Number of points in a periodic direction of length l (true wrap,
+        ! period n*dx, no halo): l must be a multiple of dx.
+
+        implicit none
+
+        real(wp),         intent(IN) :: l
+        real(wp),         intent(IN) :: dx
+        character(len=*), intent(IN) :: name
+        integer :: n
+
+        n = nint(l/dx)
+        if (abs(n*dx-l) .gt. 1e-6_wp*l) then
+            write(*,*) "yelmo_trough:: Error: "//name//" must be a multiple of dx in a periodic direction."
+            write(*,*) name//", dx = ", l, dx
+            stop
+        end if
+
+        return
+
+    end function periodic_npts
+
     subroutine define_calving_front(calv_mask,xx,x_cf)
         ! Define a calving mask in the x direction where 
         ! beyond the position x_cf ice will be calved. 

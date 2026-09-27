@@ -2,7 +2,7 @@ module velocity_general
     ! This module contains general routines that are used by several solvers. 
     
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
+    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
@@ -25,7 +25,6 @@ module velocity_general
     public :: set_inactive_margins
     public :: calc_ice_flux
     public :: calc_vel_ratio
-    public :: limit_vel
 
     public :: picard_calc_error 
     public :: picard_calc_error_angle 
@@ -1230,10 +1229,10 @@ end if
                         ! Get the ice thickness at the ac-node as the average of two neighbors
                         H_gl    = 0.5_wp*(H_ice(i,j)+H_ice(i+1,j))
 
-                        ! Get slope of grounded point and virtual floating point (using H_ice),
+                        ! Get slope of grounded point and of floating point (taken as zero),
                         ! then assume slope is the weighted average of the two 
                         dzsdx_1 = (z_srf(i+1,j)-z_srf(i,j)) / dx 
-                        dzsdx_2 = 0.0 !(H_ice(i+1,j)-H_ice(i,j)) / dx 
+                        dzsdx_2 = 0.0 
                         dzsdx   = f_grnd_acx(i,j)*dzsdx_1 + (1.0-f_grnd_acx(i,j))*dzsdx_2  
                         
                         ! Limit the slope
@@ -1258,10 +1257,10 @@ end if
                         ! Get the ice thickness at the ac-node as the average of two neighbors
                         H_gl    = 0.5_wp*(H_ice(i,j)+H_ice(i,j+1))
 
-                        ! Get slope of grounded point and virtual floating point (using H_ice),
+                        ! Get slope of grounded point and of floating point (taken as zero),
                         ! then assume slope is the weighted average of the two 
                         dzsdx_1 = (z_srf(i,j+1)-z_srf(i,j)) / dx 
-                        dzsdx_2 = 0.0 !(H_ice(i,j+1)-H_ice(i,j)) / dx 
+                        dzsdx_2 = 0.0 
                         dzsdy   = f_grnd_acy(i,j)*dzsdx_1 + (1.0-f_grnd_acy(i,j))*dzsdx_2  
                         
                         call minmax(dzsdy,slope_max)  
@@ -1291,8 +1290,8 @@ end if
                             ! Consider grounded 
                             dzsdx = (z_srf(i+1,j)-z_srf(i,j)) / dx 
                         else 
-                            ! Consider floating 
-                            dzsdx = (H_ice(i+1,j)-H_ice(i,j)) / dx
+                            ! Consider floating: slope of the floating surface z_sl+(1-rho_ice/rho_sw)*H_ice
+                            dzsdx = ( (z_sl(i+1,j)-z_sl(i,j)) + (1.0_wp-rho_ice/rho_sw)*(H_ice(i+1,j)-H_ice(i,j)) ) / dx
                         end if 
                         call minmax(dzsdx,slope_max)  
 
@@ -1321,8 +1320,8 @@ end if
                             ! Consider grounded 
                             dzsdx = (z_srf(i,j+1)-z_srf(i,j)) / dx 
                         else 
-                            ! Consider floating 
-                            dzsdx = (H_ice(i,j+1)-H_ice(i,j)) / dx
+                            ! Consider floating: slope of the floating surface z_sl+(1-rho_ice/rho_sw)*H_ice
+                            dzsdx = ( (z_sl(i,j+1)-z_sl(i,j)) + (1.0_wp-rho_ice/rho_sw)*(H_ice(i,j+1)-H_ice(i,j)) ) / dx
                         end if 
                         call minmax(dzsdx,slope_max)  
 
@@ -1577,8 +1576,9 @@ end if
         rho_sw_ice = rho_sw / rho_ice 
         rho_ice_sw = rho_ice / rho_sw 
 
-        ! Get step size (dimensionless) and step resolution
-        dl    = 1.0_wp / real(ntot-1.0_wp,wp)
+        ! Get step size (dimensionless) and step resolution,
+        ! such that ntot segments span exactly one cell (from a to b)
+        dl    = 1.0_wp / real(ntot,wp)
         dx_ab  = dx*dl 
 
         ! Initialize driving stress to zero 
@@ -1598,13 +1598,13 @@ end if
             slb = z_sl_a + (z_sl_b-z_sl_a)*dl*(n)
             
             if (Ha < rho_sw_ice*(sla-Ba)) then 
-                Sa = (1.0-rho_ice_sw)*Ha
+                Sa = sla + (1.0-rho_ice_sw)*Ha
             else 
                 Sa = Ba + Ha 
             end if 
 
             if (Hb < rho_sw_ice*(slb-Bb)) then 
-                Sb = (1.0-rho_ice_sw)*Hb
+                Sb = slb + (1.0-rho_ice_sw)*Hb
             else 
                 Sb = Bb + Hb 
             end if 
@@ -1675,7 +1675,7 @@ end if
 
     end subroutine set_inactive_margins
 
-    subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy)
+    subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy,boundaries)
         ! Calculate the ice flux at a given point.
         ! Note: calculated on ac-nodes.
         ! qq      [m3 a-1] 
@@ -1691,13 +1691,28 @@ end if
         real(wp), intent(IN)  :: H_ice(:,:)      ! [m]      Ice thickness, aa-nodes
         real(wp), intent(IN)  :: dx              ! [m]      Horizontal resolution, x-dir
         real(wp), intent(IN)  :: dy              ! [m]      Horizontal resolution, y-dir 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        integer :: im1, ip1, jm1, jp1
+        integer :: i2, j2
+        integer :: BC
+        logical :: per_x, per_y
         real(wp) :: area_ac 
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        ! The last ac-node is an interior node only in a periodic direction
+        i2 = nx-1
+        if (per_x) i2 = nx
+        j2 = ny-1
+        if (per_y) j2 = ny
 
         ! Reset fluxes to zero 
         qq_acx = 0.0 
@@ -1705,16 +1720,18 @@ end if
 
         ! acx-nodes 
         do j = 1, ny 
-        do i = 1, nx-1 
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i+1,j))) * dx 
+        do i = 1, i2 
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(ip1,j))) * dx 
             qq_acx(i,j) = area_ac*ux_bar(i,j)
         end do 
         end do 
 
         ! acy-nodes 
-        do j = 1, ny-1 
+        do j = 1, j2 
         do i = 1, nx 
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,j+1))) * dy 
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,jp1))) * dy 
             qq_acy(i,j) = area_ac*uy_bar(i,j)
         end do 
         end do 
@@ -1742,26 +1759,6 @@ end if
 
     end function calc_vel_ratio
 
-    elemental subroutine limit_vel(u,u_lim)
-        ! Apply a velocity limit (for stability)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: u 
-        real(wp), intent(IN)    :: u_lim
-
-        real(wp), parameter :: tol = 1e-10
-        
-        u = min(u, u_lim)
-        u = max(u,-u_lim)
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
-
-        return 
-
-    end subroutine limit_vel
-    
     subroutine picard_calc_error(corr,ux,uy,ux_prev,uy_prev)
         ! Calculate the current error, ie, the 'correction vector'
         ! as defined by De Smedt et al. (2010):

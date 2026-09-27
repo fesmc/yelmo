@@ -9,7 +9,7 @@ module yelmo_ice
     use yelmo_grid, only : yelmo_init_grid, calc_zeta
     use yelmo_timesteps, only : ytime_init, set_pc_beta_coefficients, set_adaptive_timestep, set_adaptive_timestep_pc,   &
                                 set_pc_mask, calc_pc_eta, calc_pc_tau_fe_sbe,calc_pc_tau_ab_sam, calc_pc_tau_heun,  &
-                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write, calc_adv3D_timestep1
+                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write
     use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients
     use yelmo_io 
 
@@ -25,7 +25,7 @@ module yelmo_ice
     use yelmo_regions 
 
     use topography, only : remove_englacial_lakes
-    use mass_conservation, only : calc_G_boundaries, check_mass_conservation, apply_tendency
+    use mass_conservation, only : calc_G_boundaries, apply_tendency
     use variable_io, only : load_var_io_table
     !$  use omp_lib
 
@@ -75,7 +75,6 @@ contains
 
         logical, parameter :: update_others_pc  = .FALSE. 
         logical, parameter :: very_verbose      = .FALSE. 
-        logical, parameter :: check_mb          = .FALSE. 
 
 
         ! Safety: check status of model object, 
@@ -122,7 +121,7 @@ contains
         dom%time%ssa_iter_avg = missing_value
 
         ! Initialize rate averages
-        call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=check_mb)
+        call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=dom%par%log_mb_check)
 
         allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
         
@@ -152,14 +151,14 @@ contains
             ! === Diagnose different adaptive timestep limits ===
 
             ! Calculate adaptive time step from CFL constraints 
-            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv,dom%time%dt_diff,dom%time%dt_adv3D, &
-                                dom%dyn%now%ux,dom%dyn%now%uy,dom%dyn%now%uz,dom%dyn%now%ux_bar,dom%dyn%now%uy_bar, &
-                                dom%tpo%now%H_ice,dom%tpo%now%dHidt,dom%par%zeta_ac, &
-                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%par%cfl_diff_max) 
+            call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv, &
+                                dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
+                                dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%tpo%par%boundaries)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
-                                    dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller)
+                                    dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
+                                    dom%tpo%par%boundaries)
 
             ! ajr restart check:
             ! write(*,*) "Set timestep: ", n, time_now, dt_pi, dt_max
@@ -279,19 +278,12 @@ contains
                 ! Step 1: Perform predictor step for topography
                 ! Get predicted new ice thickness and store it for later use
                 ! call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,dom%tpo%par%topo_fixed)
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor")
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor", &
+                                                                                        filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 2: Calculate dynamics for predicted ice thickness 
 
                 call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time_now)
-
-                if (dom%par%pc_filter_vel) then 
-                    
-                    ! Modify ux/y_bar to use the average between the current and previous velocity solutions
-                    dom%dyn%now%ux_bar = 0.5_wp*dom%dyn%now%ux_bar + 0.5_wp*dom%dyn%now%ux_bar_prev
-                    dom%dyn%now%uy_bar = 0.5_wp*dom%dyn%now%uy_bar + 0.5_wp*dom%dyn%now%uy_bar_prev
-                    
-                end if 
 
                 if (update_others_pc) then
                     ! Now, using old topography still, update additional fields.
@@ -314,7 +306,8 @@ contains
                 ! Get corrected ice thickness and store it for later use
                 
                 ! Call corrector step for topography
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"corrector")
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"corrector", &
+                                                                                        filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 4: Determine truncation error for ice thickness
 
@@ -429,7 +422,7 @@ contains
             call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"advance",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Update time averaging of instantaneous rates
-            call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=check_mb)
+            call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=dom%par%log_mb_check)
 
             ! if (time_now .ge. 10.0) then 
             !     write(*,*) time_now
@@ -536,7 +529,7 @@ contains
         if (dt_max_0 .gt. 0.0_wp) then
             ! Finalize averaging of instantaneous rates 
             ! (only if a timestep was calculated, otherwise maintain rates that were there)
-            call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt_max_0,step="final",overwrite=.TRUE.,check_mb=check_mb)
+            call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt_max_0,step="final",overwrite=.TRUE.,check_mb=dom%par%log_mb_check)
         end if
 
         ! Update regional calculations (for entire domain and subdomains)
@@ -576,13 +569,6 @@ contains
 
             ! write(*,*) "time2: ", time, time_now, dom%tpo%par%time, dom%tpo%par%time_calv, &
             !                                     dom%thrm%par%time, dom%mat%par%time, dom%dyn%par%time
-
-
-            ! Check mass conservation if desired (uncomment)
-            ! call check_mass_conservation(dom%tpo%now%H_ice,dom%tpo%now%f_ice,dom%tpo%now%f_grnd,dom%tpo%now%dHidt, &
-            !                 dom%tpo%now%mb_applied,dom%tpo%now%calv,dom%tpo%now%mb_dyn,dom%bnd%smb,dom%tpo%now%bmb, &
-            !                 dom%tpo%now%fmb,dom%tpo%now%mb_resid,dom%grd%G%dx,dom%bnd%c%sec_year,time_now,dt_max_0, &
-            !                 units="km^3/yr",label="final")
 
         end if 
 
@@ -789,7 +775,7 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
@@ -834,12 +820,6 @@ contains
         call ytherm_alloc(dom%thrm%now,dom%thrm%par%nx,dom%thrm%par%ny,dom%thrm%par%nz_aa,dom%thrm%par%nz_ac,dom%thrm%par%nzr_aa)
 
         write(*,*) "yelmo_init:: thermodynamics initialized."
-
-        ! == hydrology (fasthydrology) ==
-
-        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp))
-
-        write(*,*) "yelmo_init:: hydrology initialized."
 
         ! === Yelmo IO tables ===
         
@@ -891,21 +871,16 @@ contains
                 dom%dyn%par%boundaries  = "TROUGH"
                 dom%thrm%par%boundaries = "TROUGH"
 
-            case("SLAB")
-
-                dom%tpo%par%boundaries  = "infinite"
-                dom%dyn%par%boundaries  = "periodic"
-                dom%thrm%par%boundaries = "periodic"
-                
-            case("ISMIPHOM","slab","periodic","periodic-xy") 
-                ! Periodic boundary conditions in x and y, eg: X_1 = X_n-1; X_n = X_2
+            case("SLAB","ISMIPHOM","slab","periodic","periodic-xy") 
+                ! Periodic boundary conditions in x and y: true wrap with period n,
+                ! i.e., X_0 == X_n and X_n+1 == X_1 (no halo/ghost cells)
 
                 dom%tpo%par%boundaries  = "periodic"
                 dom%dyn%par%boundaries  = "periodic"
                 dom%thrm%par%boundaries = "periodic"
             
             case("periodic-x") 
-                ! Periodic boundary conditions in x-direction,
+                ! Periodic boundary conditions in x-direction (true wrap, period nx),
                 ! infinite in y-direction
                 dom%tpo%par%boundaries  = "periodic-x"
                 dom%dyn%par%boundaries  = "periodic-x"
@@ -935,6 +910,14 @@ contains
 
         end select 
 
+        ! == hydrology (fasthydrology) ==
+        ! (after the boundary treatment is set: its periodic directions are passed on)
+
+        call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c, &
+                           dom%tpo%par%boundaries)
+
+        write(*,*) "yelmo_init:: hydrology initialized."
+
         ! == boundary == 
         
         ! Allocate the yelmo data objects (arrays, etc)
@@ -944,7 +927,7 @@ contains
         call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name)
         
         ! Update the mask_ice mask based on domain definition
-        call ybound_define_mask_ice(dom%bnd,dom%par%domain)
+        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries)
 
 
         write(*,*) "yelmo_init:: boundary initialized (loaded masks, set ref. topography)."
@@ -1435,6 +1418,11 @@ contains
             
             call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time)
 
+            ! No previous velocity solution exists yet, so the initial
+            ! solution also serves as the previous one (see pc_filter_vel)
+            dom%dyn%now%ux_bar_prev = dom%dyn%now%ux_bar
+            dom%dyn%now%uy_bar_prev = dom%dyn%now%uy_bar
+
             ! Calculate material information again with updated dynamics
         
             call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time)
@@ -1495,6 +1483,7 @@ contains
         call nml_read(filename,group,"restart_H_ice", par%restart_H_ice, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"restart_relax", par%restart_relax, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"log_timestep",  par%log_timestep,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"log_mb_check",  par%log_mb_check,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"disable_kill",  par%disable_kill,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"zeta_scale",    par%zeta_scale,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"zeta_exp",      par%zeta_exp,      defaults_file=def_file,defaults_group=def_yelmo)
@@ -1502,12 +1491,10 @@ contains
         call nml_read(filename,group,"dt_method",     par%dt_method,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"dt_min",        par%dt_min,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"cfl_max",       par%cfl_max,       defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"cfl_diff_max",  par%cfl_diff_max,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_method",     par%pc_method,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_controller", par%pc_controller, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_use_H_pred", par%pc_use_H_pred, defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_filter_vel", par%pc_filter_vel, defaults_file=def_file,defaults_group=def_yelmo)
-        call nml_read(filename,group,"pc_corr_vel",   par%pc_corr_vel,   defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_n_redo",     par%pc_n_redo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
@@ -1569,10 +1556,6 @@ contains
         ! Range checks
         if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: cfl_max must be in (0,1]; got ", par%cfl_max
-            stop "Program stopped."
-        end if
-        if (par%cfl_diff_max .le. 0.0_wp .or. par%cfl_diff_max .gt. 1.0_wp) then
-            write(io_unit_err,*) "yelmo_par_load:: error: cfl_diff_max must be in (0,1]; got ", par%cfl_diff_max
             stop "Program stopped."
         end if
         if (par%nz_aa .lt. 2) then

@@ -656,12 +656,9 @@ contains
 
             call yelmo_restart_read_internal(dom,filename,time,mp)
 
-        end if 
-        
-        ! ajr: testing
-        call yelmo_restart_write(dom,"./yelmo_restart_init.nc",time)
-        
-        return 
+        end if
+
+        return
 
     end subroutine yelmo_restart_read
 

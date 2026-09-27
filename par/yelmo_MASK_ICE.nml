@@ -74,6 +74,7 @@
     restart_H_ice   = False
     restart_relax   = 1e3
     log_timestep    = False
+    log_mb_check    = False
     disable_kill    = True              ! Keep the test running even if PC tolerance is exceeded
     zeta_scale      = "exp"
     zeta_exp        = 2.0
@@ -81,12 +82,10 @@
     dt_method       = 2                 ! adaptive, predictor-corrector
     dt_min          = 0.01
     cfl_max         = 0.1
-    cfl_diff_max    = 0.12
     pc_method       = "AB-SAM"
     pc_controller   = "PI42"
     pc_use_H_pred   = False
     pc_filter_vel   = False
-    pc_corr_vel     = False
     pc_n_redo       = 5
     pc_tol          = 50.0
     pc_eps          = 10.0
@@ -185,7 +184,6 @@
     ssa_iter_rel        = 0.7
     ssa_iter_conv       = 1e-2
     taud_lim            = 2e5
-    cb_sia              = 0.0
 
     neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
 
@@ -234,7 +232,7 @@
     k24_substrate_type               = 2
     k24_flux_solver                  = 0
     k24_manning_exponent             = 3.0
-    k24_latent_heat_water            = 3.35e5
+    k24_latent_heat_water            = 3.335e5
     k24_bed_thickness                = 0.1
     k24_manning_coefficient_exponent = 1.25
     k24_bed_friction_exponent        = 1.5
@@ -245,7 +243,7 @@
     k24_coupling_length              = 1.0e4
     k24_long_coupling_water          = 5.0
     k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 1.8e-3
+    k24_eta_w                        = 5.703855806525211e-11 ! eta_w [Pa s] = 1.8e-3 per year
     k24_W_min                        = 1.0e-8
     k24_W_max                        = 0.015
 /

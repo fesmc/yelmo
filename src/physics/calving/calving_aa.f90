@@ -528,10 +528,10 @@ contains
     end subroutine calc_calving_rate_vonmises_l19
        
     subroutine calc_calving_rate_eigen(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
-        ! Calculate the 'horizontal' calving rate [m/yr] based on the 
-        ! von Mises stress approach, as outlined by Lipscomb et al. (2019)
-        ! Eqs. 73-75.
-        ! L19: kt = 0.0025 m yr-1 Pa-1, w2=25
+        ! Calculate the calving rate [m/yr] at floating margins based on the
+        ! eigencalving approach of Levermann et al. (2012):
+        ! lateral calving rate c = k2*eps_eff, with eps_eff = e+ * e-
+        ! (non-zero only if both strain-rate eigenvalues are positive, see calc_eps_eff).
 
         implicit none 
 
@@ -660,15 +660,15 @@ contains
                 eps_eff(i,j) = 0.0_wp 
 
             else if (eps_eig_1(i,j) .eq. 0.0 .and. eps_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no stresses available, 
-                ! use maximum value of eps_eff from upstream neighbors.
+                ! Margin point was likely just advected, no strain rates available, 
+                ! use the mean of the non-zero eps_eff values of ice-covered neighbors.
 
                 eps_eff_neighb = 0.0_wp 
 
-                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = eps_eig_1(im1,j) * eps_eig_2(im1,j)
-                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = eps_eig_1(ip1,j) * eps_eig_2(ip1,j)
-                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = eps_eig_1(i,jm1) * eps_eig_2(i,jm1)
-                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = eps_eig_1(i,jp1) * eps_eig_2(i,jp1)
+                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = calc_eps_eff_now(eps_eig_1(im1,j),eps_eig_2(im1,j))
+                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = calc_eps_eff_now(eps_eig_1(ip1,j),eps_eig_2(ip1,j))
+                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = calc_eps_eff_now(eps_eig_1(i,jm1),eps_eig_2(i,jm1))
+                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = calc_eps_eff_now(eps_eig_1(i,jp1),eps_eig_2(i,jp1))
 
                 n = count(eps_eff_neighb.ne.0.0_wp)
 
@@ -679,10 +679,10 @@ contains
                 end if 
 
             else 
-                ! Stresses are available at this margin point. 
+                ! Strain rates are available at this margin point. 
                 ! Calculate the effective strain rate directly.
 
-                eps_eff(i,j) = eps_eig_1(i,j) * eps_eig_2(i,j)
+                eps_eff(i,j) = calc_eps_eff_now(eps_eig_1(i,j),eps_eig_2(i,j))
                 
             end if 
             
@@ -693,6 +693,23 @@ contains
         return 
 
     end subroutine calc_eps_eff
+    
+    elemental function calc_eps_eff_now(eeig1,eeig2) result(eps_eff) 
+        ! Effective strain rate for eigencalving, Levermann et al. (2012):
+        ! eps_eff = e+ * e- if both eigenvalues are positive (divergent 
+        ! spreading in both directions), otherwise zero (no calving).
+
+        implicit none 
+
+        real(wp), intent(IN) :: eeig1 
+        real(wp), intent(IN) :: eeig2
+        real(wp) :: eps_eff
+
+        eps_eff = max(eeig1,0.0_wp) * max(eeig2,0.0_wp)
+
+        return 
+
+    end function calc_eps_eff_now
     
     subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2,boundaries)
 
