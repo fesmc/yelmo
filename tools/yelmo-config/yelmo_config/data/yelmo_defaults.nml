@@ -218,7 +218,7 @@
 
     ! -- physical constants --
     k24_manning_exponent             = 3.0      ! n, Glen's flow-law exponent
-    k24_latent_heat_water            = 3.34e5   ! L_w [J/kg]
+    k24_latent_heat_water            = 3.335e5  ! L_w [J/kg]; overridden by yelmo L_ice (phys_const)
     k24_bed_thickness                = 0.1      ! h_b, bed obstacle height [m]
     k24_manning_coefficient_exponent = 1.25     ! alpha = 5/4
     k24_bed_friction_exponent        = 1.5      ! beta  = 3/2
