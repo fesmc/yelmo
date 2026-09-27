@@ -562,10 +562,10 @@ end if
         ! == Diagnose strains and stresses relevant to calving ==
 
         ! eps_eff = effective strain = eigencalving e+*e- following Levermann et al. (2012)
-        call calc_eps_eff(tpo%now%eps_eff,dyn%now%strn2D%eps_eig_1,dyn%now%strn2D%eps_eig_2,tpo%now%f_ice,tpo%par%boundaries)
+        call calc_eps_eff(tpo%now%eps_eff,dyn%now%strn2D%eps_eig_1,dyn%now%strn2D%eps_eig_2,tpo%now%f_ice)
 
         ! tau_eff = effective stress ~ von Mises stress following Lipscomb et al. (2019)
-        call calc_tau_eff(tpo%now%tau_eff,mat%now%strs2D%tau_eig_1,mat%now%strs2D%tau_eig_2,tpo%now%f_ice,tpo%par%w2,tpo%par%boundaries)
+        call calc_tau_eff(tpo%now%tau_eff,mat%now%strs2D%tau_eig_1,mat%now%strs2D%tau_eig_2,tpo%now%f_ice,tpo%par%w2)
 
         ! == Determine thickness threshold for calving spatially ==
 

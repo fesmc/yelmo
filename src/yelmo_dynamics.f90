@@ -9,7 +9,8 @@ module yelmo_dynamics
                             boundary_code, get_neighbor_indices_bc_codes
 
     use deformation, only : calc_jacobian_vel_3D_uxyterms, calc_jacobian_vel_3D_uzterms, &
-                            calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D
+                            calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D, &
+                            fill_strain_2D_partial
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
     use fast_hydrology, only : hydro_calc_N
@@ -250,6 +251,7 @@ contains
         !                                    dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, mat%par%de_max, dyn%par%boundaries)
         call calc_strain_rate_tensor_jac_quad3D(dyn%now%strn, dyn%now%strn2D, dyn%now%jvel, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, tpo%now%f_grnd,  &
                                            dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, mat%par%de_max, dyn%par%boundaries)
+        call fill_strain_2D_partial(dyn%now%strn2D,tpo%now%f_ice_dyn,dyn%par%boundaries)
         
         ! ===== Additional diagnostic variables ====================================
         
