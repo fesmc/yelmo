@@ -19,7 +19,7 @@ module lsf_module
     ! ----------------------------------------------------------------------
 
     use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err
-    use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes
+    use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     use topography,        only : calc_H_eff
     use, intrinsic :: iso_fortran_env, only : int64
 
@@ -116,10 +116,11 @@ contains
         wx = u_acx + cr_acx
         wy = v_acy + cr_acy
 
-        ! Extrapolate LSF velocities outside of the ice domain so that
-        ! upwind advection near the front sees a non-zero front velocity.
-        call extrapolate_ocn_acx(wx,wx,u_acx)
-        call extrapolate_ocn_acy(wy,wy,v_acy)
+        ! Extrapolate the front velocity from the faces adjacent to ice
+        ! into the ocean, so that upwind advection near the front sees it
+        ! (also where u = 0, i.e. a stagnant front retreating at rate cr).
+        call extrapolate_ocn_acx(wx,lsf,boundaries)
+        call extrapolate_ocn_acy(wy,lsf,boundaries)
 
         ! Sub-step size: CFL = 0.5 on max|w| over the domain, and at most the
         ! positivity limit of the face-upwind update, dt*(a+b+c+d) <= 1, with
@@ -378,104 +379,161 @@ contains
     !
     ! ===================================================================
 
-    subroutine extrapolate_ocn_acx(mask_fill,mask_orig,mask_ac)
-        ! Fill ocean cells along the x-axis by nearest-filled-neighbour
-        ! sweep. A cell is treated as "ocean" if mask_ac == 0 there.
-        ! Single forward+backward pass per row: O(nx*ny) total work.
+    subroutine extrapolate_ocn_acx(wx,lsf,boundaries)
+        ! Extrapolate the LSF velocity on acx-nodes into the ocean along
+        ! each row. Source faces are those adjacent to ice (lsf <= 0 in at
+        ! least one of the two neighbouring cells, consistent with calving
+        ! where lsf > 0), i.e. interior and front faces. They keep their
+        ! value u + cr, so the retreat rate is extended from a stagnant
+        ! (u = 0) front too. See extrapolate_ocn_1D for the fill rule.
 
         implicit none
 
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        real(wp), intent(IN)    :: mask_ac(:,:)
+        real(wp),         intent(INOUT) :: wx(:,:)
+        real(wp),         intent(IN)    :: lsf(:,:)
+        character(len=*), intent(IN)    :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny
-        logical, allocatable :: filled(:,:)
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
+        logical, allocatable :: src(:)
 
-        nx = size(mask_orig,1)
-        ny = size(mask_orig,2)
-        allocate(filled(nx,ny))
+        nx = size(wx,1)
+        ny = size(wx,2)
+        allocate(src(nx))
 
-        filled    = mask_ac .ne. 0.0_wp
-        mask_fill = mask_orig
-
-        if (.not. any(filled)) then
-            ! No filled cells to extrapolate from
-            deallocate(filled)
-            return
-        end if
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
         do j = 1, ny
-            ! Forward sweep: rightward fill.
-            do i = 2, nx
-                if (.not. filled(i,j) .and. filled(i-1,j)) then
-                    mask_fill(i,j) = mask_fill(i-1,j)
-                    filled(i,j)    = .true.
-                end if
+            do i = 1, nx
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                src(i) = (lsf(i,j) .le. 0.0_wp) .or. (lsf(ip1,j) .le. 0.0_wp)
             end do
-            ! Backward sweep: leftward fill (catches any unfilled left tails).
-            do i = nx-1, 1, -1
-                if (.not. filled(i,j) .and. filled(i+1,j)) then
-                    mask_fill(i,j) = mask_fill(i+1,j)
-                    filled(i,j)    = .true.
-                end if
-            end do
+            call extrapolate_ocn_1D(wx(:,j),src,per_x)
         end do
 
-        deallocate(filled)
+        deallocate(src)
 
         return
 
     end subroutine extrapolate_ocn_acx
 
-    subroutine extrapolate_ocn_acy(mask_fill,mask_orig,mask_ac)
-        ! Same as extrapolate_ocn_acx but along the y-axis.
+    subroutine extrapolate_ocn_acy(wy,lsf,boundaries)
+        ! Same as extrapolate_ocn_acx but on acy-nodes, along each column.
 
         implicit none
 
-        real(wp), intent(INOUT) :: mask_fill(:,:)
-        real(wp), intent(IN)    :: mask_orig(:,:)
-        real(wp), intent(IN)    :: mask_ac(:,:)
+        real(wp),         intent(INOUT) :: wy(:,:)
+        real(wp),         intent(IN)    :: lsf(:,:)
+        character(len=*), intent(IN)    :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny
-        logical, allocatable :: filled(:,:)
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+        logical :: per_x, per_y
+        logical, allocatable :: src(:)
 
-        nx = size(mask_orig,1)
-        ny = size(mask_orig,2)
-        allocate(filled(nx,ny))
+        nx = size(wy,1)
+        ny = size(wy,2)
+        allocate(src(ny))
 
-        filled    = mask_ac .ne. 0.0_wp
-        mask_fill = mask_orig
-
-        if (.not. any(filled)) then
-            ! No filled cells to extrapolate from
-            deallocate(filled)
-            return
-        end if
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
 
         do i = 1, nx
-            ! Forward sweep: upward fill.
-            do j = 2, ny
-                if (.not. filled(i,j) .and. filled(i,j-1)) then
-                    mask_fill(i,j) = mask_fill(i,j-1)
-                    filled(i,j)    = .true.
-                end if
+            do j = 1, ny
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                src(j) = (lsf(i,j) .le. 0.0_wp) .or. (lsf(i,jp1) .le. 0.0_wp)
             end do
-            ! Backward sweep: downward fill.
-            do j = ny-1, 1, -1
-                if (.not. filled(i,j) .and. filled(i,j+1)) then
-                    mask_fill(i,j) = mask_fill(i,j+1)
-                    filled(i,j)    = .true.
-                end if
-            end do
+            call extrapolate_ocn_1D(wy(i,:),src,per_y)
         end do
 
-        deallocate(filled)
+        deallocate(src)
 
         return
 
     end subroutine extrapolate_ocn_acy
+
+    subroutine extrapolate_ocn_1D(var,src,periodic)
+        ! Fill the non-source points of a line with the value of the
+        ! nearest source point, or with the mean of the two nearest ones
+        ! (left and right) if they are equally far. Unlike a sequential
+        ! sweep, the result does not depend on the sweep direction, so
+        ! mirror symmetries of the domain are preserved. The line wraps
+        ! around if periodic; otherwise points beyond the outermost source
+        ! point take its value. A line without source points is unchanged.
+        ! Two sweeps: O(n).
+
+        implicit none
+
+        real(wp), intent(INOUT) :: var(:)
+        logical,  intent(IN)    :: src(:)
+        logical,  intent(IN)    :: periodic
+
+        ! Local variables
+        integer :: k, m, n, k0, k_src, dl, dr
+        integer, allocatable :: kl(:), kr(:)
+
+        n = size(var)
+
+        if (.not. any(src)) return
+
+        allocate(kl(n))
+        allocate(kr(n))
+
+        ! Nearest source point to the left of each point (0: none).
+        ! Sweep rightward; if periodic, start just after the last source
+        ! point so that the wrap-around is included.
+        k0    = 0
+        k_src = 0
+        if (periodic) k0    = findloc(src,.TRUE.,dim=1,back=.TRUE.)
+        if (periodic) k_src = k0
+        do m = 1, n
+            k = modulo(k0+m-1,n) + 1
+            if (src(k)) k_src = k
+            kl(k) = k_src
+        end do
+
+        ! Nearest source point to the right of each point (0: none).
+        ! Sweep leftward, likewise.
+        k0    = n+1
+        k_src = 0
+        if (periodic) k0    = findloc(src,.TRUE.,dim=1)
+        if (periodic) k_src = k0
+        do m = 1, n
+            k = modulo(k0-m-1,n) + 1
+            if (src(k)) k_src = k
+            kr(k) = k_src
+        end do
+
+        do k = 1, n
+            if (src(k)) cycle
+            if (kl(k) .eq. 0) then
+                var(k) = var(kr(k))
+            else if (kr(k) .eq. 0) then
+                var(k) = var(kl(k))
+            else
+                dl = modulo(k-kl(k),n)
+                dr = modulo(kr(k)-k,n)
+                if (dl .lt. dr) then
+                    var(k) = var(kl(k))
+                else if (dr .lt. dl) then
+                    var(k) = var(kr(k))
+                else
+                    var(k) = 0.5_wp*(var(kl(k))+var(kr(k)))
+                end if
+            end if
+        end do
+
+        deallocate(kl)
+        deallocate(kr)
+
+        return
+
+    end subroutine extrapolate_ocn_1D
 
 end module lsf_module
