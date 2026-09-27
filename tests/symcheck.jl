@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 # Quantify L<->R, T<->B and 180-deg-rotation asymmetry of H_ice (lithk)
-# in one or more yelmo2D.nc outputs.
+# in one or more yelmo.nc outputs.
 #
 # Intended use: cross-check that a symmetric setup (e.g. CalvingMIP exp1 on
 # its circular domain) produces a reflection-symmetric ice thickness field.
@@ -8,7 +8,7 @@
 # of the comparison is missing are excluded from the mean.
 #
 # Usage:
-#   julia --project tests/symcheck.jl path/to/yelmo2D.nc [more.nc ...]
+#   julia --project tests/symcheck.jl path/to/yelmo.nc [more.nc ...]
 #
 # Dependencies: NCDatasets, Statistics, Printf (stdlib).
 #   julia> import Pkg; Pkg.add("NCDatasets")
@@ -62,7 +62,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     if isempty(ARGS)
-        println(stderr, "Usage: julia tests/symcheck.jl path/to/yelmo2D.nc [more.nc ...]")
+        println(stderr, "Usage: julia tests/symcheck.jl path/to/yelmo.nc [more.nc ...]")
         exit(2)
     end
     for arg in ARGS

@@ -68,8 +68,8 @@ program yelmo_calving
     !path_par   = trim(outfldr)//"yelmo_calving.nml" 
 
     ! Define input and output locations
-    ctl%file1D       = trim(ctl%outfldr)//"yelmo1D.nc"
-    ctl%file2D       = trim(ctl%outfldr)//"yelmo2D.nc"
+    ctl%file1D       = trim(ctl%outfldr)//"yelmo_ts.nc"
+    ctl%file2D       = trim(ctl%outfldr)//"yelmo.nc"
     ctl%file_restart = trim(ctl%outfldr)//"yelmo_restart.nc"
 
 

@@ -53,8 +53,8 @@ program yelmo_trough
     !path_par   = trim(outfldr)//"yelmo_TROUGH-F17.nml" 
     
     ! Define input and output locations 
-    file2D     = trim(outfldr)//"yelmo2D.nc"
-    file1D     = trim(outfldr)//"yelmo1D.nc"
+    file2D     = trim(outfldr)//"yelmo.nc"
+    file1D     = trim(outfldr)//"yelmo_ts.nc"
     file_restart = trim(outfldr)//"yelmo_restart.nc"
     
     ! Define the domain, grid and experiment from parameter file

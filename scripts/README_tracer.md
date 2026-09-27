@@ -61,7 +61,7 @@ The tracer's gridded stats are written to `OUTDIR/yelmo_restart.nc`:
 - `trc_depth_iso(time, time_iso, yc, xc)` — isochrone depth from the particle cloud
 
 The benchmark driver's 2D writer emits a fixed variable list, so these do not
-appear in `yelmo2D.nc` unless a driver requests them by name. The `t=0` restart
+appear in `yelmo.nc` unless a driver requests them by name. The `t=0` restart
 is the intended product for comparison with data.
 
 Set `trc.stats=False` (the default) to disable stats entirely for production.

@@ -58,6 +58,10 @@ little. MISMIP3D and DIVA runs change more.
   - The TROUGH driver writes a restart.
   - The `yelmo_slab.x` program and the `make slab` target are retired. SLAB-S06
     runs through `-e trough`.
+- **Output file names follow the yelmox/CLIMBER-X convention:** `yelmo2D.nc` →
+  `yelmo.nc`, `yelmo1D.nc` → `yelmo_ts.nc`, regional `yelmo1D_<name>.nc` →
+  `yelmo_ts_<name>.nc`, and initmip `yelmo2Dsm.nc` → `yelmo_sm.nc`. This applies
+  to all test drivers, the default region file names, and the analysis scripts.
 - **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
   `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
   `hydro_init`.

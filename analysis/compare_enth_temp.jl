@@ -3,7 +3,7 @@
 # Compare the enthalpy (method="enth") and temperature (method="temp")
 # thermodynamics solvers on the 2D EISMINT-2 benchmark experiments A and F.
 #
-# For each experiment it reads the yelmo1D.nc (time series) and yelmo2D.nc
+# For each experiment it reads the yelmo_ts.nc (time series) and yelmo.nc
 # (maps) output of an enth and a temp run and writes publication-style figures
 # (Makie/CairoMakie, styled after Robinson et al., 2020) into analysis/figures/,
 # plus a Robinson-2020-style summary table (analysis/results_eismint.{md,csv}).
@@ -83,7 +83,7 @@ end
 
 "Load 1D time-series diagnostics."
 function load_1d(dir)
-    ds = NCDataset(joinpath(dir, "yelmo1D.nc"))
+    ds = NCDataset(joinpath(dir, "yelmo_ts.nc"))
     out = Dict{String,Any}()
     out["time"] = ncget(ds, "time") ./ 1e3        # kyr
     for v in ("V_ice", "A_ice", "f_pmp", "H_ice", "W_til")
@@ -95,7 +95,7 @@ end
 
 "Load final-time 2D maps, a mid-row cross-section, and scalar summit/integrated diagnostics."
 function load_2d(dir)
-    ds = NCDataset(joinpath(dir, "yelmo2D.nc"))
+    ds = NCDataset(joinpath(dir, "yelmo.nc"))
     out = Dict{String,Any}()
     out["xc"] = ncget(ds, "xc")
     out["yc"] = ncget(ds, "yc")

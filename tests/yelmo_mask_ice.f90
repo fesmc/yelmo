@@ -59,8 +59,8 @@ program yelmo_mask_ice
     outfldr = "./"
     call yelmo_load_command_line_args(path_par)
 
-    file2D       = trim(outfldr)//"yelmo2D.nc"
-    file1D       = trim(outfldr)//"yelmo1D.nc"
+    file2D       = trim(outfldr)//"yelmo.nc"
+    file1D       = trim(outfldr)//"yelmo_ts.nc"
     file_restart = trim(outfldr)//"yelmo_restart.nc"
 
     ! === Load control parameters ===

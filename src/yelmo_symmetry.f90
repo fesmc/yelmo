@@ -10,7 +10,7 @@ module yelmo_symmetry
     ! Two usage modes:
     !   * ONLINE  - called at the end of a benchmark run (see tests/yelmo_benchmarks.f90)
     !   * OFFLINE - via the standalone driver tests/test_symmetry.f90 pointed at
-    !               a yelmo2D.nc (or any NetCDF file with a 2D+time field).
+    !               a yelmo.nc (or any NetCDF file with a 2D+time field).
 
     use yelmo_defs, only : wp
 

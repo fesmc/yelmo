@@ -43,7 +43,7 @@ program check_sim
     ! Determine just the simulation folder for output purposes 
     call split_string(fldr_path,"/",fldr_path_root,fldr_sim,back=.TRUE.)
 
-    file_path = trim(fldr_path)//"/yelmo2D.nc" 
+    file_path = trim(fldr_path)//"/yelmo.nc" 
 
     nt = nc_size(file_path,"time")
     nx = nc_size(file_path,"xc")
