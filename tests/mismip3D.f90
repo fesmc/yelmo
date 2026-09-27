@@ -183,7 +183,7 @@ contains
         ny = size(xx,2) 
 
         ! Determine y index of y=0km
-        jnow = minloc(yy(1,:),dim=1) 
+        jnow = minloc(abs(yy(1,:)),dim=1) 
 
         ! Determine x index of grounding line
         if (H_grnd(1,jnow) .le. 0.0) then 

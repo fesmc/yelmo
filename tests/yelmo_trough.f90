@@ -36,7 +36,7 @@ program yelmo_trough
     real(wp), allocatable :: ux_ref(:,:) 
     real(wp), allocatable :: tau_c_ref(:,:)
 
-    real(wp) :: xmax, ymin, ymax 
+    real(wp) :: xmax, ymin, ymax, y0 
     integer  :: i, j, nx, ny 
     
     real(8)  :: cpu_start_time, cpu_end_time, cpu_dtime  
@@ -103,9 +103,33 @@ program yelmo_trough
     xmax =  lx 
     ymax =  ly/2.0_wp
     ymin = -ly/2.0_wp
+
+    select case(trim(domain))
+
+        case("TROUGH-F17","MISMIP+")
+            ! Channel periodic in y (true wrap, period ny*dx, no halo): centred
+            ! grid y_j = (j-jc)*dx with jc = ny/2+1, so that y=0 is a row and the
+            ! period is exactly ly. For even ny the wall y=-ly/2 is a row, for
+            ! odd ny the wall lies midway between the first and last rows.
+
+            ny = nint(ly/dx)
+            if (abs(ny*dx-ly) .gt. 1e-6_wp*ly) then
+                write(*,*) "yelmo_trough:: Error: ly must be a multiple of dx for the periodic channel."
+                write(*,*) "ly, dx = ", ly, dx
+                stop
+            end if
+            y0 = -real(ny/2,wp)*dx
+
+        case DEFAULT
+
+            ny = int((ymax-ymin)/dx)+1
+            y0 = ymin
+
+    end select
+
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km", &
                             x0=0.0_wp,dx=dx,nx=int(xmax/dx)+1, &
-                            y0=ymin,dy=dx,ny=int((ymax-ymin)/dx)+1)
+                            y0=y0,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
 

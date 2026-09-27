@@ -131,10 +131,21 @@ program yelmo_mismip
 
     end if 
     
-    ! Define the domain and grid
+    ! Define the domain and grid. The channel is periodic in y (true wrap,
+    ! period ny*dx, no halo): centred grid y_j = (j-jc)*dx with jc = ny/2+1,
+    ! so that y=0 is a row and the period is exactly ymax-ymin. For even ny
+    ! the wall y=ymin is a row, for odd ny the wall lies midway between the
+    ! first and last rows.
     ymax =  50.0
     ymin = -50.0
-    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1,y0=ymin,dy=dx,ny=int((ymax-ymin)/dx)+1)
+    ny   = nint((ymax-ymin)/dx)
+    if (abs(ny*dx-(ymax-ymin)) .gt. 1e-6*(ymax-ymin)) then
+        write(*,*) "yelmo_mismip:: Error: the domain width (ymax-ymin) must be a multiple of dx."
+        write(*,*) "ymax-ymin, dx = ", ymax-ymin, dx
+        stop
+    end if
+    call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1, &
+                            y0=-real(ny/2,prec)*dx,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
 
