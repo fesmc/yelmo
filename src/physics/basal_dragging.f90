@@ -1660,6 +1660,8 @@ contains
         ! in cell between aa-nodes a and b, and u_tot is the sum of 
         ! all segments. Then:
         ! beta_ac = beta_a * (u_g/u_tot)
+        ! The velocity of each segment is u = q/H, with flux q and thickness H
+        ! interpolated linearly between the aa-nodes.
 
         ! Following "B2" approach proposed by Gladstone et al. (2010), 
         ! Eqs. 29, 30 & 31. 
@@ -1696,8 +1698,8 @@ contains
 
         do i = 1, nseg 
 
-            ! Get fraction along cell 
-            lambda = real(i-1,wp)/real(nseg-1,wp)
+            ! Get fraction along cell (segment midpoint)
+            lambda = (real(i,wp)-0.5_wp)/real(nseg,wp)
 
             ! Get thickness and flux for current segment 
             H_now = H_a*lambda + H_b*(1.0_wp-lambda) 
@@ -1710,15 +1712,15 @@ contains
                 u_now = 0.0_wp 
             end if 
 
-            ! Add to total (flux magnitude, so that the weight
+            ! Add to total (velocity magnitude, so that the weight
             ! is independent of the flow direction)
-            uu_tot = uu_tot + abs(q_now) 
+            uu_tot = uu_tot + abs(u_now) 
 
             ! If in grounded region, add to grounded total
             ! (grounded node 'a' is at lambda=1, so the grounded fraction
             !  f_grnd_ac of the cell adjoins the lambda=1 end)
             if (lambda .gt. (1.0_wp - f_grnd_ac)) then
-                uu_grnd = uu_grnd + abs(q_now) 
+                uu_grnd = uu_grnd + abs(u_now) 
             end if 
 
         end do 
