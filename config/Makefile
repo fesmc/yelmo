@@ -82,7 +82,7 @@ yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_p
 	@echo " "
 
 yelmo-c: yelmo-static
-	gfortran -shared -fPIC $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
+	$(FC) -shared -fPIC $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
 	-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 	@echo " "
 	@echo "    $(objdir)/libyelmo_c_api.so is ready."
