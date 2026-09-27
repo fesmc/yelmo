@@ -4,6 +4,7 @@ module yelmo_boundaries
     use nml 
     use ncio 
     use yelmo_defs 
+    use yelmo_tools, only : boundary_code, get_periodic_directions
 
     implicit none
     
@@ -207,7 +208,7 @@ contains
 
     end subroutine ybound_load_masks
 
-    subroutine ybound_define_mask_ice(bnd,domain)
+    subroutine ybound_define_mask_ice(bnd,domain,boundaries)
         ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
         ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
 
@@ -215,9 +216,11 @@ contains
 
         type(ybound_class), intent(INOUT) :: bnd
         character(len=*),   intent(IN)    :: domain
+        character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
 
         ! Local variables
         integer :: i, nx, ny
+        logical :: per_x, per_y
 
         nx = size(bnd%mask_ice,1)
         ny = size(bnd%mask_ice,2)
@@ -295,13 +298,21 @@ contains
 
             case DEFAULT
                 ! Unknown domain: dynamic interior, prescribed borders
+                ! in non-periodic directions (in a periodic direction the
+                ! border points are interior points)
                 ! (mask_ice can always be modified later)
 
+                call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
+
                 bnd%mask_ice       = MASK_ICE_DYNAMIC
-                bnd%mask_ice(1,:)  = MASK_ICE_FIXED
-                bnd%mask_ice(nx,:) = MASK_ICE_FIXED
-                bnd%mask_ice(:,1)  = MASK_ICE_FIXED
-                bnd%mask_ice(:,ny) = MASK_ICE_FIXED
+                if (.not. per_x) then
+                    bnd%mask_ice(1,:)  = MASK_ICE_FIXED
+                    bnd%mask_ice(nx,:) = MASK_ICE_FIXED
+                end if
+                if (.not. per_y) then
+                    bnd%mask_ice(:,1)  = MASK_ICE_FIXED
+                    bnd%mask_ice(:,ny) = MASK_ICE_FIXED
+                end if
 
         end select
 
