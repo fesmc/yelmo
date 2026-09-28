@@ -28,6 +28,47 @@ little. MISMIP3D and DIVA runs change more.
 - **Removed parameters:** `yelmo.cfl_diff_max` (it was unused, and so was the
   placeholder `dt_diff` output) and `ydyn.cb_sia` (it was read, but its code block
   was empty). Delete them from external par files.
+- **`ytopo.margin_flt_subgrid` is replaced by `ytopo.front_subgrid`** ("none",
+  "floating" or "marine"; default "none" = the previous `False`), with
+  `front_H_eff_min` (50 m) and `front_dHdx` (0). Front cells get an effective
+  thickness `H_eff` from their thickest interior neighbour, following the CISM
+  subgrid calving front, and `f_ice = H/H_eff`; `tpo%now%H_eff` is now filled.
+  Replace `margin_flt_subgrid` in external par files.
+- **Partial front cells take part in the dynamics** (step 2 of
+  docs/dev/front-subgrid-design.md). The geometry for the surface, gradients,
+  front mask and velocity solver is the active ice column: every ice-covered
+  cell, with `H_ice_dyn = H_eff` and `f_ice_dyn = 1`. The front boundary
+  condition is on the partial cell's ocean face. `H_grnd` uses the actual
+  thickness. With `front_subgrid = "none"` results are unchanged.
+- **The ice front advances as in CISM** (step 3): after calving, a front cell
+  with more ice than `H_eff` passes the excess (plus 0.1 m) to its ice-free
+  ocean neighbours, split by the outward velocity. Partial front cells still
+  export nothing into the ocean (`set_inactive_margins`). Only with
+  `front_subgrid /= "none"` and mass-balance calving.
+- **Mass balance and calving at subgrid fronts** (steps 4–5, with
+  `front_subgrid /= "none"`). SMB and BMB in partial cells act on the covered
+  area only (scaled by `f_ice`). Floating calving demand (`vm-l19`, `eigen`,
+  `threshold`) is scaled by the front length (1, √2, 2 for 1, 2, ≥3 ocean faces),
+  and demand beyond a front cell's ice is taken from its upstream neighbours,
+  split by inflow (CISM `apply_calving_dthck`); before, it was lost at the
+  clip. The thin-ice and tongue calving rules are not used with the subgrid
+  front.
+- **Removal rules at subgrid fronts** (step 6). `H_min_flt`/`H_min_grnd` compare
+  the stored `H_eff`. The cap of margin cells at their thickest neighbour is
+  not applied to subgrid front cells (the front advance handles them; land
+  margins keep it). A partial cell is removed as an iceberg when it has no
+  full edge or diagonal neighbour (before: edge only).
+- **Subgrid fronts with the level set** (step 7, `use_lsf` with
+  `front_subgrid /= "none"`). Front-cell thickness follows the level set: cells
+  with less than 10% of their area behind the front are emptied, and front cells
+  (also those touching the ocean at a corner) hold at most `a_lsf`·`H_eff`
+  (CISM subgrid calving mask), repeated up to 3 times. `f_ice = H/H_eff` as in
+  the mass-balance path. `ytopo.f_ice_method` is removed (it had no effect with
+  `"none"`); `calc_ice_fraction_lsf` becomes `calc_lsf_area_fraction`.
+- **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
+  `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
+  pars, whose periodic domains are fully ice-covered, so they had no effect;
+  those pars now use "marine".
 - **New parameters:**
   - `yelmo.log_mb_check` (default false) prints a global mass-budget check every
     step. It replaces the hard-coded `check_mb`.

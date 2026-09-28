@@ -906,7 +906,7 @@ contains
         BC = boundary_code(boundaries)
 
         select case(trim(lateral_bc))
-            case("none","floating","float","slab","slab-ext","marine","all")
+            case("none","floating","float","marine","all")
                 ! ok
             case DEFAULT
                 write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
@@ -1048,7 +1048,7 @@ contains
         select case(trim(lateral_bc))
             case("none")
                 mask_lat = 4
-            case("floating","float","slab","slab-ext")
+            case("floating","float")
                 mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT)
             case("marine")
                 mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT .or. code_ice .eq. MASK_FRNT_MARINE)

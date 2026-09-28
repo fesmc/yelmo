@@ -115,8 +115,8 @@ contains
         end if 
 
         ! Calculate lateral boundary stress 
-        call calc_lateral_bc_stress_2D(dyn%now%taul_int_acx,dyn%now%taul_int_acy,tpo%now%mask_frnt,tpo%now%H_ice, &
-                        tpo%now%f_ice,tpo%now%z_srf,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g,dyn%par%boundaries)
+        call calc_lateral_bc_stress_2D(dyn%now%taul_int_acx,dyn%now%taul_int_acy,tpo%now%mask_frnt,tpo%now%H_ice_dyn, &
+                        tpo%now%f_ice_dyn,tpo%now%z_srf,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g,dyn%par%boundaries)
 
         ! Calculate effective pressure
         call calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
@@ -258,21 +258,21 @@ contains
         ! Diagnose ice flux 
         call calc_ice_flux(dyn%now%qq_acx,dyn%now%qq_acy,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice, &
                             dyn%par%dx,dyn%par%dy,dyn%par%boundaries)
-        dyn%now%qq        = calc_magnitude_from_staggered(dyn%now%qq_acx,dyn%now%qq_acy,tpo%now%f_ice,dyn%par%boundaries)
+        dyn%now%qq        = calc_magnitude_from_staggered(dyn%now%qq_acx,dyn%now%qq_acy,tpo%now%f_ice_dyn,dyn%par%boundaries)
 
         ! Diagnose ice flux across the grounding line
         call calc_grounding_line_flux(dyn%now%qq_gl_acx,dyn%now%qq_gl_acy,dyn%now%qq_acx,dyn%now%qq_acy, &
-                                        tpo%now%f_grnd,tpo%now%f_ice,dyn%par%boundaries)
+                                        tpo%now%f_grnd,tpo%now%f_ice_dyn,dyn%par%boundaries)
 
-        dyn%now%taub      = calc_magnitude_from_staggered(dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice,dyn%par%boundaries)
-        dyn%now%taud      = calc_magnitude_from_staggered(dyn%now%taud_acx,dyn%now%taud_acy,tpo%now%f_ice,dyn%par%boundaries)
+        dyn%now%taub      = calc_magnitude_from_staggered(dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice_dyn,dyn%par%boundaries)
+        dyn%now%taud      = calc_magnitude_from_staggered(dyn%now%taud_acx,dyn%now%taud_acy,tpo%now%f_ice_dyn,dyn%par%boundaries)
 
-        dyn%now%uxy_b     = calc_magnitude_from_staggered(dyn%now%ux_b,dyn%now%uy_b,tpo%now%f_ice,dyn%par%boundaries)
-        dyn%now%uxy_i_bar = calc_magnitude_from_staggered(dyn%now%ux_i_bar,dyn%now%uy_i_bar,tpo%now%f_ice,dyn%par%boundaries)
-        dyn%now%uxy_bar   = calc_magnitude_from_staggered(dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%f_ice,dyn%par%boundaries)
+        dyn%now%uxy_b     = calc_magnitude_from_staggered(dyn%now%ux_b,dyn%now%uy_b,tpo%now%f_ice_dyn,dyn%par%boundaries)
+        dyn%now%uxy_i_bar = calc_magnitude_from_staggered(dyn%now%ux_i_bar,dyn%now%uy_i_bar,tpo%now%f_ice_dyn,dyn%par%boundaries)
+        dyn%now%uxy_bar   = calc_magnitude_from_staggered(dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%f_ice_dyn,dyn%par%boundaries)
 
         do k = 1, nz_aa
-            dyn%now%uxy(:,:,k) = calc_magnitude_from_staggered(dyn%now%ux(:,:,k),dyn%now%uy(:,:,k),tpo%now%f_ice,dyn%par%boundaries)
+            dyn%now%uxy(:,:,k) = calc_magnitude_from_staggered(dyn%now%ux(:,:,k),dyn%now%uy(:,:,k),tpo%now%f_ice_dyn,dyn%par%boundaries)
         end do 
 
         ! Store basal velocity for easy access (horizontal components already defined)
@@ -337,6 +337,7 @@ contains
         ny    = dyn%par%ny 
         nz_aa = dyn%par%nz_aa 
         nz_ac = dyn%par%nz_ac 
+
         
         ! ===== Calculate 3D horizontal velocity solution via SIA + SSA algorithm ===================
 
@@ -345,8 +346,8 @@ contains
         if (use_sia) then 
             ! Calculate SIA as normal 
 
-            call calc_velocity_sia(dyn%now%ux_i,dyn%now%uy_i,dyn%now%ux_i_bar,dyn%now%uy_i_bar,tpo%now%H_ice, &
-                                    tpo%now%f_ice,dyn%now%taud_acx,dyn%now%taud_acy,mat%now%ATT,dyn%par%zeta_aa, &
+            call calc_velocity_sia(dyn%now%ux_i,dyn%now%uy_i,dyn%now%ux_i_bar,dyn%now%uy_i_bar,tpo%now%H_ice_dyn, &
+                                    tpo%now%f_ice_dyn,dyn%now%taud_acx,dyn%now%taud_acy,mat%now%ATT,dyn%par%zeta_aa, &
                                     dyn%par%dx,mat%par%n_glen,bnd%c%rho_ice,bnd%c%g,dyn%par%boundaries)
 
         else 
@@ -362,7 +363,7 @@ contains
         ! 2. Calculate SSA solution =====
 
         ! Define grid points with ssa active (uses beta from previous timestep)
-        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice,tpo%now%f_ice, &
+        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                     tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
@@ -486,8 +487,9 @@ contains
         
         ! ===== Calculate 3D horizontal velocity solution via DIVA algorithm ===================
 
+
         ! Define grid points with ssa active (uses beta from previous timestep)
-        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice,tpo%now%f_ice, &
+        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                     tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
@@ -718,7 +720,7 @@ contains
         call yelmo_check_enum(group_ydyn,"solver",     par%solver,     &
                               "fixed|sia|ssa|hybrid|diva|diva-noslip")
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
-        call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none|slab|slab-ext")
+        call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none")
 
         if (par%till_z0 .ge. par%till_z1) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &

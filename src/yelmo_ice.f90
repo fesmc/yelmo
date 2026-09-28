@@ -354,7 +354,8 @@ contains
                 ! Calculate eta for this timestep 
                 call set_pc_mask(pc_mask,dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dom%dyn%now%uxy_bar, &
                                 dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
-                                dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries,dom%tpo%par%margin_flt_subgrid)
+                                dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries, &
+                                dom%tpo%par%front_subgrid,dom%tpo%par%front_H_eff_min,dom%tpo%par%front_dHdx,dom%tpo%par%dx)
                 eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,trim=dom%par%pc_eta_trim)
 
                 ! Save masked pc_tau for output too 
@@ -1027,6 +1028,7 @@ contains
 
         real(wp), allocatable :: dzb(:,:)
         real(wp), allocatable :: dzb_restart(:,:)
+        logical,  allocatable :: mask_cf(:,:)
         
         ! Local copies of tpo and bnd and tme
         type(ytopo_class)  :: tpo_restart 
@@ -1040,6 +1042,7 @@ contains
         allocate(z_srf(dom%grd%G%nx,dom%grd%G%ny))
         allocate(dzb(dom%grd%G%nx,dom%grd%G%ny))
         allocate(dzb_restart(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(mask_cf(dom%grd%G%nx,dom%grd%G%ny))
         
         ! Set to zero to start 
         H_ice    = 0.0_wp 
@@ -1159,8 +1162,10 @@ contains
             dom%bnd%z_bed_sd  = z_bed_sd 
                 
             ! Finally, calculate and apply all additional (generally artificial) ice thickness adjustments
-            ! Set minimum ice thickness to 1m for safety to start.
-            call calc_G_boundaries(dom%tpo%now%mb_resid,dom%tpo%now%H_ice,dom%tpo%now%f_ice,dom%tpo%now%f_grnd, &
+            ! Set minimum ice thickness to 1m for safety to start. The thickness is taken
+            ! at face value here (H_eff = H_ice, no subgrid front cells yet).
+            mask_cf = .FALSE.
+            call calc_G_boundaries(dom%tpo%now%mb_resid,dom%tpo%now%H_ice,dom%tpo%now%H_ice,mask_cf,dom%tpo%now%f_grnd, &
                                                 dom%dyn%now%uxy_b,dom%bnd%mask_ice,dom%tpo%par%boundaries,dom%bnd%H_ice_ref, &
                                                 H_min_flt=1.0_wp,H_min_grnd=1.0_wp,tau=0.0_wp,dt=1.0_wp)
             ! Apply rate and update ice thickness

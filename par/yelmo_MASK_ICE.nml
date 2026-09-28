@@ -102,8 +102,9 @@
     grad_lim_zb         = 0.5
     dHdt_dyn_lim        = 100.0
     margin2nd           = False
-    margin_flt_subgrid  = False
-    f_ice_method        = "upstream"
+    front_subgrid       = "none"            ! Subgrid ice fronts: "none" (binary f_ice), "floating", "marine" (floating + marine-grounded)
+    front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)
+    front_dHdx          = 0.0               ! [m/m] Thickness gradient assumed at a full front (front_subgrid)
     use_bmb             = False
     topo_fixed          = False
     topo_rel            = 0

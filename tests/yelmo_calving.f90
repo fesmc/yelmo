@@ -5,7 +5,6 @@ program yelmo_calving
     use yelmo 
     use lsf_module
     use yelmo_tools, only : get_region_indices
-    use topography, only: calc_ice_fraction_new
 
     use calving_benchmarks
     use, intrinsic :: iso_fortran_env, only : int64

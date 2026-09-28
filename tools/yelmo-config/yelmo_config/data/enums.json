@@ -245,15 +245,6 @@
   },
   {
     "group": "ytopo",
-    "name": "f_ice_method",
-    "allowed": [
-      "upstream",
-      "lsf"
-    ],
-    "conditions": []
-  },
-  {
-    "group": "ytopo",
     "name": "solver",
     "allowed": [
       "none",
