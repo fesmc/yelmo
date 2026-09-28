@@ -259,7 +259,7 @@ if (.TRUE.) then
 
             ! Ignore isolated points with high tau 
             if (abs(pc_tau(i,j)) .gt. 2.0*pc_eps .and. &
-                count([pc_tau(im1,j),pc_tau(ip1,j),pc_tau(i,jm1),pc_tau(i,jp1)] &
+                count(abs([pc_tau(im1,j),pc_tau(ip1,j),pc_tau(i,jm1),pc_tau(i,jp1)]) &
                                                                  .gt. pc_eps) .eq. 0 ) then 
 
                 mask(i,j) = .FALSE. 
@@ -442,7 +442,6 @@ end if
         real(wp) :: rho_n, rho_nm1, rho_nm2
         real(wp) :: rhohat_n 
         real(wp) :: dt_adv 
-        real(wp) :: dtmax_now
         real(wp) :: k_i 
         real(wp) :: k_p, k_d 
 
@@ -546,13 +545,15 @@ end if
         ! cap is only a hard backstop. Courant number 1.0 (the marginal stability
         ! edge for explicit advection) proved unstable at the nonlinear SIA moving
         ! margin (grid-axis 2dx oscillations breaking dome symmetry), so the
-        ! default is 0.5 (yelmo.pc_cfl_max), a safety factor without being as
-        ! restrictive as the cfl_max used by dt_method=1.
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=cfl_max,boundaries=boundaries) )
-        dtmax_now = min(dtmax,dt_adv) 
+        ! Courant number is capped at yelmo.pc_cfl_max.
+        dt_adv = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=cfl_max,boundaries=boundaries) )
+        dt_new = min(dt_new,dt_adv)
 
-        ! Finally, ensure timestep is within prescribed limits
-        call limit_adaptive_timestep(dt_new,dtmin,dtmax_now)
+        ! Finally, ensure timestep is within prescribed limits. Only the time
+        ! remaining to the end of the call (dtmax) is passed on: the half-step
+        ! rule in limit_adaptive_timestep must not act on the CFL cap, which
+        ! would halve the effective Courant number.
+        call limit_adaptive_timestep(dt_new,dtmin,dtmax)
         
         return 
 

@@ -34,8 +34,11 @@ little. MISMIP3D and DIVA runs change more.
   - `ytopo.slope_bg_x` and `ytopo.slope_bg_y` (default 0) add a uniform background
     slope to the surface and bed gradients. They are for periodic domains whose
     geometry is tilted; the tilt itself is not in `z_srf`/`z_bed`.
-  - `yelmo.pc_cfl_max` (default 0.5) is the Courant-number cap on the
-    predictor-corrector timestep. It was hard-coded to 0.5.
+  - `yelmo.pc_cfl_max` (default 0.25) is the Courant-number cap on the
+    predictor-corrector timestep. It was hard-coded to 0.5, but the half-step
+    rule in `limit_adaptive_timestep` also acted on this cap and halved it, so the
+    effective value was 0.25. The rule now only acts on the time left in the
+    call, and the default 0.25 keeps the previous behaviour.
 - **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
   controller let dt reach 5 yr during fast flank sliding, where a lateral mode
   grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to
