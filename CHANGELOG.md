@@ -101,6 +101,12 @@ little. MISMIP3D and DIVA runs change more.
     (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
     0.8 instead of 0.5 gave +40e3 km3 after 2 ka (now +3e3 km3 after 1 ka).
     `H_min_tau = 0` gives the previous behaviour; benchmarks are unchanged.
+  - `ytopo.dHdt_dyn_lim` is removed, with the tendency limit in
+    `apply_tendency`. It clipped the dynamic thickness change at ±100 m/yr
+    cell by cell, which does not conserve mass. In ANT-16KM/GRL-8KM initmip it
+    acted every step for 1 kyr, at fast marine fronts and grounding lines, not
+    only at the start; without it the runs are as stable, with the same steps
+    and SSA iterations (ANT-16 200 yr: +11e3 km3 ice, more calving).
   - `ycalv.tau_ice` is split into `tau_ice_flt` and `tau_ice_grnd` (both
     250 kPa): the `vm-m16` ice strength for floating and marine-grounded fronts
     (Morlighem et al., 2016 use separate values).

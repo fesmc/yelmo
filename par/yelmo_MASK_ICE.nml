@@ -100,7 +100,6 @@
     surf_gl_method      = 0
     grad_lim            = 0.5
     grad_lim_zb         = 0.5
-    dHdt_dyn_lim        = 100.0
     margin2nd           = False
     front_subgrid       = "none"            ! Subgrid ice fronts: "none" (binary f_ice), "floating", "marine" (floating + marine-grounded)
     front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)

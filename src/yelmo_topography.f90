@@ -146,7 +146,7 @@ end if
                     ! Apply rate and update ice thickness (predicted)
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_pred",adjust_mb=.TRUE.,mb_lim=tpo%par%dHdt_dyn_lim)
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_pred",adjust_mb=.TRUE.)
 
                 case("corrector") 
 
@@ -174,7 +174,7 @@ end if
                     ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
                     tpo%now%lsf   = tpo%now%lsf_n
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.,mb_lim=tpo%par%dHdt_dyn_lim)
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.)
                     
             end select
 
@@ -1433,7 +1433,6 @@ end if
         call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"slope_bg_x",        par%slope_bg_x,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"slope_bg_y",        par%slope_bg_y,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
-        call nml_read(filename,group_ytopo,"dHdt_dyn_lim",      par%dHdt_dyn_lim,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_subgrid",     par%front_subgrid,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_H_eff_min",   par%front_H_eff_min,  init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
