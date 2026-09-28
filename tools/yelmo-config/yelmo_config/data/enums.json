@@ -103,9 +103,7 @@
       "marine",
       "floating",
       "float",
-      "none",
-      "slab",
-      "slab-ext"
+      "none"
     ],
     "conditions": []
   },
@@ -240,6 +238,16 @@
       "pmp",
       "pmpt",
       "nmp"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytopo",
+    "name": "front_subgrid",
+    "allowed": [
+      "none",
+      "floating",
+      "marine"
     ],
     "conditions": []
   },
