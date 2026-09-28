@@ -562,7 +562,7 @@ contains
     end subroutine calc_G_calv
 
     subroutine calc_G_boundaries(mb_resid,H_ice,f_ice,f_grnd,uxy_b,mask_ice,boundaries, &
-                                                            H_ice_ref,H_min_flt,H_min_grnd,dt)
+                                                            H_ice_ref,H_min_flt,H_min_grnd,tau,dt)
 
         implicit none
 
@@ -576,6 +576,7 @@ contains
         real(wp),           intent(IN)      :: H_ice_ref(:,:)           ! [m]  Reference ice thickness to fill with for boundaries=="fixed"
         real(wp),           intent(IN)      :: H_min_flt                ! [m] Minimum allowed floating ice thickness 
         real(wp),           intent(IN)      :: H_min_grnd               ! [m] Minimum allowed grounded ice thickness 
+        real(wp),           intent(IN)      :: tau                      ! [yr] Timescale for removing margin ice thinner than H_min_flt/H_min_grnd
         real(wp),           intent(IN)      :: dt                       ! [yr] Timestep
 
         ! Local variables 
@@ -589,6 +590,7 @@ contains
         logical  :: is_island 
         logical  :: is_isthmus_x 
         logical  :: is_isthmus_y 
+        real(wp) :: f_rm 
         integer  :: BC
 
         real(wp), parameter :: H_min_tol = 1e-6
@@ -614,6 +616,11 @@ contains
         
         ! Remove margin points that are too thin, or points that are below tolerance ====
 
+        ! Too-thin margin ice is removed at the rate H/tau, so that the removal
+        ! per year does not depend on the timestep (all of it when dt >= tau)
+        f_rm = 1.0_wp
+        if (tau .gt. dt) f_rm = dt/tau
+
         H_tmp = H_ice_new 
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff)
@@ -633,8 +640,10 @@ contains
                 call calc_H_eff(H_eff,H_ice_new(i,j),f_ice(i,j)) 
 
                 ! Remove ice that is too thin 
-                if (f_grnd(i,j) .eq. 0.0_wp .and. H_eff .lt. H_min_flt)  H_ice_new(i,j) = 0.0_wp 
-                if (f_grnd(i,j) .gt. 0.0_wp .and. H_eff .lt. H_min_grnd) H_ice_new(i,j) = 0.0_wp 
+                if ( (f_grnd(i,j) .eq. 0.0_wp .and. H_eff .lt. H_min_flt) .or. &
+                     (f_grnd(i,j) .gt. 0.0_wp .and. H_eff .lt. H_min_grnd) ) then
+                    H_ice_new(i,j) = (1.0_wp-f_rm)*H_ice_new(i,j)
+                end if
  
             end if 
 
@@ -1030,15 +1039,17 @@ contains
 
     end subroutine extend_floating_slab
 
-    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,dt,boundaries)
+    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
         ! Eliminate fractional ice covered points that only 
-        ! have fractional ice neighbors. 
+        ! have fractional ice neighbors, at the rate H/tau
+        ! (all of it when dt >= tau). 
 
         implicit none 
 
         real(wp), intent(OUT) :: mb_diff(:,:) 
         real(wp), intent(IN)  :: H_ice(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
+        real(wp), intent(IN)  :: tau                ! [yr] Removal timescale
         real(wp), intent(IN)  :: dt 
         character(len=*), intent(IN) :: boundaries 
 
@@ -1046,6 +1057,7 @@ contains
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_new(:,:) 
+        real(wp) :: f_rm 
         integer :: BC
 
         nx = size(H_ice,1) 
@@ -1057,6 +1069,9 @@ contains
         allocate(H_new(nx,ny)) 
 
         H_new = H_ice 
+
+        f_rm = 1.0_wp
+        if (tau .gt. dt) f_rm = dt/tau
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
@@ -1073,7 +1088,7 @@ contains
                     ! No fully ice-covered neighbors available.
                     ! Point should be removed. 
 
-                    H_new(i,j) = 0.0_wp 
+                    H_new(i,j) = (1.0_wp-f_rm)*H_ice(i,j) 
 
                 end if
 

@@ -89,6 +89,10 @@
     pc_n_redo       = 5
     pc_tol          = 50.0
     pc_eps          = 10.0
+    pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
+    pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
+    pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
+    pc_eta_trim     = 0.0               ! [--] Fraction of points with the largest errors left out of the pc error norm
 /
 
 &ytopo
@@ -123,6 +127,7 @@
 
     fmb_method          = 0
     fmb_scale           = 1.0
+    fmb_lambda          = 1.0               ! fmb_method=3: scaling of the Rignot et al. (2016) frontal melt (ISMIP7 protocol)
 /
 
 &ycalv
@@ -135,6 +140,7 @@
 
     H_min_grnd          = 0.0
     H_min_flt           = 0.0
+    H_min_tau           = 10.0              ! [yr] Timescale for removing margin ice thinner than H_min_grnd/H_min_flt and isolated partial cells
     sd_min              = 100.0
     sd_max              = 500.0
     calv_grnd_max       = 0.0

@@ -35,7 +35,28 @@ little. MISMIP3D and DIVA runs change more.
     slope to the surface and bed gradients. They are for periodic domains whose
     geometry is tilted; the tilt itself is not in `z_srf`/`z_bed`.
   - `yelmo.pc_cfl_max` (default 0.5) is the Courant-number cap on the
-    predictor-corrector timestep. It was hard-coded to 0.5.
+    predictor-corrector timestep. It was hard-coded to 0.5, but the half-step
+    rule in `limit_adaptive_timestep` also acted on this cap and halved it, so the
+    effective value was 0.25. The rule now only acts on the time left in the
+    call. The effective cap is therefore now 0.5 (was 0.25), which changes
+    results. At 0.8 or 1.0, ANT-16/ANT-8 gain ice systematically (ANT-16 at 2 ka
+    with 0.8: +40e3 km3, in fast grounded ice and at grounding lines) and GRL-8
+    fits observations worse with 1.0.
+  - `yelmo.pc_eta_H_min` (default 10 m, was hard-coded), `yelmo.pc_eta_u_min`
+    (default 0) and `yelmo.pc_eta_trim` (default 0) define which points enter the
+    predictor-corrector error norm: thinner or slower ice is left out, and
+    `pc_eta_trim` drops that fraction of points with the largest errors, so a few
+    flickering cells cannot set the timestep alone. Defaults keep previous results.
+  - `ycalv.H_min_tau` (default 10 yr): margin ice thinner than `H_min_flt` /
+    `H_min_grnd` and isolated partial cells are removed at the rate H/`H_min_tau`
+    (all of it when dt ≥ `H_min_tau`). They were removed completely every step,
+    so the removal per year grew with the number of steps: in ANT-16KM initmip
+    (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
+    0.8 instead of 0.5 gave +40e3 km3 after 2 ka (now +3e3 km3 after 1 ka).
+    `H_min_tau = 0` gives the previous behaviour; benchmarks are unchanged.
+  - `ycalv.H_min_flt` default and initmip value 10 m (was 75 m). With
+    `H_min_tau = 10` yr, ANT-16KM initmip at 1 ka: +23e3 km3 ice, +1.2% floating
+    area, and ~1.6× faster.
 - **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
   controller let dt reach 5 yr during fast flank sliding, where a lateral mode
   grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to
@@ -93,6 +114,17 @@ little. MISMIP3D and DIVA runs change more.
   point was wrong. Enthalpy `Q_ice_b` is now output in mW m-2.
 - **Stress and strain:** the 2D stress used the previous viscosity. Strain rates
   are reset at partial and ice-free cells.
+- **Ice fronts facing land:** a grounded-below-sea-level ("marine") or floating
+  front cell got the ocean-front stress condition on all its ice-free faces, even
+  where the ice-free neighbour is bedrock above sea level (nunataks, fjord walls,
+  holes). With `ssa_lat_bc = "marine"` this pushed thick trough ice into such
+  holes and made them flicker between empty and refilled. The ice-free side of a
+  front is now marked ocean (`MASK_FRNT_ICE_FREE`, −1) or land
+  (`MASK_FRNT_ICE_FREE_LAND`, −2), and a face to land is treated as a front
+  grounded above sea level, with no water back-pressure. GRL-8KM (200 yr,
+  `pc_eps = 0.01`): the flickering cells stay ice-free and the run takes 1226
+  instead of 1433 steps; the remaining error is dominated by one fast marine
+  outlet front. Benchmarks are unchanged.
 - **Partially ice-covered cells** get the 2D strain rates and `visc_bar` of their
   fully ice-covered neighbours (they were zero). Before, `calc_eps_eff` and
   `calc_tau_eff` patched this separately, and the `vm-m16` calving law saw zero

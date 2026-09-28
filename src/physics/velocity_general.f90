@@ -1,7 +1,7 @@
 module velocity_general 
     ! This module contains general routines that are used by several solvers. 
     
-    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class
+    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -1468,6 +1468,10 @@ end if
                 z_srf_now = z_srf(i1,j) 
                 z_sl_now  = z_sl(i1,j) 
 
+                ! No water back-pressure across a face to ice-free land
+                if (mask_frnt(i,j) .eq. MASK_FRNT_ICE_FREE_LAND .or. &
+                    mask_frnt(ip1,j) .eq. MASK_FRNT_ICE_FREE_LAND) z_sl_now = z_srf_now - H_ice_now
+
                 ! Calculate the lateral stress bc for this point
                 call calc_lateral_bc_stress(tau_bc_int_acx(i,j),H_ice_now, &
                                                 z_srf_now,z_sl_now,rho_ice,rho_sw,g)
@@ -1498,6 +1502,10 @@ end if
                 H_ice_now = H_ice(i,j1)     
                 z_srf_now = z_srf(i,j1) 
                 z_sl_now  = z_sl(i,j1) 
+
+                ! No water back-pressure across a face to ice-free land
+                if (mask_frnt(i,j) .eq. MASK_FRNT_ICE_FREE_LAND .or. &
+                    mask_frnt(i,jp1) .eq. MASK_FRNT_ICE_FREE_LAND) z_sl_now = z_srf_now - H_ice_now
 
                 ! Calculate the lateral stress bc for this point
                 call calc_lateral_bc_stress(tau_bc_int_acy(i,j),H_ice_now, &
