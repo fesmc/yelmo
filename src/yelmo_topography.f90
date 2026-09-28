@@ -192,7 +192,7 @@ end if
                     ! For either predictor or corrector step, also calculate all mass balance changes
 
                     ! === smb =====
-                    call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt)
+                    call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt,tpo%now%f_ice)
 
                     ! Apply rate and update ice thickness
                     call apply_tendency(tpo%now%H_ice,tpo%now%smb,dt,"smb",adjust_mb=.TRUE.)
@@ -212,7 +212,7 @@ end if
                                         tpo%par%gz_nx,tpo%par%bmb_gl_method,tpo%par%boundaries)
 
                     if (tpo%par%use_bmb) then
-                        call calc_G_mbal(tpo%now%bmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%bmb_ref,dt)
+                        call calc_G_mbal(tpo%now%bmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%bmb_ref,dt,tpo%now%f_ice)
                     else
                         ! Mainly for when running EISMINT1
                         tpo%now%bmb = 0.0
@@ -504,7 +504,7 @@ end if
         real(wp), parameter :: dt = 0.0_wp
 
         ! === smb ===
-        call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt)
+        call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt,tpo%now%f_ice)
 
         ! === bmb (combined grounded + shelf) ===
         call determine_grounded_fractions(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
@@ -513,7 +513,7 @@ end if
                             tpo%now%H_grnd,tpo%now%f_grnd_bmb,tpo%par%gz_Hg0,tpo%par%gz_Hg1, &
                             tpo%par%gz_nx,tpo%par%bmb_gl_method,tpo%par%boundaries)
         if (tpo%par%use_bmb) then
-            call calc_G_mbal(tpo%now%bmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%bmb_ref,dt)
+            call calc_G_mbal(tpo%now%bmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%bmb_ref,dt,tpo%now%f_ice)
         else
             tpo%now%bmb = 0.0
         end if
@@ -602,8 +602,10 @@ end if
                                                                         tpo%now%tau_eff,tpo%par%dx,tpo%now%kt,tpo%par%boundaries)
 
                 ! Scale calving with 'thin' calving rate to ensure 
-                ! small ice thicknesses are removed.
-                call apply_calving_rate_thin(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%par%calv_thin,tpo%par%Hc_ref_thin,tpo%par%boundaries)
+                ! small ice thicknesses are removed (not needed with the subgrid front)
+                if (trim(tpo%par%front_subgrid) .eq. "none") then
+                    call apply_calving_rate_thin(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%par%calv_thin,tpo%par%Hc_ref_thin,tpo%par%boundaries)
+                end if
 
             case("eigen")
                 ! Use Eigen calving as defined by Levermann et al. (2012)
@@ -613,10 +615,12 @@ end if
                                                                         tpo%now%eps_eff,tpo%par%dx,tpo%par%k2,tpo%par%boundaries)
 
                 ! Scale calving with 'thin' calving rate to ensure 
-                ! small ice thicknesses are removed.
-                call apply_calving_rate_thin(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%par%calv_thin,tpo%par%Hc_ref_thin,tpo%par%boundaries)
+                ! small ice thicknesses are removed (not needed with the subgrid front)
+                if (trim(tpo%par%front_subgrid) .eq. "none") then
+                    call apply_calving_rate_thin(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%par%calv_thin,tpo%par%Hc_ref_thin,tpo%par%boundaries)
+                end if
 
-            case("kill") 
+            case("kill")
                 ! Delete all floating ice (using characteristic time parameter)
                 ! Make sure dt is a postive number
 
@@ -648,12 +652,22 @@ end if
                 
                 ! Do nothing for these methods
 
-            case DEFAULT 
+            case DEFAULT
 
-                call calc_calving_rate_tongues(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice, &
+                if (trim(tpo%par%front_subgrid) .eq. "none") then
+                    call calc_calving_rate_tongues(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice, &
                                                 tpo%now%f_grnd,tpo%par%calv_tau,tpo%par%boundaries)
-        
-        end select 
+                else
+                    ! Subgrid front: demand scaled by the front length, and
+                    ! demand beyond a front cell's ice taken from upstream
+                    call calc_front_cells(mask_cf,mask_elig,mask_ocn,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                                    bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid,tpo%par%boundaries)
+                    mbal_now = tpo%now%cmb_flt
+                    call calc_G_calving_front(tpo%now%cmb_flt,tpo%now%H_ice,mbal_now,mask_cf,mask_elig,mask_ocn, &
+                                    dyn%now%ux_bar,dyn%now%uy_bar,dt,tpo%par%boundaries)
+                end if
+
+        end select
 
         
         ! Apply rate and update ice thickness

@@ -25,6 +25,7 @@ module mass_conservation
 
     public :: calc_G_remove_fractional_ice
     public :: calc_G_front_advance
+    public :: calc_G_calving_front
     public :: remove_icebergs
     
 contains 
@@ -438,7 +439,7 @@ contains
 
     end subroutine fill_vel_new_cells
 
-    subroutine calc_G_mbal(G_mb,H_ice,f_grnd,mbal,dt)
+    subroutine calc_G_mbal(G_mb,H_ice,f_grnd,mbal,dt,f_ice)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving 
 
@@ -449,6 +450,7 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)          ! [--]  Grounded fraction 
         real(wp), intent(IN)    :: mbal(:,:)            ! [m/yr] Net mass balance; mbal = smb+bmb+fmb+calv
         real(wp), intent(IN)    :: dt                   ! [a]   Timestep  
+        real(wp), intent(IN), optional :: f_ice(:,:)    ! [--]  Ice area fraction: the rate acts on the covered area of partial cells
 
         ! Local variables 
         integer :: i, j, nx, ny 
@@ -461,6 +463,11 @@ contains
 
         ! Initialize G_mb object with diagnosed mass balance everywhere
         G_mb = mbal
+
+        ! Partial cells: the per-area rate applies to the covered area only
+        if (present(f_ice)) then
+            where (f_ice .gt. 0.0_wp .and. f_ice .lt. 1.0_wp) G_mb = f_ice*G_mb
+        end if
 
         ! Ensure melting is only counted where ice exists 
         where(G_mb .lt. 0.0 .and. H_ice .eq. 0.0) G_mb = 0.0 
@@ -1021,6 +1028,91 @@ contains
         return
 
     end subroutine calc_G_front_advance
+
+    subroutine calc_G_calving_front(cmb,H_ice,cmb_dem,mask_cf,mask_elig,mask_ocn,ux,uy,dt,boundaries)
+        ! Apply a calving demand at the ice front (CISM apply_calving_dthck).
+        ! cmb_dem is the thinning rate for one exposed face (H_eff*c/dx); it
+        ! is scaled by the front length, L/dx = 1, sqrt(2), 2 for 1, 2, >=3
+        ! ocean faces. Demand beyond a front cell's ice is taken from its
+        ! upstream eligible edge neighbours, split by inflow (one level; any
+        ! rest is not calved). Returns the applied calving rate [m/yr, <= 0].
+
+        implicit none
+
+        real(wp), intent(OUT) :: cmb(:,:)               ! [m/yr] Applied calving rate
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]    Ice thickness
+        real(wp), intent(IN)  :: cmb_dem(:,:)           ! [m/yr] Calving demand (<= 0), one face
+        logical,  intent(IN)  :: mask_cf(:,:)           ! Front cells
+        logical,  intent(IN)  :: mask_elig(:,:)         ! Eligible (marine) ice cells
+        logical,  intent(IN)  :: mask_ocn(:,:)          ! Ice-free ocean cells
+        real(wp), intent(IN)  :: ux(:,:)                ! [m/yr] Depth-averaged velocity (acx-nodes)
+        real(wp), intent(IN)  :: uy(:,:)                ! [m/yr] Depth-averaged velocity (acy-nodes)
+        real(wp), intent(IN)  :: dt                     ! [yr]
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, im1, ip1, jm1, jp1, BC, n_ocn
+        integer  :: in(4), jn(4)
+        real(wp) :: q_in(4), q_tot, dH
+        real(wp), allocatable :: H_now(:,:), rest(:,:)
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        cmb = 0.0_wp
+        if (dt .le. 0.0_wp) return
+
+        allocate(H_now(nx,ny), rest(nx,ny))
+        H_now = H_ice
+        rest  = 0.0_wp
+
+        ! Front cells: calve up to the full column, keep the rest
+        do j = 1, ny
+        do i = 1, nx
+            if (.not. mask_cf(i,j) .or. cmb_dem(i,j) .ge. 0.0_wp) cycle
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            n_ocn = count([mask_ocn(im1,j),mask_ocn(ip1,j),mask_ocn(i,jm1),mask_ocn(i,jp1)])
+            dH = -cmb_dem(i,j)*dt
+            if (n_ocn .eq. 2) dH = dH*sqrt(2.0_wp)
+            if (n_ocn .ge. 3) dH = dH*2.0_wp
+            if (dH .gt. H_now(i,j)) then
+                rest(i,j)  = dH - H_now(i,j)
+                H_now(i,j) = 0.0_wp
+            else
+                H_now(i,j) = H_now(i,j) - dH
+            end if
+        end do
+        end do
+
+        ! Rest: calve upstream eligible (non-front) edge neighbours, split by inflow
+        do j = 1, ny
+        do i = 1, nx
+            if (rest(i,j) .le. 0.0_wp) cycle
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            in = [im1,ip1,i,i]
+            jn = [j,j,jm1,jp1]
+            ! Volume flux into (i,j) across each face [m2/yr per unit width]
+            q_in = [ max( ux(im1,j),0.0_wp)*H_ice(im1,j), max(-ux(i,j),0.0_wp)*H_ice(ip1,j), &
+                     max( uy(i,jm1),0.0_wp)*H_ice(i,jm1), max(-uy(i,j),0.0_wp)*H_ice(i,jp1) ]
+            do k = 1, 4
+                if (.not. mask_elig(in(k),jn(k)) .or. mask_cf(in(k),jn(k))) q_in(k) = 0.0_wp
+            end do
+            q_tot = sum(q_in)
+            if (q_tot .le. 0.0_wp) cycle
+            do k = 1, 4
+                if (q_in(k) .le. 0.0_wp) cycle
+                dH = min(rest(i,j)*q_in(k)/q_tot, H_now(in(k),jn(k)))
+                H_now(in(k),jn(k)) = H_now(in(k),jn(k)) - dH
+            end do
+        end do
+        end do
+
+        cmb = (H_now - H_ice)/dt
+
+        return
+
+    end subroutine calc_G_calving_front
 
     subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
         ! Eliminate fractional ice covered points that only 

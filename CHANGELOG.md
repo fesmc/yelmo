@@ -45,6 +45,14 @@ little. MISMIP3D and DIVA runs change more.
   ocean neighbours, split by the outward velocity. Partial front cells still
   export nothing into the ocean (`set_inactive_margins`). Only with
   `front_subgrid /= "none"` and mass-balance calving.
+- **Mass balance and calving at subgrid fronts** (steps 4–5, with
+  `front_subgrid /= "none"`). SMB and BMB in partial cells act on the covered
+  area only (scaled by `f_ice`). Floating calving demand (`vm-l19`, `eigen`,
+  `threshold`) is scaled by the front length (1, √2, 2 for 1, 2, ≥3 ocean faces),
+  and demand beyond a front cell's ice is taken from its upstream neighbours,
+  split by inflow (CISM `apply_calving_dthck`); before, it was lost at the
+  clip. The thin-ice and tongue calving rules are not used with the subgrid
+  front.
 - **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
   `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
   pars, whose periodic domains are fully ice-covered, so they had no effect;
