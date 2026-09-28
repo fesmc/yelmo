@@ -317,7 +317,7 @@ end if
                     ! and store changes in residual mass balance field. 
                     call calc_G_boundaries(tpo%now%mb_resid,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd, &
                                             dyn%now%uxy_b,bnd%mask_ice,tpo%par%boundaries,bnd%H_ice_ref, &
-                                            tpo%par%H_min_flt,tpo%par%H_min_grnd,dt)
+                                            tpo%par%H_min_flt,tpo%par%H_min_grnd,tpo%par%H_min_tau,dt)
 
                     ! Apply rate and update ice thickness
                     call apply_tendency(tpo%now%H_ice,tpo%now%mb_resid,dt,"resid",adjust_mb=.TRUE.)
@@ -706,7 +706,7 @@ end if
 
 
         ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt,tpo%par%boundaries)
+        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,mbal_now,dt,"frac",adjust_mb=.TRUE.)
@@ -981,7 +981,7 @@ end if
         call update_ice_fraction(tpo,bnd,tpo%now%f_ice,tpo%now%H_ice)
 
         ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,dt,tpo%par%boundaries)
+        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         !mbal_now = 0.0_wp  ! ajr, commented this out, as it is zeroed out above. Otherwise
@@ -1446,6 +1446,7 @@ end if
         ! ?
         call nml_read(filename,group_ycalv,"H_min_grnd",        par%H_min_grnd,         init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"H_min_flt",         par%H_min_flt,          init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"H_min_tau",         par%H_min_tau,          init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"sd_min",            par%sd_min,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"sd_max",            par%sd_max,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"calv_grnd_max",     par%calv_grnd_max,      init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
@@ -1504,6 +1505,10 @@ end if
         end if
         if (par%grad_lim_zb .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim_zb must be > 0; got ", par%grad_lim_zb
+            stop "Program stopped."
+        end if
+        if (par%H_min_tau .lt. 0.0_wp) then
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.H_min_tau must be >= 0; got ", par%H_min_tau
             stop "Program stopped."
         end if
         if (par%sd_min .ge. par%sd_max) then

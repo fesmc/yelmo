@@ -47,6 +47,13 @@ little. MISMIP3D and DIVA runs change more.
     predictor-corrector error norm: thinner or slower ice is left out, and
     `pc_eta_trim` drops that fraction of points with the largest errors, so a few
     flickering cells cannot set the timestep alone. Defaults keep previous results.
+  - `ycalv.H_min_tau` (default 10 yr): margin ice thinner than `H_min_flt` /
+    `H_min_grnd` and isolated partial cells are removed at the rate H/`H_min_tau`
+    (all of it when dt ≥ `H_min_tau`). They were removed completely every step,
+    so the removal per year grew with the number of steps: in ANT-16KM initmip
+    (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
+    0.8 instead of 0.5 gave +40e3 km3 after 2 ka. `H_min_tau = 0` gives the
+    previous behaviour; benchmarks are unchanged.
 - **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
   controller let dt reach 5 yr during fast flank sliding, where a lateral mode
   grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to

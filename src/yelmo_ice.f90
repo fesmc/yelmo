@@ -1155,7 +1155,7 @@ contains
             ! Set minimum ice thickness to 1m for safety to start.
             call calc_G_boundaries(dom%tpo%now%mb_resid,dom%tpo%now%H_ice,dom%tpo%now%f_ice,dom%tpo%now%f_grnd, &
                                                 dom%dyn%now%uxy_b,dom%bnd%mask_ice,dom%tpo%par%boundaries,dom%bnd%H_ice_ref, &
-                                                H_min_flt=1.0_wp,H_min_grnd=1.0_wp,dt=1.0_wp)
+                                                H_min_flt=1.0_wp,H_min_grnd=1.0_wp,tau=0.0_wp,dt=1.0_wp)
             ! Apply rate and update ice thickness
             call apply_tendency(dom%tpo%now%H_ice,dom%tpo%now%mb_resid,dt=1.0_wp,label="init")
         end if 

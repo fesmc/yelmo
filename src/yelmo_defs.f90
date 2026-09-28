@@ -133,6 +133,7 @@ module yelmo_defs
         real(wp)           :: Hc_ref_thin
         real(wp)           :: H_min_grnd
         real(wp)           :: H_min_flt 
+        real(wp)           :: H_min_tau 
         real(wp)           :: sd_min 
         real(wp)           :: sd_max 
         real(wp)           :: calv_grnd_max  

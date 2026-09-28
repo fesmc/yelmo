@@ -139,6 +139,7 @@
 
     H_min_grnd          = 0.0
     H_min_flt           = 0.0
+    H_min_tau           = 10.0              ! [yr] Timescale for removing margin ice thinner than H_min_grnd/H_min_flt and isolated partial cells
     sd_min              = 100.0
     sd_max              = 500.0
     calv_grnd_max       = 0.0
