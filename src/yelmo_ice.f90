@@ -352,10 +352,10 @@ contains
                 end if 
 
                 ! Calculate eta for this timestep 
-                call set_pc_mask(pc_mask,dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dom%bnd%z_bed, &
-                                dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
-                                dom%tpo%par%boundaries,dom%tpo%par%margin_flt_subgrid)
-                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask)
+                call set_pc_mask(pc_mask,dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dom%dyn%now%uxy_bar, &
+                                dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
+                                dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries,dom%tpo%par%margin_flt_subgrid)
+                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,trim=dom%par%pc_eta_trim)
 
                 ! Save masked pc_tau for output too 
                 dom%time%pc_tau_masked = dom%time%pc_tau 
@@ -1499,6 +1499,9 @@ contains
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_cfl_max",    par%pc_cfl_max,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_eta_H_min",  par%pc_eta_H_min,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_eta_u_min",  par%pc_eta_u_min,  defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_eta_trim",   par%pc_eta_trim,   defaults_file=def_file,defaults_group=def_yelmo)
 
         call nml_read(filename,group,"write_metrics",    par%write_metrics,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"write_metrics_dt", par%write_metrics_dt, defaults_file=def_file,defaults_group=def_yelmo)
@@ -1561,6 +1564,15 @@ contains
         end if
         if (par%pc_cfl_max .le. 0.0_wp .or. par%pc_cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_cfl_max must be in (0,1]; got ", par%pc_cfl_max
+            stop "Program stopped."
+        end if
+        if (par%pc_eta_H_min .lt. 0.0_wp .or. par%pc_eta_u_min .lt. 0.0_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_eta_H_min and pc_eta_u_min must be >= 0; got ", &
+                                                                par%pc_eta_H_min, par%pc_eta_u_min
+            stop "Program stopped."
+        end if
+        if (par%pc_eta_trim .lt. 0.0_wp .or. par%pc_eta_trim .ge. 0.5_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_eta_trim must be in [0,0.5); got ", par%pc_eta_trim
             stop "Program stopped."
         end if
         if (par%nz_aa .lt. 2) then

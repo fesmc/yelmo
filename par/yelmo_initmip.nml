@@ -150,6 +150,9 @@
     pc_tol          = 5.0               ! [m/a] Tolerance threshold to redo timestep
     pc_eps          = 1.0               ! Predictor-corrector tolerance
     pc_cfl_max      = 0.25              ! Courant-number cap on the pc adaptive timestep (dt_method=2)
+    pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
+    pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
+    pc_eta_trim     = 0.0               ! [--] Fraction of points with the largest errors left out of the pc error norm
 
 /
 

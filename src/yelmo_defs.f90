@@ -1063,6 +1063,9 @@ module yelmo_defs
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
         real(wp)            :: pc_cfl_max 
+        real(wp)            :: pc_eta_H_min
+        real(wp)            :: pc_eta_u_min
+        real(wp)            :: pc_eta_trim
 
         ! Regions
         integer             :: n_reg

@@ -162,7 +162,7 @@ contains
     end subroutine set_pc_beta_coefficients
 
 
-    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw,pc_eps,boundaries,margin_flt_subgrid)
+    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,z_bed,z_sl,rho_ice,rho_sw,pc_eps,H_min,u_min,boundaries,margin_flt_subgrid)
 
         implicit none 
 
@@ -170,11 +170,14 @@ contains
         real(wp), intent(IN) :: pc_tau(:,:) 
         real(wp), intent(IN) :: H_ice_pred(:,:) 
         real(wp), intent(IN) :: H_ice_corr(:,:) 
+        real(wp), intent(IN) :: uxy(:,:)          ! [m/yr] Ice speed (aa-nodes)
         real(wp), intent(IN) :: z_bed(:,:) 
         real(wp), intent(IN) :: z_sl(:,:) 
         real(wp), intent(IN) :: rho_ice
         real(wp), intent(IN) :: rho_sw
         real(wp), intent(IN) :: pc_eps
+        real(wp), intent(IN) :: H_min             ! [m]    Thinner ice is not checked
+        real(wp), intent(IN) :: u_min             ! [m/yr] Slower ice is not checked
         character(len=*), intent(IN) :: boundaries
         logical,  intent(IN) :: margin_flt_subgrid 
 
@@ -188,7 +191,6 @@ contains
         real(wp), allocatable :: H_grnd_pred(:,:) 
         real(wp), allocatable :: H_grnd_corr(:,:) 
 
-        real(wp), parameter :: H_lim = 10.0      ! [m] 
         
         nx = size(mask,1)
         ny = size(mask,2) 
@@ -221,8 +223,13 @@ if (.TRUE.) then
 
             ! Define places that should not be checked 
 
-            if (H_ice_pred(i,j) .lt. H_lim .or. H_ice_corr(i,j) .lt. H_lim) then 
-                ! (Near) ice-free point or may be transitioning state
+            if (H_ice_pred(i,j) .lt. H_min .or. H_ice_corr(i,j) .lt. H_min) then 
+                ! (Near) ice-free or thin point, or may be transitioning state
+
+                mask(i,j) = .FALSE. 
+
+            else if (uxy(i,j) .lt. u_min) then
+                ! Slow ice, not checked
 
                 mask(i,j) = .FALSE. 
 
@@ -274,19 +281,21 @@ end if
 
     end subroutine set_pc_mask
 
-    function calc_pc_eta(tau,H_ice,mask) result(eta)
+    function calc_pc_eta(tau,H_ice,mask,trim) result(eta)
 
         implicit none 
 
         real(wp), intent(IN) :: tau(:,:) 
         real(wp), intent(IN) :: H_ice(:,:)  ! Ice thickness (ice-sheet specific) 
         logical,  intent(IN) :: mask(:,:)   ! General mask
+        real(wp), intent(IN) :: trim        ! [--] Fraction of points with the largest errors left out
         real(wp) :: eta 
 
         ! Local variables
         integer :: i, j, nx, ny
-        integer :: npts
+        integer :: npts, k, n_trim
         real(wp) :: s_now
+        real(wp), allocatable :: e2(:)
         real(wp), parameter :: eta_tol = 1e-8 
         real(wp), parameter :: a_tol = 1.0 ! [m]
         real(wp), parameter :: r_tol = 1e-2 ! [--] r_tol*H = [m]
@@ -311,17 +320,26 @@ else
             nx = size(tau,1)
             ny = size(tau,2)
 
-            eta = 0.0
-
+            ! Scaled squared errors of the checked points
+            allocate(e2(npts))
+            k = 0
             do i = 1, nx
             do j = 1, ny
                 if (.not. mask(i,j)) cycle
+                k = k + 1
                 s_now = a_tol + r_tol*H_ice(i,j)
-                eta = eta + (tau(i,j) / s_now)**2
+                e2(k) = (tau(i,j) / s_now)**2
             end do
             end do
-            
-            eta = sqrt(eta/npts)
+
+            ! Leave out the n_trim largest errors, so that a few points
+            ! (eg, a flickering thin cell) cannot set the timestep alone
+            n_trim = min(int(trim*real(npts,wp)),npts-1)
+            do k = 1, n_trim
+                e2(maxloc(e2,dim=1)) = -1.0_wp
+            end do
+
+            eta = sqrt(sum(e2,mask=e2 .ge. 0.0_wp)/real(npts-n_trim,wp))
 
             eta = max(eta,eta_tol)
 

@@ -39,6 +39,11 @@ little. MISMIP3D and DIVA runs change more.
     rule in `limit_adaptive_timestep` also acted on this cap and halved it, so the
     effective value was 0.25. The rule now only acts on the time left in the
     call, and the default 0.25 keeps the previous behaviour.
+  - `yelmo.pc_eta_H_min` (default 10 m, was hard-coded), `yelmo.pc_eta_u_min`
+    (default 0) and `yelmo.pc_eta_trim` (default 0) define which points enter the
+    predictor-corrector error norm: thinner or slower ice is left out, and
+    `pc_eta_trim` drops that fraction of points with the largest errors, so a few
+    flickering cells cannot set the timestep alone. Defaults keep previous results.
 - **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
   controller let dt reach 5 yr during fast flank sliding, where a lateral mode
   grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to
