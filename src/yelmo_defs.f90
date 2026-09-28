@@ -58,7 +58,8 @@ module yelmo_defs
     integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
 
     ! Values for tpo%now%mask_frnt (ice-front mask, see topography.f90:calc_ice_front)
-    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front
+    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front (ocean: bed below sea level)
+    integer,  parameter :: MASK_FRNT_ICE_FREE_LAND = -2  ! Ice-free point adjacent to an ice front (land: bed at or above sea level)
     integer,  parameter :: MASK_FRNT_NONE     =  0  ! Not a front point
     integer,  parameter :: MASK_FRNT_FLOAT    =  1  ! Floating ice front
     integer,  parameter :: MASK_FRNT_MARINE   =  2  ! Ice front grounded below sea level

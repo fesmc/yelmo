@@ -101,6 +101,16 @@ little. MISMIP3D and DIVA runs change more.
   point was wrong. Enthalpy `Q_ice_b` is now output in mW m-2.
 - **Stress and strain:** the 2D stress used the previous viscosity. Strain rates
   are reset at partial and ice-free cells.
+- **Ice fronts facing land:** a grounded-below-sea-level ("marine") or floating
+  front cell got the ocean-front stress condition on all its ice-free faces, even
+  where the ice-free neighbour is bedrock above sea level (nunataks, fjord walls,
+  holes). With `ssa_lat_bc = "marine"` this pushed thick trough ice into such
+  holes and made them flicker between empty and refilled. The ice-free side of a
+  front is now marked ocean (`MASK_FRNT_ICE_FREE`, −1) or land
+  (`MASK_FRNT_ICE_FREE_LAND`, −2), and a face to land is treated as a front
+  grounded above sea level, with no water back-pressure. GRL-8KM (200 yr): median
+  predictor-corrector error ~100× smaller and ~2.5× fewer steps. Benchmarks are
+  unchanged.
 - **Partially ice-covered cells** get the 2D strain rates and `visc_bar` of their
   fully ice-covered neighbours (they were zero). Before, `calc_eps_eff` and
   `calc_tau_eff` patched this separately, and the `vm-m16` calving law saw zero

@@ -1,7 +1,7 @@
 module solver_ssa_ac
 
     use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal, &
-                           MASK_FRNT_MARINE, MASK_FRNT_GRND
+                           MASK_FRNT_FLOAT, MASK_FRNT_MARINE, MASK_FRNT_GRND, MASK_FRNT_ICE_FREE_LAND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use solver_linear
@@ -897,11 +897,7 @@ contains
         logical  :: is_steep 
         logical  :: is_convergent 
         
-        real(wp), allocatable :: mask_frnt_dyn(:,:)
-
-        ! mask_frnt values are the MASK_FRNT_* codes of yelmo_defs.
-        ! val_disabled is an internal value only used in this routine.
-        integer, parameter :: val_disabled  = 5 
+        integer  :: mask_lat
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
@@ -909,7 +905,14 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        allocate(mask_frnt_dyn(nx,ny))
+        select case(trim(lateral_bc))
+            case("none","floating","float","slab","slab-ext","marine","all")
+                ! ok
+            case DEFAULT
+                write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
+                write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
+                stop 
+        end select
 
         ! Initially no active ssa points, all velocities set to zero
         ssa_mask_acx = 0
@@ -917,71 +920,6 @@ contains
         
         if (use_ssa) then 
 
-            ! Step 1: define mask_frnt for dynamics, that disables fronts as needed 
-
-            mask_frnt_dyn = mask_frnt
-
-                    
-            ! So far all margins have been diagnosed (marine and grounded on land)
-            ! Disable some regions depending on choice above. 
-            select case(trim(lateral_bc))
-                ! Apply the lateral boundary condition to what? 
-
-                case("none")
-                    ! Do not apply lateral bc anywhere. Ie, disable front detection.
-                    ! Treat all ice points in the domain as 'inner ssa' points.
-
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if (mask_frnt(i,j) .gt. 0) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("floating","float","slab","slab-ext")
-                    ! Only apply lateral bc to floating ice fronts.
-                    ! Ie, disable detection of all grounded fronts for now.
-                    ! Model is generally more stable this way.
-                    ! This method is also used for the 'infinite slab' approach,
-                    ! where a thin ice shelf is extended everywhere over the domain. 
-                    
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND .or. &
-                             mask_frnt(i,j) .eq. MASK_FRNT_MARINE ) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("marine")
-                    ! Only apply lateral bc to floating ice fronts and
-                    ! and grounded marine fronts. Disable detection 
-                    ! of ice fronts grounded above sea level.
-                    
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND ) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("all")
-                    ! Apply lateral bc to all ice-sheet fronts. 
-
-                    ! Do nothing - all fronts have been accurately diagnosed. 
-
-                case DEFAULT
-                    
-                    write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
-                    write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
-                    stop 
-
-            end select
-               
-                    
             ! Step 2: define ssa solver masks
 
             do j = 1, ny
@@ -1025,23 +963,9 @@ contains
 
                 end if
                 
-                ! Overwrite above if this point should be treated via lateral boundary conditions
-                if ( (mask_frnt_dyn(i,j) .gt. 0 .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .gt. 0) ) then 
-                    ! Lateral boundary point 
-
-                    ssa_mask_acx(i,j) = 3 
-
-                end if 
-
-                ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. val_disabled) ) then 
-                    ! Deactivated lateral boundary point 
-
-                    ssa_mask_acx(i,j) = 4 
-
-                end if 
+                ! Overwrite above if this face is an ice front (lateral bc, or deactivated)
+                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(ip1,j),lateral_bc)
+                if (mask_lat .gt. 0) ssa_mask_acx(i,j) = mask_lat
 
                 ! == y-direction ===
 
@@ -1077,23 +1001,9 @@ contains
 
                 end if
 
-                ! Overwrite above if this point should be treated via lateral boundary conditions
-                if ( (mask_frnt_dyn(i,j) .gt. 0 .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .gt. 0) ) then 
-                    ! Lateral boundary point 
-
-                    ssa_mask_acy(i,j) = 3 
-
-                end if 
-
-                ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. val_disabled) ) then 
-                    ! Deactivated lateral boundary point 
-
-                    ssa_mask_acy(i,j) = 4 
-
-                end if 
+                ! Overwrite above if this face is an ice front (lateral bc, or deactivated)
+                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(i,jp1),lateral_bc)
+                if (mask_lat .gt. 0) ssa_mask_acy(i,j) = mask_lat
 
             end do 
             end do
@@ -1103,6 +1013,50 @@ contains
         return
         
     end subroutine set_ssa_masks
+
+    integer function front_face_mask(code_a,code_b,lateral_bc) result(mask_lat)
+        ! SSA mask value for the face between two points with ice-front codes
+        ! code_a and code_b (MASK_FRNT_* of yelmo_defs):
+        ! 0: not a front face, 3: lateral bc applied, 4: front treated as inner ssa.
+        ! A front is only treated as floating or marine across faces whose
+        ! ice-free side is ocean. Across ice-free land it is a front grounded
+        ! above sea level, whatever the bed of the ice-covered point.
+
+        implicit none
+
+        integer,          intent(IN) :: code_a
+        integer,          intent(IN) :: code_b
+        character(len=*), intent(IN) :: lateral_bc
+
+        ! Local variables
+        integer :: code_ice, code_free
+
+        mask_lat = 0
+
+        if (code_a .gt. 0 .and. code_b .lt. 0) then
+            code_ice  = code_a
+            code_free = code_b
+        else if (code_a .lt. 0 .and. code_b .gt. 0) then
+            code_ice  = code_b
+            code_free = code_a
+        else
+            return
+        end if
+
+        if (code_free .eq. MASK_FRNT_ICE_FREE_LAND) code_ice = MASK_FRNT_GRND
+
+        select case(trim(lateral_bc))
+            case("none")
+                mask_lat = 4
+            case("floating","float","slab","slab-ext")
+                mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT)
+            case("marine")
+                mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT .or. code_ice .eq. MASK_FRNT_MARINE)
+            case("all")
+                mask_lat = 3
+        end select
+
+    end function front_face_mask
     
 ! === INTERNAL ROUTINES ==== 
 

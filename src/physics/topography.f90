@@ -1,7 +1,7 @@
 module topography 
 
     use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal, &
-                           MASK_FRNT_ICE_FREE, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
+                           MASK_FRNT_ICE_FREE, MASK_FRNT_ICE_FREE_LAND, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
                            MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
@@ -788,11 +788,13 @@ contains
 
                 end if 
 
-                ! Ensure adjacent ice-free points are marked too
-                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = MASK_FRNT_ICE_FREE
-                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = MASK_FRNT_ICE_FREE
-                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = MASK_FRNT_ICE_FREE
-                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = MASK_FRNT_ICE_FREE
+                ! Ensure adjacent ice-free points are marked too, as ocean
+                ! or land depending on their own bed, so that the front type
+                ! can be decided per face (see set_ssa_masks)
+                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = ice_free_code(z_bed(im1,j),z_sl(im1,j))
+                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = ice_free_code(z_bed(ip1,j),z_sl(ip1,j))
+                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = ice_free_code(z_bed(i,jm1),z_sl(i,jm1))
+                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = ice_free_code(z_bed(i,jp1),z_sl(i,jp1))
 
             end if 
 
@@ -801,6 +803,23 @@ contains
         !$omp end parallel do
 
         return 
+
+    contains
+
+        pure integer function ice_free_code(z_bed_now,z_sl_now)
+            ! Ice-free point next to a front: ocean if the bed is below sea level
+
+            implicit none
+
+            real(wp), intent(IN) :: z_bed_now, z_sl_now
+
+            if (z_bed_now .lt. z_sl_now) then
+                ice_free_code = MASK_FRNT_ICE_FREE
+            else
+                ice_free_code = MASK_FRNT_ICE_FREE_LAND
+            end if
+
+        end function ice_free_code
 
     end subroutine calc_ice_front
 
