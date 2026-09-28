@@ -52,8 +52,11 @@ little. MISMIP3D and DIVA runs change more.
     (all of it when dt ≥ `H_min_tau`). They were removed completely every step,
     so the removal per year grew with the number of steps: in ANT-16KM initmip
     (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
-    0.8 instead of 0.5 gave +40e3 km3 after 2 ka. `H_min_tau = 0` gives the
-    previous behaviour; benchmarks are unchanged.
+    0.8 instead of 0.5 gave +40e3 km3 after 2 ka (now +3e3 km3 after 1 ka).
+    `H_min_tau = 0` gives the previous behaviour; benchmarks are unchanged.
+  - `ycalv.H_min_flt` default and initmip value 10 m (was 75 m). With
+    `H_min_tau = 10` yr, ANT-16KM initmip at 1 ka: +23e3 km3 ice, +1.2% floating
+    area, and ~1.6× faster.
 - **TROUGH-F17 and MISMIP3D use `pc_eps = 1e-2`** (was 1.0). With 1.0 the
   controller let dt reach 5 yr during fast flank sliding, where a lateral mode
   grew about 1e5-fold from single-precision round-off: TROUGH (8 km) was up to
