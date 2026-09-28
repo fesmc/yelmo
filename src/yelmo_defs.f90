@@ -68,7 +68,8 @@ module yelmo_defs
     integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
 
     ! Values for tpo%now%mask_frnt (ice-front mask, see topography.f90:calc_ice_front)
-    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front
+    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front (ocean: bed below sea level)
+    integer,  parameter :: MASK_FRNT_ICE_FREE_LAND = -2  ! Ice-free point adjacent to an ice front (land: bed at or above sea level)
     integer,  parameter :: MASK_FRNT_NONE     =  0  ! Not a front point
     integer,  parameter :: MASK_FRNT_FLOAT    =  1  ! Floating ice front
     integer,  parameter :: MASK_FRNT_MARINE   =  2  ! Ice front grounded below sea level
@@ -141,6 +142,7 @@ module yelmo_defs
         real(wp)           :: Hc_ref_thin
         real(wp)           :: H_min_grnd
         real(wp)           :: H_min_flt 
+        real(wp)           :: H_min_tau 
         real(wp)           :: sd_min 
         real(wp)           :: sd_max 
         real(wp)           :: calv_grnd_max  
@@ -155,6 +157,7 @@ module yelmo_defs
         real(wp)           :: gz_Hg0
         real(wp)           :: gz_Hg1
         real(wp)           :: fmb_scale
+        real(wp)           :: fmb_lambda
         real(wp)           :: k2
         real(wp)           :: w2  
         real(wp)           :: kt_ref
@@ -870,6 +873,7 @@ module yelmo_defs
         real(wp), allocatable :: bmb_shlf(:,:)
         real(wp), allocatable :: fmb_shlf(:,:) 
         real(wp), allocatable :: T_shlf(:,:)
+        real(wp), allocatable :: tf_shlf(:,:)
         real(wp), allocatable :: Q_geo(:,:)
         real(wp), allocatable :: Qd(:,:)
 
@@ -1077,6 +1081,9 @@ module yelmo_defs
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
         real(wp)            :: pc_cfl_max 
+        real(wp)            :: pc_eta_H_min
+        real(wp)            :: pc_eta_u_min
+        real(wp)            :: pc_eta_trim
 
         ! Regions
         integer             :: n_reg
