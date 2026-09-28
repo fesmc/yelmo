@@ -89,6 +89,7 @@
     pc_n_redo       = 5
     pc_tol          = 50.0
     pc_eps          = 10.0
+    pc_cfl_max      = 0.25              ! Courant-number cap on the pc adaptive timestep (dt_method=2)
 /
 
 &ytopo
