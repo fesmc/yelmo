@@ -34,11 +34,14 @@ little. MISMIP3D and DIVA runs change more.
   - `ytopo.slope_bg_x` and `ytopo.slope_bg_y` (default 0) add a uniform background
     slope to the surface and bed gradients. They are for periodic domains whose
     geometry is tilted; the tilt itself is not in `z_srf`/`z_bed`.
-  - `yelmo.pc_cfl_max` (default 0.25) is the Courant-number cap on the
+  - `yelmo.pc_cfl_max` (default 0.5) is the Courant-number cap on the
     predictor-corrector timestep. It was hard-coded to 0.5, but the half-step
     rule in `limit_adaptive_timestep` also acted on this cap and halved it, so the
     effective value was 0.25. The rule now only acts on the time left in the
-    call, and the default 0.25 keeps the previous behaviour.
+    call. The effective cap is therefore now 0.5 (was 0.25), which changes
+    results. At 0.8 or 1.0, ANT-16/ANT-8 gain ice systematically (ANT-16 at 2 ka
+    with 0.8: +40e3 km3, in fast grounded ice and at grounding lines) and GRL-8
+    fits observations worse with 1.0.
   - `yelmo.pc_eta_H_min` (default 10 m, was hard-coded), `yelmo.pc_eta_u_min`
     (default 0) and `yelmo.pc_eta_trim` (default 0) define which points enter the
     predictor-corrector error norm: thinner or slower ice is left out, and

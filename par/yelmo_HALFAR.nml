@@ -57,7 +57,7 @@
     pc_n_redo       = 5                 ! How many times can the same iteration be repeated (when high error exists)
     pc_tol          = 2.0               ! [m/a] Tolerance threshold to redo timestep
     pc_eps          = 1e-3              ! Predictor-corrector tolerance 
-    pc_cfl_max      = 0.25              ! Courant-number cap on the pc adaptive timestep (dt_method=2)
+    pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
     pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
     pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
     pc_eta_trim     = 0.0               ! [--] Fraction of points with the largest errors left out of the pc error norm
