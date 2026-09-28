@@ -743,7 +743,8 @@ contains
         call yelmo_par_load(dom%par,filename,nml_group,domain,grid_name)
         
         ! Define physical constants
-        call ybound_define_physical_constants(dom%bnd%c,dom%par%phys_const,domain,grid_name,cnst=cnst)
+        call ybound_define_physical_constants(dom%bnd%c,dom%par%phys_const,domain,grid_name, &
+                                             cnst=cnst,cnst_out=dom%bnd%cnst)
 
         ! Define the grid for the current domain 
         select case(grid_def)

@@ -850,6 +850,13 @@ module yelmo_defs
 
         type(ybound_const_class) :: c       ! Physical constants for the domain
 
+        ! The shared record that `c` mirrors, kept so that a driver can hand the
+        ! same constants to the other components of a coupled program without
+        ! loading the parameter file a second time, and without having to know
+        ! which group Yelmo selected. Whether Yelmo loaded it or the driver
+        ! supplied it, this is the set the domain is running with.
+        type(phys_const_class)   :: cnst
+
         ! Region constants
         real(wp)   :: index_grl   = 1.3   ! Greenland region number
 

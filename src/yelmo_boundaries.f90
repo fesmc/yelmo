@@ -16,7 +16,7 @@ module yelmo_boundaries
     
 contains
 
-    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name,cnst)
+    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name,cnst,cnst_out)
         ! Fill Yelmo's physical-constants record.
         !
         ! The shared quantities come from a phys_const_class (fesm-utils), either
@@ -37,7 +37,11 @@ contains
         character(len=*), intent(IN) :: phys_const
         character(len=*), intent(IN) :: domain
         character(len=*), intent(IN) :: grid_name
-        type(phys_const_class), intent(IN), optional :: cnst
+        type(phys_const_class), intent(IN),  optional :: cnst
+        ! The record actually used, returned so that a caller can hand the same
+        ! set to the other components of a coupled program without loading the
+        ! parameter file again or knowing which group was selected.
+        type(phys_const_class), intent(OUT), optional :: cnst_out
 
         ! Local variables
         logical :: init_pars
@@ -111,6 +115,9 @@ contains
         ! [mm d-1 w.e.] => [m a-1 i.e.]. Carries a day count, hence local: 365
         ! here, against smbpal's 360 and the CMIP forcing's 365.2422.
         c%conv_mmdwe_maie = 1e-3*365*c%conv_we_ie
+
+        ! Hand the record back if asked.
+        if (present(cnst_out)) cnst_out = cn
 
         if (yelmo_log) then
             write(*,*) ""
