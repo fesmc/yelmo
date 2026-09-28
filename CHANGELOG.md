@@ -53,6 +53,11 @@ little. MISMIP3D and DIVA runs change more.
   split by inflow (CISM `apply_calving_dthck`); before, it was lost at the
   clip. The thin-ice and tongue calving rules are not used with the subgrid
   front.
+- **Removal rules at subgrid fronts** (step 6). `H_min_flt`/`H_min_grnd` compare
+  the stored `H_eff`. The cap of margin cells at their thickest neighbour is
+  not applied to subgrid front cells (the front advance handles them; land
+  margins keep it). A partial cell is removed as an iceberg when it has no
+  full edge or diagonal neighbour (before: edge only).
 - **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
   `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
   pars, whose periodic domains are fully ice-covered, so they had no effect;

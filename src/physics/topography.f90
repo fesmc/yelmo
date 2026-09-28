@@ -382,7 +382,8 @@ contains
     subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
         ! Front cells of the subgrid front scheme (ytopo.front_subgrid):
         ! eligible ice cells (floating, or floating and marine-grounded)
-        ! with at least one ice-free ocean edge neighbour.
+        ! with at least one ice-free ocean edge neighbour. With "none" no
+        ! cell is eligible.
 
         implicit none
 
@@ -394,7 +395,7 @@ contains
         real(wp), intent(IN)  :: z_sl(:,:)
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
-        character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
+        character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
         character(len=*), intent(IN) :: boundaries
 
         ! Local variables
@@ -407,6 +408,8 @@ contains
         mask_ocn = H_ice .eq. 0.0_wp .and. z_bed .lt. z_sl
 
         select case(trim(front_subgrid))
+            case("none")
+                mask_elig = .FALSE.
             case("floating")
                 mask_elig = H_ice .gt. 0.0_wp .and. H_ice*rho_ice/rho_sw .le. (z_sl-z_bed)
             case("marine")

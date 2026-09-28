@@ -61,6 +61,7 @@ contains
         real(wp), allocatable :: H_prev(:,:)
         real(wp), allocatable :: ux_adv(:,:)
         real(wp), allocatable :: uy_adv(:,:)
+        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
 
         logical, parameter :: use_rk4 = .FALSE. 
 
@@ -71,6 +72,7 @@ contains
         allocate(H_prev(nx,ny))
         allocate(ux_adv(nx,ny))
         allocate(uy_adv(nx,ny))
+        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
 
         ! Initialize time if necessary 
         if (tpo%par%time .gt. dble(time)) then 
@@ -316,7 +318,9 @@ end if
 
                     ! Finally, apply all additional (generally artificial) ice thickness adjustments 
                     ! and store changes in residual mass balance field. 
-                    call calc_G_boundaries(tpo%now%mb_resid,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd, &
+                    call calc_front_cells(mask_cf,mask_elig,mask_ocn,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                                    bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid,tpo%par%boundaries)
+                    call calc_G_boundaries(tpo%now%mb_resid,tpo%now%H_ice,tpo%now%H_eff,mask_cf,tpo%now%f_grnd, &
                                             dyn%now%uxy_b,bnd%mask_ice,tpo%par%boundaries,bnd%H_ice_ref, &
                                             tpo%par%H_min_flt,tpo%par%H_min_grnd,tpo%par%H_min_tau,dt)
 

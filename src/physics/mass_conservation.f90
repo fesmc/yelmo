@@ -7,7 +7,6 @@ module mass_conservation
 
     use solver_advection, only : calc_advec2D  
     use velocity_general, only : set_inactive_margins 
-    use topography, only : calc_H_eff
 
     implicit none 
 
@@ -568,14 +567,15 @@ contains
 
     end subroutine calc_G_calv
 
-    subroutine calc_G_boundaries(mb_resid,H_ice,f_ice,f_grnd,uxy_b,mask_ice,boundaries, &
+    subroutine calc_G_boundaries(mb_resid,H_ice,H_eff,mask_cf,f_grnd,uxy_b,mask_ice,boundaries, &
                                                             H_ice_ref,H_min_flt,H_min_grnd,tau,dt)
 
         implicit none
 
         real(wp),           intent(INOUT)   :: mb_resid(:,:)            ! [m/yr] Residual mass balance
         real(wp),           intent(IN)      :: H_ice(:,:)               ! [m] Ice thickness
-        real(wp),           intent(IN)      :: f_ice(:,:)               ! [--] Fraction of ice cover
+        real(wp),           intent(IN)      :: H_eff(:,:)               ! [m] Effective ice thickness (tpo%now%H_eff)
+        logical,            intent(IN)      :: mask_cf(:,:)             ! Subgrid front cells (ytopo.front_subgrid)
         real(wp),           intent(IN)      :: f_grnd(:,:)              ! [--] Grounded ice fraction
         real(wp),           intent(IN)      :: uxy_b(:,:)               ! [m/a] Basal sliding speed, aa-nodes
         integer,            intent(IN)      :: mask_ice(:,:)            ! Mask: MASK_ICE_NONE forced zero, MASK_ICE_FIXED imposed (=H_ice_ref), MASK_ICE_DYNAMIC active
@@ -591,7 +591,6 @@ contains
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_ice_new(:,:)
         real(wp), allocatable :: H_tmp(:,:)
-        real(wp) :: H_eff
         real(wp) :: H_max 
         logical  :: is_margin 
         logical  :: is_island 
@@ -630,7 +629,7 @@ contains
 
         H_tmp = H_ice_new 
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -643,12 +642,10 @@ contains
             if (is_margin) then
                 ! Ice covered point at the margin
 
-                ! Calculate current ice thickness 
-                call calc_H_eff(H_eff,H_ice_new(i,j),f_ice(i,j)) 
-
-                ! Remove ice that is too thin 
-                if ( (f_grnd(i,j) .eq. 0.0_wp .and. H_eff .lt. H_min_flt) .or. &
-                     (f_grnd(i,j) .gt. 0.0_wp .and. H_eff .lt. H_min_grnd) ) then
+                ! Remove ice that is too thin (effective thickness: the
+                ! thickness of a partial front cell over its covered area)
+                if ( (f_grnd(i,j) .eq. 0.0_wp .and. H_eff(i,j) .lt. H_min_flt) .or. &
+                     (f_grnd(i,j) .gt. 0.0_wp .and. H_eff(i,j) .lt. H_min_grnd) ) then
                     H_ice_new(i,j) = (1.0_wp-f_rm)*H_ice_new(i,j)
                 end if
  
@@ -691,39 +688,29 @@ contains
         !$omp end parallel do
 
         ! Reduce ice thickness for margin points that are thicker 
-        ! than inland neighbors ====
+        ! than inland neighbors. Not for subgrid front cells: there
+        ! the excess above H_eff is moved on by the front advance ====
 
         H_tmp = H_ice_new
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_eff,H_max)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_margin,H_max)
         do j = 1, ny 
         do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
             
-            is_margin = H_tmp(i,j) .gt. 0.0 .and. &
+            is_margin = H_tmp(i,j) .gt. 0.0 .and. .not. mask_cf(i,j) .and. &
                 count([H_tmp(im1,j),H_tmp(ip1,j),H_tmp(i,jm1),H_tmp(i,jp1)].eq.0.0) .gt. 0
 
             if (is_margin) then
                 ! Ice covered point at the margin
-                
-                ! Calculate current ice thickness 
-                call calc_H_eff(H_eff,H_ice_new(i,j),f_ice(i,j))
 
                 ! Calculate maximum thickness of neighbors 
                 H_max = maxval([H_tmp(im1,j),H_tmp(ip1,j), &
                                 H_tmp(i,jm1),H_tmp(i,jp1)])
 
-                if ( H_eff .gt. H_max) then 
-                    ! Limit the effective thickness to H_max and convert it
-                    ! back to a grid-mean thickness (inverse of calc_H_eff)
-                    if (f_ice(i,j) .gt. 0.0_wp) then
-                        H_ice_new(i,j) = H_max*f_ice(i,j)
-                    else
-                        H_ice_new(i,j) = H_max
-                    end if
-                end if
+                if (H_ice_new(i,j) .gt. H_max) H_ice_new(i,j) = H_max
                 
             end if
             
@@ -1115,9 +1102,9 @@ contains
     end subroutine calc_G_calving_front
 
     subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
-        ! Eliminate fractional ice covered points that only 
-        ! have fractional ice neighbors, at the rate H/tau
-        ! (all of it when dt >= tau). 
+        ! Eliminate fractional ice covered points (icebergs) that have
+        ! no fully ice-covered edge or diagonal neighbor, at the rate
+        ! H/tau (all of it when dt >= tau). 
 
         implicit none 
 
@@ -1158,8 +1145,9 @@ contains
             if (f_ice(i,j) .gt. 0.0 .and. f_ice(i,j) .lt. 1.0) then 
                 ! Fractional ice-covered point 
 
-                if ( count([f_ice(im1,j),f_ice(ip1,j), &
-                        f_ice(i,jm1),f_ice(i,jp1)] .eq. 1.0) .eq. 0) then 
+                if ( count([f_ice(im1,j),f_ice(ip1,j),f_ice(i,jm1),f_ice(i,jp1), &
+                            f_ice(im1,jm1),f_ice(ip1,jm1),f_ice(im1,jp1),f_ice(ip1,jp1)] &
+                            .eq. 1.0) .eq. 0) then 
                     ! No fully ice-covered neighbors available.
                     ! Point should be removed. 
 
