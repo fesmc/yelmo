@@ -28,6 +28,13 @@ little. MISMIP3D and DIVA runs change more.
 - **Removed parameters:** `yelmo.cfl_diff_max` (it was unused, and so was the
   placeholder `dt_diff` output) and `ydyn.cb_sia` (it was read, but its code block
   was empty). Delete them from external par files.
+- **`ytopo.margin_flt_subgrid` is replaced by `ytopo.front_subgrid`** ("none",
+  "floating" or "marine"; default "none" = the previous `False`), with
+  `front_H_eff_min` (50 m) and `front_dHdx` (0). Front cells get an effective
+  thickness `H_eff` from their thickest interior neighbour, following the CISM
+  subgrid calving front, and `f_ice = H/H_eff`; `tpo%now%H_eff` is now filled.
+  This is the first step of docs/dev/front-subgrid-design.md; the dynamics do
+  not use it yet. Replace `margin_flt_subgrid` in external par files.
 - **New parameters:**
   - `yelmo.log_mb_check` (default false) prints a global mass-budget check every
     step. It replaces the hard-coded `check_mb`.

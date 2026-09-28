@@ -93,7 +93,7 @@ design below maps that onto Yelmo's C-grid.
 ### 4.1 Effective thickness and area fraction
 
 - New option `ytopo.front_subgrid = "none" | "floating" | "marine"`.
-  `margin_flt_subgrid` is retired (reading it is an error). "none" keeps binary
+  `margin_flt_subgrid` is removed. "none" keeps binary
   `f_ice` (current behaviour); the target setting is `"marine"`.
 - Front-eligible cells: floating (`"floating"`) or floating + grounded below
   sea level (`"marine"`), with H > 0 and at least one ocean face (ice-free,

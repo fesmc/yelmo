@@ -162,7 +162,8 @@ contains
     end subroutine set_pc_beta_coefficients
 
 
-    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,z_bed,z_sl,rho_ice,rho_sw,pc_eps,H_min,u_min,boundaries,margin_flt_subgrid)
+    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,z_bed,z_sl,rho_ice,rho_sw,pc_eps,H_min,u_min,boundaries, &
+                                                            front_subgrid,front_H_eff_min,front_dHdx,dx)
 
         implicit none 
 
@@ -179,7 +180,10 @@ contains
         real(wp), intent(IN) :: H_min             ! [m]    Thinner ice is not checked
         real(wp), intent(IN) :: u_min             ! [m/yr] Slower ice is not checked
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN) :: margin_flt_subgrid 
+        character(len=*), intent(IN) :: front_subgrid     ! ytopo.front_subgrid
+        real(wp), intent(IN) :: front_H_eff_min           ! [m]   ytopo.front_H_eff_min
+        real(wp), intent(IN) :: front_dHdx                ! [m/m] ytopo.front_dHdx
+        real(wp), intent(IN) :: dx                        ! [m]   Grid resolution
 
         ! Local variables 
         integer :: i, j, nx, ny 
@@ -190,6 +194,7 @@ contains
         real(wp), allocatable :: f_ice_corr(:,:) 
         real(wp), allocatable :: H_grnd_pred(:,:) 
         real(wp), allocatable :: H_grnd_corr(:,:) 
+        real(wp), allocatable :: H_eff(:,:) 
 
         
         nx = size(mask,1)
@@ -202,10 +207,13 @@ contains
         allocate(f_ice_corr(nx,ny))
         allocate(H_grnd_pred(nx,ny))
         allocate(H_grnd_corr(nx,ny))
+        allocate(H_eff(nx,ny))
         
         ! Get the ice area fraction mask for each ice thickness map 
-        call calc_ice_fraction(f_ice_pred,H_ice_pred,z_bed,z_sl,rho_ice,rho_sw,boundaries,margin_flt_subgrid)
-        call calc_ice_fraction(f_ice_corr,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw,boundaries,margin_flt_subgrid)
+        call calc_ice_fraction(f_ice_pred,H_eff,H_ice_pred,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,front_H_eff_min,front_dHdx,dx,boundaries)
+        call calc_ice_fraction(f_ice_corr,H_eff,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,front_H_eff_min,front_dHdx,dx,boundaries)
 
         ! Get the grounded ice distance to flotation 
         call calc_H_grnd(H_grnd_pred,H_ice_pred,f_ice_pred,z_bed,z_sl,rho_ice,rho_sw)

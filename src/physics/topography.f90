@@ -23,7 +23,6 @@ module topography
     public :: gen_mask_bed
 
     public :: calc_ice_fraction
-    public :: calc_ice_fraction_new
     public :: calc_ice_fraction_lsf
     public :: calc_ice_front
 
@@ -221,321 +220,181 @@ contains
 
     end subroutine find_connected_mask
     
-    subroutine calc_ice_fraction_new(f_ice,H_ice,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Determine the area fraction of a grid cell
-        ! that is ice-covered. Assume that marginal points
-        ! have equal thickness to inland neighbors 
-
-        ! Note: routine works well, but apparently not as stable as routine below
-        ! for GRL-16KM initmip tests. Reasons are not really clear (ajr, 2022-02-24)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: f_ice(:,:)             ! [--] Ice covered fraction (aa-nodes)
-        real(wp), intent(IN)  :: H_ice(:,:)             ! [m] Ice thickness on standard grid (aa-nodes)
-        real(wp), intent(IN)  :: z_bed(:,:)             ! [m] Bedrock elevation
-        real(wp), intent(IN)  :: z_sl(:,:)              ! [m] Sea-level elevation
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: rho_sw 
-        character(len=*), intent(IN) :: boundaries
-        logical, optional     :: flt_subgrid            ! Option to allow fractions for floating ice margins             
-        
-        ! Local variables 
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: H_eff  
-        logical  :: get_fractional_cover 
-
-        real(wp) :: H_neighb(4)
-        logical  :: cf_neighb(4) 
-        logical  :: mask(4) 
-        real(wp), allocatable :: H_grnd(:,:)            ! [m] Thickness until flotation - floating if H_grnd<=0 (aa-nodes)
-        logical, allocatable :: mask_cf(:,:) 
-        integer  :: BC
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        allocate(H_grnd(nx,ny))
-        allocate(mask_cf(nx,ny)) 
-
-        ! By default, fractional cover will be determined
-        get_fractional_cover = .TRUE. 
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid 
-
-        if (get_fractional_cover) then 
-            ! Calculate H_grnd, without accounting for fractional ice cover
-            call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
-        end if 
-
-        ! Initialize mask_cf to False 
-        mask_cf = .FALSE. 
-
-        ! Initialize f_ice to binary values first 
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp 
-        elsewhere
-            f_ice = 0.0_wp 
-        end where
-
-        if (get_fractional_cover) then 
-            ! For floating ice-covered points with ice-free neighbors (ie, at the floating calving margin),
-            ! determine the fraction of grid point that should be ice covered. 
-
-            ! First determine which points are at the floating calving front.
-
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-    
-                ! Determine calving front mask 
-                if (H_ice(i,j) .gt. 0.0 .and. H_grnd(i,j) .lt. 0.0) then 
-                    ! Current point is floating 
-
-                    ! If any neighbor is ice-free ocean (ie, is grounded below sea level),
-                    ! then this point is a calving front point.
-                    mask_cf(i,j) = .FALSE. 
-                    if (H_ice(im1,j) .eq. 0.0 .and. H_grnd(im1,j) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(ip1,j) .eq. 0.0 .and. H_grnd(ip1,j) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(i,jm1) .eq. 0.0 .and. H_grnd(i,jm1) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(i,jp1) .eq. 0.0 .and. H_grnd(i,jp1) .lt. 0.0) mask_cf(i,j) = .TRUE.
-
-                end if 
-
-            end do 
-            end do
-
-            ! Next calculate the effective ice thickness of points at the 
-            ! calving front and determine f_ice. 
-
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                if (mask_cf(i,j)) then 
-                    ! This is a calving front point 
-
-                    H_neighb  = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                    cf_neighb = [mask_cf(im1,j),mask_cf(ip1,j),mask_cf(i,jm1),mask_cf(i,jp1)]
-                    
-                    ! Get a mask of available ice-covered neighbors that are not
-                    ! at the calving front. 
-                    mask = H_neighb .gt. 0.0 .and. (.not. cf_neighb)
-                    
-                    if ( count(mask) .eq. 0 ) then 
-                        ! This point does not have any upstream ice-covered neighbors,
-                        ! simply assign a fraction of 1.0.
-
-                        f_ice(i,j) = 1.0_wp 
-
-                    else
-                        ! This point does have upstream ice-covered neighbors,
-                        ! determine fraction.
-
-                        H_eff = minval(H_neighb,mask=mask)
-
-                        ! If thickest upstream ice is thinner than current
-                        ! point, then set effective ice thickness equal
-                        ! to that of current point. This ensures
-                        ! f_ice below will be bounded 0 < f_ice <= 1
-                        if (H_eff .lt. H_ice(i,j)) H_eff = H_ice(i,j) 
-
-                        ! Determine the cell ice fraction
-                        ! Note: fraction is determined as a ratio of 
-                        ! thicknesses, derived from volume conservation 
-                        ! vol = H_ice*dx*dy = H_eff*area_frac 
-                        ! f_ice = area_frac / (dx*dy)
-                        ! f_ice = H_ice/H_eff 
-                        
-                        f_ice(i,j) = H_ice(i,j) / H_eff
-                        
-                    end if 
-
-                end if 
-
-            end do 
-            end do 
-
-        end if 
-
-        return 
-
-    end subroutine calc_ice_fraction_new
-    
-    subroutine calc_ice_fraction(f_ice,H_ice,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Determine the area fraction of a grid cell
-        ! that is ice-covered. Assume that marginal points
-        ! have equal thickness to inland neighbors 
+    subroutine calc_ice_fraction(f_ice,H_eff,H_ice,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,H_eff_min,dHdx,dx,boundaries)
+        ! Ice area fraction f_ice and effective thickness H_eff of each cell,
+        ! following the CISM subgrid calving-front scheme (which_ho_calving_front).
+        !
+        ! front_subgrid = "none":     f_ice binary, H_eff = H_ice.
+        ! front_subgrid = "floating": floating cells can be partial front cells.
+        ! front_subgrid = "marine":   floating and marine-grounded cells can be.
+        !
+        ! A front cell is an eligible ice cell with an ice-free ocean edge
+        ! neighbour. Its H_eff is the thickest interior (eligible, not front)
+        ! edge neighbour, or diagonal neighbour if there is none, minus
+        ! dHdx*distance. Floating neighbours are capped at their flotation
+        ! thickness ("floating"); for "marine" the effective surface is limited
+        ! instead. H_eff >= H_eff_min in all eligible cells, and <= flotation in
+        ! floating front cells ("floating"). f_ice = min(H_ice/H_eff,1) in front
+        ! cells, 1 in other ice cells, 0 elsewhere.
 
         implicit none 
 
         real(wp), intent(OUT) :: f_ice(:,:)             ! [--] Ice covered fraction (aa-nodes)
-        real(wp), intent(IN)  :: H_ice(:,:)             ! [m] Ice thickness on standard grid (aa-nodes)
-        real(wp), intent(IN)  :: z_bed(:,:)             ! [m] Bedrock elevation
-        real(wp), intent(IN)  :: z_sl(:,:)              ! [m] Sea-level elevation
+        real(wp), intent(OUT) :: H_eff(:,:)             ! [m]  Effective ice thickness (aa-nodes)
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness (aa-nodes)
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
+        real(wp), intent(IN)  :: H_eff_min              ! [m]  Minimum H_eff of eligible cells
+        real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
+        real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN), optional :: flt_subgrid   ! Option to allow fractions for floating ice margins             
-        
+
         ! Local variables 
-        integer  :: i, j, nx, ny
+        integer  :: i, j, k, nx, ny
         integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: H_eff  
-        logical  :: get_fractional_cover 
-
-        real(wp) :: H_neighb(4)
-        real(wp) :: Hg_neighb(4)
-        logical  :: float_neighb(4)
-        integer  :: n_neighb(4)
-        logical  :: mask(4) 
-        logical  :: mask_grnd(4)
-        integer  :: n_now
-        integer, allocatable  :: n_ice(:,:) 
-        real(wp), allocatable :: H_grnd(:,:)            ! [m] Thickness until flotation - floating if H_grnd<=0 (aa-nodes)
         integer  :: BC
+        integer  :: in(8), jn(8)
+        integer  :: k_max
+        real(wp) :: H_nb, H_max, dist
+        real(wp) :: z_srf_eff, z_srf_max, z_srf_now, z_srf_nb
+        logical  :: is_float
+        logical, allocatable  :: mask_elig(:,:)         ! Eligible (marine) ice cells
+        logical, allocatable  :: mask_cf(:,:)           ! Front cells (eligible, ocean edge neighbour)
+        logical, allocatable  :: mask_ocn(:,:)          ! Ice-free ocean cells
+        real(wp), allocatable :: H_flot(:,:)            ! [m] Flotation thickness
 
-        real(wp), parameter :: H_lim        = 100.0_wp 
+        ! CISM limits of the effective surface at marine-grounded fronts
+        ! ("AIS testing showed that values of 25 m and 0.001 prevent large
+        ! ice speeds that can lead to instability")
+        real(wp), parameter :: dz_srf_max    = 25.0_wp  ! [m]   z_srf_eff - z_srf
+        real(wp), parameter :: dz_srf_dx_max = 0.001_wp ! [m/m] upward surface slope at the front
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
 
-        ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        allocate(n_ice(nx,ny))
-        allocate(H_grnd(nx,ny))
-
-        ! By default, fractional cover will be determined
-        get_fractional_cover = .TRUE. 
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid 
-
-        if (get_fractional_cover) then 
-            ! Calculate H_grnd, without accounting for fractional ice cover
-            call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
-        end if 
-
-        ! Initialize f_ice to binary values first 
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp 
+        ! Binary defaults
+        where (H_ice .gt. 0.0_wp)
+            f_ice = 1.0_wp
+            H_eff = H_ice
         elsewhere
-            f_ice = 0.0_wp 
+            f_ice = 0.0_wp
+            H_eff = 0.0_wp
         end where
 
-        if (get_fractional_cover) then
-            ! For ice-covered points with ice-free neighbors (ie, at the floating or grounded margin),
-            ! determine the fraction of grid point that should be ice covered. 
+        if (trim(front_subgrid) .eq. "none") return
 
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1, H_neighb,mask)
-            do j = 1, ny
-            do i = 1, nx 
+        allocate(mask_elig(nx,ny))
+        allocate(mask_cf(nx,ny))
+        allocate(mask_ocn(nx,ny))
+        allocate(H_flot(nx,ny))
 
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-                
-                ! Count how many neighbors are ice covered  
-                H_neighb   = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                mask       = H_neighb .gt. 0.0_wp 
-                n_ice(i,j) = count(mask) 
+        H_flot   = max( (z_sl-z_bed)*rho_sw/rho_ice, 0.0_wp )
+        mask_ocn = H_ice .eq. 0.0_wp .and. z_bed .lt. z_sl
 
-                ! ajr: test.
-                ! Count how many neighbors are ice covered and floating
-                ! This appears to perform worse.
-                ! H_neighb   = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                ! Hg_neighb  = [H_grnd(im1,j),H_grnd(ip1,j),H_grnd(i,jm1),H_grnd(i,jp1)]
-                ! mask       = H_neighb .gt. 0.0_wp .and. Hg_neighb .le. 0.0_wp 
-                ! n_ice(i,j) = count(mask) 
+        select case(trim(front_subgrid))
+            case("floating")
+                mask_elig = H_ice .gt. 0.0_wp .and. H_ice .le. H_flot
+            case("marine")
+                mask_elig = H_ice .gt. 0.0_wp .and. z_bed .lt. z_sl
+            case DEFAULT
+                write(io_unit_err,*) "calc_ice_fraction:: Error: front_subgrid not recognized: ", trim(front_subgrid)
+                stop "Program stopped."
+        end select
 
-            end do 
+        ! Front cells: eligible cells with an ice-free ocean edge neighbour
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            mask_cf(i,j) = mask_elig(i,j) .and. &
+                ( mask_ocn(im1,j) .or. mask_ocn(ip1,j) .or. mask_ocn(i,jm1) .or. mask_ocn(i,jp1) )
+        end do
+        end do
+        !$omp end parallel do
+
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,in,jn,k_max,H_nb,H_max,dist) &
+        !$omp& private(is_float,z_srf_eff,z_srf_max,z_srf_now,z_srf_nb)
+        do j = 1, ny
+        do i = 1, nx
+
+            if (.not. mask_cf(i,j)) cycle
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Edge neighbours (1-4), then diagonal neighbours (5-8)
+            in = [im1,ip1,i,i,  im1,ip1,im1,ip1]
+            jn = [j,j,jm1,jp1,  jm1,jm1,jp1,jp1]
+
+            ! Thickest interior edge neighbour, else thickest interior diagonal
+            k_max = 0
+            H_max = 0.0_wp
+            do k = 1, 8
+                if (k .eq. 5 .and. k_max .gt. 0) exit
+                if (.not. mask_elig(in(k),jn(k)) .or. mask_cf(in(k),jn(k))) cycle
+                H_nb = H_ice(in(k),jn(k))
+                if (trim(front_subgrid) .eq. "floating") H_nb = min(H_nb,H_flot(in(k),jn(k)))
+                if (H_nb .gt. H_max) then
+                    H_max = H_nb
+                    k_max = k
+                end if
             end do
-            !$omp end parallel do
 
-            ! Determine ice fractional cover for margin points 
+            if (k_max .eq. 0) cycle     ! No interior neighbour: H_eff = H_ice, floor below
 
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1, H_neighb,mask,n_now,H_eff)
-            do j = 1, ny
-            do i = 1, nx 
+            dist = dx
+            if (k_max .gt. 4) dist = sqrt(2.0_wp)*dx
 
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-                
-                if (H_ice(i,j) .gt. 0.0_wp .and. n_ice(i,j) .eq. 0) then 
-                    ! First, treat a special case:
-                    ! Island point, assume the cell is fully covered
-                    ! to ensure it is dynamically active.
+            H_eff(i,j) = H_max - dHdx*dist
 
-                    f_ice(i,j) = 1.0_wp
+            if (trim(front_subgrid) .eq. "marine") then
+                ! Limit the effective surface: its upward slope from the
+                ! neighbour and its height above the actual surface
+                z_srf_nb  = srf_elev(H_ice(in(k_max),jn(k_max)),z_bed(in(k_max),jn(k_max)),z_sl(in(k_max),jn(k_max)))
+                z_srf_now = srf_elev(H_ice(i,j),z_bed(i,j),z_sl(i,j))
+                z_srf_eff = srf_elev(H_eff(i,j),z_bed(i,j),z_sl(i,j))
+                z_srf_max = min(z_srf_nb + dz_srf_dx_max*dist, z_srf_now + dz_srf_max)
+                if (z_srf_eff .gt. z_srf_max) then
+                    ! Thickness with surface z_srf_max: floating, or grounded if thinner
+                    H_eff(i,j) = (z_srf_max - z_sl(i,j)) * rho_sw/(rho_sw-rho_ice)
+                    H_eff(i,j) = min(H_eff(i,j), z_srf_max - z_bed(i,j))
+                end if
+            end if
 
-                else if (H_ice(i,j) .gt. 0.0_wp .and. n_ice(i,j) .lt. 4) then
-                    ! This point is ice-covered, but is at the ice margin 
+        end do
+        end do
+        !$omp end parallel do
 
-                    ! Get neighbor ice thicknesses
-                    H_neighb = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
+        ! Lower limit in all eligible cells (most fronts are at least a few tens of metres thick)
+        where (mask_elig) H_eff = max(H_eff, H_eff_min)
 
-                    ! Use all ice-bearing neighbors as upstream references.
-                    ! Dropping the (n_neighb == 4) "fully interior" filter
-                    ! removes a discrete neighbor-classification switch that
-                    ! seeds asymmetries on symmetric problems.
-                    mask     = H_neighb .gt. 0.0_wp
-                    n_now    = count(mask)
+        ! Floating fronts do not exceed flotation (allows H_eff < H_eff_min in shallow water)
+        if (trim(front_subgrid) .eq. "floating") then
+            where (mask_cf) H_eff = min(H_eff, H_flot)
+        end if
 
-                    if (H_grnd(i,j) .le. 0.0) then
-                        ! Floating point
-
-                        if (n_now .gt. 0) then
-                            ! Get mean value of upstream neighbors.
-                            ! Using mean (instead of minval) makes H_eff a
-                            ! continuous function of neighbor thicknesses,
-                            ! removing the discrete switch that otherwise
-                            ! seeds asymmetries on symmetric problems.
-                            H_eff = sum(H_neighb,mask=mask) / real(n_now,wp)
-                        else
-                            ! No upstream neighbors available, compare
-                            ! ice thickness against minimum allowed
-                            ! 'full' ice thickness value H_lim.
-                            H_eff = max(H_ice(i,j),H_lim)
-                        end if
-
-                    else 
-                        ! Grounded point, set H_eff = H_ice following CISM
-                        ! (do not allow partially filled cells for grounded ice)
-
-                        H_eff = H_ice(i,j) 
-
-                    end if
-                
-                    ! Determine the cell ice fraction
-                    ! Note: fraction is determined as a ratio of 
-                    ! thicknesses, derived from volume conservation 
-                    ! vol = H_ice*dx*dy = H_eff*area_frac 
-                    ! f_ice = area_frac / (dx*dy)
-                    ! f_ice = H_ice/H_eff 
-                    ! Note: H_eff == 0.0 probably won't happen, but keep if-statement 
-                    ! for safety 
-
-                    if (H_eff .gt. 0.0_wp) then 
-                        f_ice(i,j) = min( H_ice(i,j) / H_eff, 1.0_wp )
-                        if (f_ice(i,j) .lt. TOL) f_ice(i,j) = TOL
-                    else 
-                        f_ice(i,j) = 1.0_wp 
-                    end if 
-                
-                end if 
-
-            end do 
-            end do 
-            !$omp end parallel do
-
-        end if 
+        ! Area fraction of front cells
+        where (mask_cf .and. H_eff .gt. 0.0_wp) f_ice = max( min(H_ice/H_eff, 1.0_wp), TOL )
 
         return 
+
+    contains
+
+        pure function srf_elev(H,zb,zsl) result(zs)
+            ! Surface elevation of a column: floating or grounded
+            real(wp), intent(IN) :: H, zb, zsl
+            real(wp) :: zs
+            if (zb - zsl .lt. -rho_ice/rho_sw*H) then
+                zs = zsl + (1.0_wp - rho_ice/rho_sw)*H
+            else
+                zs = zb + H
+            end if
+        end function srf_elev
 
     end subroutine calc_ice_fraction
 
