@@ -40,6 +40,11 @@ little. MISMIP3D and DIVA runs change more.
   cell, with `H_ice_dyn = H_eff` and `f_ice_dyn = 1`. The front boundary
   condition is on the partial cell's ocean face. `H_grnd` uses the actual
   thickness. With `front_subgrid = "none"` results are unchanged.
+- **The ice front advances as in CISM** (step 3): after calving, a front cell
+  with more ice than `H_eff` passes the excess (plus 0.1 m) to its ice-free
+  ocean neighbours, split by the outward velocity. Partial front cells still
+  export nothing into the ocean (`set_inactive_margins`). Only with
+  `front_subgrid /= "none"` and mass-balance calving.
 - **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
   `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
   pars, whose periodic domains are fully ice-covered, so they had no effect;

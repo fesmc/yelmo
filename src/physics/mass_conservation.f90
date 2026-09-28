@@ -24,6 +24,7 @@ module mass_conservation
     public :: calc_G_relaxation
 
     public :: calc_G_remove_fractional_ice
+    public :: calc_G_front_advance
     public :: remove_icebergs
     
 contains 
@@ -951,6 +952,75 @@ contains
         return
 
     end subroutine calc_G_relaxation
+
+    subroutine calc_G_front_advance(mb_adv,H_ice,H_eff,mask_cf,mask_ocn,ux,uy,dt,boundaries)
+        ! Advance the ice front (CISM advance_calving_front): in a front cell
+        ! that holds more ice than its effective thickness, move the excess
+        ! (plus a small amount, so that the cell stays partial) to its
+        ! ice-free ocean edge neighbours, split by the outward velocity across
+        ! each face. Returns the rate [m/yr]; it sums to zero (transport).
+
+        implicit none
+
+        real(wp), intent(OUT) :: mb_adv(:,:)            ! [m/yr] Rate of thickness change
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]    Ice thickness
+        real(wp), intent(IN)  :: H_eff(:,:)             ! [m]    Effective thickness
+        logical,  intent(IN)  :: mask_cf(:,:)           ! Front cells
+        logical,  intent(IN)  :: mask_ocn(:,:)          ! Ice-free ocean cells
+        real(wp), intent(IN)  :: ux(:,:)                ! [m/yr] Depth-averaged velocity (acx-nodes)
+        real(wp), intent(IN)  :: uy(:,:)                ! [m/yr] Depth-averaged velocity (acy-nodes)
+        real(wp), intent(IN)  :: dt                     ! [yr]
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, im1, ip1, jm1, jp1, BC
+        integer  :: in(4), jn(4)
+        real(wp) :: u_out(4), u_tot, dH_tot
+
+        real(wp), parameter :: dH_small = 0.1_wp       ! [m] Leaves the cell slightly below H_eff
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        mb_adv = 0.0_wp
+
+        if (dt .le. 0.0_wp) return
+
+        ! Serial loop: a receiving cell can border several front cells
+        do j = 1, ny
+        do i = 1, nx
+
+            if (.not. mask_cf(i,j) .or. H_ice(i,j) .le. H_eff(i,j)) cycle
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            in    = [ip1,im1,i,i]
+            jn    = [j,j,jp1,jm1]
+            u_out = [ux(i,j), -ux(im1,j), uy(i,j), -uy(i,jm1)]
+
+            u_tot = 0.0_wp
+            do k = 1, 4
+                if (mask_ocn(in(k),jn(k)) .and. u_out(k) .gt. 0.0_wp) u_tot = u_tot + u_out(k)
+            end do
+
+            if (u_tot .le. 0.0_wp) cycle
+
+            dH_tot = min(H_ice(i,j) - H_eff(i,j) + dH_small, H_ice(i,j))
+
+            do k = 1, 4
+                if (mask_ocn(in(k),jn(k)) .and. u_out(k) .gt. 0.0_wp) then
+                    mb_adv(in(k),jn(k)) = mb_adv(in(k),jn(k)) + dH_tot*(u_out(k)/u_tot)/dt
+                end if
+            end do
+            mb_adv(i,j) = mb_adv(i,j) - dH_tot/dt
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_G_front_advance
 
     subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
         ! Eliminate fractional ice covered points that only 

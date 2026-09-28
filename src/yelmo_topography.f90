@@ -548,11 +548,13 @@ end if
         integer :: i, j, nx, ny 
         real(wp), allocatable :: mbal_now(:,:) 
         real(wp), allocatable :: cmb_sd(:,:)
+        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
 
         nx = size(tpo%now%H_ice,1) 
         ny = size(tpo%now%H_ice,2) 
 
         allocate(mbal_now(nx,ny)) 
+        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
         allocate(cmb_sd(nx,ny)) 
 
 
@@ -705,6 +707,18 @@ end if
 
         ! Update ice fraction mask 
         call update_ice_fraction(tpo,bnd)
+
+        if (trim(tpo%par%front_subgrid) .ne. "none") then
+            ! Advance the front: excess ice above H_eff in front cells moves
+            ! to the ocean neighbours (transport, booked with dHidt_dyn)
+            call calc_front_cells(mask_cf,mask_elig,mask_ocn,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                                    bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid,tpo%par%boundaries)
+            call calc_G_front_advance(mbal_now,tpo%now%H_ice,tpo%now%H_eff,mask_cf,mask_ocn, &
+                                    dyn%now%ux_bar,dyn%now%uy_bar,dt,tpo%par%boundaries)
+            call apply_tendency(tpo%now%H_ice,mbal_now,dt,"advance",adjust_mb=.TRUE.)
+            tpo%now%dHidt_dyn = tpo%now%dHidt_dyn + mbal_now
+            call update_ice_fraction(tpo,bnd)
+        end if
 
 
         ! Treat fractional points that are not connected to full ice-covered points

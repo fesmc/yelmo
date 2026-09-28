@@ -24,6 +24,7 @@ module topography
 
     public :: calc_ice_fraction
     public :: calc_ice_fraction_lsf
+    public :: calc_front_cells
     public :: calc_ice_front
 
     public :: calc_z_srf
@@ -294,29 +295,9 @@ contains
         allocate(mask_ocn(nx,ny))
         allocate(H_flot(nx,ny))
 
-        H_flot   = max( (z_sl-z_bed)*rho_sw/rho_ice, 0.0_wp )
-        mask_ocn = H_ice .eq. 0.0_wp .and. z_bed .lt. z_sl
+        H_flot = max( (z_sl-z_bed)*rho_sw/rho_ice, 0.0_wp )
 
-        select case(trim(front_subgrid))
-            case("floating")
-                mask_elig = H_ice .gt. 0.0_wp .and. H_ice .le. H_flot
-            case("marine")
-                mask_elig = H_ice .gt. 0.0_wp .and. z_bed .lt. z_sl
-            case DEFAULT
-                write(io_unit_err,*) "calc_ice_fraction:: Error: front_subgrid not recognized: ", trim(front_subgrid)
-                stop "Program stopped."
-        end select
-
-        ! Front cells: eligible cells with an ice-free ocean edge neighbour
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
-        do j = 1, ny
-        do i = 1, nx
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            mask_cf(i,j) = mask_elig(i,j) .and. &
-                ( mask_ocn(im1,j) .or. mask_ocn(ip1,j) .or. mask_ocn(i,jm1) .or. mask_ocn(i,jp1) )
-        end do
-        end do
-        !$omp end parallel do
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
 
         !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,in,jn,k_max,H_nb,H_max,dist) &
         !$omp& private(is_float,z_srf_eff,z_srf_max,z_srf_now,z_srf_nb)
@@ -397,6 +378,57 @@ contains
         end function srf_elev
 
     end subroutine calc_ice_fraction
+
+    subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+        ! Front cells of the subgrid front scheme (ytopo.front_subgrid):
+        ! eligible ice cells (floating, or floating and marine-grounded)
+        ! with at least one ice-free ocean edge neighbour.
+
+        implicit none
+
+        logical,  intent(OUT) :: mask_cf(:,:)           ! Front cells
+        logical,  intent(OUT) :: mask_elig(:,:)         ! Eligible ice cells
+        logical,  intent(OUT) :: mask_ocn(:,:)          ! Ice-free ocean cells
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: z_bed(:,:)
+        real(wp), intent(IN)  :: z_sl(:,:)
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny, im1, ip1, jm1, jp1, BC
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        mask_ocn = H_ice .eq. 0.0_wp .and. z_bed .lt. z_sl
+
+        select case(trim(front_subgrid))
+            case("floating")
+                mask_elig = H_ice .gt. 0.0_wp .and. H_ice*rho_ice/rho_sw .le. (z_sl-z_bed)
+            case("marine")
+                mask_elig = H_ice .gt. 0.0_wp .and. z_bed .lt. z_sl
+            case DEFAULT
+                write(io_unit_err,*) "calc_front_cells:: Error: front_subgrid not recognized: ", trim(front_subgrid)
+                stop "Program stopped."
+        end select
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            mask_cf(i,j) = mask_elig(i,j) .and. &
+                ( mask_ocn(im1,j) .or. mask_ocn(ip1,j) .or. mask_ocn(i,jm1) .or. mask_ocn(i,jp1) )
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_front_cells
 
     subroutine calc_ice_fraction_lsf(f_ice,H_ice,lsf,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
         ! Alternative to calc_ice_fraction: derive the floating-ice area
