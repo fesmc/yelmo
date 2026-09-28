@@ -108,7 +108,6 @@ contains
         c%rho_ice    = 910.0_wp
         c%rho_w      = 1000.0_wp
         c%rho_sw     = 1028.0_wp
-        c%rho_rock   = 2000.0_wp
         c%L_ice      = 3.34e5_wp
         c%T_pmp_beta = 7.9e-8_wp       ! Kleiner (2015) Table A1 Clausius-Clapeyron
         return

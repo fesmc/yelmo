@@ -212,18 +212,18 @@ contains
                     ! equilibrium with the bed surface temperature 
                     ! (ie, no active bedrock) 
 
-                    call define_temp_bedrock_3D(thrm%now%enth_rock,thrm%now%T_rock,thrm%now%Q_rock,thrm%par%cp_rock, &
+                    call define_temp_bedrock_3D(thrm%now%T_rock,thrm%now%Q_rock, &
                                              thrm%par%kt_rock,bnd%Q_geo,thrm%now%T_ice(:,:,1), &
-                                             thrm%par%H_rock,thrm%par%zr%zeta_aa,bnd%c%rho_rock,bnd%c%sec_year)
+                                             thrm%par%H_rock,thrm%par%zr%zeta_aa,bnd%c%sec_year)
 
                 case("active")
                     ! Solve thermodynamic equation for the bedrock 
 
-                    call calc_ytherm_enthalpy_bedrock_3D(thrm%now%enth_rock,thrm%now%T_rock,thrm%now%Q_rock, &
-                                    thrm%now%T_ice(:,:,1),thrm%now%T_pmp(:,:,1),thrm%par%cp_rock,thrm%par%kt_rock, &
+                    call calc_ytherm_temp_bedrock_3D(thrm%now%T_rock,thrm%now%Q_rock, &
+                                    thrm%now%T_ice(:,:,1),thrm%now%T_pmp(:,:,1),thrm%par%rhoc_rock,thrm%par%kt_rock, &
                                     thrm%par%H_rock,tpo%now%H_ice,tpo%now%H_grnd,thrm%now%Q_ice_b,bnd%Q_geo, &
                                     thrm%par%zr%zeta_aa,thrm%par%zr%zeta_ac,thrm%par%zr%dzeta_a,thrm%par%zr%dzeta_b, &
-                                    bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_rock,bnd%c%T0,bnd%c%sec_year,dt)
+                                    bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%T0,bnd%c%sec_year,dt)
 
                 case("fixed") 
                     ! Pass - do nothing, use the enth/temp/omega fields as they are defined
@@ -559,9 +559,9 @@ end if
 
     end subroutine check_symmetry_2D
 
-    subroutine calc_ytherm_enthalpy_bedrock_3D(enth_rock,T_rock,Q_rock,T_ice_b,T_pmp_b,cp_rock,kt_rock,H_rock, &
+    subroutine calc_ytherm_temp_bedrock_3D(T_rock,Q_rock,T_ice_b,T_pmp_b,rhoc_rock,kt_rock,H_rock, &
                                                 H_ice,H_grnd,Q_ice_b,Q_geo,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                                rho_ice,rho_sw,rho_rock,T0,sec_year,dt)
+                                                rho_ice,rho_sw,T0,sec_year,dt)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
 
@@ -571,12 +571,11 @@ end if
 
         implicit none 
 
-        real(wp), intent(INOUT) :: enth_rock(:,:,:)   ! [J m-3] Bedrock enthalpy
         real(wp), intent(INOUT) :: T_rock(:,:,:)      ! [K] Bedrock temperature
         real(wp), intent(OUT)   :: Q_rock(:,:)        ! [mW m-2] Bed surface heat flux 
         real(wp), intent(IN)    :: T_ice_b(:,:)       ! [K] Ice temperature at ice base
         real(wp), intent(IN)    :: T_pmp_b(:,:)       ! [K] Pressure melting point temp at ice base.
-        real(wp), intent(IN)    :: cp_rock            ! [J kg-1 K-1] Specific heat capacity 
+        real(wp), intent(IN)    :: rhoc_rock          ! [J m-3 K-1] Volumetric heat capacity
         real(wp), intent(IN)    :: kt_rock            ! [J a-1 m-1 K-1] Heat conductivity
         real(wp), intent(IN)    :: H_rock             ! [m] Bedrock thickness 
         real(wp), intent(IN)    :: H_ice(:,:)         ! [m] Ice thickness 
@@ -589,7 +588,6 @@ end if
         real(wp), intent(IN)    :: dzeta_b(:)         ! nz_aa [--] Solver discretization helper variable bk
         real(wp), intent(IN)    :: rho_ice 
         real(wp), intent(IN)    :: rho_sw
-        real(wp), intent(IN)    :: rho_rock 
         real(wp), intent(IN)    :: T0 
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt                 ! [a] Time step 
@@ -626,19 +624,16 @@ end if
             if (H_ice(i,j) .gt. 0.0) then 
                 ! Call thermodynamic solver for the column
 
-                call calc_temp_bedrock_column(enth_rock(i,j,:),T_rock(i,j,:),Q_rock(i,j),  &
-                        cp_rock,kt_rock,Q_ice_b(i,j),Q_geo(i,j),T_base,H_rock,zeta_aa, &
-                        zeta_ac,dzeta_a,dzeta_b,rho_rock,sec_year,dt)
+                call calc_temp_bedrock_column(T_rock(i,j,:),Q_rock(i,j),  &
+                        rhoc_rock,kt_rock,Q_ice_b(i,j),Q_geo(i,j),T_base,H_rock,zeta_aa, &
+                        zeta_ac,dzeta_a,dzeta_b,sec_year,dt)
             
             else 
                 ! Assume equilibrium conditions: impose linear temperature 
                 ! profile following Q_geo and T_base
 
-                call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,rho_rock,H_rock, &
+                call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,H_rock, &
                                                                     T_base,Q_geo(i,j),zeta_aa,sec_year)
-
-                ! Get enthalpy too 
-                call convert_to_enthalpy(enth_rock(i,j,:),T_rock(i,j,:),0.0_wp,0.0_wp,cp_rock,0.0_wp)
 
             end if 
 
@@ -648,7 +643,7 @@ end if
 
         return 
 
-    end subroutine calc_ytherm_enthalpy_bedrock_3D
+    end subroutine calc_ytherm_temp_bedrock_3D
     
     subroutine ytherm_par_load(par,filename,group,zeta_aa,zeta_ac,nx,ny,dx,init)
 
@@ -700,7 +695,7 @@ end if
         call nml_read(filename,group,"zeta_scale_rock",par%zeta_scale_rock,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"zeta_exp_rock",  par%zeta_exp_rock,    init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"H_rock",         par%H_rock,           init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
-        call nml_read(filename,group,"cp_rock",        par%cp_rock,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"rhoc_rock",      par%rhoc_rock,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"kt_rock",        par%kt_rock,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
 
         ! Validate parameter values
@@ -809,7 +804,6 @@ end if
         allocate(now%advecxy(nx,ny,nz_aa))
 
         allocate(now%Q_rock(nx,ny))
-        allocate(now%enth_rock(nx,ny,nzr_aa))
         allocate(now%T_rock(nx,ny,nzr_aa))
 
         now%enth        = 0.0
@@ -831,7 +825,6 @@ end if
         now%advecxy     = 0.0
 
         now%Q_rock      = 0.0 
-        now%enth_rock   = 0.0 
         now%T_rock      = 0.0 
 
         return
@@ -863,7 +856,6 @@ end if
         if (allocated(now%advecxy))     deallocate(now%advecxy)
 
         if (allocated(now%Q_rock))      deallocate(now%Q_rock)
-        if (allocated(now%enth_rock))   deallocate(now%enth_rock)
         if (allocated(now%T_rock))      deallocate(now%T_rock)
 
         return 

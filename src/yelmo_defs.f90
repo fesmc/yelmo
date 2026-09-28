@@ -90,7 +90,6 @@ module yelmo_defs
     !real(wp)   :: rho_w          ! [kg m-3] Density water          
     !real(wp)   :: rho_sw         ! [kg m-3] Density seawater      
     !real(wp)   :: rho_a          ! [kg m-3] Density asthenosphere  
-    !real(wp)   :: rho_rock       ! [kg m-3] Density bedrock (mantle/lithosphere) 
     !real(wp)   :: L_ice          ! [J kg-1] Latent heat           
     !real(wp)   :: T_pmp_beta     ! [K Pa-1] Melt point pressure slope
 
@@ -754,7 +753,7 @@ module yelmo_defs
         character (len=56)  :: zeta_scale_rock  
         real(wp)            :: zeta_exp_rock 
         real(wp)            :: H_rock 
-        real(wp)            :: cp_rock
+        real(wp)            :: rhoc_rock
         real(wp)            :: kt_rock
         
         ! Internal parameters
@@ -795,7 +794,6 @@ module yelmo_defs
         
         ! Bedrock / lithosphere 
         real(wp), allocatable :: Q_rock(:,:)
-        real(wp), allocatable :: enth_rock(:,:,:)
         real(wp), allocatable :: T_rock(:,:,:)
 
     end type
@@ -823,7 +821,6 @@ module yelmo_defs
         real(wp)   :: rho_w          ! [kg m-3] Density water          
         real(wp)   :: rho_sw         ! [kg m-3] Density seawater      
         real(wp)   :: rho_a          ! [kg m-3] Density asthenosphere  
-        real(wp)   :: rho_rock       ! [kg m-3] Density bedrock (mantle/lithosphere) 
         real(wp)   :: L_ice          ! [J kg-1] Latent heat           
         real(wp)   :: T_pmp_beta     ! [K Pa-1] Melt point pressure slope
 

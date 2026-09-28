@@ -1370,22 +1370,22 @@ contains
 
     end function define_temp_robin_column
 
-    subroutine define_temp_bedrock_3D(enth_rock,T_rock,Q_rock,cp_rock,kt_rock,Q_geo, &
-                                                T_bed,H_rock,zeta_aa,rho_rock,sec_year)
-        ! Define 3D bedrock enth/temp field 
+    subroutine define_temp_bedrock_3D(T_rock,Q_rock,kt_rock,Q_geo, &
+                                                T_bed,H_rock,zeta_aa,sec_year)
+        ! Define the 3D bedrock temperature field in equilibrium with the bed
+        ! surface temperature and the deep geothermal heat flux. A steady-state
+        ! conduction profile depends on the conductivity alone -- no heat
+        ! capacity and no density enter here.
 
         implicit none 
 
-        real(wp), intent(OUT) :: enth_rock(:,:,:)     ! [J m-3] 3D enthalpy field
         real(wp), intent(OUT) :: T_rock(:,:,:)        ! [K] 3D temperature field
         real(wp), intent(OUT) :: Q_rock(:,:)          ! [mW m-2] Bed surface heat flux 
-        real(wp), intent(IN)  :: cp_rock              ! [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)  :: kt_rock              ! [J a-1 m-1 K-1] Heat conductivity 
         real(wp), intent(IN)  :: Q_geo(:,:)           ! [mW m-2] Geothermal heat flux 
         real(wp), intent(IN)  :: T_bed(:,:)           ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_rock               ! [m] Column thickness 
         real(wp), intent(IN)  :: zeta_aa(:)           ! [--] Vertical zeta coordinates (zeta==height), aa-nodes
-        real(wp), intent(IN)  :: rho_rock 
         real(wp), intent(IN)  :: sec_year 
 
         ! Local variable
@@ -1399,7 +1399,7 @@ contains
         do i = 1, nx 
 
             ! Calculate temperature profile 
-            call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,rho_rock,H_rock, &
+            call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,H_rock, &
                                                     T_bed(i,j),Q_geo(i,j),zeta_aa,sec_year)
 
             ! Calculate heat flux through bed surface from lithosphere [mW m-2]
@@ -1408,14 +1408,11 @@ contains
         end do 
         end do 
 
-        ! Get enthalpy too 
-        call convert_to_enthalpy(enth_rock,T_rock,0.0_wp,0.0_wp,cp_rock,0.0_wp)
-          
         return 
 
     end subroutine define_temp_bedrock_3D
 
-    subroutine define_temp_bedrock_column(T_rock,kt_rock,rho_rock,H_rock,T_bed,Q_geo,zeta_aa,sec_year)
+    subroutine define_temp_bedrock_column(T_rock,kt_rock,H_rock,T_bed,Q_geo,zeta_aa,sec_year)
         ! This function will impose a temperature profile in a column 
         ! of bedrock assuming equilibrium with the bed surface temperature (T_bed)
         ! and the geothermal heat flux deep in the bedrock (Q_geo) 
@@ -1424,7 +1421,6 @@ contains
 
         real(wp), intent(OUT) :: T_rock(:) 
         real(wp), intent(IN)  :: kt_rock 
-        real(wp), intent(IN)  :: rho_rock 
         real(wp), intent(IN)  :: H_rock
         real(wp), intent(IN)  :: T_bed 
         real(wp), intent(IN)  :: Q_geo 

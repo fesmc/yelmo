@@ -579,7 +579,6 @@ contains
       case("thrm_cp");           v3D = real(ylmo%thrm%now%cp,           c_double)
       case("thrm_kt");           v3D = real(ylmo%thrm%now%kt,           c_double)
       case("thrm_advecxy");      v3D = real(ylmo%thrm%now%advecxy,      c_double)
-      case("thrm_enth_rock");    v3D = real(ylmo%thrm%now%enth_rock,    c_double)
       case("thrm_T_rock");       v3D = real(ylmo%thrm%now%T_rock,       c_double)
 
       case DEFAULT

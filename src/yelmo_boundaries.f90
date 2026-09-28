@@ -63,7 +63,6 @@ contains
         call nml_read(filename,group,"rho_w",       c%rho_w,      init=init_pars)
         call nml_read(filename,group,"rho_sw",      c%rho_sw,     init=init_pars)
         call nml_read(filename,group,"rho_a",       c%rho_a,      init=init_pars)
-        call nml_read(filename,group,"rho_rock",    c%rho_rock,   init=init_pars)
         call nml_read(filename,group,"L_ice",       c%L_ice,      init=init_pars)
         call nml_read(filename,group,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
 
@@ -93,7 +92,6 @@ contains
             write(*,*) "    rho_w      = ", c%rho_w 
             write(*,*) "    rho_sw     = ", c%rho_sw 
             write(*,*) "    rho_a      = ", c%rho_a 
-            write(*,*) "    rho_rock   = ", c%rho_rock 
             write(*,*) "    L_ice      = ", c%L_ice 
             write(*,*) "    T_pmp_beta = ", c%T_pmp_beta
             write(*,*) ""

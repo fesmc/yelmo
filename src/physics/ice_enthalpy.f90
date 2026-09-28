@@ -253,8 +253,8 @@ contains
 
     end subroutine calc_temp_column
 
-    subroutine calc_temp_bedrock_column(enth,temp,Q_rock,cp,kt,Q_ice_b,Q_geo,T_srf,H_rock, &
-                                                zeta_aa,zeta_ac,dzeta_a,dzeta_b,rho_rock,sec_year,dt)
+    subroutine calc_temp_bedrock_column(temp,Q_rock,rhoc,kt,Q_ice_b,Q_geo,T_srf,H_rock, &
+                                                zeta_aa,zeta_ac,dzeta_a,dzeta_b,sec_year,dt)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -265,11 +265,10 @@ contains
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
-        real(wp), intent(INOUT) :: temp(:)        ! nz_aa [K] Ice column temperature
+        real(wp), intent(INOUT) :: temp(:)        ! nz_aa [K] Bedrock column temperature
         real(wp), intent(OUT)   :: Q_rock         ! [mW m-2] Bed surface heat flux (positive up)
-        real(wp), intent(IN)    :: cp             ! nz_aa [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)    :: kt             ! nz_aa [J a-1 m-1 K-1] Heat conductivity 
+        real(wp), intent(IN)    :: rhoc           ! [J m-3 K-1] Volumetric heat capacity
+        real(wp), intent(IN)    :: kt             ! [J a-1 m-1 K-1] Heat conductivity 
         real(wp), intent(IN)    :: Q_ice_b        ! [mW m-2] Ice basal heat flux (positive up)
         real(wp), intent(IN)    :: Q_geo          ! [mW m-2] Bedrock heat flux (positive up)
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
@@ -278,7 +277,6 @@ contains
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: rho_rock
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
 
@@ -314,7 +312,9 @@ contains
         
         allocate(kappa_aa(nz_aa))
 
-        kappa_aa = kt / (rho_rock*cp)
+        ! Thermal diffusivity: conduction needs only the conductivity and the
+        ! volumetric heat capacity, never a density and a specific heat separately.
+        kappa_aa = kt / rhoc
         
         ! Set unused terms to zero (via pointers to save allocations)
         allocate(zeros(nz_ac))
@@ -353,9 +353,6 @@ contains
         call calc_temp_column_internal(temp,kappa_aa,uz,advecxy,Q_strn,val_base,val_srf,H_rock, &
                                                 zeta_aa,zeta_ac,dzeta_a,dzeta_b,T_ref,dt, &
                                                 is_basal_flux,is_surf_flux)
-
-        ! Convert to enthalpy too 
-        call convert_to_enthalpy(enth,temp,omega=0.0_wp,T_pmp=0.0_wp,cp=cp,L=0.0_wp)
 
         ! Calculate heat flux at bedrock surface as temperature gradient * conductivity [J a-1 m-2]
 

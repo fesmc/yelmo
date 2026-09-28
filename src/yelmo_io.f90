@@ -903,7 +903,7 @@ contains
         nz    = size(dom%par%zeta_aa,1) 
         nz_ac = size(dom%par%zeta_ac,1) 
         
-        nz_r  = size(dom%thrm%now%enth_rock,3)
+        nz_r  = size(dom%thrm%now%T_rock,3)
         n_iso = size(dom%trc%now%depth_iso,3)
 
         ! Assume that first time dimension value is to be read in
@@ -1072,7 +1072,6 @@ contains
         call nc_read_interp(filename,"advecxy",     dom%thrm%now%advecxy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)   
         
         call nc_read_interp(filename,"Q_rock",      dom%thrm%now%Q_rock,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"enth_rock",   dom%thrm%now%enth_rock,  ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],map=mp)
         call nc_read_interp(filename,"T_rock",      dom%thrm%now%T_rock,     ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_r,1],map=mp)
 
         ! == yhyd variables ===
@@ -1919,9 +1918,6 @@ contains
             case("Q_rock")
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%Q_rock(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("enth_rock") ! 3D
-                call nc_write(filename,trim(v%varname),ylmo%thrm%now%enth_rock(i1:i2,j1:j2,:), &
-                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("T_rock") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%T_rock(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
