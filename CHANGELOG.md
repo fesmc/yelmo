@@ -95,6 +95,9 @@ little. MISMIP3D and DIVA runs change more.
     (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
     0.8 instead of 0.5 gave +40e3 km3 after 2 ka (now +3e3 km3 after 1 ka).
     `H_min_tau = 0` gives the previous behaviour; benchmarks are unchanged.
+  - `ycalv.tau_ice` is split into `tau_ice_flt` and `tau_ice_grnd` (both
+    250 kPa): the `vm-m16` ice strength for floating and marine-grounded fronts
+    (Morlighem et al., 2016 use separate values).
   - `ycalv.H_min_flt` default and initmip value 10 m (was 75 m). With
     `H_min_tau = 10` yr, ANT-16KM initmip at 1 ka: +23e3 km3 ice, +1.2% floating
     area, and ~1.6× faster.

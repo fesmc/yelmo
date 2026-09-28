@@ -178,7 +178,8 @@ module yelmo_defs
         character(len=56)  :: lsf_method        ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
         real(wp)           :: dt_lsf            ! [yr] periodic LSF reflag interval (<= 0 disables); only used in "snap" mode
         integer            :: lsf_redist_n_iter ! Sussman/Osher redistancing iterations; only used in "redist" mode
-        real(wp)           :: tau_ice
+        real(wp)           :: tau_ice_flt           ! [Pa] Ice strength failure, floating fronts (vm-m16)
+        real(wp)           :: tau_ice_grnd          ! [Pa] Ice strength failure, marine-grounded fronts (vm-m16)
 
         ! Internal parameters 
         real(dp)           :: time 

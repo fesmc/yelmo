@@ -814,7 +814,7 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_flt,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,mat%now%strs2D%tau_eig_1,tpo%par%tau_ice,tpo%now%f_ice,tpo%par%boundaries)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,mat%now%strs2D%tau_eig_1,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
                 
             ! TO DO: Add new laws
     
@@ -858,7 +858,7 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_grnd,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,mat%now%strs2D%tau_eig_1,tpo%par%tau_ice,tpo%now%f_ice,tpo%par%boundaries)    
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,mat%now%strs2D%tau_eig_1,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)    
 
             case("ismip7")
                 ! Retreat of marine-terminating glaciers following ISMIP7 protocol
@@ -1484,7 +1484,8 @@ end if
         call nml_read(filename,group_ycalv,"w2",                par%w2,                 init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"kt_ref",            par%kt_ref,             init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"kt_deep",           par%kt_deep,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
-        call nml_read(filename,group_ycalv,"tau_ice",           par%tau_ice,            init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"tau_ice_flt",       par%tau_ice_flt,        init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
+        call nml_read(filename,group_ycalv,"tau_ice_grnd",      par%tau_ice_grnd,       init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         ! Threshold method
         call nml_read(filename,group_ycalv,"Hc_ref_flt",        par%Hc_ref_flt,       init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
         call nml_read(filename,group_ycalv,"Hc_ref_grnd",       par%Hc_ref_grnd,      init=init_pars,defaults_file=def_file,defaults_group=def_ycalv)
@@ -1541,6 +1542,11 @@ end if
         end if
         if (par%H_min_tau .lt. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.H_min_tau must be >= 0; got ", par%H_min_tau
+            stop "Program stopped."
+        end if
+        if (par%tau_ice_flt .le. 0.0_wp .or. par%tau_ice_grnd .le. 0.0_wp) then
+            write(io_unit_err,*) "ytopo_par_load:: error: ycalv.tau_ice_flt and tau_ice_grnd must be > 0; got ", &
+                                 par%tau_ice_flt, par%tau_ice_grnd
             stop "Program stopped."
         end if
         if (par%sd_min .ge. par%sd_max) then

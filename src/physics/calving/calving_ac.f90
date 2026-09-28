@@ -97,7 +97,7 @@ contains
         ! Calculate the calving rate [m/yr] based on the 
         ! von Mises stress approach, as outlined by Morlighem et al. (2016)
         ! DOI: 10.1002/2016gl067695
-        ! Eq. 4: c = v*tau_1/tau_ice
+        ! Eq. 4: c = v*tau_1/tau_ice (tau_ice_flt or tau_ice_grnd)
 
         implicit none 
 
