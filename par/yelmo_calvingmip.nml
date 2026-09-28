@@ -65,7 +65,6 @@
     front_subgrid       = "none"            ! Subgrid ice fronts: "none" (binary f_ice), "floating", "marine" (floating + marine-grounded)
     front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)
     front_dHdx          = 0.0               ! [m/m] Thickness gradient assumed at a full front (front_subgrid)
-    f_ice_method        = "upstream"        ! "upstream" (H_ice/H_neighb) or "lsf" (geometric LSF area fraction)
     use_bmb             = False             ! Use basal mass balance in mass conservation equation
     topo_fixed          = False             ! Keep ice thickness fixed, perform other ytopo calculations
     topo_rel            = 0                 ! 0: No relaxation; 1: relax shelf; 2: relax shelf + gl; 3: all points 

@@ -774,6 +774,7 @@ end if
         integer  :: im1, ip1, jm1, jp1
         real(wp) :: dt_kill
         real(wp), allocatable :: mbal_now(:,:)
+        real(wp), allocatable :: a_lsf(:,:)
         !real(wp), allocatable :: u_acx_fill(:,:), v_acy_fill(:,:)
         integer  :: BC
         integer  :: i1, i2, j1, j2
@@ -790,6 +791,7 @@ end if
         BC = boundary_code(tpo%par%boundaries)
 
         allocate(mbal_now(nx,ny))
+        allocate(a_lsf(nx,ny))
 
         ! === Floating calving laws ===
         
@@ -1010,6 +1012,18 @@ end if
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,tpo%now%cmb,dt,"calving_lsf",adjust_mb=.TRUE.)
+
+        if (trim(tpo%par%front_subgrid) .ne. "none") then
+            ! Subgrid front: front-cell thickness follows the level set
+            ! (at most a_lsf*H_eff), so f_ice = H_ice/H_eff is the area
+            ! behind the front
+            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%par%boundaries)
+            call calc_G_lsf_front(mbal_now,tpo%now%H_ice,a_lsf,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw, &
+                                  tpo%par%front_subgrid,tpo%par%front_H_eff_min,tpo%par%front_dHdx, &
+                                  tpo%par%dx,dt_kill,tpo%par%boundaries)
+            call apply_tendency(tpo%now%H_ice,mbal_now,dt,"calving_lsf_front",adjust_mb=.TRUE.)
+            tpo%now%cmb = tpo%now%cmb + mbal_now
+        end if
 
         ! Update ice fraction mask 
         call update_ice_fraction(tpo,bnd)
@@ -1424,7 +1438,6 @@ end if
         call nml_read(filename,group_ytopo,"front_subgrid",     par%front_subgrid,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_H_eff_min",   par%front_H_eff_min,  init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_dHdx",        par%front_dHdx,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
-        call nml_read(filename,group_ytopo,"f_ice_method",      par%f_ice_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"use_bmb",           par%use_bmb,          init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"topo_fixed",        par%topo_fixed,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"topo_rel",          par%topo_rel,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
@@ -1483,7 +1496,6 @@ end if
 
         ! === Validate parameter values ====
         call yelmo_check_enum(group_ytopo,"solver",         par%solver,         "none|expl|expl-new|expl-upwind|impl-upwind|expl-sico|impl-sico|impl-sico-lis|impl-lis")
-        call yelmo_check_enum(group_ytopo,"f_ice_method",   par%f_ice_method,   "upstream|lsf")
         call yelmo_check_enum(group_ytopo,"front_subgrid",  par%front_subgrid,  "none|floating|marine")
         call yelmo_check_enum(group_ytopo,"bmb_gl_method",  par%bmb_gl_method,  "fcmp|fmp|pmp|pmpt|nmp")
         call yelmo_check_enum(group_ytopo,"topo_rel_field", par%topo_rel_field, "H_ref|H_ice_n")
@@ -1962,30 +1974,19 @@ end if
 
     subroutine update_ice_fraction(tpo,bnd)
         ! Update the ice area fraction tpo%now%f_ice and effective thickness
-        ! tpo%now%H_eff from tpo%now%H_ice. "upstream" uses the CISM-style
-        ! front scheme in calc_ice_fraction (ytopo.front_subgrid); "lsf"
-        ! derives the floating-cell area fraction from the level-set function.
+        ! tpo%now%H_eff from tpo%now%H_ice (CISM-style front scheme,
+        ! ytopo.front_subgrid). With the level set, the front cells'
+        ! thickness is trimmed to the level-set area first (calc_G_lsf_front),
+        ! so the same f_ice = H_ice/H_eff holds in both calving paths.
 
         implicit none
 
         type(ytopo_class),  intent(INOUT) :: tpo
         type(ybound_class), intent(IN)    :: bnd
 
-        select case(trim(tpo%par%f_ice_method))
-            case("upstream")
-                call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
-                                       bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
-                                       tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries)
-            case("lsf")
-                call calc_ice_fraction_lsf(tpo%now%f_ice,tpo%now%H_ice,tpo%now%lsf, &
-                                           bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw, &
-                                           tpo%par%boundaries,trim(tpo%par%front_subgrid) .ne. "none")
-                call calc_H_eff(tpo%now%H_eff,tpo%now%H_ice,tpo%now%f_ice)
-            case default
-                write(io_unit_err,*) "update_ice_fraction:: ERROR: unknown f_ice_method = '"// &
-                                     trim(tpo%par%f_ice_method)//"'. Use 'upstream' or 'lsf'."
-                stop "update_ice_fraction"
-        end select
+        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                               bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
+                               tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries)
 
         return
 

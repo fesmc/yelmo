@@ -23,7 +23,7 @@ module topography
     public :: gen_mask_bed
 
     public :: calc_ice_fraction
-    public :: calc_ice_fraction_lsf
+    public :: calc_lsf_area_fraction
     public :: calc_front_cells
     public :: calc_ice_front
 
@@ -433,68 +433,29 @@ contains
 
     end subroutine calc_front_cells
 
-    subroutine calc_ice_fraction_lsf(f_ice,H_ice,lsf,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Alternative to calc_ice_fraction: derive the floating-ice area
-        ! fraction of each cell geometrically from the level-set function.
+    subroutine calc_lsf_area_fraction(a_lsf,lsf,boundaries)
+        ! Area fraction of each cell behind the level-set front (lsf < 0).
         ! Corner LSF values are obtained by averaging the four surrounding
         ! aa-node lsf values, then the negative-LSF area inside each unit
         ! cell is computed via marching-squares (linear edge interpolation).
-        !
-        ! Behaviour matches calc_ice_fraction in the binary cases:
-        !   - flt_subgrid == .FALSE. : f_ice is binary everywhere (1 where
-        !     H_ice > 0, 0 elsewhere). The LSF geometry is unused.
-        !   - Grounded ice (H_grnd > 0): f_ice = 1 always.
-        ! Only floating, ice-bearing cells receive a fractional value drawn
-        ! from the LSF zero-crossing geometry. Cells with H_ice == 0 are
-        ! forced to f_ice = 0 so H_eff = H_ice/f_ice stays well-defined.
 
         implicit none
 
-        real(wp), intent(OUT) :: f_ice(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: lsf(:,:)
-        real(wp), intent(IN)  :: z_bed(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
-        real(wp), intent(IN)  :: rho_ice
-        real(wp), intent(IN)  :: rho_sw
+        real(wp), intent(OUT) :: a_lsf(:,:)             ! [--] Area fraction behind the front
+        real(wp), intent(IN)  :: lsf(:,:)               ! [--] Level-set function (< 0: ice side)
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN), optional :: flt_subgrid
 
         integer  :: i, j, nx, ny, BC
         integer  :: im1, ip1, jm1, jp1
         real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
-        real(wp) :: f_geom
-        logical  :: get_fractional_cover
-        real(wp), allocatable :: H_grnd(:,:)
 
         nx = size(lsf,1)
         ny = size(lsf,2)
         BC = boundary_code(boundaries)
 
-        get_fractional_cover = .TRUE.
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid
-
-        ! Initialise as a binary mask, same as calc_ice_fraction.
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp
-        elsewhere
-            f_ice = 0.0_wp
-        end where
-
-        if (.not. get_fractional_cover) return
-
-        ! Compute H_grnd to identify floating cells.
-        allocate(H_grnd(nx,ny))
-        call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_BL,phi_BR,phi_TR,phi_TL,f_geom)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_BL,phi_BR,phi_TR,phi_TL)
         do j = 1, ny
         do i = 1, nx
-
-            ! Only revise floating, ice-bearing cells; everything else keeps
-            ! the binary value set above.
-            if (H_ice(i,j) .le. 0.0_wp) cycle
-            if (H_grnd(i,j) .gt. 0.0_wp) cycle
 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
@@ -504,23 +465,15 @@ contains
             phi_TR = 0.25_wp*(lsf(i,j)     + lsf(ip1,j)   + lsf(i,jp1) + lsf(ip1,jp1))
             phi_TL = 0.25_wp*(lsf(im1,j)   + lsf(i,j)     + lsf(im1,jp1) + lsf(i,jp1))
 
-            f_geom = lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL)
-
-            ! Keep mass-bearing cells nonzero so H_eff stays finite even if
-            ! the LSF and H_ice fields disagree about coverage transiently.
-            if (f_geom .lt. TOL) f_geom = TOL
-
-            f_ice(i,j) = f_geom
+            a_lsf(i,j) = lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL)
 
         end do
         end do
         !$omp end parallel do
 
-        deallocate(H_grnd)
-
         return
 
-    end subroutine calc_ice_fraction_lsf
+    end subroutine calc_lsf_area_fraction
 
     function lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL) result(f)
         ! Compute the area fraction of a unit square where a bilinear

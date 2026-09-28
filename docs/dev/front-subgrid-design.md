@@ -107,9 +107,8 @@ design below maps that onto Yelmo's C-grid.
   cell as full).
 - `a_eff = min(H/H_eff, 1)`; stored as `tpo%now%H_eff` (finally filled) and
   used as `f_ice` at fronts. Everywhere else `H_eff = H`, `f_ice = 1` (or 0).
-- `f_ice_method` stays as the way `a_eff` is obtained: `"upstream"` (above) or
-  `"lsf"` (geometric fraction from the level set, with `H_eff` still from the
-  neighbours so that H/`a_eff` is bounded).
+- `f_ice_method` is retired (step 7): `a_eff = H/H_eff` in both calving paths;
+  with the level set, H is trimmed to `a_lsf`·`H_eff` first (4.7).
 - `calc_H_eff` reads the stored field. The `set_frac_zero` call sites
   (`calc_z_srf_max`, `calc_H_grnd`, `scale_beta_gl_zstar`) are reviewed one by
   one: surface and base use `H_eff` in partial cells; `f_grnd` from the true H
@@ -177,7 +176,7 @@ negative-thickness problem CISM hit with edge masks does not arise here.
 - The level set sets the front position; it moves by (u + c)·dt with its own
   substepping, so a retreat of more than one cell per step needs no carry-over.
 - `a_lsf` = area fraction of the cell behind the level-set front (marching
-  squares, `calc_ice_fraction_lsf`), `H_eff` as in 4.1.
+  squares, `calc_lsf_area_fraction`), `H_eff` as in 4.1.
 - Thickness follows the level set: in a front cell, ice above `a_lsf`·`H_eff`
   is calved (CISM subgrid calving mask, H/H_eff = 1 − mask; a cell with
   `a_lsf` below a small threshold is emptied). Cells beyond the front
@@ -185,6 +184,10 @@ negative-thickness problem CISM hit with edge masks does not arise here.
   ice and fills by advection.
 - `a_eff = H/H_eff` after this step, so `f_ice`, the momentum balance and the
   mass balance are the same as in the mass-balance path.
+- As CISM: cells with `a_lsf` < 0.1 are emptied; eligible cells touching the
+  ocean at a corner are trimmed too; up to 3 passes (trimming changes the
+  neighbours' `H_eff`), each cell once. No front advance: a cell below
+  `a_lsf`·`H_eff` fills by advection (decided 2026-09-28).
 
 ### 4.8 Not in scope here
 
@@ -200,7 +203,7 @@ negative-thickness problem CISM hit with edge masks does not arise here.
 | `front_subgrid` | ytopo | `"none"` (target `"marine"`) | `margin_flt_subgrid` (retired) |
 | `front_H_eff_min` | ytopo | 50 m | – |
 | `front_dHdx` | ytopo | 0.0 | – |
-| `f_ice_method` | ytopo | `"upstream"` | (kept) |
+| `f_ice_method` | ytopo | – | retired (step 7) |
 
 `calv_thin`, `Hc_ref_thin` become unused with `front_subgrid /= "none"`.
 

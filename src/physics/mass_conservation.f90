@@ -7,6 +7,7 @@ module mass_conservation
 
     use solver_advection, only : calc_advec2D  
     use velocity_general, only : set_inactive_margins 
+    use topography, only : calc_ice_fraction, calc_front_cells
 
     implicit none 
 
@@ -25,6 +26,7 @@ module mass_conservation
     public :: calc_G_remove_fractional_ice
     public :: calc_G_front_advance
     public :: calc_G_calving_front
+    public :: calc_G_lsf_front
     public :: remove_icebergs
     
 contains 
@@ -1100,6 +1102,106 @@ contains
         return
 
     end subroutine calc_G_calving_front
+
+    subroutine calc_G_lsf_front(cmb,H_ice,a_lsf,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,H_eff_min,dHdx,dx,dt,boundaries)
+        ! Thickness of the subgrid front cells follows the level set (CISM
+        ! subgrid calving mask, H/H_eff = 1 - mask): eligible cells with less
+        ! than a_lsf_min of their area behind the front are emptied, and front
+        ! cells (also eligible cells touching the ocean at a corner) hold at
+        ! most a_lsf*H_eff. Trimming changes H_eff of neighbouring front cells,
+        ! so it is repeated (up to n_iter), each cell trimmed at most once.
+        ! Returns the applied calving rate [m/yr, <= 0].
+
+        implicit none
+
+        real(wp), intent(OUT) :: cmb(:,:)               ! [m/yr] Applied calving rate
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]    Ice thickness
+        real(wp), intent(IN)  :: a_lsf(:,:)             ! [--]   Area fraction behind the level-set front
+        real(wp), intent(IN)  :: z_bed(:,:)
+        real(wp), intent(IN)  :: z_sl(:,:)
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
+        real(wp), intent(IN)  :: H_eff_min              ! [m]    Minimum H_eff of eligible cells
+        real(wp), intent(IN)  :: dHdx                   ! [m/m]  Thickness gradient assumed at a full front
+        real(wp), intent(IN)  :: dx                     ! [m]    Grid resolution
+        real(wp), intent(IN)  :: dt                     ! [yr]   Timestep
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny, iter, n_trim
+        integer  :: im1, ip1, jm1, jp1, BC
+        logical  :: is_front
+        real(wp) :: H_max
+        real(wp), allocatable :: H_now(:,:), H_eff(:,:), f_ice(:,:)
+        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:), trimmed(:,:)
+
+        real(wp), parameter :: a_lsf_min = 0.1_wp       ! Empty cells with less area behind the front (CISM: 0.9 on the mask)
+        integer,  parameter :: n_iter    = 3            ! Maximum trimming passes (CISM)
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        allocate(H_now(nx,ny),H_eff(nx,ny),f_ice(nx,ny))
+        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny),trimmed(nx,ny))
+
+        H_now = H_ice
+
+        ! Empty eligible cells (almost) entirely beyond the front
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+        where (mask_elig .and. a_lsf .lt. a_lsf_min) H_now = 0.0_wp
+
+        ! Trim front cells to a_lsf*H_eff
+        trimmed = .FALSE.
+
+        do iter = 1, n_iter
+
+            call calc_ice_fraction(f_ice,H_eff,H_now,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,H_eff_min,dHdx,dx,boundaries)
+            call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+
+            n_trim = 0
+
+            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_front,H_max) reduction(+:n_trim)
+            do j = 1, ny
+            do i = 1, nx
+
+                if (.not. mask_elig(i,j) .or. trimmed(i,j) .or. a_lsf(i,j) .ge. 1.0_wp) cycle
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                is_front = mask_cf(i,j) .or. &
+                    mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1)
+
+                if (.not. is_front) cycle
+
+                H_max = a_lsf(i,j)*H_eff(i,j)
+
+                if (H_now(i,j) .gt. H_max) then
+                    H_now(i,j)   = H_max
+                    trimmed(i,j) = .TRUE.
+                    n_trim       = n_trim + 1
+                end if
+
+            end do
+            end do
+            !$omp end parallel do
+
+            if (n_trim .eq. 0) exit
+
+        end do
+
+        if (dt .gt. 0.0_wp) then
+            cmb = (H_now - H_ice)/dt
+        else
+            cmb = 0.0_wp
+        end if
+
+        return
+
+    end subroutine calc_G_lsf_front
 
     subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
         ! Eliminate fractional ice covered points (icebergs) that have

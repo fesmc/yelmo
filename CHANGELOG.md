@@ -58,6 +58,13 @@ little. MISMIP3D and DIVA runs change more.
   not applied to subgrid front cells (the front advance handles them; land
   margins keep it). A partial cell is removed as an iceberg when it has no
   full edge or diagonal neighbour (before: edge only).
+- **Subgrid fronts with the level set** (step 7, `use_lsf` with
+  `front_subgrid /= "none"`). Front-cell thickness follows the level set: cells
+  with less than 10% of their area behind the front are emptied, and front cells
+  (also those touching the ocean at a corner) hold at most `a_lsf`·`H_eff`
+  (CISM subgrid calving mask), repeated up to 3 times. `f_ice = H/H_eff` as in
+  the mass-balance path. `ytopo.f_ice_method` is removed (it had no effect with
+  `"none"`); `calc_ice_fraction_lsf` becomes `calc_lsf_area_fraction`.
 - **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
   `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
   pars, whose periodic domains are fully ice-covered, so they had no effect;

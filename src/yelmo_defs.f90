@@ -133,7 +133,6 @@ module yelmo_defs
         character(len=12)  :: front_subgrid
         real(wp)           :: front_H_eff_min
         real(wp)           :: front_dHdx
-        character(len=56)  :: f_ice_method      ! "upstream" (H_ice/H_neighb) or "lsf" (geometric LSF area fraction)
         logical            :: use_bmb  
         logical            :: topo_fixed
         integer            :: topo_rel
