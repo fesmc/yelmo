@@ -667,7 +667,7 @@ contains
 
     end subroutine yelmo_update_equil
     
-    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr)
+    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst)
         ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
@@ -684,6 +684,12 @@ contains
         character(len=*),  intent(IN), optional :: grid_name
         character(len=*),  intent(IN), optional :: group
         character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics)
+
+        ! Physical constants supplied by the driver. When absent, Yelmo loads its
+        ! own from input/yelmo_phys_const.nml as before, which is what the
+        ! standalone drivers and the C API rely on. A coupled driver passes its
+        ! own record so that every component works from one set of constants.
+        type(phys_const_class), intent(IN), optional :: cnst
 
         ! Local variables
         integer :: n_threads 
@@ -737,7 +743,7 @@ contains
         call yelmo_par_load(dom%par,filename,nml_group,domain,grid_name)
         
         ! Define physical constants
-        call ybound_define_physical_constants(dom%bnd%c,dom%par%phys_const,domain,grid_name)
+        call ybound_define_physical_constants(dom%bnd%c,dom%par%phys_const,domain,grid_name,cnst=cnst)
 
         ! Define the grid for the current domain 
         select case(grid_def)

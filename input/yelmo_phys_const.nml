@@ -5,9 +5,13 @@
     rho_ice     =  910.0            ! [kg/m^3] Density ice            
     rho_w       = 1000.0            ! [kg/m^3] Density water          
     rho_sw      = 1028.0            ! [kg/m^3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.8e-8            ! [K Pa^-1] Greve and Blatter (2009)   
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &EISMINT
@@ -19,9 +23,13 @@
     rho_ice     =  910.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1028.0            ! [kg m-3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1     = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &MISMIP3D
@@ -32,9 +40,13 @@
     rho_ice     =  900.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1000.0            ! [kg m-3] Density seawater (MISMIP3D "water density")
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1 = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &TROUGH
@@ -44,9 +56,13 @@
     rho_ice     =  918.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1028.0            ! [kg m-3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1 = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &MISMIPplus
@@ -57,9 +73,13 @@
     rho_ice     =  918.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1028.0            ! [kg m-3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1 = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &ISMIPHOM
@@ -70,9 +90,13 @@
     rho_ice     =  910.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1028.0            ! [kg m-3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1 = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /
 
 &CALVINGMIP
@@ -83,7 +107,11 @@
     rho_ice     =  917.0            ! [kg m-3] Density ice            
     rho_w       = 1000.0            ! [kg m-3] Density water          
     rho_sw      = 1028.0            ! [kg m-3] Density seawater       
-    rho_a       = 3300.0            ! [kg m-3] Density asthenosphere
+    rho_asth    = 3300.0            ! [kg m-3] Density asthenosphere
     L_ice       = 333500.0          ! [J kg-1] Latent heat of fusion for ice/water
+    cp_ice      = 2110.0            ! [J kg-1 K-1] Specific heat capacity of ice
+    cp_w        = 4187.0            ! [J kg-1 K-1] Specific heat capacity of pure water
+    cp_ocn      = 3974.0            ! [J kg-1 K-1] Specific heat capacity, ocean mixed layer
     T_pmp_beta  = 9.7e-8            ! [K Pa^-1] EISMINT2 value (beta1 = 8.66e-4 [K m^-1])
+    area_seasurf = 3.618e8          ! [km2] Global sea-surface area
 /

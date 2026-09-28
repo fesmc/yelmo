@@ -16,18 +16,33 @@ module yelmo_boundaries
     
 contains
 
-    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name)
+    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name,cnst)
+        ! Fill Yelmo's physical-constants record.
+        !
+        ! The shared quantities come from a phys_const_class (fesm-utils), either
+        ! supplied by the driver or, when absent, loaded here from Yelmo's own
+        ! parameter file as before. A driver that owns the constants passes them
+        ! in, so every component of a coupled program works from one set; the
+        ! no-argument path keeps the standalone drivers and the C API working.
+        !
+        ! c is Yelmo's working-precision mirror of that record. It is kept rather
+        ! than replaced so the several hundred bnd%c%<name> uses across the
+        ! physics are untouched, and because Yelmo carries two things that are
+        ! deliberately not shared physical constants: sec_year, which is a
+        ! calendar choice, and conv_mmdwe_maie, which embeds a day count.
 
         implicit none
 
-        type(ybound_const_class), intent(OUT) :: c 
-        character(len=*), intent(IN) :: phys_const 
-        character(len=*), intent(IN) :: domain 
-        character(len=*), intent(IN) :: grid_name 
-        
-        ! Local variables 
+        type(ybound_const_class), intent(OUT) :: c
+        character(len=*), intent(IN) :: phys_const
+        character(len=*), intent(IN) :: domain
+        character(len=*), intent(IN) :: grid_name
+        type(phys_const_class), intent(IN), optional :: cnst
+
+        ! Local variables
         logical :: init_pars
-        character(len=56) :: group 
+        character(len=56) :: group
+        type(phys_const_class) :: cn
         character(len=512), parameter :: filename = "input/yelmo_phys_const.nml"
 
         ! Determine physical constants group name to use based on parameter choice
@@ -52,59 +67,60 @@ contains
                 stop
         end select
 
-        ! Load parameter values from parameter file
+        ! Obtain the shared physical constants
 
-        init_pars = .TRUE. 
-        
-        call nml_read(filename,group,"sec_year",    c%sec_year,   init=init_pars)
-        call nml_read(filename,group,"g",           c%g,          init=init_pars)
-        call nml_read(filename,group,"T0",          c%T0,         init=init_pars)
-        call nml_read(filename,group,"rho_ice",     c%rho_ice,    init=init_pars)
-        call nml_read(filename,group,"rho_w",       c%rho_w,      init=init_pars)
-        call nml_read(filename,group,"rho_sw",      c%rho_sw,     init=init_pars)
-        call nml_read(filename,group,"rho_a",       c%rho_a,      init=init_pars)
-        call nml_read(filename,group,"L_ice",       c%L_ice,      init=init_pars)
-        call nml_read(filename,group,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
+        if (present(cnst)) then
+            ! The driver owns them; use its set as-is.
+            cn = cnst
+        else
+            ! Standalone: load them from Yelmo's own parameter file.
+            call phys_const_load(cn,filename,group=group)
+        end if
 
-        ! Define conversion factors too
+        call phys_const_require(cn,"ybound_define_physical_constants")
 
-        c%conv_we_ie          = c%rho_w/c%rho_ice
-        c%conv_mmdwe_maie     = 1e-3*365*c%conv_we_ie
-        c%conv_mmawe_maie     = 1e-3*c%conv_we_ie
-        
-        c%conv_m3_Gt          = c%rho_ice *1e-12                ! [kg/m3] * [Gigaton/1e12kg]
-        c%conv_km3_Gt         = (1e9) * c%conv_m3_Gt            ! [1e9m^3/km^3]
-        c%conv_millionkm3_Gt  = (1e6) * (1e9) *c%conv_m3_Gt     ! [1e6km3/1] * [1e9m^3/km^3] * conv
-        
-        c%area_seasurf        = 3.618e8                         ! [km^2]
-        ! [m sle / km^3 ice]: km^3 ice => m^3 liquid water, spread over the ocean surface area
-        c%conv_km3_sle        = (c%rho_ice/c%rho_w) * (1e9) / (c%area_seasurf*1e6)
+        ! Mirror the shared record into Yelmo's working precision. The derived
+        ! factors are taken from the record rather than recomputed here, so that
+        ! the ratios cannot drift from the densities they follow from.
+
+        call phys_const_get(cn,"g",                  c%g)
+        call phys_const_get(cn,"T0",                 c%T0)
+        call phys_const_get(cn,"rho_ice",            c%rho_ice)
+        call phys_const_get(cn,"rho_w",              c%rho_w)
+        call phys_const_get(cn,"rho_sw",             c%rho_sw)
+        call phys_const_get(cn,"rho_asth",           c%rho_a)
+        call phys_const_get(cn,"L_ice",              c%L_ice)
+        call phys_const_get(cn,"T_pmp_beta",         c%T_pmp_beta)
+        call phys_const_get(cn,"area_seasurf",       c%area_seasurf)
+
+        call phys_const_get(cn,"conv_we_ie",         c%conv_we_ie)
+        call phys_const_get(cn,"conv_mmawe_maie",    c%conv_mmawe_maie)
+        call phys_const_get(cn,"conv_m3_Gt",         c%conv_m3_Gt)
+        call phys_const_get(cn,"conv_km3_Gt",        c%conv_km3_Gt)
+        call phys_const_get(cn,"conv_millionkm3_Gt", c%conv_millionkm3_Gt)
+        call phys_const_get(cn,"conv_km3_sle",       c%conv_km3_sle)
+
+        ! Yelmo's own, not part of the shared record.
+
+        ! Year length is a calendar choice, not a physical constant, so it stays
+        ! with Yelmo. fesm-utils names the standard conventions (sec_year_365d,
+        ! sec_year_tropical, ...) if this is ever to be tied to one of them.
+        init_pars = .TRUE.
+        call nml_read(filename,group,"sec_year",c%sec_year,init=init_pars)
+
+        ! [mm d-1 w.e.] => [m a-1 i.e.]. Carries a day count, hence local: 365
+        ! here, against smbpal's 360 and the CMIP forcing's 365.2422.
+        c%conv_mmdwe_maie = 1e-3*365*c%conv_we_ie
 
         if (yelmo_log) then
             write(*,*) ""
             write(*,*) "yelmo:: loaded physical constants for: ", trim(domain), " : ", trim(grid_name)
-            write(*,*) "parameter file: ", trim(filename)
-            write(*,*) "group:          ", trim(group)
-            write(*,*) "    sec_year   = ", c%sec_year 
-            write(*,*) "    g          = ", c%g 
-            write(*,*) "    T0         = ", c%T0 
-            write(*,*) "    rho_ice    = ", c%rho_ice 
-            write(*,*) "    rho_w      = ", c%rho_w 
-            write(*,*) "    rho_sw     = ", c%rho_sw 
-            write(*,*) "    rho_a      = ", c%rho_a 
-            write(*,*) "    L_ice      = ", c%L_ice 
-            write(*,*) "    T_pmp_beta = ", c%T_pmp_beta
+            call phys_const_log(cn)
+            write(*,*) "  yelmo-specific:"
+            write(*,*) "    sec_year           = ", c%sec_year
+            write(*,*) "    conv_mmdwe_maie    = ", c%conv_mmdwe_maie
             write(*,*) ""
-            write(*,*) "    conv_we_ie         = ", c%conv_we_ie 
-            write(*,*) "    conv_mmdwe_maie    = ", c%conv_mmdwe_maie 
-            write(*,*) "    conv_mmawe_maie    = ", c%conv_mmawe_maie 
-            write(*,*) "    conv_m3_Gt         = ", c%conv_m3_Gt 
-            write(*,*) "    conv_km3_Gt        = ", c%conv_km3_Gt 
-            write(*,*) "    conv_millionkm3_Gt = ", c%conv_millionkm3_Gt 
-            write(*,*) "    area_seasurf       = ", c%area_seasurf 
-            write(*,*) "    conv_km3_sle       = ", c%conv_km3_sle 
-            write(*,*) ""
-        end if 
+        end if
 
         return
 

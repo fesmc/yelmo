@@ -6,6 +6,16 @@ module yelmo_defs
 
     use nml, only : nml_replace
     use variable_io, only : var_io_type
+
+    ! Shared physical constants (fesm-utils). Re-exported, since yelmo_defs is
+    ! used without `only:` throughout Yelmo and by its drivers. Only the record
+    ! and its accessors are imported: the calendar conventions that module also
+    ! defines are a program's choice, so a driver wanting one names it by using
+    ! phys_constants directly.
+    use phys_constants, only : phys_const_class, phys_const_load, phys_const_set, &
+                               phys_const_require, phys_const_get, phys_const_log, &
+                               phys_const_write, phys_const_to_nc, phys_const_compare
+
     use fast_hydrology, only : hydro_class
     use coords, only : grid_class
 
