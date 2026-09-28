@@ -922,7 +922,7 @@ contains
         ! (after the boundary treatment is set: its periodic directions are passed on)
 
         call yhyd_par_load(dom%hyd,filename,dom%par%nml_yhyd,dom%grd%G%nx,dom%grd%G%ny,real(dom%grd%G%dx,wp),real(dom%grd%G%dy,wp),dom%bnd%c, &
-                           dom%tpo%par%boundaries)
+                           dom%bnd%cnst,dom%tpo%par%boundaries)
 
         write(*,*) "yelmo_init:: hydrology initialized."
 

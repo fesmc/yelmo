@@ -10,8 +10,7 @@ module yelmo_hydrology
 
     use yelmo_defs
     use yelmo_tools, only : boundary_code, get_periodic_directions
-    use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update, SEC_PER_YEAR
-    use fast_hydrology_k24, only : k24_finalize_par
+    use fast_hydrology, only : hydro_init, hydro_init_state, hydro_update
 
     implicit none
 
@@ -22,13 +21,21 @@ module yelmo_hydrology
 
 contains
 
-    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy, c, boundaries)
+    subroutine yhyd_par_load(hyd, filename, group, nx, ny, dx, dy, c, cnst, boundaries)
         ! Load fasthydrology parameters from the yelmo namelist. The grid
         ! spacing is passed to hydro_init so the user does not have to
         ! keep dx / dy in sync in the namelist (they are no longer
         ! namelist-loaded by fasthydrology), and so are the periodic
         ! directions of the domain, so that fasthydrology's neighbour
         ! stencils wrap there and its border BC is not applied.
+        !
+        ! cnst hands fasthydrology the domain's physical constants, and
+        ! c%sec_year its calendar year, so that N and p_w are consistent with
+        ! yelmo's overburden and flotation criterion (marine N vanishes where
+        ! yelmo's H_grnd does), the K24 melt and opening terms use the same
+        ! L_ice as ytherm, and the per-year rates below convert with the year
+        ! the domain actually chose. fasthydrology resolves all of it inside
+        ! hydro_init, before anything derived from the densities is computed.
 
         type(hydro_class),        intent(INOUT) :: hyd
         character(len=*),         intent(IN)    :: filename
@@ -36,6 +43,7 @@ contains
         integer,                  intent(IN)    :: nx, ny
         real(wp),                 intent(IN)    :: dx, dy
         type(ybound_const_class), intent(IN)    :: c        ! Physical constants of the domain
+        type(phys_const_class),   intent(IN)    :: cnst     ! The same set, as the shared record
         character(len=*),         intent(IN)    :: boundaries
 
         ! Local variables
@@ -46,24 +54,8 @@ contains
         ! Defaults overlay and typo validation now happen inside
         ! hydro_init (fast_hydrology) using input/yelmo_defaults.nml.
         call hydro_init(hyd, filename, nx, ny, dx, dy, group=group, &
+                        cnst=cnst, sec_year=c%sec_year, &
                         periodic_x=per_x, periodic_y=per_y)
-
-        ! fasthydrology hard-codes rho_ice, rho_w and g, and reads the
-        ! marine closure's rho_sw from &yhyd (marine_rho_sw). Replace them
-        ! with yelmo's domain constants, so that N and p_w are consistent
-        ! with yelmo's overburden and flotation criterion (e.g. marine N
-        ! vanishes where yelmo's H_grnd does), then refresh the K24
-        ! parameters derived from them. The K24 latent heat is likewise
-        ! taken from yelmo's L_ice, so melt/opening terms match ytherm.
-        hyd%par%k24%ice_density        = real(c%rho_ice, dp)
-        hyd%par%k24%water_density      = real(c%rho_w,   dp)
-        hyd%par%k24%gravity            = real(c%g,       dp)
-        hyd%par%k24%latent_heat_water  = real(c%L_ice,   dp)
-        hyd%par%closures%rho_ice       = c%rho_ice
-        hyd%par%closures%g             = c%g
-        hyd%par%closures%marine%rho_sw = c%rho_sw
-
-        call k24_finalize_par(hyd%par%k24)
 
         return
 
@@ -105,10 +97,11 @@ contains
         !   time                    ->  time    [a]
         !
         ! fasthydrology's rate inputs (mdot, uxy_b, A_glen) are SI (per second),
-        ! while yelmo's are per year. All three are divided by fasthydrology's
-        ! own SEC_PER_YEAR, the same constant it uses to convert the time step
-        ! to dt_sec, so that e.g. mdot*dt_sec is exactly bmb_w*dt [m] and the
-        ! solution does not depend on the choice of seconds per year.
+        ! while yelmo's are per year. All three are divided by the domain's
+        ! sec_year, which yhyd_par_load also handed to fasthydrology as the
+        ! constant it converts the time step to dt_sec with, so that e.g.
+        ! mdot*dt_sec is exactly bmb_w*dt [m] and the solution does not depend
+        ! on the choice of seconds per year.
         !
         ! fasthydrology's hydro_update internally skips work when
         ! dt = time - hyd%now%time is non-positive, so we can call
@@ -146,19 +139,19 @@ contains
 
         ! Convert grounded basal mass balance (ice-equivalent m/a,
         ! +ve = accumulation) to water-equivalent melt (+ve = water source).
-        ! fasthydrology's mdot contract is SI [m/s], so divide by SEC_PER_YEAR;
+        ! fasthydrology's mdot contract is SI [m/s], so divide by sec_year;
         ! omitting this overscales the source by ~3.16e7 and pegs any melting
         ! cell straight to W_til_max.
-        bmb_w = -thrm%now%bmb_grnd * (bnd%c%rho_ice / bnd%c%rho_w) / SEC_PER_YEAR
+        bmb_w = -thrm%now%bmb_grnd * (bnd%c%rho_ice / bnd%c%rho_w) / bnd%c%sec_year
 
         ! Basal sliding speed [m/a] -> [m/s]. K24's sliding laws compare it
         ! with u0 given in m/s, and its N_inf balances sliding opening
         ! against melt opening (Q*|grad phi|, already per second).
-        uxy_b = dyn%now%uxy_b / SEC_PER_YEAR
+        uxy_b = dyn%now%uxy_b / bnd%c%sec_year
 
         ! Basal Glen-A [Pa^-3 a^-1] -> [Pa^-3 s^-1]. zeta_aa(1) = 0 in
         ! yelmo, so index 1 is the base.
-        A_glen_b = mat%now%ATT(:,:,1) / SEC_PER_YEAR
+        A_glen_b = mat%now%ATT(:,:,1) / bnd%c%sec_year
 
         call hydro_update(hyd, tpo%now%H_ice, bnd%z_bed, bnd%z_sl,        &
                           tpo%now%f_ice, tpo%now%f_grnd, mask,            &

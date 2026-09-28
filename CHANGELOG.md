@@ -7,6 +7,12 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`&yhyd marine_rho_sw` and `k24_latent_heat_water` are no longer read under Yelmo.**
+  FastHydrology takes `rho_sw` and `L_ice` from the physical-constants record Yelmo
+  hands it, so these two keys are inert in a coupled run (they still work for
+  FastHydrology's standalone drivers). The keys stay in `yelmo_defaults.nml`, so no
+  par file needs editing; a value set there is simply not the source of truth.
+
 - **`ydyn.pc_corr_vel` removed** (it was unused). `nml_validate` stops on unknown
   parameters, so delete it from external par files.
 - **`ydyn.ssa_lat_bc = "floating"` now means floating fronts only.** The producer
@@ -140,6 +146,19 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **The hydrology converts its per-year inputs with the domain's own year.**
+  `yelmo_hydrology` divided `bmb_w`, `uxy_b` and `A_glen_b` by FastHydrology's
+  module-level `SEC_PER_YEAR` (3.1556926e7), and FastHydrology used the same
+  constant for `dt_sec` and for the `bkt_till_rate` m/a → m/s conversion, so
+  `&Earth sec_year` never reached the hydrology at all. All four now use
+  `bnd%c%sec_year`, which `yhyd_par_load` also passes to `hydro_init`. Bitwise
+  identical for every group whose `sec_year` is the CF/UDUNITS year (EISMINT,
+  500 yr: all 246 restart and 111 output variables unchanged). **MISMIP3D**
+  declares 3.1536e7 and runs the bucket (`method_til = 1`), so its SI till rate
+  and `dt_sec` move by 0.066%; over 500 yr of RF that reaches exactly one field,
+  the diagnostic `hyd_dW_til_dt` (6.6e-4 relative), with `W_til`, `N`, `p_w` and
+  every ice field unchanged -- the bucket has no source there, since
+  `bmb_grnd = 0`.
 - **Basal water and freshwater flux:** the ρ_ice/ρ_w ratio was inverted in the basal
   water predictor and the freshwater flux.
 - **N_eff is evaluated on the current dynamics geometry.** Since `neff_method` was
