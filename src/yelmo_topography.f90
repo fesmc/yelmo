@@ -1071,18 +1071,30 @@ end if
         ! Final update of ice fraction mask (or define it now for fixed topography)
         call update_ice_fraction(tpo,bnd)
 
-        ! Calculate grounding overburden ice thickness 
-        call calc_H_grnd(tpo%now%H_grnd,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
+        ! Geometry of the active ice column, used for the surface and the
+        ! dynamics: every ice-covered cell is active, and partial front cells
+        ! (ytopo.front_subgrid) take part as full cells with thickness H_eff.
+        ! With front_subgrid="none", H_ice_dyn == H_ice and f_ice_dyn == f_ice.
+        tpo%now%H_ice_dyn = tpo%now%H_eff
+        where (tpo%now%H_ice .gt. 0.0_wp)
+            tpo%now%f_ice_dyn = 1.0_wp
+        elsewhere
+            tpo%now%f_ice_dyn = 0.0_wp
+        end where
 
-        ! Calculate the surface elevation to be consistent with current H_ice field
-        call calc_z_srf_max(tpo%now%z_srf,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
+        ! Calculate grounding overburden ice thickness (from the actual thickness)
+        call calc_H_grnd(tpo%now%H_grnd,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw, &
+                                                                                            use_f_ice=.FALSE.)
+
+        ! Calculate the surface elevation of the ice column (H_eff in partial front cells)
+        call calc_z_srf_max(tpo%now%z_srf,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
         
         ! Calculate the ice base elevation too
         ! Define z_base as the elevation at the base of the ice sheet 
         ! This is used for the basal derivative instead of bedrock so
         ! that it is valid for both grounded and floating ice. Note, 
         ! for grounded ice, z_base==z_bed.  
-        tpo%now%z_base = tpo%now%z_srf - tpo%now%H_ice 
+        tpo%now%z_base = tpo%now%z_srf - tpo%now%H_ice_dyn 
 
         ! 2. Calculate additional topographic properties ------------------
 
@@ -1094,14 +1106,14 @@ end if
         ! Calculate the surface slope
         ! call calc_gradient_ac(tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%z_srf,tpo%par%dx)
 
-        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
-        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
+        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
-        call calc_gradient_acx(tpo%now%dHidx,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
-        call calc_gradient_acy(tpo%now%dHidy,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acx(tpo%now%dHidx,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acy(tpo%now%dHidy,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
         
-        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
-        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
+        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
 
         ! 3. Calculate new masks ------------------------------
 
@@ -1200,52 +1212,9 @@ end if
 
 
         ! Calculate the ice-front mask (mainly for use in dynamics)
-        call calc_ice_front(tpo%now%mask_frnt,tpo%now%f_ice,tpo%now%f_grnd,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
+        ! Partial front cells are front cells, the ice-front boundary is on their ocean faces
+        call calc_ice_front(tpo%now%mask_frnt,tpo%now%f_ice_dyn,tpo%now%f_grnd,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
 
-        ! Determine ice thickness for use exclusively with the dynamics solver
-        select case(trim(dyn%par%ssa_lat_bc))
-
-            case("slab")
-                ! Calculate extended ice thickness fields over whole domain
-                ! for use with dynamics solver.
-                ! Note: should not be used with MISMIP, TROUGH, etc. 
-
-                tpo%now%H_ice_dyn = tpo%now%H_ice
-                where (tpo%now%f_ice .lt. 1.0) tpo%now%H_ice_dyn = 1.0_wp
-                
-                ! Binary ice fraction mask for use with the dynamics solver
-                where (tpo%now%H_ice_dyn .gt. 0.0_wp)
-                    tpo%now%f_ice_dyn = 1.0_wp
-                elsewhere
-                    tpo%now%f_ice_dyn = 0.0_wp
-                end where
-
-            case("slab-ext")
-                ! Calculate extended ice thickness fields n_ext points
-                ! away from grounded margin. 
-
-                tpo%now%H_ice_dyn = tpo%now%H_ice
-                where(tpo%now%H_ice_dyn .gt. 0.0 .and. tpo%now%H_ice_dyn .lt. 1.0) &
-                        tpo%now%H_ice_dyn = 1.0_wp 
-
-                call extend_floating_slab(tpo%now%H_ice_dyn,tpo%now%f_grnd,H_slab=1.0_wp,n_ext=4, &
-                                                        boundaries=tpo%par%boundaries)
-
-                ! Binary ice fraction mask for use with the dynamics solver
-                where (tpo%now%H_ice_dyn .gt. 0.0_wp)
-                    tpo%now%f_ice_dyn = 1.0_wp
-                elsewhere
-                    tpo%now%f_ice_dyn = 0.0_wp
-                end where
-
-            case DEFAULT 
-                ! No modification of ice thickness for dynamics solver 
-                ! Set standard ice thickness field for use with dynamics 
-            
-                tpo%now%H_ice_dyn = tpo%now%H_ice
-                tpo%now%f_ice_dyn = tpo%now%f_ice 
-
-        end select
         
         return 
 

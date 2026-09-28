@@ -33,8 +33,17 @@ little. MISMIP3D and DIVA runs change more.
   `front_H_eff_min` (50 m) and `front_dHdx` (0). Front cells get an effective
   thickness `H_eff` from their thickest interior neighbour, following the CISM
   subgrid calving front, and `f_ice = H/H_eff`; `tpo%now%H_eff` is now filled.
-  This is the first step of docs/dev/front-subgrid-design.md; the dynamics do
-  not use it yet. Replace `margin_flt_subgrid` in external par files.
+  Replace `margin_flt_subgrid` in external par files.
+- **Partial front cells take part in the dynamics** (step 2 of
+  docs/dev/front-subgrid-design.md). The geometry for the surface, gradients,
+  front mask and velocity solver is the active ice column: every ice-covered
+  cell, with `H_ice_dyn = H_eff` and `f_ice_dyn = 1`. The front boundary
+  condition is on the partial cell's ocean face. `H_grnd` uses the actual
+  thickness. With `front_subgrid = "none"` results are unchanged.
+- **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
+  `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
+  pars, whose periodic domains are fully ice-covered, so they had no effect;
+  those pars now use "marine".
 - **New parameters:**
   - `yelmo.log_mb_check` (default false) prints a global mass-budget check every
     step. It replaces the hard-coded `check_mb`.

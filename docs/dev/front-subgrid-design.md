@@ -118,8 +118,8 @@ design below maps that onto Yelmo's C-grid.
 ### 4.2 Momentum balance
 
 - `H_ice_dyn = H_eff`, `f_ice_dyn = 1` in partial front cells (in
-  `calc_ytopo_diagnostic`, as the new default branch; `slab`/`slab-ext` are
-  unchanged).
+  `calc_ytopo_diagnostic`). `ssa_lat_bc = "slab"`/`"slab-ext"` are removed
+  (only used in fully ice-covered periodic domains, where they had no effect).
 - Everything in the dynamics uses the `_dyn` fields: `set_ssa_masks` (now uses
   `f_ice`), `calc_lateral_bc_stress_2D` (now uses `H_ice`), driving stress,
   viscosity, beta, N (`hydro_calc_N` already takes `f_ice_dyn`).

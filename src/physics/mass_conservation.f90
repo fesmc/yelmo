@@ -23,7 +23,6 @@ module mass_conservation
     public :: set_tau_relax
     public :: calc_G_relaxation
 
-    public :: extend_floating_slab
     public :: calc_G_remove_fractional_ice
     public :: remove_icebergs
     
@@ -952,92 +951,6 @@ contains
         return
 
     end subroutine calc_G_relaxation
-
-    subroutine extend_floating_slab(H_ice,f_grnd,H_slab,n_ext,boundaries)
-        ! Extend ice field so that there is always 
-        ! floating ice next to grounded marine margins
-        ! Extended ice should be very thin, will 
-        ! be assigned value H_slab. Slab will be extended
-        ! n_ext points away from marine margin
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: H_ice(:,:) 
-        real(wp), intent(IN)    :: f_grnd(:,:) 
-        real(wp), intent(IN)    :: H_slab       ! Typically 1 or 0.1 m. 
-        integer,  intent(IN)    :: n_ext        ! Number of points to extend slab
-        character(len=*), intent(IN) :: boundaries 
-        
-        ! Local variables 
-        integer :: i, j, nx, ny, iter 
-        integer :: im1, ip1, jm1, jp1
-        logical :: is_marine 
-        integer :: BC
-
-        logical  :: ms4(4)
-        real(wp) :: Hi4(4) 
-        real(wp) :: fg4(4)
-        
-        logical,  allocatable :: mask_slab(:,:)
-        real(wp), allocatable :: H_new(:,:) 
-
-        nx = size(H_ice,1) 
-        ny = size(H_ice,2) 
-
-        allocate(mask_slab(nx,ny)) 
-        allocate(H_new(nx,ny)) 
-
-        mask_slab = .FALSE. 
-        H_new     = H_ice 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        do iter = 1, n_ext
-
-            do j = 1, ny 
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                if ( f_grnd(i,j) .eq. 0.0 .and. H_ice(i,j) .eq. 0.0 ) then 
-                    ! Floating ice-free ocean point
-                    
-                    ! Get neighbor values in convenient arrays
-                    fg4 = [f_grnd(im1,j),f_grnd(ip1,j),f_grnd(i,jm1),f_grnd(i,jp1)]
-                    Hi4 = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                    ms4 = [mask_slab(im1,j),mask_slab(ip1,j),mask_slab(i,jm1),mask_slab(i,jp1)]
-
-                    if ( (count(fg4 .gt. 0.0 .and. Hi4 .gt. 0.0) .gt. 0) .or. &
-                         (count(ms4) .gt. 0) ) then 
-                        ! At least one neighbors is either a grounded point
-                        ! or an extended slab point - make this point extended slab.
-
-                        H_new(i,j)     = H_slab 
-                        
-                    end if
-
-                end if 
-
-            end do 
-            end do 
-
-            ! Update H_ice to current array 
-            H_ice = H_new 
-
-            ! Update mask_slab
-            where(H_ice .eq. H_slab) 
-                mask_slab = .TRUE. 
-            elsewhere
-                mask_slab = .FALSE.
-            end where
-
-        end do 
-
-        return
-
-    end subroutine extend_floating_slab
 
     subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
         ! Eliminate fractional ice covered points that only 
