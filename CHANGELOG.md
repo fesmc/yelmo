@@ -111,9 +111,10 @@ little. MISMIP3D and DIVA runs change more.
   holes and made them flicker between empty and refilled. The ice-free side of a
   front is now marked ocean (`MASK_FRNT_ICE_FREE`, −1) or land
   (`MASK_FRNT_ICE_FREE_LAND`, −2), and a face to land is treated as a front
-  grounded above sea level, with no water back-pressure. GRL-8KM (200 yr): median
-  predictor-corrector error ~100× smaller and ~2.5× fewer steps. Benchmarks are
-  unchanged.
+  grounded above sea level, with no water back-pressure. GRL-8KM (200 yr,
+  `pc_eps = 0.01`): the flickering cells stay ice-free and the run takes 1226
+  instead of 1433 steps; the remaining error is dominated by one fast marine
+  outlet front. Benchmarks are unchanged.
 - **Partially ice-covered cells** get the 2D strain rates and `visc_bar` of their
   fully ice-covered neighbours (they were zero). Before, `calc_eps_eff` and
   `calc_tau_eff` patched this separately, and the `vm-m16` calving law saw zero
