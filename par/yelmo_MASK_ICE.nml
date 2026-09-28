@@ -127,6 +127,7 @@
 
     fmb_method          = 0
     fmb_scale           = 1.0
+    fmb_lambda          = 1.0               ! fmb_method=3: scaling of the Rignot et al. (2016) frontal melt (ISMIP7 protocol)
 /
 
 &ycalv

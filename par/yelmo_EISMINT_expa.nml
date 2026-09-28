@@ -99,8 +99,9 @@
     dmb_m_r             = 1.0               ! [-]   Discharge resolution scaling exponent
 
     ! === frontal mass melt ===
-    fmb_method          = 0                 ! 0: prescribe boundary field fmb_shlf; 1: calculate proportional fmb~bmb_shlf.
+    fmb_method          = 0                 ! 0: prescribe boundary field fmb_shlf; 1: calculate proportional fmb~bmb_shlf; 3: Rignot et al. (2016) with tf_shlf and Qd.
     fmb_scale           = 1.0               ! Scaling of fmb ~ scale*bmb, scale=10 suggested by Pollard and DeConto (2016)
+    fmb_lambda          = 1.0               ! fmb_method=3: scaling of the Rignot et al. (2016) frontal melt (ISMIP7 protocol)
 /
 
 &ycalv
