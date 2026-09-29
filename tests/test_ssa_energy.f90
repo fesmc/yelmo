@@ -46,7 +46,8 @@ program test_ssa_energy
     real(wp) :: max_K_rel_err, max_K_abs_err, max_b_abs_err
     integer  :: nr, nc, idx
     integer  :: i, j
-    integer  :: K_fail_count, b_fail_count
+    integer  :: K_fail_count, b_fail_count, front_fail_count
+    integer  :: idir
     logical  :: passed
 
     dxdy = dx * dy
@@ -167,6 +168,71 @@ program test_ssa_energy
     write(*,*)
 
     passed = (K_fail_count == 0) .and. (b_fail_count == 0)
+
+    ! ---- Front rows (ssa_mask = 3) ----
+    !
+    ! At a front face the driving stress is taken across the ice front, so
+    ! taud*dx*dy there equals the front force taul_int*dy. The energy RHS
+    ! must carry the front force once: b = +taul_int*dy where the ice is
+    ! on the low-index side (outward normal +x/+y), -taul_int*dy where it
+    ! is on the high-index side, independent of taud.
+    front_fail_count = 0
+    do idir = 1, 2
+        ssa_mask_acx = 1
+        ssa_mask_acy = 1
+        f_ice        = 0.0_wp
+        taul_int_acx = 0.0_wp
+        taul_int_acy = 0.0_wp
+        do j = 1, ny
+        do i = 1, nx
+            if (idir == 1) then
+                if (i >= 3 .and. i <= 5) f_ice(i,j) = 1.0_wp
+            else
+                if (j >= 3 .and. j <= 5) f_ice(i,j) = 1.0_wp
+            end if
+        end do
+        end do
+        if (idir == 1) then
+            ssa_mask_acx(2,:) = 3;  taul_int_acx(2,:) = 4.0e7_wp     ! ocean left, ice right
+            ssa_mask_acx(5,:) = 3;  taul_int_acx(5,:) = 6.0e7_wp     ! ice left, ocean right
+        else
+            ssa_mask_acy(:,2) = 3;  taul_int_acy(:,2) = 4.0e7_wp
+            ssa_mask_acy(:,5) = 3;  taul_int_acy(:,5) = 6.0e7_wp
+        end if
+
+        call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
+                    ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
+                    taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+
+        do j = 1, ny
+        do i = 1, nx
+            if (idir == 1 .and. ssa_mask_acx(i,j) == 3) then
+                nr = 2*lgs_eng%ij2n(i,j)-1
+                expected = taul_int_acx(i,j)*dy
+                if (i == 2) expected = -expected
+            else if (idir == 2 .and. ssa_mask_acy(i,j) == 3) then
+                nr = 2*lgs_eng%ij2n(i,j)
+                expected = taul_int_acy(i,j)*dx
+                if (j == 2) expected = -expected
+            else
+                cycle
+            end if
+            diff = real(lgs_eng%b_value(nr), wp) - expected
+            if (abs(diff) > rtol*abs(expected)) then
+                front_fail_count = front_fail_count + 1
+                if (front_fail_count <= 5) then
+                    write(*,'(a,i2,a,2i4,a,3es14.6)') "  front b mismatch dir=", idir, " (i,j)=", i, j, &
+                            " (b_eng, expected, diff) = ", real(lgs_eng%b_value(nr), wp), expected, diff
+                end if
+            end if
+        end do
+        end do
+    end do
+
+    write(*,'(a,i0)')         "  front b mismatches:", front_fail_count
+    write(*,*)
+
+    passed = passed .and. (front_fail_count == 0)
     if (passed) then
         write(*,*) " PASS"
     else

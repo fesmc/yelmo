@@ -105,6 +105,7 @@ contains
         ! 3: x, left--border 
         ! 4: y, lower-border 
         character(len=56) :: bcs(4)
+        logical :: bc_per(4), bc_free(4)          ! bcs(k) is "periodic" / "free-slip"
 
         integer :: im1, ip1, jm1, jp1 
         real(wp) :: N_aa_now
@@ -179,6 +180,10 @@ contains
                 bcs(1:4) = "no-slip" 
                 
         end select 
+
+        ! Evaluate the border types once, not per cell in the assembly loops
+        bc_per  = bcs .eq. "periodic"
+        bc_free = bcs .eq. "free-slip"
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
@@ -260,10 +265,10 @@ contains
                 lgs%b_value(nr) = ux(i,j)
                 lgs%x_value(nr) = ux(i,j)
             
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then 
+            else if (i .eq. 1 .and. .not. bc_per(3)) then 
                 ! Left boundary 
 
-                if (trim(bcs(3)) .eq. "free-slip") then 
+                if (bc_free(3)) then 
                 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -289,10 +294,10 @@ contains
 
                 end if 
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then 
+            else if (i .eq. nx .and. .not. bc_per(1)) then 
                 ! Right boundary 
                 
-                if (trim(bcs(1)) .eq. "free-slip") then 
+                if (bc_free(1)) then 
                 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -318,10 +323,10 @@ contains
 
                 end if 
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then 
+            else if (j .eq. 1 .and. .not. bc_per(4)) then 
                 ! Lower boundary 
 
-                if (trim(bcs(4)) .eq. "free-slip") then 
+                if (bc_free(4)) then 
 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -348,10 +353,10 @@ contains
 
                 end if 
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then 
+            else if (j .eq. ny .and. .not. bc_per(2)) then 
                 ! Upper boundary 
 
-                if (trim(bcs(2)) .eq. "free-slip") then 
+                if (bc_free(2)) then 
                     
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -549,10 +554,10 @@ contains
                 lgs%b_value(nr) = uy(i,j)
                 lgs%x_value(nr) = uy(i,j)
             
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then 
+            else if (j .eq. 1 .and. .not. bc_per(4)) then 
                 ! lower boundary 
 
-                if (trim(bcs(4)) .eq. "free-slip") then 
+                if (bc_free(4)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -578,10 +583,10 @@ contains
 
                 end if 
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then 
+            else if (j .eq. ny .and. .not. bc_per(2)) then 
                 ! Upper boundary 
 
-                if (trim(bcs(2)) .eq. "free-slip") then 
+                if (bc_free(2)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -607,10 +612,10 @@ contains
 
                 end if 
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then 
+            else if (i .eq. 1 .and. .not. bc_per(3)) then 
                 ! Left boundary 
 
-                if (trim(bcs(3)) .eq. "free-slip") then 
+                if (bc_free(3)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -636,10 +641,10 @@ contains
 
                 end if 
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then 
+            else if (i .eq. nx .and. .not. bc_per(1)) then 
                 ! Right boundary 
 
-                if (trim(bcs(1)) .eq. "free-slip") then 
+                if (bc_free(1)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1

@@ -177,7 +177,13 @@ contains
         do iter = 1, par%ssa_iter_max 
 
             ! Store solution from previous iteration (nm1 == n minus 1) 
-            visc_eff_nm1 = visc_eff
+            !$omp parallel do collapse(2) private(i,j)
+            do j = 1, ny
+            do i = 1, nx
+                visc_eff_nm1(i,j,:) = visc_eff(i,j,:)
+            end do
+            end do
+            !$omp end parallel do
             ux_bar_nm1   = ux_bar 
             uy_bar_nm1   = uy_bar 
             

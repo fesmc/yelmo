@@ -93,8 +93,12 @@ contains
                 call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
-                adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
-                !adv_lis_opt = "-i minres -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                ! Jacobi preconditioner: the upwind matrix is diagonally dominant, and the
+                ! LIS ILU factors are freed row by row on one thread, which was a large
+                ! serial cost at high resolution. BiCGSTAB instead of BiCG: BiCG needs
+                ! the transposed product, which LIS runs largely on one thread.
+                ! (Same result in single precision.)
+                adv_lis_opt = "-i bicgstab -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
                 call linear_solver_matrix_solve(lgs,adv_lis_opt)
                 
                 !call linear_solver_print_summary(lgs,io_unit_err)

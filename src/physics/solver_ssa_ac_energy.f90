@@ -82,6 +82,7 @@ contains
         ! Boundary conditions counterclockwise unit circle:
         ! 1: x, right border; 2: y, upper; 3: x, left; 4: y, lower
         character(len=56) :: bcs(4)
+        logical :: bc_per(4), bc_free(4)          ! bcs(k) is "periodic" / "free-slip"
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
@@ -114,6 +115,10 @@ contains
             case DEFAULT
                 bcs(1:4) = "no-slip"
         end select
+
+        ! Evaluate the border types once, not per cell in the assembly loops
+        bc_per  = bcs .eq. "periodic"
+        bc_free = bcs .eq. "free-slip"
 
         allocate(N_ab(nx,ny))
 
@@ -163,9 +168,9 @@ contains
                 lgs%b_value(nr) = ux(i,j)
                 lgs%x_value(nr) = ux(i,j)
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
                 ! Left domain boundary
-                if (trim(bcs(3)) .eq. "free-slip") then
+                if (bc_free(3)) then
                     nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -181,9 +186,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then
+            else if (i .eq. nx .and. .not. bc_per(1)) then
                 ! Right domain boundary
-                if (trim(bcs(1)) .eq. "free-slip") then
+                if (bc_free(1)) then
                     nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -199,9 +204,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
                 ! Lower domain boundary
-                if (trim(bcs(4)) .eq. "free-slip") then
+                if (bc_free(4)) then
                     nc = 2*lgs%ij2n(i,j)-1
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -217,9 +222,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then
+            else if (j .eq. ny .and. .not. bc_per(2)) then
                 ! Upper domain boundary
-                if (trim(bcs(2)) .eq. "free-slip") then
+                if (bc_free(2)) then
                     nc = 2*lgs%ij2n(i,j)-1
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -296,19 +301,26 @@ contains
                 lgs%a_value(k) = -2.0_wp*N_aa(i,j) - N_ab(i,jm1)
                 lgs%a_index(k) = nc
 
-                ! Right-hand side: driving stress + (optional) calving-front boundary work.
-                ! Sign of the boundary work follows the outward normal at the front:
+                ! Right-hand side: driving stress, or at a front face the calving-front
+                ! boundary work. Sign of the boundary work follows the outward normal:
                 !   ice on left,  ocean on right  -> n = +x  -> +taul_int*dy
                 !   ocean on left, ice on right   -> n = -x  -> -taul_int*dy
                 ! Without the sign split the same +taul_int*dy is applied at left
                 ! and right fronts, breaking L<->R symmetry of b.
-                lgs%b_value(nr) = -taud_acx(i,j)*dxdy
+                !
+                ! At a front face (mask=3) the driving stress is taken across the ice
+                ! front (H/2 times the surface jump), so taud*dx*dy there is the net
+                ! hydrostatic front force, the same force as taul_int*dy. Only the
+                ! boundary work is applied, so the front force enters once (as in
+                ! the residual formulation, whose front row is the stress BC).
                 if (ssa_mask_acx(i,j) .eq. 3) then
                     if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0_wp) then
-                        lgs%b_value(nr) = lgs%b_value(nr) + taul_int_acx(i,j)*dy
+                        lgs%b_value(nr) =  taul_int_acx(i,j)*dy
                     else
-                        lgs%b_value(nr) = lgs%b_value(nr) - taul_int_acx(i,j)*dy
+                        lgs%b_value(nr) = -taul_int_acx(i,j)*dy
                     end if
+                else
+                    lgs%b_value(nr) = -taud_acx(i,j)*dxdy
                 end if
                 lgs%x_value(nr) = ux(i,j)
 
@@ -334,8 +346,8 @@ contains
                 lgs%b_value(nr) = uy(i,j)
                 lgs%x_value(nr) = uy(i,j)
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then
-                if (trim(bcs(4)) .eq. "free-slip") then
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
+                if (bc_free(4)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -351,8 +363,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then
-                if (trim(bcs(2)) .eq. "free-slip") then
+            else if (j .eq. ny .and. .not. bc_per(2)) then
+                if (bc_free(2)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -368,8 +380,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then
-                if (trim(bcs(3)) .eq. "free-slip") then
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
+                if (bc_free(3)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -385,8 +397,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then
-                if (trim(bcs(1)) .eq. "free-slip") then
+            else if (i .eq. nx .and. .not. bc_per(1)) then
+                if (bc_free(1)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -459,13 +471,15 @@ contains
                 lgs%a_value(k) = -2.0_wp*N_aa(i,j) - N_ab(im1,j)
                 lgs%a_index(k) = nc
 
-                lgs%b_value(nr) = -taud_acy(i,j)*dxdy
+                ! Front face: boundary work only (see the ux equation)
                 if (ssa_mask_acy(i,j) .eq. 3) then
                     if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(i,jp1) .lt. 1.0_wp) then
-                        lgs%b_value(nr) = lgs%b_value(nr) + taul_int_acy(i,j)*dx
+                        lgs%b_value(nr) =  taul_int_acy(i,j)*dx
                     else
-                        lgs%b_value(nr) = lgs%b_value(nr) - taul_int_acy(i,j)*dx
+                        lgs%b_value(nr) = -taul_int_acy(i,j)*dx
                     end if
+                else
+                    lgs%b_value(nr) = -taud_acy(i,j)*dxdy
                 end if
                 lgs%x_value(nr) = uy(i,j)
 

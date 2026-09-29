@@ -262,23 +262,33 @@ else
         allocate(b_value(1:nmax))
         allocate(x_value(1:nmax))
 
+        !$omp parallel private(k)
+
         ! Store vector information
+        !$omp do
         do k = 1, nmax
             idx(k) = k
             b_value(k) = lgs%b_value(k)
             x_value(k) = lgs%x_value(k)
         end do
+        !$omp end do nowait
 
         ! Store matrix row pointers
+        !$omp do
         do k = 1, nmax+1
             a_ptr(k) = lgs%a_ptr(k)-1
         end do
+        !$omp end do nowait
 
         ! Store column indices and values
+        !$omp do
         do k = 1, nnz
             a_index(k) = lgs%a_index(k)-1
             a_value(k) = lgs%a_value(k)
         end do
+        !$omp end do
+
+        !$omp end parallel
 
         ! Assemble matrix in LIS
         call lis_matrix_set_csr(nnz, a_ptr, a_index, a_value, lgs_a, ierr)
