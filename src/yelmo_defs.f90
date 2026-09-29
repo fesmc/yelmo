@@ -421,7 +421,7 @@ module yelmo_defs
         real(wp)   :: eps_0                 ! Minimum assumed strain rate for effective viscosity regularization
         integer    :: scale_T
         real(wp)   :: T_frz
-        character(len=56)  :: ssa_solver           ! "residual" (default) | "energy"
+        character(len=56)  :: ssa_solver           ! "residual" | "energy" (default)
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc

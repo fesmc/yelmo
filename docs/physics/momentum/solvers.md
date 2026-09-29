@@ -99,10 +99,10 @@ preconditioner.
 - Free-slip, no-slip and periodic conditions are applied per side via
   the boundary-code helper `get_neighbor_indices_bc_codes`.
 
-This is the formulation inherited from Yelmo v1 and is the legacy
-default.
+This is the formulation inherited from Yelmo v1 (the default before
+v2.0).
 
-## Solver B — energy form (new)
+## Solver B — energy form (default)
 
 The energy assembler ([`solver_ssa_ac_energy.f90`][energy_src]) builds
 the Hessian of a discrete energy functional and solves
@@ -167,7 +167,14 @@ two solvers differ is at boundaries:
   a boundary-work term $\pm\,\tau_{l,\mathrm{int}}\,\Delta y$ on the
   RHS, with the sign determined by the outward normal. This is the
   variational form of the Neumann condition and is symmetric by
-  construction.
+  construction. It replaces the driving stress in front rows: there
+  $\tau_d$ is taken across the ice front ($H/2$ times the surface
+  jump), so $\tau_d\,\Delta x\,\Delta y$ is the same front force, and
+  keeping both would apply it twice.
+- **Free-slip domain edges** that ice reaches keep their two-entry
+  constraint row, which leaves $K$ non-symmetric there (not the case in
+  the benchmarks or regional domains, whose edges are ice-free, no-slip
+  or periodic).
 - **Dirichlet rows**: prescribed values are imposed by **static
   condensation** — the prescribed column is multiplied by the known
   velocity and moved to the RHS — instead of by row replacement. This

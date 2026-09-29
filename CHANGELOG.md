@@ -110,6 +110,16 @@ little. MISMIP3D and DIVA runs change more.
     evaluated once (not per cell), power-law basal friction, thermodynamic
     horizontal advection, `calc_ice_fraction`/`calc_front_cells`, the DIVA
     viscosity copy and the LIS array copies.
+  - **SSA energy solver fixed and made the default** (`ydyn.ssa_solver =
+    "energy"`, CG tolerance 1e-2 in all pars and defaults). Its calving-front
+    rows applied the front force twice: the front-face driving stress
+    (`taud*dx*dy`, taken across the front) equals the boundary work
+    `taul_int*dy`, and both were on the RHS. Shelves spread too fast
+    (MISMIP3D Stnd grounding line 440 km instead of 520 km, TROUGH -26% ice).
+    Now only the boundary work is applied; MISMIP3D (520.07 vs 520.08 km) and
+    TROUGH (+0.3% ice) match the residual solver. CalvingMIP differs only in
+    the ragged front ring (weak vs strong front condition). Tolerance 1e-2 and
+    1e-4 give the same results.
   - `ytopo.dHdt_dyn_lim` is removed, with the tendency limit in
     `apply_tendency`. It clipped the dynamic thickness change at ±100 m/yr
     cell by cell, which does not conserve mass. In ANT-16KM/GRL-8KM initmip it
