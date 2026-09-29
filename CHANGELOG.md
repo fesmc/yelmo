@@ -201,6 +201,16 @@ little. MISMIP3D and DIVA runs change more.
   fesm-utils with the `act` argument of `gq*_to_nodes_acx/acy`). A translating
   slab now has zero strain at straight and 45-degree fronts (was up to 3V/(16dx),
   `make front_strain`). Benchmarks change by <= 0.6%.
+- **Vertical velocity from the kinematic rates of the ice column; no uz clamps.**
+  The basal rate was `dzsdt - dHidt`, which at subgrid fronts mixed the `H_eff`
+  surface with the true thickness and counted calving, front advance and removals
+  as vertical motion: basal `uz` of 3.5-5.5 km/yr in the first step of GRL-16/ANT-16
+  and 0.3-1.6 km/yr spikes later, hidden by the ±10 m/yr clamps on `uz`/`uz_star`.
+  Those clamps also cut the physical w in fast outlets (8% of the ice flux in
+  GRL-16), which entered the enthalpy advection as a spurious sigma velocity.
+  Now `dzbdt_kin`/`dzsdt_kin` come from the vertical column change (advection, smb,
+  bmb, relaxation) and the bedrock/sea-level rates between `yelmo_update` calls
+  (floating columns float), zero in partial front cells; the clamps are removed.
 - **Energy SSA: half the basal drag at calving-front faces**, the ice half of the
   face's control area. Grounded marine fronts are 2.2-2.5x faster than before in
   GRL-16/ANT-16/GRL-8; floating fronts are unchanged.
