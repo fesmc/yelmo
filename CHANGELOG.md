@@ -120,6 +120,15 @@ little. MISMIP3D and DIVA runs change more.
     TROUGH (+0.3% ice) match the residual solver. CalvingMIP differs only in
     the ragged front ring (weak vs strong front condition). Tolerance 1e-2 and
     1e-4 give the same results.
+  - **SSA energy assembly rewritten element by element** from the energy
+    density (4x4 local Hessians of cell and corner terms, mapped to free,
+    Dirichlet, tied or ghost unknowns). Free-slip edges that ice reaches are
+    folded into their inner unknown (T^T K T) instead of a two-entry
+    constraint row, so K is symmetric for every boundary type (before:
+    non-symmetric with `infinite`, `mask`, `periodic-x/-y` and the MISMIP3D/
+    TROUGH right edge once ice reached it). Rows are assembled in parallel.
+    Benchmarks, ANT-16/ANT-8 and GRL-8 are unchanged to round-off (none has
+    ice at a free-slip edge). The LIS copy passes only the stored entries.
   - `ytopo.dHdt_dyn_lim` is removed, with the tendency limit in
     `apply_tendency`. It clipped the dynamic thickness change at ±100 m/yr
     cell by cell, which does not conserve mass. In ANT-16KM/GRL-8KM initmip it

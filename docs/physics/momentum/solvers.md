@@ -146,9 +146,17 @@ Yelmo's discrete energy is the cell-by-cell evaluation of $W$ on the
 C-grid, with the derivatives
 $\frac{\partial \bar u}{\partial x}, \frac{\partial \bar v}{\partial y},
 \frac{\partial \bar u}{\partial y}, \frac{\partial \bar v}{\partial x}$
-expressed as the natural finite differences between adjacent ac-nodes.
-The Hessian $K$ then has the same stencil graph as the residual matrix
-but is symmetric in $(\bar u, \bar v)$. At inner cells the two
+expressed as the natural finite differences between adjacent ac-nodes:
+membrane terms on aa-cells, shear terms on ab-corners, drag and driving
+terms on the ac-faces. $K$ is assembled element by element from these
+terms: each cell or corner contributes a $4\times4$ local Hessian over its
+four velocities, and each velocity is mapped to a matrix unknown before
+it is added (free, Dirichlet, tied to an inner unknown, or a ghost beyond
+the domain edge; see below). Since every entry comes from a local Hessian
+and a linear map, $K$ is symmetric for any mask and boundary type. Each
+row gathers the terms of the elements around its unknown, so rows are
+assembled independently (in parallel with OpenMP). Inside the domain
+$K$ has the same stencil graph as the residual matrix. At inner cells the two
 formulations are related by an exact algebraic identity (documented in
 the header of the energy assembler):
 
@@ -171,15 +179,20 @@ two solvers differ is at boundaries:
   $\tau_d$ is taken across the ice front ($H/2$ times the surface
   jump), so $\tau_d\,\Delta x\,\Delta y$ is the same front force, and
   keeping both would apply it twice.
-- **Free-slip domain edges** that ice reaches keep their two-entry
-  constraint row, which leaves $K$ non-symmetric there (not the case in
-  the benchmarks or regional domains, whose edges are ice-free, no-slip
-  or periodic).
-- **Dirichlet rows**: prescribed values are imposed by **static
-  condensation** — the prescribed column is multiplied by the known
-  velocity and moved to the RHS — instead of by row replacement. This
-  preserves the symmetry of $K$ and so allows CG / AMG to be used
-  without spoiling the SPD structure.
+- **Free-slip domain edges**: the edge unknown is tied to its inner
+  neighbour ($u_\mathrm{edge} = u_\mathrm{inner}$, as in the residual
+  solver) and folded into its row, $K_\mathrm{red} = T^\mathsf{T} K T$,
+  which keeps $K$ symmetric. The edge cell's own membrane and shear terms
+  are kept in the folded row (the residual solver drops them), so the two
+  solvers differ in the edge row of cells. After the solve the edge
+  unknown takes its root's value (`lgs%copy_from`). Velocities one cell
+  beyond an edge are periodic wraps, copies of the edge value
+  (free-slip) or zero (no-slip).
+- **Dirichlet rows**: prescribed values (ice-free faces, `ssa_mask = -1`,
+  no-slip edges) are imposed by **static condensation** — the column is
+  multiplied by the known velocity and moved to the RHS — instead of by
+  row replacement. This preserves the symmetry of $K$ and so allows CG /
+  AMG to be used without spoiling the SPD structure.
 
 The viscosity staggering aa $\to$ ab is the same routine
 (`stagger_visc_aa_ab`) used by the residual assembler.
