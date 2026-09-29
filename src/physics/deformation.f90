@@ -39,6 +39,7 @@ module deformation
     public :: calc_strain_rate_tensor_jac_quad3D
     public :: calc_strain_rate_tensor_2D
     public :: calc_strain_rate_horizontal_2D
+    public :: calc_active_faces
     public :: calc_stress_tensor 
     public :: calc_stress_tensor_2D
     public :: calc_2D_eigen_values
@@ -1155,6 +1156,8 @@ end if
 
         integer  :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
 
@@ -1174,6 +1177,10 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
         ! Reset strain rate fields to zero, since only fully ice-covered points
         ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
         ! must not retain values from a previous call.
@@ -1215,31 +1222,31 @@ if (use_gq) then
     ! Use quadrature points
 
                     ! Get dxx on aa-nodes 
-                    call gq2D_to_nodes_acx(gq2d,ddn,jvel%dxx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,ddn,jvel%dxx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     strn%dxx(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
                     
                     ! Get dxy and dyx on aa-nodes 
-                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,ddbn,jvel%dyx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2d,ddbn,jvel%dyx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     ddn = 0.5*(ddan+ddbn)
                     strn%dxy(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
 
                     ! Get dxz and dzx on aa-nodes 
                     ! (but also get dzx on aa-nodes vertically)
-                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     ddbn = 0.5*(jvel%dzx(i,j,k)+jvel%dzx(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dxz(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
 
                     ! Get dyz and dzy on aa-nodes 
                     ! (but also get dzy on aa-nodes vertically)
-                    call gq2D_to_nodes_acy(gq2d,ddan,jvel%dyz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,ddan,jvel%dyz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     ddbn = 0.5*(jvel%dzy(i,j,k)+jvel%dzy(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dyz(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
 
                     ! Get dyy on aa-nodes 
-                    call gq2D_to_nodes_acy(gq2d,ddn,jvel%dyy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,ddn,jvel%dyy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     strn%dyy(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
 else
     ! Unstagger directly to aa-nodes
@@ -1398,6 +1405,8 @@ end if
 
         integer  :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq3D_init(gq3D_global)
 
@@ -1410,6 +1419,10 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
         ! Reset strain rate fields to zero, since only fully ice-covered points
         ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
         ! must not retain values from a previous call.
@@ -1466,12 +1479,12 @@ end if
                     end if
                     
                     ! Get dxx on aa-nodes 
-                    call gq3D_to_nodes_acx(gq3d,ddn,jvel%dxx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddn,jvel%dxx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     strn%dxx(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dxy and dyx on aa-nodes 
-                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,ddbn,jvel%dyx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
+                    call gq3D_to_nodes_acy(gq3d,ddbn,jvel%dyx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     ddn = 0.5*(ddan+ddbn)
                     strn%dxy(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
@@ -1479,7 +1492,7 @@ end if
                     ! (but also get dzx on aa-nodes vertically)
                     ! Note: dzx is on vertical ac-nodes; the faces of aa-node k are ac-nodes k (below)
                     ! and k+1 (above), so pass k+1 as upper and k as lower index to gq3D_to_nodes_acz
-                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dxz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
@@ -1487,13 +1500,13 @@ end if
                     ! Get dyz and dzy on aa-nodes 
                     ! (but also get dzy on aa-nodes vertically)
                     ! (dzy on vertical ac-nodes: faces k and k+1, as for dzx above)
-                    call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dyz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dyy on aa-nodes 
-                    call gq3D_to_nodes_acy(gq3d,ddn,jvel%dyy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3d,ddn,jvel%dyy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     strn%dyy(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! TEST - set shear strain terms to zero
@@ -1606,6 +1619,8 @@ end if
 
         integer  :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
         
@@ -1620,6 +1635,10 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
         ! === First calculate the horizontal strain rate ===
 
         call calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
@@ -1648,11 +1667,11 @@ end if
 
             if (f_ice(i,j) .eq. 1.0_wp) then 
                 
-                call gq2D_to_nodes_acx(gq2d,dudxn,dudx,dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acx(gq2d,dudyn,dudy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dudxn,dudx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                call gq2D_to_nodes_acx(gq2d,dudyn,dudy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
 
-                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx,dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 ! Calculate strain rate tensor terms 
                 strn2D%dxx(i,j) = sum(dudxn*gq2d%wt)/gq2d%wt_tot

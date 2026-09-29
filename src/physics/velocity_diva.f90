@@ -4,7 +4,7 @@ module velocity_diva
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
                     integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
 
-    use deformation, only : calc_strain_rate_horizontal_2D
+    use deformation, only : calc_strain_rate_horizontal_2D, calc_active_faces
     use basal_dragging
     use solver_ssa_ac
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
@@ -574,6 +574,8 @@ end if
 
         integer :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
         if (use_gq3D) call gq3D_init(gq3D_global)
@@ -585,6 +587,10 @@ end if
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
         allocate(dudx(nx,ny,nz))
         allocate(dudy(nx,ny,nz))
         allocate(dvdx(nx,ny,nz))
@@ -634,17 +640,17 @@ if (.not. use_gq3D) then
 
                 ! Get horizontal strain rate terms
                 ! (same for all layers, so just get them once for all layers)
-                call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acx(gq2d,dudyn,dudy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                call gq2D_to_nodes_acx(gq2d,dudyn,dudy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 
-                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 do k = 1, nz
                     
                     ! Get vertical shear strain rate terms
-                    call gq2D_to_nodes_acx(gq2d,dudzn,dudz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,dvdzn,dvdz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,dudzn,dudz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2d,dvdzn,dvdz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     
                     ! Calculate the total effective strain rate from L19, Eq. 21 
                     eps_sq_n = dudxn**2 + dvdyn**2 + dudxn*dvdyn + 0.25_wp*(dudyn+dvdxn)**2 &
@@ -683,15 +689,15 @@ else
                     end if
                     
                     ! Get horizontal strain rate terms
-                    call gq3D_to_nodes_acx(gq3d,dudxn8,dudx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acx(gq3d,dudyn8,dudy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,dudxn8,dudx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
+                    call gq3D_to_nodes_acx(gq3d,dudyn8,dudy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
 
-                    call gq3D_to_nodes_acy(gq3d,dvdxn8,dvdx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,dvdyn8,dvdy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3d,dvdxn8,dvdx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
+                    call gq3D_to_nodes_acy(gq3d,dvdyn8,dvdy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
 
                     ! Get vertical shear strain rate terms
-                    call gq3D_to_nodes_acx(gq3d,dudzn8,dudz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,dvdzn8,dvdz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,dudzn8,dudz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
+                    call gq3D_to_nodes_acy(gq3d,dvdzn8,dvdz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     
                     ! Calculate the total effective strain rate from L19, Eq. 21 
                     eps_sq_n8 = dudxn8**2 + dvdyn8**2 + dudxn8*dvdyn8 + 0.25_wp*(dudyn8+dvdxn8)**2 &
