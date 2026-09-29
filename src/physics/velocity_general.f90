@@ -2143,17 +2143,28 @@ end if
 
     end subroutine picard_relax_vel
 
-    elemental subroutine picard_relax_visc(visc,visc_prev,rel)
-        ! Relax velocity solution with previous iteration 
+    subroutine picard_relax_visc(visc,visc_prev,rel)
+        ! Relax viscosity solution with previous iteration, in log-space
 
         implicit none 
 
-        real(wp), intent(INOUT) :: visc
-        real(wp), intent(IN)    :: visc_prev
+        real(wp), intent(INOUT) :: visc(:,:,:)
+        real(wp), intent(IN)    :: visc_prev(:,:,:)
         real(wp), intent(IN)    :: rel
 
+        ! Local variables
+        integer :: i, j, k
+
         ! Apply relaxation 
-        visc = exp( (1.0-rel)*log(visc_prev) + rel*log(visc) )
+        !$omp parallel do collapse(2) private(i,j,k)
+        do j = 1, size(visc,2)
+        do i = 1, size(visc,1)
+        do k = 1, size(visc,3)
+            visc(i,j,k) = exp( (1.0-rel)*log(visc_prev(i,j,k)) + rel*log(visc(i,j,k)) )
+        end do
+        end do
+        end do
+        !$omp end parallel do
         
         return 
 
