@@ -24,7 +24,7 @@ module yelmo_io
     !   "cdo"    : load a pre-generated cdo SCRIP map (maps/scrip-con_<src>_<dst>.nc)
     !   "coords" : generate the conservative weights in-package (no cdo, no file)
     ! ----------------------------------------------------------------------
-    character(len=*), parameter :: restart_interp_gen = "cdo"
+    character(len=*), parameter :: restart_interp_gen = "coords"
 
     private
     public :: yelmo_write_init
