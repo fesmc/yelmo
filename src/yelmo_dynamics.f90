@@ -134,8 +134,15 @@ contains
         end if
 
         ! Finally calculate c_bed, which is simply c_bed = f(N_eff,cb_ref)
-        call calc_c_bed(dyn%now%c_bed,dyn%now%cb_ref,dyn%now%N_eff,thrm%now%T_prime_b, &
-                dyn%par%till_is_angle,dyn%par%till_cf_ref,dyn%par%T_frz,dyn%par%scale_T)
+        call calc_c_bed(dyn%now%c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
+
+        ! Sub-temperate sliding factor (beta is divided by f_slide in the solvers)
+        if (dyn%par%slide_T) then
+            call calc_f_slide(dyn%now%f_slide,thrm%now%T_prime_b,tpo%now%f_ice_dyn,tpo%now%f_grnd, &
+                                                        dyn%par%gamma_T,dyn%par%lambda_min)
+        else
+            dyn%now%f_slide = 1.0_wp
+        end if
 
         ! ===== Calculate the 3D horizontal velocity field and helper variables =======================
         ! The variables to be obtained from these routines are:
@@ -406,7 +413,7 @@ contains
             call calc_velocity_ssa(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
                                       dyn%now%visc_eff,dyn%now%visc_eff_int,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy, &
                                       dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%now%beta, &
-                                      dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%taud_acx,dyn%now%taud_acy, &
+                                      dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy, &
                                       dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                       tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
                                       tpo%now%mask_frnt, &
@@ -539,7 +546,7 @@ contains
                                 dyn%now%visc_eff_int,    &
                                 dyn%now%duxdz,dyn%now%duydz,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,      &
                                 dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%now%c_bed, &
-                                dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
+                                dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                 tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,   &
                                 tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%mask_frnt,mat%now%ATT, &
                                 dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,diva_par)
@@ -680,8 +687,9 @@ contains
         call nml_read(filename,group_ydyn,"H_grnd_lim",         par%H_grnd_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"beta_min",           par%beta_min,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"eps_0",              par%eps_0,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"scale_T",            par%scale_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"T_frz",              par%T_frz,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"slide_T",            par%slide_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"gamma_T",            par%gamma_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"lambda_min",         par%lambda_min,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_solver",         par%ssa_solver,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -722,6 +730,12 @@ contains
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
         call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none")
 
+        if (par%slide_T .and. (par%gamma_T .le. 0.0_wp .or. par%lambda_min .le. 0.0_wp &
+                                                        .or. par%lambda_min .gt. 1.0_wp)) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.slide_T requires gamma_T > 0 and 0 < lambda_min <= 1; got ", &
+                                 par%gamma_T, par%lambda_min
+            stop "Program stopped."
+        end if
         if (par%till_z0 .ge. par%till_z1) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &
                                  par%till_z0, par%till_z1
@@ -843,6 +857,7 @@ contains
         allocate(now%cb_tgt(nx,ny))
         allocate(now%cb_ref(nx,ny))
         allocate(now%c_bed(nx,ny)) 
+        allocate(now%f_slide(nx,ny))
         
         allocate(now%N_eff(nx,ny))
 
@@ -949,6 +964,7 @@ contains
         now%cb_tgt            = 0.0
         now%cb_ref            = 0.0
         now%c_bed             = 0.0 
+        now%f_slide           = 1.0 
         
         now%N_eff             = 0.0 
 
@@ -1065,6 +1081,7 @@ contains
         if (allocated(now%cb_tgt))          deallocate(now%cb_tgt) 
         if (allocated(now%cb_ref))          deallocate(now%cb_ref) 
         if (allocated(now%c_bed))           deallocate(now%c_bed) 
+        if (allocated(now%f_slide))         deallocate(now%f_slide)
         
         if (allocated(now%N_eff))           deallocate(now%N_eff)
         
@@ -1195,6 +1212,8 @@ contains
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
         call nc_write(filename,"c_bed",dyn%now%c_bed,units="Pa",long_name="Dragging coefficient", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Sub-temperate sliding factor", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"N_eff",dyn%now%N_eff,units="Pa",long_name="Effective pressure", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

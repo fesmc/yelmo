@@ -411,6 +411,7 @@ contains
       case("dyn_cb_tgt");        v2D = real(ylmo%dyn%now%cb_tgt,        c_double)
       case("dyn_cb_ref");        v2D = real(ylmo%dyn%now%cb_ref,        c_double)
       case("dyn_c_bed");         v2D = real(ylmo%dyn%now%c_bed,         c_double)
+      case("dyn_f_slide");       v2D = real(ylmo%dyn%now%f_slide,       c_double)
       case("dyn_beta_acx");      v2D = real(ylmo%dyn%now%beta_acx,      c_double)
       case("dyn_beta_acy");      v2D = real(ylmo%dyn%now%beta_acy,      c_double)
       case("dyn_beta");          v2D = real(ylmo%dyn%now%beta,          c_double)
@@ -647,6 +648,7 @@ contains
       case("dyn_cb_tgt");        ylmo%dyn%now%cb_tgt        = real(v2D, wp)
       case("dyn_cb_ref");        ylmo%dyn%now%cb_ref        = real(v2D, wp)
       case("dyn_c_bed");         ylmo%dyn%now%c_bed         = real(v2D, wp)
+      case("dyn_f_slide");       ylmo%dyn%now%f_slide       = real(v2D, wp)
 
       ! -----------------------------------------------------------------------
       ! ytherm%now — 2D fields
