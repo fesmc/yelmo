@@ -65,7 +65,7 @@ contains
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now, &
-                                  c_bed,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
+                                  c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
                                   f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
@@ -101,6 +101,7 @@ contains
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
         integer,  intent(OUT)   :: ssa_iter_now 
         real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
+        real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taul_int_acx(:,:)  ! [Pa m]
@@ -242,6 +243,9 @@ contains
             ! Stagger beta 
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_bar,uy_bar, &
                         f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
+
+            ! Reduce sliding where the base is below the pressure melting point (beta/f_slide)
+            call scale_beta_slide(beta_acx,beta_acy,beta,f_slide,f_ice,par%boundaries)
             
             ! Calculate effective beta on ac-nodes from staggered beta and F2 (as in L19),
             ! so that ub = ubar/(1+beta*F2) and taub = beta*ub hold on each ac-node.

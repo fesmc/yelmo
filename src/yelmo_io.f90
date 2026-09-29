@@ -1549,6 +1549,9 @@ contains
             case("c_bed")
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%c_bed(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("f_slide")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%f_slide(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("beta_acx")
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%beta_acx(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)

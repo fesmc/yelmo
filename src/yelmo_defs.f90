@@ -419,8 +419,9 @@ module yelmo_defs
         real(wp)   :: H_grnd_lim  
         real(wp)   :: beta_min              ! Minimum allowed value of beta
         real(wp)   :: eps_0                 ! Minimum assumed strain rate for effective viscosity regularization
-        integer    :: scale_T
-        real(wp)   :: T_frz
+        logical    :: slide_T               ! Reduce sliding below the pressure melting point?
+        real(wp)   :: gamma_T               ! [K] e-folding temperature of sub-temperate sliding
+        real(wp)   :: lambda_min            ! [-] Minimum sub-temperate sliding factor
         character(len=56)  :: ssa_solver           ! "residual" | "energy" (default)
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
@@ -538,6 +539,7 @@ module yelmo_defs
         real(wp), allocatable :: cb_tgt(:,:)
         real(wp), allocatable :: cb_ref(:,:)
         real(wp), allocatable :: c_bed(:,:)  
+        real(wp), allocatable :: f_slide(:,:)      ! Sub-temperate sliding factor
         real(wp), allocatable :: beta_acx(:,:) 
         real(wp), allocatable :: beta_acy(:,:) 
         real(wp), allocatable :: beta(:,:)         
