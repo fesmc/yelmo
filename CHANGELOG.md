@@ -7,6 +7,15 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ydyn.scale_T`/`T_frz` replaced by `ydyn.slide_T`, `gamma_T`, `lambda_min`.**
+  `scale_T` raised `c_bed` of a frozen bed only up to `cf_ref*N_eff`, so frozen
+  beds still slid (0.2–1 m/a in ANT-32km initmip, 10–100 m/a with low `cf_ref`).
+  Now β is divided by `f_slide = max(lambda_min, exp(T_prime_b/gamma_T))` after
+  the friction law, for any `beta_method` (new output `f_slide`). On in the
+  defaults, Antarctica and initmip (`gamma_T=1`, `lambda_min=1e-6`), off in the
+  benchmarks. Replace the old keys in external par files (`nml_validate` stops).
+  Benchmarks equal the old `scale_T=0`; where `scale_T=1` stiffened a cold bed
+  they change (MISMIP3D Stnd: H up to 7.7 m; TROUGH: < 1 cm).
 - **`&yhyd marine_rho_sw` and `k24_latent_heat_water` are no longer read under Yelmo.**
   FastHydrology takes `rho_sw` and `L_ice` from the physical-constants record Yelmo
   hands it, so these two keys are inert in a coupled run (they still work for
