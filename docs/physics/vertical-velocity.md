@@ -106,9 +106,23 @@ uz(i,j,1) = dzbdt_now + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa   ! bas
 uz(i,j,k) = uz(i,j,k-1) - H_now*(zeta_ac(k)-zeta_ac(k-1))*(dudx_aa+dvdy_aa)
 ```
 
-with `dzbdt_now = dzsdt_now - dhdt_now` (the base rate is deduced from the
-surface and thickness rates, so no explicit bedrock-uplift input is needed,
-and the expression is valid for grounded *and* floating ice).
+with `dzbdt_now = tpo%now%dzbdt_kin`, the kinematic rate of the column base
+(`dzsdt_kin` for the surface), computed in `calc_ytopo_pc` from the tendencies:
+
+- vertical thickness change of the column, `dHidt_vert` = advection + smb + bmb
+  (+ relaxation). Calving, frontal melt, discharge, front advance and removals are
+  lateral and do not move the column surface or base;
+- grounded ice: the base follows the bedrock, `dzbdt_kin = dz_bed/dt`;
+- floating ice: the column floats, `dzbdt_kin = dz_sl/dt - (rho_ice/rho_sw)*dHidt_vert`;
+- blended by the grounded fraction; `dzsdt_kin = dzbdt_kin + dHidt_vert`;
+- partial front cells (column from `H_eff`) and ice-free cells: zero.
+
+The bedrock and sea-level rates are the changes since the previous call of
+`yelmo_update` (`ybound_update_rates`), zero on the first call after
+initialisation or a restart. Before, the base rate was the difference
+`dzsdt - dHidt`, which mixed the `H_eff`-based surface with the true thickness at
+subgrid fronts and counted lateral removals as vertical motion (basal `uz` of
+several km/yr in the first steps).
 
 **The sigma-ness is removed, not embedded.** The coordinate corrections are
 applied to the *horizontal derivatives* precisely so that what gets integrated
@@ -137,11 +151,9 @@ quantity:
   basal BC*; any mismatch with the surface BC accumulates as a residual at the
   top rather than being spread through the column. "Consistent with mass
   conservation" should be read in that precise sense.
-- **Stability clamps.** The basal value is floored at `uz_min = -10 m/yr`, and
-  `calc_uz_3D_jac` additionally clamps $|w| \le$ `uz_lim = 10 m/yr` throughout.
-  Values below `TOL_UNDERFLOW` are zeroed. These are numerical guards that only
-  bite when something is already going wrong, but they do make `uz` mildly
-  non-physical near the bed in those cases.
+- **No clamps.** `uz` and `uz_star` are not limited (the former ±10 m/yr clamps
+  cut the physical $w$ in fast outlets, where it reaches tens of m/yr). Values
+  below `TOL_UNDERFLOW` are zeroed.
 - **Ice-free points** get `uz = dzbdt - max(smb,0)` and `uz_star = uz`.
 
 ## `uz_star` — the sigma-relative advective velocity
@@ -274,8 +286,7 @@ own layers wants `uz_star`.
 A worked example of the second row: to hand $(u, v, w)$ to an offline
 Lagrangian particle tracer that integrates
 $\dot x = u,\ \dot y = v,\ \dot z = w$, pass `ux`, `uy`, `uz` — never
-`uz_star`. (Note the basal `uz_min` clamp above if trajectories approach the
-bed.)
+`uz_star`.
 
 ## Where each field is used in the code
 

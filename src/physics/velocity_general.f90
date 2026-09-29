@@ -36,14 +36,14 @@ module velocity_general
     
 contains 
     
-    subroutine calc_uz_3D_jac(uz,uz_star,ux,uy,jvel,H_ice,f_ice,f_grnd,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D_jac(uz,uz_star,ux,uy,jvel,H_ice,f_ice,f_grnd,smb,bmb,dzbdt,dzsdt, &
                                     dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of ice-base elevation change (dzbdt) is deduced from dzbdt = dzsdt - dhdt. 
-        ! This formulation does not depend on rate of bedrock uplift (which is implicit in dzsdt),
-        ! and is valid for both grounded and floating ice. 
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -57,7 +57,7 @@ contains
         real(wp), intent(IN)  :: f_grnd(:,:)
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:) 
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -97,7 +97,6 @@ contains
         real(wp) :: c_z 
 
         real(wp) :: dzsdtn(4)
-        real(wp) :: dhdtn(4)
         real(wp) :: dzbdxn(4)
         real(wp) :: dzbdyn(4)
         real(wp) :: dzsdxn(4)
@@ -117,13 +116,10 @@ contains
         real(wp) :: dvdyn8(8) 
 
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
         
         logical, allocatable :: is_ice(:,:)
         
-        real(wp), parameter :: uz_min = -10.0       ! [m/yr] Minimum allowed vertical velocity downwards for stability
-        real(wp), parameter :: uz_lim =  10.0       ! [m/yr] Absolute limit allowed for vertical velocity in any direction
 
         type(gq2D_class) :: gq2D, gq2D_global
         type(gq3D_class) :: gq3D, gq3D_global
@@ -162,7 +158,7 @@ contains
 
         !$omp parallel &
         !$omp& private(i,j,im1,ip1,jm1,jp1,gq2D,gq3D) &
-        !$omp& private(dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv,dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa) &
+        !$omp& private(dzsdt_now,dzbdt_now,H_now,H_inv,dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa) &
         !$omp& private(dzsdxn,dzsdx_aa,dzsdyn,dzsdy_aa,uxn,ux_aa,uyn,uy_aa,uz_grid,k,kmid) &
         !$omp& private(dudxn,dudx_aa,dvdyn,dvdy_aa,km1,kp1,dz0,dudxn8,dvdyn8) &
         !$omp& private(kup,kdn,uxn_up,uxn_dn,uyn_up,uyn_dn,zeta_now,c_x,c_y,c_t,c_z) &
@@ -177,21 +173,9 @@ contains
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
-
-            ! ajr: checking for EISMINT
-            !dzbdt_now = 0.0 
-            ! Note that using the approximation above (dzbdt_now = dzsdt_now - dhdt_now)
-            ! to determine dzbdt instead of passing it directly can lead to numerical errors
-            ! related mainly to the use of the predictor-corrector method. In EISMINT, for example,
-            ! it is possible to calculate a negative velocity at the base of the ice sheet
-            ! related to dzbdt, when by definition, it is zero in the EISMINT experiments. It
-            ! is a (small) artifact of this indirect approach.
-            ! So far, I see no major harm in it, and the error diminishes in steady-state cases.
-            ! But it should be considered in the future.
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -233,14 +217,6 @@ contains
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
                 uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limits on basal uz value.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min
-
-                ! Extreme limit
-                call minmax(uz(i,j,1),uz_lim)
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -295,9 +271,6 @@ end if
                     !uz(i,j,k) = uz(i,j,k) - zeta_ac(k)*(uz(i,j,k)-uz_srf)
 
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
-                    
-                    ! Apply hard-limit to vertical velocity in rare cases (usually spinup)
-                    call minmax(uz(i,j,k),uz_lim)  
 
                 end do 
 
@@ -364,9 +337,6 @@ end if
                     uz_star(i,j,k) = ux_aa*c_x + uy_aa*c_y + uz(i,j,k)*c_z + c_t
 
                     if (abs(uz_star(i,j,k)) .lt. TOL_UNDERFLOW) uz_star(i,j,k) = 0.0_wp
-                    
-                    ! Apply hard-limit to uz_star too, in rare cases (usually spinup)
-                    call minmax(uz_star(i,j,k),uz_lim)  
 
                 end do 
                 
@@ -377,7 +347,6 @@ end if
 
                     uz(i,j,k) = dzbdt_now - max(smb(i,j),0.0)
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
-                    call minmax(uz(i,j,k),uz_lim)  
 
                     uz_star(i,j,k) = uz(i,j,k)
 
@@ -394,14 +363,14 @@ end if
 
     end subroutine calc_uz_3D_jac
 
-    subroutine calc_uz_3D(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,smb,bmb,dzbdt,dzsdt, &
                                     dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of ice-base elevation change (dzbdt) is deduced from dzbdt = dzsdt - dhdt. 
-        ! This formulation does not depend on rate of bedrock uplift (which is implicit in dzsdt),
-        ! and is valid for both grounded and floating ice. 
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -414,7 +383,7 @@ end if
         real(wp), intent(IN)  :: f_grnd(:,:)
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:) 
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -452,7 +421,6 @@ end if
         real(wp) :: c_t 
 
         real(wp) :: dzsdtn(4)
-        real(wp) :: dhdtn(4)
         real(wp) :: dzbdxn(4)
         real(wp) :: dzbdyn(4)
         real(wp) :: dzsdxn(4)
@@ -469,7 +437,6 @@ end if
         real(wp) :: dvdzn(4) 
         
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
 
         real(wp), allocatable :: dudx(:,:,:)
@@ -477,7 +444,6 @@ end if
         real(wp), allocatable :: dudy(:,:)
         real(wp), allocatable :: dvdx(:,:)
         
-        real(wp), parameter :: uz_min = -10.0     ! [m/yr] Minimum allowed vertical velocity downwards for stability
         
         type(gq2D_class) :: gq2D, gq2D_global
         
@@ -522,7 +488,7 @@ end if
 
         ! Next, calculate vertical velocity at each point through the column
 
-        !$omp parallel private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv) &
+        !$omp parallel private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dzbdt_now,H_now,H_inv) &
         !$omp& private(dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa,dzsdxn,dzsdx_aa,dzsdyn,dzsdy_aa,uxn,ux_aa,uyn,uy_aa) &
         !$omp& private(uz_grid,dudxn,dudx_aa,dvdyn,dvdy_aa) &
         !$omp& private(kup,kdn,uxn_up,uxn_dn,dudzn,dudz_aa,uyn_up,uyn_dn,dvdzn,dvdz_aa,zeta_now,c_x,c_y,c_t,gq2d) &
@@ -536,10 +502,9 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -581,11 +546,6 @@ end if
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
                 uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limit on basal uz value.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min 
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -734,13 +694,14 @@ end if
 
     end subroutine calc_uz_3D
 
-    subroutine calc_uz_3D_aa(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,z_bed,z_srf,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D_aa(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,z_bed,z_srf,smb,bmb,dzbdt,dzsdt, &
                                             dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of bedrock uplift (dzbdt) no longer considered, since the rate is 
-        ! very small and now z_bed is updated externally (ie, now assume dzbdt = 0.0 here)
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -755,7 +716,7 @@ end if
         real(wp), intent(IN)  :: z_srf(:,:) 
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:)
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -794,11 +755,8 @@ end if
         real(wp) :: c_t 
 
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
 
-        real(wp), parameter :: dzbdt        = 0.0     ! For posterity, keep dzbdt variable, but set to zero 
-        real(wp), parameter :: uz_min       = -10.0   ! [m/yr] Minimum allowed vertical velocity downwards for stability
         
         integer  :: BC
 
@@ -822,7 +780,7 @@ end if
 
         ! Next, calculate velocity 
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv) &
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dzbdt_now,H_now,H_inv) &
         !$omp& private(dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa,ux_aa,uy_aa) &
         !$omp& private(uz_grid,duxdx_aa,duydy_aa,duxdz_aa,duydz_aa,duxdx_now,duydy_now) &
         !$omp& private(zeta_now,c_x,c_y,c_t)
@@ -832,10 +790,9 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -870,13 +827,8 @@ end if
 
                 ! Determine basal vertical velocity for this grid point 
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
-                uz(i,j,1) = dzbdt + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
+                uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limit on basal uz value for grounded ice.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (f_grnd(i,j) .eq. 1.0 .and. uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min 
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -989,7 +941,7 @@ end if
 
                 do k = 1, nz_ac 
 
-                    uz(i,j,k) = dzbdt - max(smb(i,j),0.0)
+                    uz(i,j,k) = dzbdt_now - max(smb(i,j),0.0)
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
 
                     uz_star(i,j,k) = uz(i,j,k)
