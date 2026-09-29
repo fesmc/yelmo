@@ -36,18 +36,23 @@ contains
         ! Local variables 
         integer :: i, j, n, nr 
 
+        !$omp parallel do private(n,i,j,nr)
         do n = 1, lgs%nmax-1, 2
 
             i = lgs%n2i((n+1)/2)
             j = lgs%n2j((n+1)/2)
 
+            ! Rows tied to another row (copy_from > 0) take its solution
             nr = n
+            if (lgs%copy_from(nr) .gt. 0) nr = lgs%copy_from(nr)
             ux(i,j) = lgs%x_value(nr)
 
             nr = n+1
+            if (lgs%copy_from(nr) .gt. 0) nr = lgs%copy_from(nr)
             uy(i,j) = lgs%x_value(nr)
 
         end do
+        !$omp end parallel do
 
         ! Limit the velocity generally =====================
         call limit_vel(ux,ulim)
@@ -1091,8 +1096,9 @@ contains
         visc_ab = 0.0_wp 
 
         ! Stagger viscosity only using contributions from neighbors that have ice  
-        do i = 1, nx 
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1)
         do j = 1, ny 
+        do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -1124,6 +1130,7 @@ contains
 
         end do
         end do
+        !$omp end parallel do
 
         return 
 

@@ -86,51 +86,25 @@ program test_ssa_energy
 
     ! ---- Compare matrices entry-by-entry ----
     !
-    ! Both assemblers use the same CSR ordering (same loop, same sparsity
-    ! pattern), so we can step through a_value side-by-side.
+    ! Entries are matched by (row, column): the energy assembler writes its
+    ! columns in ascending order, the residual assembler in stencil order.
+    ! Energy entries without a residual counterpart must be zero.
     max_K_rel_err = 0.0_wp
     max_K_abs_err = 0.0_wp
     K_fail_count  = 0
 
-    if (lgs_res%a_ptr(lgs_res%nmax+1) /= lgs_eng%a_ptr(lgs_eng%nmax+1)) then
-        write(*,*) "FAIL: differing nnz between residual and energy assembler"
-        write(*,*) "  residual nnz =", lgs_res%a_ptr(lgs_res%nmax+1)-1
-        write(*,*) "  energy   nnz =", lgs_eng%a_ptr(lgs_eng%nmax+1)-1
-        stop 1
-    end if
-
     do nr = 1, lgs_res%nmax
         do idx = lgs_res%a_ptr(nr), lgs_res%a_ptr(nr+1)-1
-            nc = lgs_res%a_index(idx)
-
-            ! Sanity: same column index in same slot (same sparsity pattern)
-            if (lgs_eng%a_index(idx) /= nc) then
-                write(*,*) "FAIL: column index mismatch at row ", nr, " slot ", idx
-                stop 1
-            end if
-
+            nc       = lgs_res%a_index(idx)
             A_val    = real(lgs_res%a_value(idx), wp)
-            K_val    = real(lgs_eng%a_value(idx), wp)
             expected = -A_val * dxdy
-            diff     = K_val - expected
-
-            if (abs(expected) > 0.0_wp) then
-                rel_err = abs(diff) / abs(expected)
-            else
-                rel_err = abs(diff)
-            end if
-
-            if (rel_err > max_K_rel_err) max_K_rel_err = rel_err
-            if (abs(diff) > max_K_abs_err) max_K_abs_err = abs(diff)
-
-            if (rel_err > rtol .and. abs(diff) > atol_K) then
-                K_fail_count = K_fail_count + 1
-                if (K_fail_count <= 5) then
-                    write(*,'(a,i6,a,i6,a,3es14.6)') "  K mismatch nr=", nr, &
-                            " nc=", nc, &
-                            " (K, -A*dxdy, diff) = ", K_val, expected, diff
-                end if
-            end if
+            K_val    = entry_value(lgs_eng, nr, nc)
+            call check_K(nr, nc, K_val, expected)
+        end do
+        do idx = lgs_eng%a_ptr(nr), lgs_eng%a_ptr(nr+1)-1
+            nc = lgs_eng%a_index(idx)
+            if (has_entry(lgs_res, nr, nc)) cycle
+            call check_K(nr, nc, real(lgs_eng%a_value(idx), wp), 0.0_wp)
         end do
     end do
 
@@ -239,5 +213,49 @@ program test_ssa_energy
         write(*,*) " FAIL"
         stop 1
     end if
+
+contains
+
+    real(wp) function entry_value(lgs, nr, nc) result(v)
+        ! Value of K(nr, nc); zero if not stored
+        type(linear_solver_class), intent(IN) :: lgs
+        integer, intent(IN) :: nr, nc
+        integer :: k
+        v = 0.0_wp
+        do k = lgs%a_ptr(nr), lgs%a_ptr(nr+1)-1
+            if (lgs%a_index(k) == nc) v = v + real(lgs%a_value(k), wp)
+        end do
+    end function entry_value
+
+    logical function has_entry(lgs, nr, nc) result(found)
+        type(linear_solver_class), intent(IN) :: lgs
+        integer, intent(IN) :: nr, nc
+        integer :: k
+        found = .FALSE.
+        do k = lgs%a_ptr(nr), lgs%a_ptr(nr+1)-1
+            if (lgs%a_index(k) == nc) found = .TRUE.
+        end do
+    end function has_entry
+
+    subroutine check_K(nr, nc, K_val, expected)
+        integer,  intent(IN) :: nr, nc
+        real(wp), intent(IN) :: K_val, expected
+        real(wp) :: diff, rel_err
+        diff = K_val - expected
+        if (abs(expected) > 0.0_wp) then
+            rel_err = abs(diff) / abs(expected)
+        else
+            rel_err = abs(diff)
+        end if
+        if (rel_err > max_K_rel_err) max_K_rel_err = rel_err
+        if (abs(diff) > max_K_abs_err) max_K_abs_err = abs(diff)
+        if (rel_err > rtol .and. abs(diff) > atol_K) then
+            K_fail_count = K_fail_count + 1
+            if (K_fail_count <= 5) then
+                write(*,'(a,i6,a,i6,a,3es14.6)') "  K mismatch nr=", nr, " nc=", nc, &
+                        " (K, -A*dxdy, diff) = ", K_val, expected, diff
+            end if
+        end if
+    end subroutine check_K
 
 end program test_ssa_energy

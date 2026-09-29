@@ -17,6 +17,7 @@ module solver_linear
         integer,  allocatable :: n2i(:)
         integer,  allocatable :: n2j(:)
         integer,  allocatable :: ij2n(:,:)
+        integer,  allocatable :: copy_from(:)   ! Row whose solution a row takes after the solve (0: none)
         
         integer,  allocatable :: a_ptr(:)
         integer,  allocatable :: a_index(:)
@@ -67,6 +68,7 @@ contains
         if (allocated(lgs%n2i))     deallocate(lgs%n2i)
         if (allocated(lgs%n2j))     deallocate(lgs%n2j)
         if (allocated(lgs%ij2n))    deallocate(lgs%ij2n)
+        if (allocated(lgs%copy_from)) deallocate(lgs%copy_from)
         if (allocated(lgs%a_ptr))   deallocate(lgs%a_ptr)
         if (allocated(lgs%a_index)) deallocate(lgs%a_index)
         if (allocated(lgs%a_value)) deallocate(lgs%a_value)
@@ -77,6 +79,7 @@ contains
         allocate(lgs%n2i(nx*ny))
         allocate(lgs%n2j(nx*ny))
         allocate(lgs%ij2n(nx,ny))
+        allocate(lgs%copy_from(lgs%nmax))
         allocate(lgs%a_value(lgs%n_sprs))
         allocate(lgs%a_index(lgs%n_sprs))
         allocate(lgs%a_ptr(lgs%nmax+1))
@@ -90,6 +93,7 @@ contains
 
         lgs%b_value = 0.0
         lgs%x_value = 0.0
+        lgs%copy_from = 0
         
         ! Define indices for reshaping of a 2-d array (with indices i, j)
         ! to a vector (with index n)
@@ -252,7 +256,8 @@ else
         ! New method - assemble matrices directly using LIS
         ! This method is faster because all values are passed to LIS, less overhead, parallelization possible
 
-        nnz = size(lgs%a_index)
+        ! Number of stored entries (the arrays may be allocated larger)
+        nnz = lgs%a_ptr(nmax+1)-1
 
         ! allocate arrays of LIS types
         allocate(idx(1:nmax))

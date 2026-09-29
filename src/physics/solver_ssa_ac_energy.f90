@@ -2,34 +2,48 @@ module solver_ssa_ac_energy
     ! SSA momentum solver, energy formulation.
     !
     ! Assembles the symmetric positive-(semi)definite Hessian K of the
-    ! discretised SSA energy density
+    ! discretised SSA energy
     !
-    !     W = N_aa·(2 ux^2 + 2 vy^2 + 2 ux vy + 1/2 (uy + vx)^2)   ! membrane + shear
-    !       + 1/2 beta (u^2 + v^2)                                 ! basal drag
-    !       + rho_i g H (u s_x + v s_y)                            ! driving (gravitational PE)
+    !     E = sum_cells   N_aa (2 u_x^2 + 2 v_y^2 + 2 u_x v_y) dx dy      ! membrane
+    !       + sum_corners 1/2 N_ab (u_y + v_x)^2 dx dy                   ! shear
+    !       + sum_faces   1/2 beta u^2 dx dy                             ! basal drag
+    !       - sum_faces   f u                                            ! driving / front work
     !
-    ! integrated over the C-grid. With (eta, beta, H) frozen per Picard
-    ! iteration the energy is quadratic in (u, v); the Hessian K is symmetric
-    ! and positive (semi-)definite, so CG + AMG can be used in place of
-    ! BiCGStab on the non-symmetric residual matrix.
-    !
-    ! Algebraic identity: for inner ac-nodes (no boundary or mask special-cases),
-    !
-    !     K_inner   = - A_residual_inner · dx · dy
-    !     b_inner_E = - taud_inner       · dx · dy
-    !
-    ! where (A_residual, b_residual) is the matrix/RHS produced by
-    ! linear_solver_matrix_ssa_ac_csr_2D in solver_ssa_ac.f90. The two
-    ! formulations therefore yield the same physical solution at inner cells.
-    ! Boundary handling differs — see notes below.
+    ! with (N, beta) frozen per Picard iteration, so E is quadratic in (u, v)
+    ! and K is symmetric; CG can be used in place of BiCGStab.
     !
     ! Staggering convention: yelmo-fortran C-grid. ux(i,j) lives at the RIGHT
-    ! face of aa-cell (i,j); uy(i,j) lives at the TOP face. (Yelmo.jl uses
-    ! the opposite convention with ux on the LEFT face — stencils here are
-    ! re-derived from the energy density to match the Fortran convention.)
+    ! face of aa-cell (i,j); uy(i,j) lives at the TOP face; corner (i,j) is
+    ! the top-right corner of cell (i,j). (Yelmo.jl uses ux on the LEFT face.)
+    !
+    ! Assembly is element by element: each cell and corner term is a 4x4
+    ! local Hessian over its four velocities, and each velocity is mapped to
+    ! a matrix unknown before scattering:
+    !
+    !   - free:      its own row (inner and front faces, ssa_mask = 1, 3, 4)
+    !   - Dirichlet: ssa_mask = 0 (u = 0), -1 (u prescribed) and no-slip
+    !                domain edges; the column is lifted to the RHS
+    !   - tied:      free-slip domain edges (u_edge = u_inner, as in the
+    !                residual solver); the unknown is folded into its inner
+    !                root (K_red = T^T K T), and takes the root's solution
+    !                after the solve (lgs%copy_from)
+    !   - ghosts beyond a domain edge: periodic wrap, free-slip copy of the
+    !                edge velocity, or zero (no-slip)
+    !
+    ! Because every term enters through a local Hessian and a linear map,
+    ! K is symmetric for any mask and boundary type. At inner faces the
+    ! result equals the residual formulation:
+    !
+    !     K_inner = - A_residual_inner * dx * dy,   b_inner = - taud_inner * dx * dy
+    !
+    ! At a calving front (ssa_mask = 3) the RHS is the boundary work
+    ! +-taul_int*dy only: the front-face driving stress (taken across the
+    ! ice front) is the same front force.
+    !
+    ! Each matrix row gathers its terms from the elements around its
+    ! unknown(s), so rows are independent and assembled in parallel.
 
     use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal
-    use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     use solver_linear
     use solver_ssa_ac, only : stagger_visc_aa_ab
 
@@ -38,6 +52,14 @@ module solver_ssa_ac_energy
     private
     public :: linear_solver_matrix_ssa_ac_csr_2D_energy
 
+    ! Kinds of velocity unknowns
+    integer, parameter :: DOF_FREE = 0
+    integer, parameter :: DOF_DIR  = 1
+    integer, parameter :: DOF_TIED = 2
+
+    ! Upper limit of entries in one matrix row (inner rows have 9)
+    integer, parameter :: NNZ_ROW_MAX = 48
+
 contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
@@ -45,7 +67,7 @@ contains
                             taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
         ! Same argument list so the two assemblers are interchangeable from the
-        ! Picard loop. Assembles K (SPD) and b such that K · [u; v] = b.
+        ! Picard loop. Assembles K (symmetric) and b such that K * [u; v] = b.
 
         implicit none
 
@@ -70,19 +92,28 @@ contains
         character(len=*), intent(IN) :: lateral_bc
 
         ! Local variables
-        integer  :: nx, ny
-        integer  :: i, j, k, n
-        integer  :: nc, nr
-        integer  :: im1, ip1, jm1, jp1
-        real(wp) :: dxdy
-        real(wp) :: dyodx, dxody          ! dy/dx and dx/dy (recurring stencil prefactors)
-        real(wp) :: beta_now
-        real(wp), allocatable :: N_ab(:,:)
+        integer  :: nx, ny, nmax
+        integer  :: i, j, n, m, q, depth, nb, nnz
+        real(dp) :: dxdy, dyodx, dxody
+        real(dp) :: bval
+        integer  :: cols(NNZ_ROW_MAX)
+        real(dp) :: vals(NNZ_ROW_MAX)
+        logical  :: per_x, per_y
 
         ! Boundary conditions counterclockwise unit circle:
         ! 1: x, right border; 2: y, upper; 3: x, left; 4: y, lower
         character(len=56) :: bcs(4)
         logical :: bc_per(4), bc_free(4)          ! bcs(k) is "periodic" / "free-slip"
+
+        real(wp), allocatable :: N_ab(:,:)
+        integer,  allocatable :: dkind(:)         ! DOF_FREE, DOF_DIR or DOF_TIED
+        integer,  allocatable :: dpart(:)         ! tied: partner unknown (before resolving)
+        integer,  allocatable :: droot(:)         ! free: itself; tied: free root unknown
+        real(dp), allocatable :: dval(:)          ! Dirichlet value
+        integer,  allocatable :: row_nnz(:)
+        integer,  allocatable :: mem_ptr(:)       ! Tied unknowns folded into each root
+        integer,  allocatable :: mem_list(:)
+        integer,  allocatable :: mem_fill(:)
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
@@ -91,6 +122,8 @@ contains
         if (.not. allocated(lgs%x_value)) then
             call linear_solver_init(lgs,nx,ny,nvar=2,n_terms=9)
         end if
+
+        nmax = lgs%nmax
 
         ! Define border conditions (only choices: no-slip, free-slip, periodic)
         select case(trim(boundaries))
@@ -119,432 +152,526 @@ contains
         ! Evaluate the border types once, not per cell in the assembly loops
         bc_per  = bcs .eq. "periodic"
         bc_free = bcs .eq. "free-slip"
+        per_x   = bc_per(1) .and. bc_per(3)
+        per_y   = bc_per(2) .and. bc_per(4)
 
-        allocate(N_ab(nx,ny))
-
-        ! Stencil prefactors (cell area times inverse spacings)
-        dxdy  = dx * dy
-        dyodx = dy / dx
-        dxody = dx / dy
+        ! Stencil prefactors
+        dxdy  = real(dx,dp)*real(dy,dp)
+        dyodx = real(dy,dp)/real(dx,dp)
+        dxody = real(dx,dp)/real(dy,dp)
 
         ! Stagger depth-integrated viscosity to ab-nodes
+        allocate(N_ab(nx,ny))
         call stagger_visc_aa_ab(N_ab,N_aa,H_ice,f_ice,boundaries)
 
-        !-------- Assembly of K · [u; v] = b in compressed-sparse-row format --------
+        ! ================================================================
+        ! 1. Classify the unknowns and resolve tied chains to free roots
+        ! ================================================================
 
-        lgs%a_ptr(1) = 1
-        k = 0
+        allocate(dkind(nmax),dpart(nmax),droot(nmax),dval(nmax),row_nnz(nmax))
 
-        do n = 1, lgs%nmax-1, 2
-
-            i = lgs%n2i((n+1)/2)
-            j = lgs%n2j((n+1)/2)
-
-            ! Periodic neighbour indices (other BC types handled below)
-            im1 = i-1; if (im1 .eq. 0)    im1 = nx
-            ip1 = i+1; if (ip1 .eq. nx+1) ip1 = 1
-            jm1 = j-1; if (jm1 .eq. 0)    jm1 = ny
-            jp1 = j+1; if (jp1 .eq. ny+1) jp1 = 1
-
-            ! ============================================================
-            ! Equation for ux at acx-node (i,j)
-            ! ============================================================
-
-            nr = n   ! row counter
-
-            if (ssa_mask_acx(i,j) .eq. 0) then
-                ! Dirichlet: u = 0. Penalty form (κ on diagonal => K·u = 0 at this row).
-                k = k+1
-                lgs%a_value(k) = 1.0_wp
-                lgs%a_index(k) = nr
-                lgs%b_value(nr) = 0.0_wp
-                lgs%x_value(nr) = 0.0_wp
-
-            else if (ssa_mask_acx(i,j) .eq. -1) then
-                ! Dirichlet to prescribed value.
-                k = k+1
-                lgs%a_value(k) = 1.0_wp
-                lgs%a_index(k) = nr
-                lgs%b_value(nr) = ux(i,j)
-                lgs%x_value(nr) = ux(i,j)
-
-            else if (i .eq. 1 .and. .not. bc_per(3)) then
-                ! Left domain boundary
-                if (bc_free(3)) then
-                    nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(ip1,j)-1               ! ux(ip1,j)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = ux(i,j)
-                else                                       ! no-slip
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (i .eq. nx .and. .not. bc_per(1)) then
-                ! Right domain boundary
-                if (bc_free(1)) then
-                    nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(nx-1,j)-1              ! ux(nx-1,j)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = ux(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (j .eq. 1 .and. .not. bc_per(4)) then
-                ! Lower domain boundary
-                if (bc_free(4)) then
-                    nc = 2*lgs%ij2n(i,j)-1
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(i,jp1)-1
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = ux(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (j .eq. ny .and. .not. bc_per(2)) then
-                ! Upper domain boundary
-                if (bc_free(2)) then
-                    nc = 2*lgs%ij2n(i,j)-1
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(i,ny-1)-1
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = ux(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else
-                ! Inner ac-node OR lateral boundary (mask=3): use the energy interior stencil.
-                !
-                ! The membrane contributions from the ice-free side vanish naturally because
-                ! N_aa(neighbour)=0 there. The calving-front stress enters as a linear
-                ! boundary-work term in b only (added below if mask=3).
-
-                beta_now = beta_acx(i,j)
-                if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0_wp) beta_now = beta_min
-
-                ! -- ux self terms --
-
-                nc = 2*lgs%ij2n(i,j)-1                                 ! ux(i,j)  [diagonal]
-                k = k+1
-                lgs%a_value(k) =  4.0_wp*dyodx*(N_aa(i,j)+N_aa(ip1,j)) &
-                                + dxody*(N_ab(i,j)+N_ab(i,jm1))         &
-                                + beta_now*dxdy
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(ip1,j)-1                                ! ux(ip1,j)
-                k = k+1
-                lgs%a_value(k) = -4.0_wp*dyodx*N_aa(ip1,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(im1,j)-1                                ! ux(im1,j)
-                k = k+1
-                lgs%a_value(k) = -4.0_wp*dyodx*N_aa(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jp1)-1                                ! ux(i,jp1)
-                k = k+1
-                lgs%a_value(k) = -dxody*N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jm1)-1                                ! ux(i,jm1)
-                k = k+1
-                lgs%a_value(k) = -dxody*N_ab(i,jm1)
-                lgs%a_index(k) = nc
-
-                ! -- uy cross terms --
-
-                nc = 2*lgs%ij2n(i,j)                                    ! uy(i,j)
-                k = k+1
-                lgs%a_value(k) =  2.0_wp*N_aa(i,j) + N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(ip1,j)                                  ! uy(ip1,j)
-                k = k+1
-                lgs%a_value(k) = -2.0_wp*N_aa(ip1,j) - N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(ip1,jm1)                                ! uy(ip1,jm1)
-                k = k+1
-                lgs%a_value(k) =  2.0_wp*N_aa(ip1,j) + N_ab(i,jm1)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jm1)                                  ! uy(i,jm1)
-                k = k+1
-                lgs%a_value(k) = -2.0_wp*N_aa(i,j) - N_ab(i,jm1)
-                lgs%a_index(k) = nc
-
-                ! Right-hand side: driving stress, or at a front face the calving-front
-                ! boundary work. Sign of the boundary work follows the outward normal:
-                !   ice on left,  ocean on right  -> n = +x  -> +taul_int*dy
-                !   ocean on left, ice on right   -> n = -x  -> -taul_int*dy
-                ! Without the sign split the same +taul_int*dy is applied at left
-                ! and right fronts, breaking L<->R symmetry of b.
-                !
-                ! At a front face (mask=3) the driving stress is taken across the ice
-                ! front (H/2 times the surface jump), so taud*dx*dy there is the net
-                ! hydrostatic front force, the same force as taul_int*dy. Only the
-                ! boundary work is applied, so the front force enters once (as in
-                ! the residual formulation, whose front row is the stress BC).
-                if (ssa_mask_acx(i,j) .eq. 3) then
-                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0_wp) then
-                        lgs%b_value(nr) =  taul_int_acx(i,j)*dy
-                    else
-                        lgs%b_value(nr) = -taul_int_acx(i,j)*dy
-                    end if
-                else
-                    lgs%b_value(nr) = -taud_acx(i,j)*dxdy
-                end if
-                lgs%x_value(nr) = ux(i,j)
-
-            end if
-
-            lgs%a_ptr(nr+1) = k+1
-
-            ! ============================================================
-            ! Equation for uy at acy-node (i,j)
-            ! ============================================================
-
-            nr = n+1   ! row counter
-
-            if (ssa_mask_acy(i,j) .eq. 0) then
-                k = k+1
-                lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                lgs%b_value(nr) = 0.0_wp
-                lgs%x_value(nr) = 0.0_wp
-
-            else if (ssa_mask_acy(i,j) .eq. -1) then
-                k = k+1
-                lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                lgs%b_value(nr) = uy(i,j)
-                lgs%x_value(nr) = uy(i,j)
-
-            else if (j .eq. 1 .and. .not. bc_per(4)) then
-                if (bc_free(4)) then
-                    nc = 2*lgs%ij2n(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(i,jp1)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = uy(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (j .eq. ny .and. .not. bc_per(2)) then
-                if (bc_free(2)) then
-                    nc = 2*lgs%ij2n(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(i,ny-1)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = uy(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (i .eq. 1 .and. .not. bc_per(3)) then
-                if (bc_free(3)) then
-                    nc = 2*lgs%ij2n(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(ip1,j)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = uy(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else if (i .eq. nx .and. .not. bc_per(1)) then
-                if (bc_free(1)) then
-                    nc = 2*lgs%ij2n(i,j)
-                    k = k+1
-                    lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
-                    nc = 2*lgs%ij2n(nx-1,j)
-                    k = k+1
-                    lgs%a_value(k) = -1.0_wp; lgs%a_index(k) = nc
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = uy(i,j)
-                else
-                    k = k+1
-                    lgs%a_value(k) = 1.0_wp; lgs%a_index(k) = nr
-                    lgs%b_value(nr) = 0.0_wp
-                    lgs%x_value(nr) = 0.0_wp
-                end if
-
-            else
-                ! Inner ac-node OR lateral boundary (mask=3): energy interior stencil.
-
-                beta_now = beta_acy(i,j)
-                if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0_wp) beta_now = beta_min
-
-                ! -- uy self terms --
-
-                nc = 2*lgs%ij2n(i,j)                                    ! uy(i,j)  [diagonal]
-                k = k+1
-                lgs%a_value(k) =  4.0_wp*dxody*(N_aa(i,j)+N_aa(i,jp1)) &
-                                + dyodx*(N_ab(i,j)+N_ab(im1,j))         &
-                                + beta_now*dxdy
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jp1)                                  ! uy(i,jp1)
-                k = k+1
-                lgs%a_value(k) = -4.0_wp*dxody*N_aa(i,jp1)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jm1)                                  ! uy(i,jm1)
-                k = k+1
-                lgs%a_value(k) = -4.0_wp*dxody*N_aa(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(ip1,j)                                  ! uy(ip1,j)
-                k = k+1
-                lgs%a_value(k) = -dyodx*N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(im1,j)                                  ! uy(im1,j)
-                k = k+1
-                lgs%a_value(k) = -dyodx*N_ab(im1,j)
-                lgs%a_index(k) = nc
-
-                ! -- ux cross terms --
-
-                nc = 2*lgs%ij2n(i,j)-1                                  ! ux(i,j)
-                k = k+1
-                lgs%a_value(k) =  2.0_wp*N_aa(i,j) + N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(i,jp1)-1                                ! ux(i,jp1)
-                k = k+1
-                lgs%a_value(k) = -2.0_wp*N_aa(i,jp1) - N_ab(i,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(im1,jp1)-1                              ! ux(im1,jp1)
-                k = k+1
-                lgs%a_value(k) =  2.0_wp*N_aa(i,jp1) + N_ab(im1,j)
-                lgs%a_index(k) = nc
-
-                nc = 2*lgs%ij2n(im1,j)-1                                ! ux(im1,j)
-                k = k+1
-                lgs%a_value(k) = -2.0_wp*N_aa(i,j) - N_ab(im1,j)
-                lgs%a_index(k) = nc
-
-                ! Front face: boundary work only (see the ux equation)
-                if (ssa_mask_acy(i,j) .eq. 3) then
-                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(i,jp1) .lt. 1.0_wp) then
-                        lgs%b_value(nr) =  taul_int_acy(i,j)*dx
-                    else
-                        lgs%b_value(nr) = -taul_int_acy(i,j)*dx
-                    end if
-                else
-                    lgs%b_value(nr) = -taud_acy(i,j)*dxdy
-                end if
-                lgs%x_value(nr) = uy(i,j)
-
-            end if
-
-            lgs%a_ptr(nr+1) = k+1
-
+        !$omp parallel do collapse(2) private(i,j,n)
+        do j = 1, ny
+        do i = 1, nx
+            n = 2*lgs%ij2n(i,j)-1
+            call classify_ux(i,j,dkind(n),dpart(n),dval(n))
+            n = 2*lgs%ij2n(i,j)
+            call classify_uy(i,j,dkind(n),dpart(n),dval(n))
         end do
+        end do
+        !$omp end parallel do
 
-        ! ----------------------------------------------------------------
-        ! Symmetrise Dirichlet rows by lifting their columns to the RHS.
-        !
-        ! A Dirichlet row I is encoded above as a single entry
-        ! K(I,I) = 1, b(I) = u_known. The interior stencil of any
-        ! neighbour J still adds K(J, I) /= 0 cross-couplings to the
-        ! Dirichlet DOF, leaving K structurally non-symmetric and
-        ! breaking the SPD property the CG solver assumes. The standard
-        ! fix is "static condensation": substitute u(I) = u_known into
-        ! every K(J, I) term, lift the contribution to b(J), and zero
-        ! the matrix entry. The slot is left in place (value 0) so the
-        ! CSR sparsity pattern stays unchanged.
-        !
-        ! Affects no-slip domain edges (whose row is K(I,I)=1, b(I)=0)
-        ! and any cell with ssa_mask = 0 or -1. Free-slip edges (which
-        ! have a 2-entry constraint row K(I,I)=1, K(I,nbr)=-1, b(I)=0)
-        ! and lateral-BC rows (mask=3, which still use the full interior
-        ! stencil) are NOT touched.
-        ! ----------------------------------------------------------------
-        block
-            logical, allocatable :: is_dir(:)
-            integer  :: idx, n, nc
-            real(wp) :: u_known
-            integer  :: nnz_in_row
-
-            allocate(is_dir(lgs%nmax))
-            is_dir = .FALSE.
-
-            do n = 1, lgs%nmax
-                nnz_in_row = lgs%a_ptr(n+1) - lgs%a_ptr(n)
-                if (nnz_in_row == 1) then
-                    idx = lgs%a_ptr(n)
-                    if (lgs%a_index(idx) == n .and. &
-                        abs(real(lgs%a_value(idx), wp) - 1.0_wp) < 1.0e-12_wp) then
-                        is_dir(n) = .TRUE.
-                    end if
+        !$omp parallel do private(n,m,depth)
+        do n = 1, nmax
+            m = n
+            depth = 0
+            do while (dkind(m) .eq. DOF_TIED)
+                m = dpart(m)
+                depth = depth + 1
+                if (depth .gt. 8) then
+                    write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
+                        &free-slip chain does not end at a free unknown, row ", n
+                    stop "Program stopped."
                 end if
             end do
+            droot(n) = m
+        end do
+        !$omp end parallel do
 
-            do n = 1, lgs%nmax
-                if (is_dir(n)) cycle
-                do idx = lgs%a_ptr(n), lgs%a_ptr(n+1)-1
-                    nc = lgs%a_index(idx)
-                    if (nc /= n .and. is_dir(nc)) then
-                        u_known = real(lgs%b_value(nc), wp)
-                        lgs%b_value(n) = lgs%b_value(n) &
-                                       - real(lgs%a_value(idx), wp) * u_known
-                        lgs%a_value(idx) = 0.0_wp
+        ! A tied unknown whose chain ends at a Dirichlet unknown is Dirichlet
+        do n = 1, nmax
+            if (dkind(n) .eq. DOF_TIED) then
+                if (dkind(droot(n)) .eq. DOF_DIR) then
+                    dkind(n) = DOF_DIR
+                    dval(n)  = dval(droot(n))
+                    droot(n) = n
+                end if
+            end if
+        end do
+
+        ! Tied unknowns folded into each root (edge rows only; built serially)
+        allocate(mem_ptr(nmax+1),mem_fill(nmax))
+        mem_fill = 0
+        do n = 1, nmax
+            if (dkind(n) .eq. DOF_TIED) mem_fill(droot(n)) = mem_fill(droot(n)) + 1
+        end do
+        mem_ptr(1) = 1
+        do n = 1, nmax
+            mem_ptr(n+1) = mem_ptr(n) + mem_fill(n)
+        end do
+        allocate(mem_list(max(mem_ptr(nmax+1)-1,1)))
+        mem_fill = 0
+        do n = 1, nmax
+            if (dkind(n) .eq. DOF_TIED) then
+                m = droot(n)
+                mem_list(mem_ptr(m)+mem_fill(m)) = n
+                mem_fill(m) = mem_fill(m) + 1
+            end if
+        end do
+
+        ! ================================================================
+        ! 2. Count the entries of each row, then set the row pointers
+        ! ================================================================
+
+        !$omp parallel do schedule(dynamic,1024) private(n,nb,cols,vals,bval)
+        do n = 1, nmax
+            if (dkind(n) .eq. DOF_FREE) then
+                call assemble_row(n,nb,cols,vals,bval)
+                row_nnz(n) = nb
+            else
+                row_nnz(n) = 1
+            end if
+        end do
+        !$omp end parallel do
+
+        lgs%a_ptr(1) = 1
+        do n = 1, nmax
+            lgs%a_ptr(n+1) = lgs%a_ptr(n) + row_nnz(n)
+        end do
+
+        nnz = lgs%a_ptr(nmax+1)-1
+        if (nnz .gt. size(lgs%a_value)) then
+            deallocate(lgs%a_value,lgs%a_index)
+            allocate(lgs%a_value(nnz),lgs%a_index(nnz))
+            lgs%n_sprs = nnz
+        end if
+
+        ! ================================================================
+        ! 3. Fill the rows (CSR, columns ascending)
+        ! ================================================================
+
+        !$omp parallel do schedule(dynamic,1024) private(n,nb,cols,vals,bval,i,j,q)
+        do n = 1, nmax
+
+            q = (n+1)/2
+            i = lgs%n2i(q)
+            j = lgs%n2j(q)
+
+            select case(dkind(n))
+
+                case(DOF_FREE)
+                    call assemble_row(n,nb,cols,vals,bval)
+                    call sort_row(nb,cols,vals)
+                    lgs%a_index(lgs%a_ptr(n):lgs%a_ptr(n+1)-1) = cols(1:nb)
+                    lgs%a_value(lgs%a_ptr(n):lgs%a_ptr(n+1)-1) = vals(1:nb)
+                    lgs%b_value(n)   = bval
+                    lgs%copy_from(n) = 0
+                    if (mod(n,2) .eq. 1) then
+                        lgs%x_value(n) = ux(i,j)
+                    else
+                        lgs%x_value(n) = uy(i,j)
                     end if
+
+                case(DOF_DIR)
+                    lgs%a_index(lgs%a_ptr(n)) = n
+                    lgs%a_value(lgs%a_ptr(n)) = 1.0_dp
+                    lgs%b_value(n)   = dval(n)
+                    lgs%x_value(n)   = dval(n)
+                    lgs%copy_from(n) = 0
+
+                case(DOF_TIED)
+                    ! Decoupled identity row; the unknown takes its root's solution
+                    lgs%a_index(lgs%a_ptr(n)) = n
+                    lgs%a_value(lgs%a_ptr(n)) = 1.0_dp
+                    lgs%b_value(n)   = 0.0_dp
+                    lgs%x_value(n)   = 0.0_dp
+                    lgs%copy_from(n) = droot(n)
+
+            end select
+
+        end do
+        !$omp end parallel do
+
+        return
+
+    contains
+
+        ! ---- Unknown classification ----------------------------------
+
+        subroutine classify_ux(i,j,kind,part,val)
+            ! Same border order as the residual assembler: left, right, lower, upper.
+            integer,  intent(IN)  :: i, j
+            integer,  intent(OUT) :: kind, part
+            real(dp), intent(OUT) :: val
+
+            kind = DOF_FREE
+            part = 0
+            val  = 0.0_dp
+
+            if (ssa_mask_acx(i,j) .eq. 0) then
+                kind = DOF_DIR
+            else if (ssa_mask_acx(i,j) .eq. -1) then
+                kind = DOF_DIR
+                val  = ux(i,j)
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
+                call edge(bc_free(3),2*lgs%ij2n(2,j)-1,kind,part)
+            else if (i .eq. nx .and. .not. bc_per(1)) then
+                call edge(bc_free(1),2*lgs%ij2n(nx-1,j)-1,kind,part)
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
+                call edge(bc_free(4),2*lgs%ij2n(i,2)-1,kind,part)
+            else if (j .eq. ny .and. .not. bc_per(2)) then
+                call edge(bc_free(2),2*lgs%ij2n(i,ny-1)-1,kind,part)
+            end if
+
+        end subroutine classify_ux
+
+        subroutine classify_uy(i,j,kind,part,val)
+            ! Same border order as the residual assembler: lower, upper, left, right.
+            integer,  intent(IN)  :: i, j
+            integer,  intent(OUT) :: kind, part
+            real(dp), intent(OUT) :: val
+
+            kind = DOF_FREE
+            part = 0
+            val  = 0.0_dp
+
+            if (ssa_mask_acy(i,j) .eq. 0) then
+                kind = DOF_DIR
+            else if (ssa_mask_acy(i,j) .eq. -1) then
+                kind = DOF_DIR
+                val  = uy(i,j)
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
+                call edge(bc_free(4),2*lgs%ij2n(i,2),kind,part)
+            else if (j .eq. ny .and. .not. bc_per(2)) then
+                call edge(bc_free(2),2*lgs%ij2n(i,ny-1),kind,part)
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
+                call edge(bc_free(3),2*lgs%ij2n(2,j),kind,part)
+            else if (i .eq. nx .and. .not. bc_per(1)) then
+                call edge(bc_free(1),2*lgs%ij2n(nx-1,j),kind,part)
+            end if
+
+        end subroutine classify_uy
+
+        subroutine edge(free_slip,inner,kind,part)
+            ! Domain-edge unknown: tied to its inner neighbour (free-slip) or zero (no-slip)
+            logical, intent(IN)  :: free_slip
+            integer, intent(IN)  :: inner
+            integer, intent(OUT) :: kind, part
+            if (free_slip) then
+                kind = DOF_TIED
+                part = inner
+            else
+                kind = DOF_DIR
+                part = 0
+            end if
+        end subroutine edge
+
+        ! ---- Velocities of the elements, with ghosts beyond the edges --------
+
+        integer function dof_ux(ii,jj) result(d)
+            ! Unknown of ux(ii,jj); ii, jj may lie one beyond the domain.
+            ! Returns 0 for a zero ghost (no-slip side).
+            integer, intent(IN) :: ii, jj
+            integer :: ic, jc
+            ic = ii
+            jc = jj
+            d  = 0
+            if (.not. wrap_index(ic,nx,per_x,bc_free(3),bc_free(1))) return
+            if (.not. wrap_index(jc,ny,per_y,bc_free(4),bc_free(2))) return
+            d = 2*lgs%ij2n(ic,jc)-1
+        end function dof_ux
+
+        integer function dof_uy(ii,jj) result(d)
+            integer, intent(IN) :: ii, jj
+            integer :: ic, jc
+            ic = ii
+            jc = jj
+            d  = 0
+            if (.not. wrap_index(ic,nx,per_x,bc_free(3),bc_free(1))) return
+            if (.not. wrap_index(jc,ny,per_y,bc_free(4),bc_free(2))) return
+            d = 2*lgs%ij2n(ic,jc)
+        end function dof_uy
+
+        logical function wrap_index(k,nk,periodic,free_lo,free_hi) result(ok)
+            ! Map an index one beyond the domain: periodic wrap, free-slip
+            ! copy of the edge value, or no value (zero ghost, no-slip).
+            integer, intent(INOUT) :: k
+            integer, intent(IN)    :: nk
+            logical, intent(IN)    :: periodic, free_lo, free_hi
+            ok = .TRUE.
+            if (k .lt. 1) then
+                if (periodic) then
+                    k = k + nk
+                else if (free_lo) then
+                    k = 1
+                else
+                    ok = .FALSE.
+                end if
+            else if (k .gt. nk) then
+                if (periodic) then
+                    k = k - nk
+                else if (free_hi) then
+                    k = nk
+                else
+                    ok = .FALSE.
+                end if
+            end if
+        end function wrap_index
+
+        logical function element_index(k,nk,periodic) result(ok)
+            ! Cells and corners exist inside the domain (wrapped if periodic)
+            integer, intent(INOUT) :: k
+            integer, intent(IN)    :: nk
+            logical, intent(IN)    :: periodic
+            ok = .TRUE.
+            if (k .lt. 1 .or. k .gt. nk) then
+                if (periodic) then
+                    k = modulo(k-1,nk) + 1
+                else
+                    ok = .FALSE.
+                end if
+            end if
+        end function element_index
+
+        ! ---- Row assembly ------------------------------------------------
+
+        subroutine assemble_row(r,nb,cols,vals,bval)
+            ! Row of the root unknown r: all terms of the energy that involve r
+            ! or an unknown tied to r, differentiated with respect to r.
+            integer,  intent(IN)  :: r
+            integer,  intent(OUT) :: nb
+            integer,  intent(OUT) :: cols(NNZ_ROW_MAX)
+            real(dp), intent(OUT) :: vals(NNZ_ROW_MAX)
+            real(dp), intent(OUT) :: bval
+
+            integer :: k
+
+            nb   = 0
+            bval = 0.0_dp
+
+            call add_member(r,r,nb,cols,vals,bval)
+            do k = mem_ptr(r), mem_ptr(r+1)-1
+                call add_member(mem_list(k),r,nb,cols,vals,bval)
+            end do
+
+        end subroutine assemble_row
+
+        subroutine add_member(mm,r,nb,cols,vals,bval)
+            ! Terms of unknown mm (r itself or tied to r) added to the row of r
+            integer,  intent(IN)    :: mm, r
+            integer,  intent(INOUT) :: nb
+            integer,  intent(INOUT) :: cols(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: vals(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: bval
+
+            integer  :: i, j, ip1, jp1, qq, mask
+            integer  :: ci, cj
+            integer  :: d(4)
+            real(dp) :: H(4,4)
+            real(dp) :: beta_now
+
+            qq = (mm+1)/2
+            i  = lgs%n2i(qq)
+            j  = lgs%n2j(qq)
+
+            ! Neighbour index for the front orientation (periodic wrap, as before)
+            ip1 = i+1; if (ip1 .eq. nx+1) ip1 = 1
+            jp1 = j+1; if (jp1 .eq. ny+1) jp1 = 1
+
+            if (mod(mm,2) .eq. 1) then
+                ! ---- ux(i,j) ----
+
+                ! Face: basal drag and driving stress, or boundary work at a front
+                mask     = ssa_mask_acx(i,j)
+                beta_now = beta_acx(i,j)
+                if (mask .eq. 1 .and. beta_acx(i,j) .eq. 0.0_wp) beta_now = beta_min
+                call add_entry(r,beta_now*dxdy,nb,cols,vals)
+                if (mask .eq. 3) then
+                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0_wp) then
+                        bval = bval + taul_int_acx(i,j)*real(dy,dp)
+                    else
+                        bval = bval - taul_int_acx(i,j)*real(dy,dp)
+                    end if
+                else
+                    bval = bval - taud_acx(i,j)*dxdy
+                end if
+
+                ! Cells (i,j) and (i+1,j); corners (i,j) and (i,j-1)
+                ci = i;   cj = j;   if (cell_dofs(ci,cj,d,H))   call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i+1; cj = j;   if (cell_dofs(ci,cj,d,H))   call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i;   cj = j;   if (corner_dofs(ci,cj,d,H)) call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i;   cj = j-1; if (corner_dofs(ci,cj,d,H)) call add_element(mm,d,H,nb,cols,vals,bval)
+
+            else
+                ! ---- uy(i,j) ----
+
+                mask     = ssa_mask_acy(i,j)
+                beta_now = beta_acy(i,j)
+                if (mask .eq. 1 .and. beta_acy(i,j) .eq. 0.0_wp) beta_now = beta_min
+                call add_entry(r,beta_now*dxdy,nb,cols,vals)
+                if (mask .eq. 3) then
+                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(i,jp1) .lt. 1.0_wp) then
+                        bval = bval + taul_int_acy(i,j)*real(dx,dp)
+                    else
+                        bval = bval - taul_int_acy(i,j)*real(dx,dp)
+                    end if
+                else
+                    bval = bval - taud_acy(i,j)*dxdy
+                end if
+
+                ! Cells (i,j) and (i,j+1); corners (i,j) and (i-1,j)
+                ci = i;   cj = j;   if (cell_dofs(ci,cj,d,H))   call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i;   cj = j+1; if (cell_dofs(ci,cj,d,H))   call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i;   cj = j;   if (corner_dofs(ci,cj,d,H)) call add_element(mm,d,H,nb,cols,vals,bval)
+                ci = i-1; cj = j;   if (corner_dofs(ci,cj,d,H)) call add_element(mm,d,H,nb,cols,vals,bval)
+
+            end if
+
+        end subroutine add_member
+
+        logical function cell_dofs(ci,cj,d,H) result(ok)
+            ! Membrane term of cell (ci,cj): N (2 u_x^2 + 2 v_y^2 + 2 u_x v_y) dx dy,
+            ! u_x = (a2-a1)/dx, v_y = (b2-b1)/dy with
+            ! a1 = ux(ci-1,cj), a2 = ux(ci,cj), b1 = uy(ci,cj-1), b2 = uy(ci,cj).
+            integer,  intent(INOUT) :: ci, cj
+            integer,  intent(OUT)   :: d(4)
+            real(dp), intent(OUT)   :: H(4,4)
+            real(dp) :: Nc, hx, hy, hc
+
+            ok = element_index(ci,nx,per_x)
+            if (ok) ok = element_index(cj,ny,per_y)
+            if (.not. ok) return
+
+            d(1) = dof_ux(ci-1,cj)
+            d(2) = dof_ux(ci,  cj)
+            d(3) = dof_uy(ci,  cj-1)
+            d(4) = dof_uy(ci,  cj)
+
+            Nc = real(N_aa(ci,cj),dp)
+            hx = 4.0_dp*Nc*dyodx
+            hy = 4.0_dp*Nc*dxody
+            hc = 2.0_dp*Nc
+
+            H(1,:) = [  hx, -hx,  hc, -hc ]
+            H(2,:) = [ -hx,  hx, -hc,  hc ]
+            H(3,:) = [  hc, -hc,  hy, -hy ]
+            H(4,:) = [ -hc,  hc, -hy,  hy ]
+
+        end function cell_dofs
+
+        logical function corner_dofs(ci,cj,d,H) result(ok)
+            ! Shear term of corner (ci,cj): 1/2 N_ab (u_y + v_x)^2 dx dy,
+            ! u_y = (c2-c1)/dy, v_x = (e2-e1)/dx with
+            ! c1 = ux(ci,cj), c2 = ux(ci,cj+1), e1 = uy(ci,cj), e2 = uy(ci+1,cj).
+            integer,  intent(INOUT) :: ci, cj
+            integer,  intent(OUT)   :: d(4)
+            real(dp), intent(OUT)   :: H(4,4)
+            real(dp) :: Nc, hx, hy
+
+            ok = element_index(ci,nx,per_x)
+            if (ok) ok = element_index(cj,ny,per_y)
+            if (.not. ok) return
+
+            d(1) = dof_ux(ci,  cj)
+            d(2) = dof_ux(ci,  cj+1)
+            d(3) = dof_uy(ci,  cj)
+            d(4) = dof_uy(ci+1,cj)
+
+            Nc = real(N_ab(ci,cj),dp)
+            hx = Nc*dxody
+            hy = Nc*dyodx
+
+            H(1,:) = [  hx, -hx,  Nc, -Nc ]
+            H(2,:) = [ -hx,  hx, -Nc,  Nc ]
+            H(3,:) = [  Nc, -Nc,  hy, -hy ]
+            H(4,:) = [ -Nc,  Nc, -hy,  hy ]
+
+        end function corner_dofs
+
+        subroutine add_element(mm,d,H,nb,cols,vals,bval)
+            ! For every slot of the element holding unknown mm, add its Hessian row:
+            ! free columns to their root, Dirichlet columns lifted to the RHS.
+            integer,  intent(IN)    :: mm
+            integer,  intent(IN)    :: d(4)
+            real(dp), intent(IN)    :: H(4,4)
+            integer,  intent(INOUT) :: nb
+            integer,  intent(INOUT) :: cols(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: vals(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: bval
+            integer :: l, k, c
+
+            do l = 1, 4
+                if (d(l) .ne. mm) cycle
+                do k = 1, 4
+                    c = d(k)
+                    if (c .eq. 0) cycle                         ! zero ghost
+                    select case(dkind(c))
+                        case(DOF_FREE)
+                            call add_entry(c,H(l,k),nb,cols,vals)
+                        case(DOF_TIED)
+                            call add_entry(droot(c),H(l,k),nb,cols,vals)
+                        case(DOF_DIR)
+                            bval = bval - H(l,k)*dval(c)
+                    end select
                 end do
             end do
 
-            deallocate(is_dir)
-        end block
+        end subroutine add_element
 
-        return
+        subroutine add_entry(c,v,nb,cols,vals)
+            integer,  intent(IN)    :: c
+            real(dp), intent(IN)    :: v
+            integer,  intent(INOUT) :: nb
+            integer,  intent(INOUT) :: cols(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: vals(NNZ_ROW_MAX)
+            integer :: k
+            do k = 1, nb
+                if (cols(k) .eq. c) then
+                    vals(k) = vals(k) + v
+                    return
+                end if
+            end do
+            nb = nb + 1
+            if (nb .gt. NNZ_ROW_MAX) then
+                write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
+                    &more than NNZ_ROW_MAX entries in a row."
+                stop "Program stopped."
+            end if
+            cols(nb) = c
+            vals(nb) = v
+        end subroutine add_entry
+
+        subroutine sort_row(nb,cols,vals)
+            ! Insertion sort by column (rows are short)
+            integer,  intent(IN)    :: nb
+            integer,  intent(INOUT) :: cols(NNZ_ROW_MAX)
+            real(dp), intent(INOUT) :: vals(NNZ_ROW_MAX)
+            integer  :: k, l, c
+            real(dp) :: v
+            do k = 2, nb
+                c = cols(k)
+                v = vals(k)
+                l = k-1
+                do while (l .ge. 1)
+                    if (cols(l) .le. c) exit
+                    cols(l+1) = cols(l)
+                    vals(l+1) = vals(l)
+                    l = l-1
+                end do
+                cols(l+1) = c
+                vals(l+1) = v
+            end do
+        end subroutine sort_row
 
     end subroutine linear_solver_matrix_ssa_ac_csr_2D_energy
 
