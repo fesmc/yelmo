@@ -542,6 +542,7 @@ contains
         real(dp) :: c_x, c_y, c_x_acy, c_y_acx
         real(dp) :: h1, h2 
         real(dp) :: denom
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         integer  :: BC
 
@@ -695,6 +696,11 @@ end if
 
         ! Step 2: Calculate all horizontal derivatives accounting for correction terms
 
+        ! Faces with a velocity solution (next to an ice-covered cell); the others
+        ! hold zero velocity and must not enter the cross derivatives
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
         !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
         !$omp& private(c_x,c_y,dzbdx_acy,dzsdx_acy,c_x_acy,dzbdy_acx,dzsdy_acx,c_y_acx)
         do j = 1, ny 
@@ -707,11 +713,14 @@ end if
 
                 ! === Calculate derivatives , no sigma-correction terms yet ===
 
-                ! Second-order, centered derivatives
+                ! Second-order, centered derivatives (cross derivatives only
+                ! across faces with a velocity solution)
                 jvel%dxx(i,j,k) = (ux(ip1,j,k)-ux(im1,j,k))/(2.0*dx)
-                jvel%dxy(i,j,k) = (ux(i,jp1,k)-ux(i,jm1,k))/(2.0*dy)
-                
-                jvel%dyx(i,j,k) = (uy(ip1,j,k)-uy(im1,j,k))/(2.0*dx)
+                jvel%dxy(i,j,k) = deriv_active(ux(i,jm1,k),ux(i,j,k),ux(i,jp1,k), &
+                                                act_acx(i,jm1),act_acx(i,jp1),dy)
+
+                jvel%dyx(i,j,k) = deriv_active(uy(im1,j,k),uy(i,j,k),uy(ip1,j,k), &
+                                                act_acy(im1,j),act_acy(ip1,j),dx)
                 jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,jm1,k))/(2.0*dy)
 
                 ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
@@ -765,10 +774,6 @@ end if
                         jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,j,k))/dy
                     end if
                 end if
-
-                ! Note: do not treat special cases for cross derivatives like dxy or dyx. 
-                ! It is too complicated to check neighbors in this case, and multiple
-                ! tries led to asymmetric discretizations. Better to leave it clean.
 
                 ! === Calculate and apply the sigma-transformation correction terms ===
 
@@ -1686,6 +1691,60 @@ end if
         
     end subroutine calc_strain_rate_tensor_2D
     
+    subroutine calc_active_faces(act_acx,act_acy,f_ice,BC)
+        ! Velocity faces that carry a solution: next to at least one
+        ! ice-covered cell (f_ice == 1). Other faces hold zero velocity.
+
+        implicit none
+
+        logical,  intent(OUT) :: act_acx(:,:)
+        logical,  intent(OUT) :: act_acy(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        integer,  intent(IN)  :: BC
+
+        integer :: i, j, nx, ny, im1, ip1, jm1, jp1
+
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            act_acx(i,j) = f_ice(i,j) .eq. 1.0_wp .or. f_ice(ip1,j) .eq. 1.0_wp
+            act_acy(i,j) = f_ice(i,j) .eq. 1.0_wp .or. f_ice(i,jp1) .eq. 1.0_wp
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_active_faces
+
+    elemental function deriv_active(v_m,v_0,v_p,act_m,act_p,h) result(dvdh)
+        ! Derivative at a velocity face from its two neighbours along the
+        ! derivative direction: centred if both carry a solution, one-sided
+        ! towards the one that does, zero if neither does. Mirror symmetric.
+
+        implicit none
+
+        real(wp), intent(IN) :: v_m, v_0, v_p
+        logical,  intent(IN) :: act_m, act_p
+        real(wp), intent(IN) :: h
+        real(wp) :: dvdh
+
+        if (act_m .and. act_p) then
+            dvdh = (v_p-v_m)/(2.0_wp*h)
+        else if (act_p) then
+            dvdh = (v_p-v_0)/h
+        else if (act_m) then
+            dvdh = (v_0-v_m)/h
+        else
+            dvdh = 0.0_wp
+        end if
+
+    end function deriv_active
+
     subroutine calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
         ! Get simple horizontal derivatives with sigma corrections
         ! (valid for depth-averaged fields like for SSA/DIVA effective viscosity)
@@ -1706,7 +1765,8 @@ end if
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
-        integer :: im2, ip2, jm2, jp2 
+        integer :: im2, ip2, jm2, jp2
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         integer :: BC
 
@@ -1715,6 +1775,10 @@ end if
 
         ! Get boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Faces with a velocity solution (see calc_jacobian_vel_3D_uxyterms)
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
         ! Populate strain rates over the whole domain on acx- and acy-nodes
 
@@ -1729,10 +1793,11 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Calculate derivatives (second-order, centered)
+            ! Calculate derivatives (second-order, centered; cross derivatives
+            ! only across faces with a velocity solution)
             dudx(i,j) = (ux(ip1,j)-ux(im1,j))/(2.0*dx)
-            dudy(i,j) = (ux(i,jp1)-ux(i,jm1))/(2.0*dy)
-            dvdx(i,j) = (uy(ip1,j)-uy(im1,j))/(2.0*dx)
+            dudy(i,j) = deriv_active(ux(i,jm1),ux(i,j),ux(i,jp1),act_acx(i,jm1),act_acx(i,jp1),dy)
+            dvdx(i,j) = deriv_active(uy(im1,j),uy(i,j),uy(ip1,j),act_acy(im1,j),act_acy(ip1,j),dx)
             dvdy(i,j) = (uy(i,jp1)-uy(i,jm1))/(2.0*dy)
 
 if (.TRUE.) then
@@ -1779,8 +1844,6 @@ if (.TRUE.) then
                 end if
             end if
 
-            ! Note - do not treat cross terms as symmetry breaks down.
-            ! Better to keep it clean.
 end if
         
         end do
