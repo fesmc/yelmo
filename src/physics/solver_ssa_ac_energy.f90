@@ -495,14 +495,16 @@ contains
                 mask     = ssa_mask_acx(i,j)
                 beta_now = beta_acx(i,j)
                 if (mask .eq. 1 .and. beta_acx(i,j) .eq. 0.0_wp) beta_now = beta_min
-                call add_entry(r,beta_now*dxdy,nb,cols,vals)
                 if (mask .eq. 3) then
+                    ! Calving front: only the ice half of the face's control area has drag
+                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
                     if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0_wp) then
                         bval = bval + taul_int_acx(i,j)*real(dy,dp)
                     else
                         bval = bval - taul_int_acx(i,j)*real(dy,dp)
                     end if
                 else
+                    call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acx(i,j)*dxdy
                 end if
 
@@ -518,14 +520,16 @@ contains
                 mask     = ssa_mask_acy(i,j)
                 beta_now = beta_acy(i,j)
                 if (mask .eq. 1 .and. beta_acy(i,j) .eq. 0.0_wp) beta_now = beta_min
-                call add_entry(r,beta_now*dxdy,nb,cols,vals)
                 if (mask .eq. 3) then
+                    ! Calving front: only the ice half of the face's control area has drag
+                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
                     if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(i,jp1) .lt. 1.0_wp) then
                         bval = bval + taul_int_acy(i,j)*real(dx,dp)
                     else
                         bval = bval - taul_int_acy(i,j)*real(dx,dp)
                     end if
                 else
+                    call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acy(i,j)*dxdy
                 end if
 
