@@ -189,6 +189,22 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Calving-front stress and strain at subgrid fronts** (review 2026-09-29).
+  With `front_subgrid /= "none"`, `calc_ymat` built the viscosity and the calving
+  stress on `f_ice` instead of the dynamics' `f_ice_dyn`/`H_ice_dyn`: partial front
+  cells took a neighbour's viscosity, or none (zero stress, no calving: 22 such
+  cells in GRL-16, 60 in GRL-8). Now on the active geometry; the partial-cell fills
+  are removed. Calving +10%, volume change <= 0.02% (200 yr).
+- **Front strain rates no longer use the zero velocity of ocean faces.** Cross
+  derivatives (`dxy`/`dyx`) and the quadrature corner means of the strain-rate
+  tensor and the DIVA/SSA viscosity only use velocity faces next to ice (needs
+  fesm-utils with the `act` argument of `gq*_to_nodes_acx/acy`). A translating
+  slab now has zero strain at straight and 45-degree fronts (was up to 3V/(16dx),
+  `make front_strain`). Benchmarks change by <= 0.6%.
+- **Energy SSA: half the basal drag at calving-front faces**, the ice half of the
+  face's control area. Grounded marine fronts are 2.2-2.5x faster than before in
+  GRL-16/ANT-16/GRL-8; floating fronts are unchanged.
+
 - **The hydrology converts its per-year inputs with the domain's own year.**
   `yelmo_hydrology` divided `bmb_w`, `uxy_b` and `A_glen_b` by FastHydrology's
   module-level `SEC_PER_YEAR` (3.1556926e7), and FastHydrology used the same
@@ -311,6 +327,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- runme OpenMP jobs run one thread per physical core (`--hint=nomultithread`,
+  `OMP_PLACES=cores`) with `KMP_BLOCKTIME=0`. On Levante `shared`, 16 threads were
+  placed on 8 cores with 2 SMT threads each; ANT-8KM 200 yr: 20.5 -> 15.8 min,
+  results identical. Jobs are charged for the full cores.
 - C API: read-only getters for `dta%pd%uxy_s` and `dta%pd%H_grnd`, and setters for
   `hyd_N`/`hyd_W_til`. `yhyd.is_external` lets a host model own N_eff.
 - `hyd%now%q` is written to restarts. MISMIP3D is handled in
