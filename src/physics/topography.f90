@@ -21,6 +21,7 @@ module topography
     private  
 
     public :: gen_mask_bed
+    public :: calc_column_kinematic_rates
 
     public :: calc_ice_fraction
     public :: calc_lsf_area_fraction
@@ -60,6 +61,56 @@ module topography
     public :: mask_bed_island
     
 contains 
+
+    subroutine calc_column_kinematic_rates(dzsdt_kin,dzbdt_kin,dHidt_vert,f_grnd,f_ice, &
+                                            dz_bed_dt,dz_sl_dt,rho_ice,rho_sw)
+        ! Kinematic rates of the surface and base of the ice column, the
+        ! boundary conditions of the vertical velocity. Grounded ice: the base
+        ! follows the bedrock; floating ice: the column floats at sea level
+        ! (z_b = z_sl - rho_ice/rho_sw*H). Blended by the grounded fraction.
+        ! dHidt_vert holds only vertical changes of the column (not calving,
+        ! front advance or removals). Cells that are not fully ice covered
+        ! (partial front cells take their column from H_eff) get zero rates.
+
+        implicit none
+
+        real(wp), intent(OUT) :: dzsdt_kin(:,:)     ! [m/a]
+        real(wp), intent(OUT) :: dzbdt_kin(:,:)     ! [m/a]
+        real(wp), intent(IN)  :: dHidt_vert(:,:)    ! [m/a]
+        real(wp), intent(IN)  :: f_grnd(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: dz_bed_dt(:,:)     ! [m/a]
+        real(wp), intent(IN)  :: dz_sl_dt(:,:)      ! [m/a]
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+
+        integer  :: i, j, nx, ny
+        real(wp) :: rho_frac, dzb_flt
+
+        nx = size(dzsdt_kin,1)
+        ny = size(dzsdt_kin,2)
+
+        rho_frac = rho_ice/rho_sw
+
+        !$omp parallel do collapse(2) private(i,j,dzb_flt)
+        do j = 1, ny
+        do i = 1, nx
+            if (f_ice(i,j) .eq. 1.0_wp) then
+                dzb_flt        = dz_sl_dt(i,j) - rho_frac*dHidt_vert(i,j)
+                dzbdt_kin(i,j) = f_grnd(i,j)*dz_bed_dt(i,j) + (1.0_wp-f_grnd(i,j))*dzb_flt
+                dzsdt_kin(i,j) = dzbdt_kin(i,j) + dHidt_vert(i,j)
+            else
+                dzbdt_kin(i,j) = 0.0_wp
+                dzsdt_kin(i,j) = 0.0_wp
+            end if
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_column_kinematic_rates
+
 
     elemental subroutine gen_mask_bed(mask,f_ice,f_pmp,f_grnd,mask_grline)
         ! Generate an output mask for model conditions at bed

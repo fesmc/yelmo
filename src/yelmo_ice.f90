@@ -125,6 +125,10 @@ contains
 
         allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
         
+        ! Rates of bedrock elevation and sea level since the previous call
+        ! (kinematic boundary conditions of the vertical velocity)
+        call ybound_update_rates(dom%bnd,dble(time))
+
         ! Calculate filtered bedrock elevations adjusted for sea level on top (ie, water depth)
         dom%tpo%now%z_bed_filt = dom%bnd%z_bed - dom%bnd%z_sl
         if (dom%tpo%par%zb_sigma .gt. 0.0) then 

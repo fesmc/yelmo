@@ -255,6 +255,11 @@ end if
                     ! === mb_net =====
                     tpo%now%mb_net = tpo%now%smb + tpo%now%bmb + tpo%now%fmb + tpo%now%dmb 
 
+                    ! Vertical thickness change of the ice column (advection, smb, bmb;
+                    ! relaxation added below). Lateral changes (fmb, dmb, calving, front
+                    ! advance, removals) are not vertical motion of the column surface or base.
+                    tpo%now%dHidt_vert = tpo%now%dHidt_dyn + tpo%now%smb + tpo%now%bmb
+
                     ! === calving ===
                     ! Calculate and apply calving
                     if (tpo%par%use_lsf) then
@@ -310,6 +315,7 @@ end if
 
                         ! Add relaxation tendency to mb_net for proper accounting of mass change
                         tpo%now%mb_net = tpo%now%mb_net + tpo%now%mb_relax
+                        tpo%now%dHidt_vert = tpo%now%dHidt_vert + tpo%now%mb_relax
 
                         ! Get ice-fraction mask for ice thickness  
                         call update_ice_fraction(tpo,bnd)
@@ -344,6 +350,7 @@ end if
                     ! proceed with predictor fields for calculating dynamics.
                     tpo%now%pred%H_ice      = tpo%now%H_ice 
                     tpo%now%pred%dHidt_dyn  = tpo%now%dHidt_dyn
+                    tpo%now%pred%dHidt_vert = tpo%now%dHidt_vert
                     tpo%now%pred%mb_net     = tpo%now%mb_net 
                     tpo%now%pred%mb_relax   = tpo%now%mb_relax 
                     tpo%now%pred%mb_resid   = tpo%now%mb_resid 
@@ -362,6 +369,7 @@ end if
                     ! Save current corrector fields
                     tpo%now%corr%H_ice      = tpo%now%H_ice 
                     tpo%now%corr%dHidt_dyn  = tpo%now%dHidt_dyn
+                    tpo%now%corr%dHidt_vert = tpo%now%dHidt_vert
                     tpo%now%corr%mb_net     = tpo%now%mb_net 
                     tpo%now%corr%mb_relax   = tpo%now%mb_relax 
                     tpo%now%corr%mb_resid   = tpo%now%mb_resid 
@@ -396,6 +404,7 @@ end if
                         ! Load predictor fields in current state variables
                         tpo%now%H_ice       = tpo%now%pred%H_ice 
                         tpo%now%dHidt_dyn   = tpo%now%pred%dHidt_dyn
+                        tpo%now%dHidt_vert  = tpo%now%pred%dHidt_vert
                         tpo%now%mb_net      = tpo%now%pred%mb_net 
                         tpo%now%mb_relax    = tpo%now%pred%mb_relax 
                         tpo%now%mb_resid    = tpo%now%pred%mb_resid 
@@ -412,6 +421,7 @@ end if
                         ! Load corrector fields in current state variables
                         tpo%now%H_ice       = tpo%now%corr%H_ice 
                         tpo%now%dHidt_dyn   = tpo%now%corr%dHidt_dyn
+                        tpo%now%dHidt_vert  = tpo%now%corr%dHidt_vert
                         tpo%now%mb_net      = tpo%now%corr%mb_net 
                         tpo%now%mb_relax    = tpo%now%corr%mb_relax 
                         tpo%now%mb_resid    = tpo%now%corr%mb_resid 
@@ -435,9 +445,7 @@ end if
             ! Determine rates of change
             ! Note: dzsdt is deferred until after calc_ytopo_diagnostic below,
             ! because z_srf is only refreshed from the updated H_ice/f_ice there
-            ! (calc_z_srf_max). Computing it here would difference the stale
-            ! previous-step surface against z_srf_n, giving dzsdt ~ 0 and
-            ! corrupting the uz basal kinematic term (dzbdt = dzsdt - dHdt).
+            ! (calc_z_srf_max).
             tpo%now%dHidt  = (tpo%now%H_ice - tpo%now%H_ice_n) / dt
             tpo%now%dlsfdt = (tpo%now%lsf   - tpo%now%lsf_n) / dt
 
@@ -459,6 +467,13 @@ end if
         if ( .not. topo_fixed .and. dt .gt. 0.0 ) then
             tpo%now%dzsdt = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
         end if
+
+        ! Kinematic rates of the ice column's surface and base, the boundary
+        ! conditions of the vertical velocity: vertical column change plus the
+        ! bedrock and sea-level rates (no vertical change when the ice is not advanced)
+        if (topo_fixed .or. dt .le. 0.0) tpo%now%dHidt_vert = 0.0_wp
+        call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%dHidt_vert, &
+                    tpo%now%f_grnd,tpo%now%f_ice,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! When the ice is not advanced this step -- initialization (pc_step="none")
         ! or any topo_fixed step -- the mass-balance block above is skipped, so the
@@ -1696,6 +1711,9 @@ end if
         
         allocate(now%dHidt_dyn_raw(nx,ny))
         allocate(now%dHidt_dyn_raw_n(nx,ny))
+        allocate(now%dHidt_vert(nx,ny))
+        allocate(now%dzsdt_kin(nx,ny))
+        allocate(now%dzbdt_kin(nx,ny))
         allocate(now%H_ice_n(nx,ny))
         allocate(now%z_srf_n(nx,ny))
         allocate(now%lsf_n(nx,ny))
@@ -1786,6 +1804,9 @@ end if
 
         now%dHidt_dyn_raw   = 0.0
         now%dHidt_dyn_raw_n = 0.0
+        now%dHidt_vert      = 0.0
+        now%dzsdt_kin       = 0.0
+        now%dzbdt_kin       = 0.0
         now%H_ice_n     = 0.0
         now%z_srf_n     = 0.0
         now%lsf_n     = 0.0 
@@ -1896,6 +1917,9 @@ end if
         
         if (allocated(now%dHidt_dyn_raw))   deallocate(now%dHidt_dyn_raw)
         if (allocated(now%dHidt_dyn_raw_n)) deallocate(now%dHidt_dyn_raw_n)
+        if (allocated(now%dHidt_vert))      deallocate(now%dHidt_vert)
+        if (allocated(now%dzsdt_kin))       deallocate(now%dzsdt_kin)
+        if (allocated(now%dzbdt_kin))       deallocate(now%dzbdt_kin)
         if (allocated(now%H_ice_n))     deallocate(now%H_ice_n)
         if (allocated(now%z_srf_n))     deallocate(now%z_srf_n)
         if (allocated(now%lsf_n))       deallocate(now%lsf_n)
@@ -1922,6 +1946,7 @@ end if
         ! Allocate fields 
         allocate(pc%H_ice(nx,ny))
         allocate(pc%dHidt_dyn(nx,ny))
+        allocate(pc%dHidt_vert(nx,ny))
         allocate(pc%mb_net(nx,ny))
         allocate(pc%mb_relax(nx,ny))
         allocate(pc%mb_resid(nx,ny))
@@ -1937,6 +1962,7 @@ end if
         ! Initialize to zero
         pc%H_ice        = 0.0
         pc%dHidt_dyn    = 0.0
+        pc%dHidt_vert   = 0.0
         pc%mb_net       = 0.0
         pc%mb_relax     = 0.0
         pc%mb_resid     = 0.0
@@ -1961,6 +1987,7 @@ end if
         
         if (allocated(pc%H_ice))        deallocate(pc%H_ice)
         if (allocated(pc%dHidt_dyn))    deallocate(pc%dHidt_dyn)
+        if (allocated(pc%dHidt_vert))   deallocate(pc%dHidt_vert)
         if (allocated(pc%mb_net))       deallocate(pc%mb_net)
         if (allocated(pc%mb_relax))     deallocate(pc%mb_relax)
         if (allocated(pc%mb_resid))     deallocate(pc%mb_resid)
