@@ -82,6 +82,7 @@ contains
         ! Boundary conditions counterclockwise unit circle:
         ! 1: x, right border; 2: y, upper; 3: x, left; 4: y, lower
         character(len=56) :: bcs(4)
+        logical :: bc_per(4), bc_free(4)          ! bcs(k) is "periodic" / "free-slip"
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
@@ -114,6 +115,10 @@ contains
             case DEFAULT
                 bcs(1:4) = "no-slip"
         end select
+
+        ! Evaluate the border types once, not per cell in the assembly loops
+        bc_per  = bcs .eq. "periodic"
+        bc_free = bcs .eq. "free-slip"
 
         allocate(N_ab(nx,ny))
 
@@ -163,9 +168,9 @@ contains
                 lgs%b_value(nr) = ux(i,j)
                 lgs%x_value(nr) = ux(i,j)
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
                 ! Left domain boundary
-                if (trim(bcs(3)) .eq. "free-slip") then
+                if (bc_free(3)) then
                     nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -181,9 +186,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then
+            else if (i .eq. nx .and. .not. bc_per(1)) then
                 ! Right domain boundary
-                if (trim(bcs(1)) .eq. "free-slip") then
+                if (bc_free(1)) then
                     nc = 2*lgs%ij2n(i,j)-1                 ! ux(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -199,9 +204,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
                 ! Lower domain boundary
-                if (trim(bcs(4)) .eq. "free-slip") then
+                if (bc_free(4)) then
                     nc = 2*lgs%ij2n(i,j)-1
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -217,9 +222,9 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then
+            else if (j .eq. ny .and. .not. bc_per(2)) then
                 ! Upper domain boundary
-                if (trim(bcs(2)) .eq. "free-slip") then
+                if (bc_free(2)) then
                     nc = 2*lgs%ij2n(i,j)-1
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -334,8 +339,8 @@ contains
                 lgs%b_value(nr) = uy(i,j)
                 lgs%x_value(nr) = uy(i,j)
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then
-                if (trim(bcs(4)) .eq. "free-slip") then
+            else if (j .eq. 1 .and. .not. bc_per(4)) then
+                if (bc_free(4)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -351,8 +356,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then
-                if (trim(bcs(2)) .eq. "free-slip") then
+            else if (j .eq. ny .and. .not. bc_per(2)) then
+                if (bc_free(2)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -368,8 +373,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then
-                if (trim(bcs(3)) .eq. "free-slip") then
+            else if (i .eq. 1 .and. .not. bc_per(3)) then
+                if (bc_free(3)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc
@@ -385,8 +390,8 @@ contains
                     lgs%x_value(nr) = 0.0_wp
                 end if
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then
-                if (trim(bcs(1)) .eq. "free-slip") then
+            else if (i .eq. nx .and. .not. bc_per(1)) then
+                if (bc_free(1)) then
                     nc = 2*lgs%ij2n(i,j)
                     k = k+1
                     lgs%a_value(k) =  1.0_wp; lgs%a_index(k) = nc

@@ -263,6 +263,7 @@ contains
         real(wp) :: H_nb, H_max, dist
         real(wp) :: z_srf_eff, z_srf_max, z_srf_now, z_srf_nb
         logical  :: is_float
+        logical  :: is_none, is_flt, is_mar             ! front_subgrid choice
         logical, allocatable  :: mask_elig(:,:)         ! Eligible (marine) ice cells
         logical, allocatable  :: mask_cf(:,:)           ! Front cells (eligible, ocean edge neighbour)
         logical, allocatable  :: mask_ocn(:,:)          ! Ice-free ocean cells
@@ -279,23 +280,33 @@ contains
 
         BC = boundary_code(boundaries)
 
-        ! Binary defaults
-        where (H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp
-            H_eff = H_ice
-        elsewhere
-            f_ice = 0.0_wp
-            H_eff = 0.0_wp
-        end where
+        is_none = trim(front_subgrid) .eq. "none"
+        is_flt  = trim(front_subgrid) .eq. "floating"
+        is_mar  = trim(front_subgrid) .eq. "marine"
 
-        if (trim(front_subgrid) .eq. "none") return
+        if (.not. is_none) allocate(H_flot(nx,ny))
+
+        ! Binary defaults (and flotation thickness)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny
+        do i = 1, nx
+            if (H_ice(i,j) .gt. 0.0_wp) then
+                f_ice(i,j) = 1.0_wp
+                H_eff(i,j) = H_ice(i,j)
+            else
+                f_ice(i,j) = 0.0_wp
+                H_eff(i,j) = 0.0_wp
+            end if
+            if (.not. is_none) H_flot(i,j) = max( (z_sl(i,j)-z_bed(i,j))*rho_sw/rho_ice, 0.0_wp )
+        end do
+        end do
+        !$omp end parallel do
+
+        if (is_none) return
 
         allocate(mask_elig(nx,ny))
         allocate(mask_cf(nx,ny))
         allocate(mask_ocn(nx,ny))
-        allocate(H_flot(nx,ny))
-
-        H_flot = max( (z_sl-z_bed)*rho_sw/rho_ice, 0.0_wp )
 
         call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
 
@@ -319,7 +330,7 @@ contains
                 if (k .eq. 5 .and. k_max .gt. 0) exit
                 if (.not. mask_elig(in(k),jn(k)) .or. mask_cf(in(k),jn(k))) cycle
                 H_nb = H_ice(in(k),jn(k))
-                if (trim(front_subgrid) .eq. "floating") H_nb = min(H_nb,H_flot(in(k),jn(k)))
+                if (is_flt) H_nb = min(H_nb,H_flot(in(k),jn(k)))
                 if (H_nb .gt. H_max) then
                     H_max = H_nb
                     k_max = k
@@ -333,7 +344,7 @@ contains
 
             H_eff(i,j) = H_max - dHdx*dist
 
-            if (trim(front_subgrid) .eq. "marine") then
+            if (is_mar) then
                 ! Limit the effective surface: its upward slope from the
                 ! neighbour and its height above the actual surface
                 z_srf_nb  = srf_elev(H_ice(in(k_max),jn(k_max)),z_bed(in(k_max),jn(k_max)),z_sl(in(k_max),jn(k_max)))
@@ -351,16 +362,22 @@ contains
         end do
         !$omp end parallel do
 
-        ! Lower limit in all eligible cells (most fronts are at least a few tens of metres thick)
-        where (mask_elig) H_eff = max(H_eff, H_eff_min)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny
+        do i = 1, nx
 
-        ! Floating fronts do not exceed flotation (allows H_eff < H_eff_min in shallow water)
-        if (trim(front_subgrid) .eq. "floating") then
-            where (mask_cf) H_eff = min(H_eff, H_flot)
-        end if
+            ! Lower limit in all eligible cells (most fronts are at least a few tens of metres thick)
+            if (mask_elig(i,j)) H_eff(i,j) = max(H_eff(i,j), H_eff_min)
 
-        ! Area fraction of front cells
-        where (mask_cf .and. H_eff .gt. 0.0_wp) f_ice = max( min(H_ice/H_eff, 1.0_wp), TOL )
+            ! Floating fronts do not exceed flotation (allows H_eff < H_eff_min in shallow water)
+            if (is_flt .and. mask_cf(i,j)) H_eff(i,j) = min(H_eff(i,j), H_flot(i,j))
+
+            ! Area fraction of front cells
+            if (mask_cf(i,j) .and. H_eff(i,j) .gt. 0.0_wp) f_ice(i,j) = max( min(H_ice(i,j)/H_eff(i,j), 1.0_wp), TOL )
+
+        end do
+        end do
+        !$omp end parallel do
 
         return 
 
@@ -400,24 +417,39 @@ contains
 
         ! Local variables
         integer :: i, j, nx, ny, im1, ip1, jm1, jp1, BC
+        integer :: elig                                 ! 0: none, 1: floating, 2: marine
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         BC = boundary_code(boundaries)
 
-        mask_ocn = H_ice .eq. 0.0_wp .and. z_bed .lt. z_sl
-
         select case(trim(front_subgrid))
             case("none")
-                mask_elig = .FALSE.
+                elig = 0
             case("floating")
-                mask_elig = H_ice .gt. 0.0_wp .and. H_ice*rho_ice/rho_sw .le. (z_sl-z_bed)
+                elig = 1
             case("marine")
-                mask_elig = H_ice .gt. 0.0_wp .and. z_bed .lt. z_sl
+                elig = 2
             case DEFAULT
                 write(io_unit_err,*) "calc_front_cells:: Error: front_subgrid not recognized: ", trim(front_subgrid)
                 stop "Program stopped."
         end select
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny
+        do i = 1, nx
+            mask_ocn(i,j) = H_ice(i,j) .eq. 0.0_wp .and. z_bed(i,j) .lt. z_sl(i,j)
+            select case(elig)
+                case(1)
+                    mask_elig(i,j) = H_ice(i,j) .gt. 0.0_wp .and. H_ice(i,j)*rho_ice/rho_sw .le. (z_sl(i,j)-z_bed(i,j))
+                case(2)
+                    mask_elig(i,j) = H_ice(i,j) .gt. 0.0_wp .and. z_bed(i,j) .lt. z_sl(i,j)
+                case DEFAULT
+                    mask_elig(i,j) = .FALSE.
+            end select
+        end do
+        end do
+        !$omp end parallel do
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny

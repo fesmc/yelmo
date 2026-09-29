@@ -926,13 +926,13 @@ contains
         real(wp), parameter :: ub_min    = 1e-3_wp          ! [m/yr] Minimum velocity is positive small value to avoid divide by zero
         real(wp), parameter :: ub_sq_min = ub_min**2
 
-        type(gq2D_class) :: gq2D
+        type(gq2D_class) :: gq2D, gq2D_global
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
 
         ! Initialize gaussian quadrature calculations
-        call gq2D_init(gq2D)
+        call gq2D_init(gq2D_global)
         dx_tmp = 1.0
         dy_tmp = 1.0 
 
@@ -945,6 +945,11 @@ contains
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
         
+        !$omp parallel private(i,j,im1,ip1,jm1,jp1,cbn,uxn,uyn,uxyn,betan,uxy_b,gq2D) &
+        !$omp& shared(gq2D_global)
+        gq2D = gq2D_global
+
+        !$omp do collapse(2) 
         do j = 1, ny
         do i = 1, nx
 
@@ -992,6 +997,8 @@ contains
 
         end do
         end do
+        !$omp end do
+        !$omp end parallel
 
         return
         

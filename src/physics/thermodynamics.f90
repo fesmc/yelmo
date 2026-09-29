@@ -211,7 +211,7 @@ contains
 
     end subroutine calc_advec_vertical_column
 
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
         ! Horizontal advection u.grad(var), computed in conservative flux form with a
         ! van Leer MUSCL reconstruction and recast to the advective (non-conservative)
         ! form actually solved by the column equation:
@@ -236,7 +236,7 @@ contains
         real(wp), intent(IN)  :: dx
         integer,  intent(IN)  :: advecxy_order    ! 1=upwind, 2=flux-limited 2nd-order upwind
         integer,    intent(IN)  :: i, j
-        character(len=*), intent(IN) :: boundaries
+        integer,  intent(IN)  :: BC               ! Boundary condition code (boundary_code)
 
         ! Local variables
         integer  :: k, nx, ny, nz_aa
@@ -247,7 +247,6 @@ contains
         real(wp) :: uw, ue, us, un          ! face velocities: west/east/south/north
         real(wp) :: fw, fe, fs, fn          ! limited face values of var
         real(wp) :: fluxdiv, divu
-        integer  :: BC
 
         dx_inv = 1.0_wp / dx
 
@@ -256,9 +255,6 @@ contains
         nz_aa = size(var_ice,3)
 
         advecxy = 0.0_wp
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
 
         ! BC-aware neighbor indices, +-1 and +-2 in each direction. The +-2 indices
         ! are obtained by stepping once more from the +-1 neighbors, so periodic
@@ -376,6 +372,7 @@ contains
         integer :: i, j, m
         integer :: nx, ny, nz
         integer :: nsub
+        integer :: BC
         real(wp) :: cfl, dts
         real(wp), allocatable :: var_work(:,:,:)      ! working field advanced through the sub-steps
         real(wp), allocatable :: a_sub(:,:,:)         ! per-sub-step advection tendency
@@ -383,6 +380,9 @@ contains
         nx = size(advecxy,1)
         ny = size(advecxy,2)
         nz = size(advecxy,3)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
 
         ! Determine number of sub-steps from the domain-max horizontal Courant number
         cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries)
@@ -401,11 +401,13 @@ contains
 
             ! Compute on all points with BC-aware neighbors, then overwrite
             ! the non-periodic border points according to the boundary treatment
+            !$omp parallel do collapse(2) private(i,j)
             do j = 1, ny
             do i = 1, nx
-                call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+                call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
             end do
             end do
+            !$omp end parallel do
 
             call set_boundaries_3D_aa(advecxy,boundaries)
 
@@ -423,11 +425,13 @@ contains
 
                 a_sub = 0.0_wp
 
+                !$omp parallel do collapse(2) private(i,j)
                 do j = 1, ny
                 do i = 1, nx
-                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
                 end do
                 end do
+                !$omp end parallel do
 
                 call set_boundaries_3D_aa(a_sub,boundaries)
 

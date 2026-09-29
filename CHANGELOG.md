@@ -105,6 +105,11 @@ little. MISMIP3D and DIVA runs change more.
     viscosity relaxation runs as an OpenMP loop (was serial), and the thickness
     advection uses the Jacobi preconditioner instead of ILU, whose row-by-row
     teardown in LIS was serial. Results are identical in single precision.
+    Further serial work moved into OpenMP loops: advection solver BiCGSTAB
+    (BiCG's transposed product was serial), border types in the SSA assembly
+    evaluated once (not per cell), power-law basal friction, thermodynamic
+    horizontal advection, `calc_ice_fraction`/`calc_front_cells`, the DIVA
+    viscosity copy and the LIS array copies.
   - `ytopo.dHdt_dyn_lim` is removed, with the tendency limit in
     `apply_tendency`. It clipped the dynamic thickness change at ±100 m/yr
     cell by cell, which does not conserve mass. In ANT-16KM/GRL-8KM initmip it
