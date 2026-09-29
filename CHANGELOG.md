@@ -101,6 +101,10 @@ little. MISMIP3D and DIVA runs change more.
     (`H_min_flt = 75` m) it was the largest sink at the ice front, and Courant
     0.8 instead of 0.5 gave +40e3 km3 after 2 ka (now +3e3 km3 after 1 ka).
     `H_min_tau = 0` gives the previous behaviour; benchmarks are unchanged.
+  - Performance (ANT-8KM, 16 threads, 100 yr: 31.5 -> 21.9 min): the Picard
+    viscosity relaxation runs as an OpenMP loop (was serial), and the thickness
+    advection uses the Jacobi preconditioner instead of ILU, whose row-by-row
+    teardown in LIS was serial. Results are identical in single precision.
   - `ytopo.dHdt_dyn_lim` is removed, with the tendency limit in
     `apply_tendency`. It clipped the dynamic thickness change at ±100 m/yr
     cell by cell, which does not conserve mass. In ANT-16KM/GRL-8KM initmip it
