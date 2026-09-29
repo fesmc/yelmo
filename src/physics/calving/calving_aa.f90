@@ -626,9 +626,8 @@ contains
     end subroutine calc_calving_rate_eigen
 
     subroutine calc_eps_eff(eps_eff,eps_eig_1,eps_eig_2,f_ice)
-        ! Effective strain rate at ice-covered points. Partially ice-covered
-        ! points carry the strain rates of their fully ice-covered neighbors
-        ! (see fill_strain_2D_partial).
+        ! Effective strain rate at ice-covered points. Partial front cells are
+        ! part of the active ice geometry (f_ice_dyn) and carry their own strain rates.
 
         implicit none 
 
@@ -665,9 +664,8 @@ contains
     end function calc_eps_eff_now
     
     subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2)
-        ! Effective stress at ice-covered points. Partially ice-covered
-        ! points carry the stresses of their fully ice-covered neighbors
-        ! (see fill_strain_2D_partial and calc_ymat).
+        ! Effective stress at ice-covered points. Partial front cells are
+        ! part of the active ice geometry (f_ice_dyn) and carry their own stresses.
 
         implicit none 
 
