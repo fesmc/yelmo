@@ -15,6 +15,10 @@ little. MISMIP3D and DIVA runs change more.
   GRL-16KM 1.1 → 0.4 min. Benchmarks with a protocol calving law (`kill-pos` in
   MISMIP3D, MISMIP+ and TROUGH) keep the mass-balance path; all other shipped par
   files already set `use_lsf = True`.
+- **`ycalv.tau_ice_grnd = 1 MPa`** (was 250 kPa, equal to `tau_ice_flt`): the
+  ice strength of `vm-m16` at grounded marine fronts, in line with the ~1 MPa yield
+  strength of grounded cliffs (Bassis and Walker, 2012) and common `vm-m16` practice.
+  `tau_ice_flt` stays 250 kPa. Not calibrated.
 - **`ytopo.front_subgrid = "marine"` by default and in all par files** (was
   `"none"` except Antarctica and initmip). Runs without marine ice (EISMINT,
   HALFAR, ISMIP-HOM, SLAB-S06, MASK_ICE) are unchanged; TROUGH, MISMIP3D, MISMIP+
