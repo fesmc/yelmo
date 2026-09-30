@@ -959,29 +959,11 @@ contains
                         ssa_mask_acx(i,j) = 2
                     end if 
 
-                    ! SPECIAL CASE: floating ice next to ice-free land,
-                    ! then set ssa mask to zero (ie, set velocity to zero)
-                    if (ssa_mask_acx(i,j) .eq. 2) then 
-
-                        if ( is_equal(f_grnd(i,j),0.0_wp) .and. &
-                               (f_grnd(ip1,j) .gt. 0.0 .and. H_ice(ip1,j) .eq. 0.0) ) then 
-
-                            ssa_mask_acx(i,j) = 0
-
-                        else if ( (f_grnd(i,j) .gt. 0.0 .and. H_ice(i,j) .eq. 0.0) .and. &
-                                    f_grnd(ip1,j) .eq. 0.0 ) then
-
-                            ssa_mask_acx(i,j) = 0 
-
-                        end if 
-
-                    end if 
-
                 end if
                 
-                ! Overwrite above if this face is an ice front (lateral bc, or deactivated)
+                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
                 mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(ip1,j),lateral_bc)
-                if (mask_lat .gt. 0) ssa_mask_acx(i,j) = mask_lat
+                if (mask_lat .ge. 0) ssa_mask_acx(i,j) = mask_lat
 
                 ! == y-direction ===
 
@@ -997,29 +979,11 @@ contains
                         ssa_mask_acy(i,j) = 2
                     end if 
 
-                    ! SPECIAL CASE: floating ice next to ice-free land,
-                    ! then set ssa mask to zero (ie, set velocity to zero)
-                    if (ssa_mask_acy(i,j) .eq. 2) then 
-
-                        if ( f_grnd(i,j) .eq. 0.0 .and. &
-                               (f_grnd(i,jp1) .gt. 0.0 .and. H_ice(i,jp1) .eq. 0.0) ) then 
-
-                            ssa_mask_acy(i,j) = 0
-
-                        else if ( (f_grnd(i,j) .gt. 0.0 .and. H_ice(i,j) .eq. 0.0) .and. &
-                                    f_grnd(i,jp1) .eq. 0.0 ) then
-
-                            ssa_mask_acy(i,j) = 0 
-
-                        end if 
-
-                    end if 
-
                 end if
 
-                ! Overwrite above if this face is an ice front (lateral bc, or deactivated)
+                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
                 mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(i,jp1),lateral_bc)
-                if (mask_lat .gt. 0) ssa_mask_acy(i,j) = mask_lat
+                if (mask_lat .ge. 0) ssa_mask_acy(i,j) = mask_lat
 
             end do 
             end do
@@ -1033,10 +997,13 @@ contains
     integer function front_face_mask(code_a,code_b,lateral_bc) result(mask_lat)
         ! SSA mask value for the face between two points with ice-front codes
         ! code_a and code_b (MASK_FRNT_* of yelmo_defs):
-        ! 0: not a front face, 3: lateral bc applied, 4: front treated as inner ssa.
+        ! -1: not a front face, 0: wall (velocity zero), 3: lateral bc applied,
+        ! 4: front treated as inner ssa.
         ! A front is only treated as floating or marine across faces whose
-        ! ice-free side is ocean. Across ice-free land it is a front grounded
-        ! above sea level, whatever the bed of the ice-covered point.
+        ! ice-free side is ocean. Across ice-free land, floating ice ends at a
+        ! wall (no flow through the face; as an inner ssa face it would be
+        ! driven by the slope from the bare land surface with no friction),
+        ! and grounded ice is a front grounded above sea level, whatever its bed.
 
         implicit none
 
@@ -1047,7 +1014,7 @@ contains
         ! Local variables
         integer :: code_ice, code_free
 
-        mask_lat = 0
+        mask_lat = -1
 
         if (code_a .gt. 0 .and. code_b .lt. 0) then
             code_ice  = code_a
@@ -1059,7 +1026,13 @@ contains
             return
         end if
 
-        if (code_free .eq. MASK_FRNT_ICE_FREE_LAND) code_ice = MASK_FRNT_GRND
+        if (code_free .eq. MASK_FRNT_ICE_FREE_LAND) then
+            if (code_ice .eq. MASK_FRNT_FLOAT) then
+                mask_lat = 0
+                return
+            end if
+            code_ice = MASK_FRNT_GRND
+        end if
 
         select case(trim(lateral_bc))
             case("none")
