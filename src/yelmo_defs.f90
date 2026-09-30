@@ -213,6 +213,7 @@ module yelmo_defs
     type ytopo_pc_class 
         real(wp), allocatable :: H_ice(:,:)
         real(wp), allocatable :: dHidt_dyn(:,:)
+        real(wp), allocatable :: dHidt_vert(:,:)
         real(wp), allocatable :: mb_net(:,:)
         real(wp), allocatable :: mb_relax(:,:)
         real(wp), allocatable :: mb_resid(:,:)
@@ -258,6 +259,9 @@ module yelmo_defs
         real(wp), allocatable   :: H_ice(:,:)       ! Ice thickness [m] 
         real(wp), allocatable   :: dHidt(:,:)       ! Ice thickness rate of change [m/a] 
         real(wp), allocatable   :: dHidt_dyn(:,:)
+        real(wp), allocatable   :: dHidt_vert(:,:)  ! [m/a] Vertical thickness change of the ice column (advection, smb, bmb, relaxation)
+        real(wp), allocatable   :: dzsdt_kin(:,:)   ! [m/a] Kinematic rate of the column surface (vertical-velocity boundary condition)
+        real(wp), allocatable   :: dzbdt_kin(:,:)   ! [m/a] Kinematic rate of the column base (vertical-velocity boundary condition)
 
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
@@ -336,6 +340,7 @@ module yelmo_defs
         real(wp), allocatable   :: dHidt_dyn_raw(:,:)   ! [m/a] Raw advective rate at current state (f_n), set each predictor
         real(wp), allocatable   :: dHidt_dyn_raw_n(:,:) ! [m/a] Raw advective rate at previous step (f_{n-1})
         real(wp), allocatable   :: H_ice_n(:,:)     ! [m] Ice thickness from the previous timestep 
+        real(wp), allocatable   :: H_ice_dyn_n(:,:) ! [m] Active column thickness (H_ice_dyn) from the previous timestep
         real(wp), allocatable   :: z_srf_n(:,:)     ! [m] Surface elevation from the previous timestep 
         real(wp), allocatable   :: lsf_n(:,:)       ! [-] LSF mask from previous timestep 
 
@@ -912,6 +917,14 @@ module yelmo_defs
         real(wp), allocatable :: z_bed_corr(:,:) 
         real(wp), allocatable :: dzbdt_corr(:,:) 
         real(wp) :: restart_relax_init
+
+        ! Rates of bedrock elevation and sea level between yelmo_update calls
+        real(wp), allocatable :: z_bed_n(:,:)       ! [m] Bedrock elevation at the previous call
+        real(wp), allocatable :: z_sl_n(:,:)        ! [m] Sea level at the previous call
+        real(wp), allocatable :: dz_bed_dt(:,:)     ! [m/a] Bedrock elevation rate
+        real(wp), allocatable :: dz_sl_dt(:,:)      ! [m/a] Sea-level rate
+        real(dp) :: time_n                          ! [a] Time of the previous call
+        logical  :: rates_init                      ! z_bed_n, z_sl_n and time_n are set
     end type
 
     ! =========================================================================

@@ -72,3 +72,5 @@
 | 69 | lsf               | xc, yc      |             | Level-set function                                 |
 | 70 | cmb_flt_x         | xc, yc      | m/yr        | Floating calving rate (x-direction)                |
 | 71 | cmb_flt_y         | xc, yc      | m/yr        | Floating calving rate (y-direction)                |
+| 72 | dzsdt_kin         | xc, yc      | m/yr        | Kinematic rate of the ice-column surface           |
+| 73 | dzbdt_kin         | xc, yc      | m/yr        | Kinematic rate of the ice-column base              |

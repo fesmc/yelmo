@@ -13,6 +13,7 @@ module yelmo_boundaries
     public :: ybound_load_masks
     public :: ybound_define_mask_ice
     public :: ybound_alloc, ybound_dealloc
+    public :: ybound_update_rates
     
 contains
 
@@ -349,6 +350,33 @@ contains
 
     end subroutine ybound_define_mask_ice
 
+    subroutine ybound_update_rates(bnd,time)
+        ! Rates of bedrock elevation and sea level since the previous call of
+        ! yelmo_update (both are set by the driver between calls). Zero on the
+        ! first call after initialisation or a restart.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        real(dp),           intent(IN)    :: time
+
+        if (bnd%rates_init .and. time .gt. bnd%time_n) then
+            bnd%dz_bed_dt = (bnd%z_bed - bnd%z_bed_n) / real(time-bnd%time_n,wp)
+            bnd%dz_sl_dt  = (bnd%z_sl  - bnd%z_sl_n)  / real(time-bnd%time_n,wp)
+        else
+            bnd%dz_bed_dt = 0.0_wp
+            bnd%dz_sl_dt  = 0.0_wp
+        end if
+
+        bnd%z_bed_n    = bnd%z_bed
+        bnd%z_sl_n     = bnd%z_sl
+        bnd%time_n     = time
+        bnd%rates_init = .TRUE.
+
+        return
+
+    end subroutine ybound_update_rates
+
     subroutine ybound_alloc(now,nx,ny)
 
         implicit none 
@@ -388,6 +416,11 @@ contains
 
         allocate(now%z_bed_corr(nx,ny))
         allocate(now%dzbdt_corr (nx,ny))
+
+        allocate(now%z_bed_n(nx,ny))
+        allocate(now%z_sl_n(nx,ny))
+        allocate(now%dz_bed_dt(nx,ny))
+        allocate(now%dz_sl_dt(nx,ny))
         
         now%z_bed       = 0.0_wp 
         now%z_bed_sd    = 0.0_wp
@@ -419,6 +452,13 @@ contains
 
         now%z_bed_corr  = 0.0_wp
         now%dzbdt_corr  = 0.0_wp
+
+        now%z_bed_n     = 0.0_wp
+        now%z_sl_n      = 0.0_wp
+        now%dz_bed_dt   = 0.0_wp
+        now%dz_sl_dt    = 0.0_wp
+        now%time_n      = 0.0_dp
+        now%rates_init  = .FALSE.
         
         return 
 
@@ -460,6 +500,11 @@ contains
         
         if (allocated(now%z_bed_corr))  deallocate(now%z_bed_corr)
         if (allocated(now%dzbdt_corr )) deallocate(now%dzbdt_corr )
+
+        if (allocated(now%z_bed_n))     deallocate(now%z_bed_n)
+        if (allocated(now%z_sl_n))      deallocate(now%z_sl_n)
+        if (allocated(now%dz_bed_dt))   deallocate(now%dz_bed_dt)
+        if (allocated(now%dz_sl_dt))    deallocate(now%dz_sl_dt)
 
         return 
 
