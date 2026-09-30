@@ -215,7 +215,7 @@ contains
 
         eps_0_sq = eps_0*eps_0
 
-        !$omp parallel do collapse(3) private(i,j,k,de_now)
+        !$omp parallel do collapse(3) schedule(dynamic,64) private(i,j,k,de_now)
         do k = 1, nz 
         do j = 1, ny 
         do i = 1, nx 
@@ -915,7 +915,7 @@ end if
         ! Step 1: Calculate all vertical derivatives, some of which are used 
         ! as correction terms for the horizontal derivatives w.r.t. sigma-coordinate transformation. 
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,k,h1,h2,H_now)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,im1,ip1,jm1,jp1,k,h1,h2,H_now)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -992,7 +992,7 @@ end if
 
         ! Step 2: Calculate all horizontal derivatives accounting for correction terms
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
         !$omp& private(c_x,c_y,dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa)
         do j = 1, ny 
         do i = 1, nx 
@@ -1448,7 +1448,7 @@ end if
         ! Copy gq3D to thread-local version
         gq3D = gq3D_global
 
-        !$omp do collapse(2)        
+        !$omp do collapse(2) schedule(dynamic,64)        
         do j = 1, ny 
         do i = 1, nx 
 

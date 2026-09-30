@@ -986,7 +986,7 @@ contains
         !$omp& shared(gq2D_global)
         gq2D = gq2D_global
 
-        !$omp do collapse(2) 
+        !$omp do collapse(2) schedule(dynamic,64) 
         do j = 1, ny
         do i = 1, nx
 

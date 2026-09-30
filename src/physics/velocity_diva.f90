@@ -634,7 +634,7 @@ end if
         gq2D = gq2D_global
         gq3D = gq3D_global
 
-        !$omp do collapse(2)
+        !$omp do collapse(2) schedule(dynamic,64)
         do j = 1, ny  
         do i = 1, nx
 
@@ -792,7 +792,7 @@ end if
 
         visc_eff = visc_min
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1, &
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,k,im1,ip1,jm1,jp1, &
         !$omp&   dudx_aa,dvdy_aa,dudy_aa_1,dudy_aa_2,dudy_aa, &
         !$omp&   dvdx_aa_1,dvdx_aa_2,dvdx_aa,duxdz_aa,duydz_aa, &
         !$omp&   eps_sq_aa,ATT_aa)
@@ -868,7 +868,7 @@ end if
         nx = size(visc_eff_int,1)
         ny = size(visc_eff_int,2)
 
-        !$omp parallel do collapse(2) private(i,j,visc_eff_mean)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,visc_eff_mean)
         do j = 1, ny 
         do i = 1, nx
 
@@ -915,7 +915,7 @@ end if
         nz_aa = size(visc,3)
 
         ! Vertically integrate at each point
-        !$omp parallel do collapse(2) private(i,j,H_eff)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,H_eff)
         do j = 1, ny 
         do i = 1, nx
 
