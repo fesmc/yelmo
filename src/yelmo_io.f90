@@ -1202,6 +1202,12 @@ contains
             case("cmb_grnd")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%cmb_grnd(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("calv_rate_flt")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%calv_rate_flt(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("calv_rate_grnd")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%calv_rate_grnd(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("z_srf")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%z_srf(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)

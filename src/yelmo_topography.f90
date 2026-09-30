@@ -296,6 +296,16 @@ end if
                         call calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
                     end if
 
+                    ! Applied calving (all removal at the front) split by the state
+                    ! of the cell: floating (f_grnd = 0) or grounded
+                    where (tpo%now%f_grnd .eq. 0.0_wp)
+                        tpo%now%cmb_flt  = tpo%now%cmb
+                        tpo%now%cmb_grnd = 0.0_wp
+                    elsewhere
+                        tpo%now%cmb_flt  = 0.0_wp
+                        tpo%now%cmb_grnd = tpo%now%cmb
+                    end where
+
                     ! Get ice-fraction mask for ice thickness  
                     call update_ice_fraction(tpo,bnd)
 
@@ -830,8 +840,8 @@ end if
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         !real(wp), allocatable :: u_acx_fill(:,:), v_acy_fill(:,:)
         integer  :: BC
-        integer  :: i1, i2, j1, j2
-        logical  :: per_x, per_y
+        logical  :: is_front
+        real(wp) :: cr_x, cr_y
 
         ! Make sure dt is not zero
         dt_kill = dt 
@@ -1048,15 +1058,6 @@ end if
         tpo%now%cmb = 0.0_wp
         do j=1,ny
         do i=1,nx
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            ! Compute the mean floating calving rate in every aa node
-            tpo%now%cmb_flt(i,j) = ((0.5*(tpo%now%cmb_flt_x(im1,j)+tpo%now%cmb_flt_x(i,j)))**2 + &
-                                    (0.5*(tpo%now%cmb_flt_y(i,jm1)+tpo%now%cmb_flt_y(i,j)))**2)**0.5
-
-            ! Compute the mean grounded calving rate in every aa node
-            tpo%now%cmb_grnd(i,j) = ((0.5*(tpo%now%cmb_grnd_x(im1,j)+tpo%now%cmb_grnd_x(i,j)))**2 + &
-                                     (0.5*(tpo%now%cmb_grnd_y(i,jm1)+tpo%now%cmb_grnd_y(i,j)))**2)**0.5
-
             if (tpo%now%lsf(i,j) .gt. 0.0_wp .and. .not. mask_elig(i,j)) then
                 ! Calve ice outside LSF mask (cmb = H_ice / dt_kill)
                 tpo%now%cmb(i,j) = -(tpo%now%H_ice(i,j) / dt_kill)
@@ -1125,50 +1126,44 @@ end if
                 !$omp end parallel do
         end select 
 
-        ! compute diagnostic fields for output (all points in periodic
-        ! directions, otherwise only the interior)
-        call get_periodic_directions(per_x,per_y,BC)
+        ! Diagnostic: calving speed of the front [m/yr], the magnitude of the face
+        ! rates averaged to the cell centre, at front cells (ice cells with an
+        ! ice-free ocean edge neighbour), floating (f_grnd = 0) or grounded
+        tpo%now%calv_rate_flt  = 0.0_wp
+        tpo%now%calv_rate_grnd = 0.0_wp
 
-        i1 = 2
-        i2 = nx-1
-        if (per_x) then
-            i1 = 1
-            i2 = nx
-        end if
-
-        j1 = 2
-        j2 = ny-1
-        if (per_y) then
-            j1 = 1
-            j2 = ny
-        end if
-
-        do j=j1,j2
-        do i=i1,i2
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_front,cr_x,cr_y)
+        do j = 1, ny
+        do i = 1, nx
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (bnd%z_bed(i,j) .gt. bnd%z_sl(i,j)) then
-                ! No calving in points above sea-level
-                tpo%now%cmb_flt(i,j) = 0.0_wp
-                tpo%now%cmb_grnd(i,j) = 0.0_wp
-            elseif (tpo%now%f_grnd(i,j) .eq. 0.0) then
-                ! Floating no grounded caalving
-                tpo%now%cmb_grnd(i,j) = 0.0_wp
-            else
-                ! Grounded no floating calving
-                tpo%now%cmb_flt(i,j) = 0.0_wp
-            end if
+            is_front = tpo%now%H_ice(i,j) .gt. 0.0_wp .and. bnd%z_bed(i,j) .lt. bnd%z_sl(i,j) .and. &
+                ( is_ocean(im1,j) .or. is_ocean(ip1,j) .or. is_ocean(i,jm1) .or. is_ocean(i,jp1) )
 
-            ! just compute cmb_flt and cmb_grnd in the border lsf points
-            if (tpo%now%H_ice(i,j) .gt. 0.0_wp .and. (tpo%now%H_ice(ip1,j) .gt. 0.0_wp .or. tpo%now%H_ice(im1,j) .gt. 0.0_wp .or. &
-                                                      tpo%now%H_ice(i,jp1) .gt. 0.0_wp .or. tpo%now%H_ice(i,jm1) .gt. 0.0_wp)) then
-                tpo%now%cmb_flt(i,j)  = 0.0_wp
-                tpo%now%cmb_grnd(i,j) = 0.0_wp
+            if (is_front) then
+                if (tpo%now%f_grnd(i,j) .eq. 0.0_wp) then
+                    cr_x = 0.5_wp*(tpo%now%cmb_flt_x(im1,j)+tpo%now%cmb_flt_x(i,j))
+                    cr_y = 0.5_wp*(tpo%now%cmb_flt_y(i,jm1)+tpo%now%cmb_flt_y(i,j))
+                    tpo%now%calv_rate_flt(i,j)  = sqrt(cr_x**2 + cr_y**2)
+                else
+                    cr_x = 0.5_wp*(tpo%now%cmb_grnd_x(im1,j)+tpo%now%cmb_grnd_x(i,j))
+                    cr_y = 0.5_wp*(tpo%now%cmb_grnd_y(i,jm1)+tpo%now%cmb_grnd_y(i,j))
+                    tpo%now%calv_rate_grnd(i,j) = sqrt(cr_x**2 + cr_y**2)
+                end if
             end if
         end do
         end do
+        !$omp end parallel do
 
         return
+
+    contains
+
+        logical function is_ocean(ii,jj)
+            ! Ice-free cell with the bed below sea level
+            integer, intent(IN) :: ii, jj
+            is_ocean = tpo%now%H_ice(ii,jj) .eq. 0.0_wp .and. bnd%z_bed(ii,jj) .lt. bnd%z_sl(ii,jj)
+        end function is_ocean
     
     end subroutine calc_ytopo_calving_lsf
 
@@ -1721,6 +1716,8 @@ end if
         allocate(now%cmb_flt_x(nx,ny))
         allocate(now%cmb_flt_y(nx,ny))
         allocate(now%cmb_grnd(nx,ny))
+        allocate(now%calv_rate_flt(nx,ny))
+        allocate(now%calv_rate_grnd(nx,ny))
         allocate(now%cmb_grnd_x(nx,ny))
         allocate(now%cmb_grnd_y(nx,ny))
         allocate(now%cr_acx(nx,ny))
@@ -1823,6 +1820,8 @@ end if
         now%cmb_flt_x   = 0.0
         now%cmb_flt_y   = 0.0
         now%cmb_grnd    = 0.0
+        now%calv_rate_flt  = 0.0
+        now%calv_rate_grnd = 0.0
         now%lsf         = 1.0 ! init to 0.0?       
         now%dlsfdt      = 0.0
         
@@ -1931,6 +1930,8 @@ end if
         if (allocated(now%cmb_flt_x))   deallocate(now%cmb_flt_x)
         if (allocated(now%cmb_flt_y))   deallocate(now%cmb_flt_y)
         if (allocated(now%cmb_grnd))    deallocate(now%cmb_grnd)
+        if (allocated(now%calv_rate_flt))  deallocate(now%calv_rate_flt)
+        if (allocated(now%calv_rate_grnd)) deallocate(now%calv_rate_grnd)
         if (allocated(now%cmb_grnd_x))  deallocate(now%cmb_grnd_x)
         if (allocated(now%cmb_grnd_y))  deallocate(now%cmb_grnd_y)
         if (allocated(now%cr_acx))      deallocate(now%cr_acx)

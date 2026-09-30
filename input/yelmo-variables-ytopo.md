@@ -17,8 +17,8 @@
 | 13 | bmb_ref           | xc, yc      | m/yr        | Reference basal mass balance                       |
 | 14 | fmb_ref           | xc, yc      | m/yr        | Reference frontal mass balance                     |
 | 15 | dmb_ref           | xc, yc      | m/yr        | Reference subgrid discharge mass balance           |
-| 16 | cmb_flt           | xc, yc      | m/yr        | Floating calving rate                              |
-| 17 | cmb_grnd          | xc, yc      | m/yr        | Grounded calving rate                              |
+| 16 | cmb_flt           | xc, yc      | m/yr        | Calving mass balance, floating cells               |
+| 17 | cmb_grnd          | xc, yc      | m/yr        | Calving mass balance, grounded cells               |
 | 18 | z_srf             | xc, yc      | m           | Surface elevation                                  |
 | 19 | dzsdt             | xc, yc      | m/yr        | Surface elevation rate of change                   |
 | 21 | eps_eff           | xc, yc      | 1/yr        | Effective strain rate                              |
@@ -74,3 +74,5 @@
 | 71 | cmb_flt_y         | xc, yc      | m/yr        | Floating calving rate (y-direction)                |
 | 72 | dzsdt_kin         | xc, yc      | m/yr        | Kinematic rate of the ice-column surface           |
 | 73 | dzbdt_kin         | xc, yc      | m/yr        | Kinematic rate of the ice-column base              |
+| 74 | calv_rate_flt     | xc, yc      | m/yr        | Calving speed of floating front cells              |
+| 75 | calv_rate_grnd    | xc, yc      | m/yr        | Calving speed of grounded front cells              |
