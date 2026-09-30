@@ -447,6 +447,12 @@ little. MISMIP3D and DIVA runs change more.
   `beta_eff`, basal velocity, relaxation, convergence norms, LIS vector transfer) run
   in parallel. Main loop -9% (ANT-8KM) and -18% (GRL-8KM) at 16 threads; results
   bit-identical.
+- elsa coupling for elsa v3.0.0 (fesmc/yelmo#10): Yelmo passes its native arrays to
+  `elsa_init`/`elsa_update` (no double-precision copies of the 3D velocities every
+  step), and stops at start-up if `use_elsa = True` and `ytrc.time_end` is not later
+  than the start time. `ytrc.time_end` defaults to 0.0 (present day). elsa v3.0.0
+  applies the time-mean forcing over each coupling period; its restart sidecars
+  (`*_elsa.nc`) written by earlier versions no longer load.
 - `speed_tpo` in the timestep log (`log_timestep`) is now the speed of the topography
   step (predictor + corrector + advance); it was always zero.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness

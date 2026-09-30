@@ -136,10 +136,10 @@ contains
         type(ydyn_class),  intent(IN)    :: dyn
         real(wp),          intent(IN)    :: time
 
-        ! elsa is double-precision internally; pass dp copies to the _dp interface.
-        call elsa_update(trc%elsa,real(time,dp),real(tpo%now%H_ice,dp), &
-                         real(dyn%now%ux,dp),real(dyn%now%uy,dp), &
-                         real(tpo%now%smb,dp),real(tpo%now%bmb,dp))
+        ! Pass the native arrays: elsa's generic interface handles the precision,
+        ! integrates the rates in place and converts H_ice only when an update is due.
+        call elsa_update(trc%elsa,time,tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
+                         tpo%now%smb,tpo%now%bmb)
 
         return
 
@@ -439,16 +439,24 @@ contains
         ! a cold start, or read from the sidecar on a restart).
         if (trc%par%use_elsa) then
 
+            ! elsa sizes its layer stack up to time_end: it must be later than the
+            ! start of this run (segment) also on a restart
+            if (trc%par%time_end .le. time) then
+                write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires ytrc.time_end later than the &
+                                     &start time (the default 0.0 is present day)."
+                write(io_unit_err,*) "time, ytrc.time_end = ", time, trc%par%time_end
+                stop "Program stopped."
+            end if
+
             if (is_restart) then
                 elsa_rst = ytrc_restart_filename(restart,"elsa")
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
-                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy", &
-                               restart=trim(elsa_rst))
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               trc%par%zeta_aa,H_ice,"acx_acy",restart=trim(elsa_rst))
             else
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
-                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy")
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               trc%par%zeta_aa,H_ice,"acx_acy")
             end if
 
             ! The t_dep_elsa diagnostic maps elsa's layer stack onto the host
