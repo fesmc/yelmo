@@ -359,7 +359,7 @@ contains
 
         ! ===================================================
 
-        !$omp parallel do collapse(2) private(i,j,H_ice_now,T_shlf,T_base)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,H_ice_now,T_shlf,T_base)
         do j = j1, j2
         do i = i1, i2 
             

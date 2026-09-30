@@ -464,7 +464,7 @@ end if
         gq2D = gq2D_global
         gq3D = gq3D_global
 
-        !$omp do collapse(2)
+        !$omp do collapse(2) schedule(dynamic,64)
         do i = 1, nx
         do j = 1, ny  
 

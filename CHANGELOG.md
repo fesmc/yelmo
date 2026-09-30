@@ -392,6 +392,11 @@ little. MISMIP3D and DIVA runs change more.
   `maxval(abs(x-x))` form missed isolated NaNs and never caught Inf. Non-finite
   forcing (`bnd` fields) stops the run at the start of `yelmo_update`. A kill ends
   with `error stop` (exit status 1, SLURM reports FAILED).
+- The 12 heaviest ice-only OpenMP loops (enthalpy columns, DIVA/SSA viscosity, uz,
+  strain rates, beta) use `schedule(dynamic,64)`: the static split left some
+  threads with up to twice the mean number of ice cells. Time in `yelmo_update`
+  -8.6% / -6.5% (ANT-8KM, 16 / 32 threads) and -8.4% / -4.9% (GRL-8KM); results
+  bit-identical.
 - A redone timestep restores only topography and dynamics (`tpo`, `dyn`), the
   components the predictor-corrector modifies, instead of a copy of the whole model
   every step; no copy with `pc_n_redo = 1`. `yelmo_update_equil` saves only the
