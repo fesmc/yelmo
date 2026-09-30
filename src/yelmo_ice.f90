@@ -130,7 +130,7 @@ contains
         
         ! Stop on non-finite forcing (under -Ofast it would otherwise be
         ! turned into finite values without triggering a kill)
-        call yelmo_check_forcing(dom,time)
+        call yelmo_check_forcing(dom,time_now)
 
         ! Rates of bedrock elevation and sea level since the previous call
         ! (kinematic boundary conditions of the vertical velocity)
@@ -1776,7 +1776,8 @@ contains
             write(io_unit_err,"(a,f15.3,a)") "Time =", time, ": stopping model (killed)." 
             write(io_unit_err,*) 
 
-            error stop "yelmo_check_kill error, see log."
+            write(io_unit_err,*) "yelmo_check_kill error, see log."
+            error stop 1
 
         end if 
 
