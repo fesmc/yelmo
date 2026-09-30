@@ -380,6 +380,11 @@ little. MISMIP3D and DIVA runs change more.
   `maxval(abs(x-x))` form missed isolated NaNs and never caught Inf. Non-finite
   forcing (`bnd` fields) stops the run at the start of `yelmo_update`. A kill ends
   with `error stop` (exit status 1, SLURM reports FAILED).
+- Linear solver status is no longer ignored: LIS returned success at its iteration
+  limit or on breakdown. The `ssa:` log line now ends with the linear iterations and
+  status (`| lin  187 MAXITER`); a `yelmo_update` call that had such solves (SSA or
+  impl-lis thickness advection) prints one summary line; the timestep log
+  (`log_timestep`) has `ssa_lin_iter`, `ssa_lin_fail`, `adv_lin_iter`, `adv_lin_fail`.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
   (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double

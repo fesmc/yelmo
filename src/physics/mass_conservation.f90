@@ -191,7 +191,7 @@ contains
     end subroutine apply_tendency
 
     subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
-                                                    solver,boundaries,dx,dt,F,a_front)
+                                                    solver,boundaries,dx,dt,F,a_front,lin_iter,lin_status)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving 
 
@@ -209,6 +209,8 @@ contains
         real(wp),         intent(IN)    :: dt                   ! [a]   Timestep 
         real(wp),         intent(IN), optional :: F(:,:) 
         real(wp),         intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front (level set)
+        integer,          intent(OUT), optional :: lin_iter     ! Linear solver iterations (impl-lis)
+        integer,          intent(OUT), optional :: lin_status   ! Linear solver return status (impl-lis)
 
         ! Local variables 
         integer :: i, j, nx, ny
@@ -235,7 +237,7 @@ contains
         call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries,a_front)
 
         ! Determine current advective rate of change (time=n)
-        call calc_advec2D(G_advec,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries)
+        call calc_advec2D(G_advec,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
 
         return 
 

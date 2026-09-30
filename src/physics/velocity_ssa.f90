@@ -60,7 +60,7 @@ module velocity_ssa
 contains 
 
     subroutine calc_velocity_ssa(ux_b,uy_b,taub_acx,taub_acy,visc_eff,visc_eff_int,ssa_mask_acx,ssa_mask_acy, &
-                                  ssa_err_acx,ssa_err_acy,ssa_iter_now,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
+                                  ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
                                   taul_int_acx,taul_int_acy,H_ice, &
                                   f_ice,H_grnd,f_grnd,f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
@@ -79,6 +79,8 @@ contains
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
         integer,  intent(OUT)   :: ssa_iter_now 
+        integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
+        integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
         real(wp), intent(INOUT) :: beta(:,:)          ! [Pa yr/m]
         real(wp), intent(INOUT) :: beta_acx(:,:)      ! [Pa yr/m]
         real(wp), intent(INOUT) :: beta_acy(:,:)      ! [Pa yr/m]
@@ -171,6 +173,9 @@ contains
         call linear_solver_init(lgs_now,nx,ny,nvar=2,n_terms=9)
         lgs_prev = lgs_now 
 
+        ssa_lin_iter = 0
+        ssa_lin_fail = 0
+
         do iter = 1, par%ssa_iter_max 
 
             ! Store solution from previous iteration (nm1 == n minus 1) 
@@ -260,6 +265,8 @@ if (.TRUE.) then
 
             ! Solve linear equation
             call linear_solver_matrix_solve(lgs_now,par%ssa_lis_opt)
+            ssa_lin_iter = ssa_lin_iter + lgs_now%lin_iter
+            if (lgs_now%status .ne. LGS_SUCCESS) ssa_lin_fail = ssa_lin_fail + 1
             
             ! Save L2_norm locally
             L2_norm = lgs_now%L2_rel_norm 
@@ -302,7 +309,8 @@ end if
             ! Check for convergence
             call picard_calc_convergence_l2(is_converged,ssa_resid,ux_b,uy_b,ux_b_nm1,uy_b_nm1, &
                                                 ssa_mask_acx.gt.0,ssa_mask_acy.gt.0,par%ssa_iter_conv,  &
-                                                iter,par%ssa_iter_max,par%ssa_write_log)
+                                                iter,par%ssa_iter_max,par%ssa_write_log, &
+                                                lgs_now%lin_iter,lgs_now%status)
 
 
             ! Calculate an L1 error metric over matrix for diagnostics

@@ -64,6 +64,7 @@ contains
         real(wp) :: dt_adv_min, dt_pi
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
+        integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
         real(wp) :: ab_zeta 
         logical, allocatable :: pc_mask(:,:) 
 
@@ -114,6 +115,8 @@ contains
         dt_max_0 = max(time-time_now,0.0_wp)
 
         iter_redo_tot = 0   ! Number of times total this loop 
+        n_ssa_fail    = 0
+        n_adv_fail    = 0
         allocate(dt_save(nstep))
         dt_save = missing_value 
 
@@ -485,6 +488,9 @@ contains
             call yelmo_calc_running_stats(dom%time%model_speed,dom%time%model_speeds,speed,stat="mean")
             call yelmo_calc_running_stats(dom%time%eta_avg,dom%time%etas,dom%time%pc_eta(1),stat="mean")
             call yelmo_calc_running_stats(dom%time%ssa_iter_avg,dom%time%ssa_iters,real(dom%dyn%par%ssa_iter_now,prec),stat="mean")
+
+            n_ssa_fail = n_ssa_fail + dom%dyn%par%ssa_lin_fail
+            n_adv_fail = n_adv_fail + dom%tpo%par%adv_lin_fail
             
             ! Extra diagnostic field, not necessary for normal runs
             call yelmo_calc_running_stats_2D(dom%time%pc_tau_max,dom%time%pc_taus,dom%time%pc_tau_masked,stat="max")
@@ -494,7 +500,8 @@ contains
 
                 call yelmo_timestep_write(dom%time%log_timestep_file,time_now,dt_now,dt_adv_min,dt_pi, &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,speed,dom%tpo%par%speed,dom%dyn%par%speed, &
-                            dom%dyn%par%ssa_iter_now,iter_redo-1)
+                            dom%dyn%par%ssa_iter_now,iter_redo-1,dom%dyn%par%ssa_lin_iter,dom%dyn%par%ssa_lin_fail, &
+                            dom%tpo%par%adv_lin_iter,dom%tpo%par%adv_lin_fail)
             
             end if 
 
@@ -581,6 +588,14 @@ contains
 
         end if 
 
+
+        ! Linear solves that stopped at breakdown or the iteration limit in accepted steps
+        ! (ssa: last velocity solve of each step; advection: predictor and corrector)
+        if (n_ssa_fail + n_adv_fail .gt. 0) then
+            write(*,"(a,f15.3,a,i0,a,i0,a,i0,a)") "yelmo_update: time = ", time_now, &
+                ": linear solves not converged (breakdown or iteration limit): ssa ", n_ssa_fail, &
+                ", advection ", n_adv_fail, " in ", n_now, " steps"
+        end if
 
         ! Finally, update z_bed relaxation rate to high resolution bedrock topography
         ! This rate should be passed to the isostasy module as needed.
@@ -997,7 +1012,8 @@ contains
             ! Timestep file 
             call yelmo_timestep_write_init(dom%time%log_timestep_file,time,real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
             call yelmo_timestep_write(dom%time%log_timestep_file,time,0.0_wp,0.0_wp,dom%time%pc_dt(1), &
-                            dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0)
+                            dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0, &
+                            0,0,0,0)
         end if 
 
         return
