@@ -380,6 +380,10 @@ little. MISMIP3D and DIVA runs change more.
   `maxval(abs(x-x))` form missed isolated NaNs and never caught Inf. Non-finite
   forcing (`bnd` fields) stops the run at the start of `yelmo_update`. A kill ends
   with `error stop` (exit status 1, SLURM reports FAILED).
+- A redone timestep restores only topography and dynamics (`tpo`, `dyn`), the
+  components the predictor-corrector modifies, instead of a copy of the whole model
+  every step; no copy with `pc_n_redo = 1`. `yelmo_update_equil` saves only the
+  parameters. The `update_others_pc` option (compile-time, off) is removed.
 - Linear solver status is no longer ignored: LIS returned success at its iteration
   limit or on breakdown. The `ssa:` log line now ends with the linear iterations and
   status (`| lin  187 MAXITER`); a `yelmo_update` call that had such solves (SSA or
