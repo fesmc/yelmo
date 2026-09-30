@@ -119,6 +119,7 @@ contains
                     ! along with ice thickness and surface elevation
                     ! (the latter only for calculating rate of change later)
                     tpo%now%H_ice_n     = tpo%now%H_ice
+                    tpo%now%H_ice_dyn_n = tpo%now%H_ice_dyn
                     tpo%now%z_srf_n     = tpo%now%z_srf
                     tpo%now%lsf_n       = tpo%now%lsf
 
@@ -473,7 +474,8 @@ end if
         ! bedrock and sea-level rates (no vertical change when the ice is not advanced)
         if (topo_fixed .or. dt .le. 0.0) tpo%now%dHidt_vert = 0.0_wp
         call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%dHidt_vert, &
-                    tpo%now%f_grnd,tpo%now%f_ice,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
+                    tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
+                    tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! When the ice is not advanced this step -- initialization (pc_step="none")
         ! or any topo_fixed step -- the mass-balance block above is skipped, so the
@@ -1715,6 +1717,7 @@ end if
         allocate(now%dzsdt_kin(nx,ny))
         allocate(now%dzbdt_kin(nx,ny))
         allocate(now%H_ice_n(nx,ny))
+        allocate(now%H_ice_dyn_n(nx,ny))
         allocate(now%z_srf_n(nx,ny))
         allocate(now%lsf_n(nx,ny))
         
@@ -1808,6 +1811,7 @@ end if
         now%dzsdt_kin       = 0.0
         now%dzbdt_kin       = 0.0
         now%H_ice_n     = 0.0
+        now%H_ice_dyn_n = 0.0
         now%z_srf_n     = 0.0
         now%lsf_n     = 0.0 
 
@@ -1921,6 +1925,7 @@ end if
         if (allocated(now%dzsdt_kin))       deallocate(now%dzsdt_kin)
         if (allocated(now%dzbdt_kin))       deallocate(now%dzbdt_kin)
         if (allocated(now%H_ice_n))     deallocate(now%H_ice_n)
+        if (allocated(now%H_ice_dyn_n)) deallocate(now%H_ice_dyn_n)
         if (allocated(now%z_srf_n))     deallocate(now%z_srf_n)
         if (allocated(now%lsf_n))       deallocate(now%lsf_n)
         

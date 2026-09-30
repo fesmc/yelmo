@@ -63,14 +63,17 @@ module topography
 contains 
 
     subroutine calc_column_kinematic_rates(dzsdt_kin,dzbdt_kin,dHidt_vert,f_grnd,f_ice, &
-                                            dz_bed_dt,dz_sl_dt,rho_ice,rho_sw)
+                                            H_ice,H_ice_dyn,H_ice_n,H_ice_dyn_n,dz_bed_dt,dz_sl_dt,rho_ice,rho_sw)
         ! Kinematic rates of the surface and base of the ice column, the
         ! boundary conditions of the vertical velocity. Grounded ice: the base
         ! follows the bedrock; floating ice: the column floats at sea level
         ! (z_b = z_sl - rho_ice/rho_sw*H). Blended by the grounded fraction.
         ! dHidt_vert holds only vertical changes of the column (not calving,
-        ! front advance or removals). Cells that are not fully ice covered
-        ! (partial front cells take their column from H_eff) get zero rates.
+        ! front advance or removals) and follows the actual thickness, so it
+        ! is only the column's rate where the column is the actual ice
+        ! (H_ice_dyn == H_ice) at the start and the end of the step. Elsewhere
+        ! (partial front cells, front cells holding excess ice or on the H_eff
+        ! floor, newly ice-covered cells) the column is re-derived: zero rates.
 
         implicit none
 
@@ -79,6 +82,10 @@ contains
         real(wp), intent(IN)  :: dHidt_vert(:,:)    ! [m/a]
         real(wp), intent(IN)  :: f_grnd(:,:)
         real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)         ! [m] Thickness at the end of the step
+        real(wp), intent(IN)  :: H_ice_dyn(:,:)     ! [m] Active column thickness at the end of the step
+        real(wp), intent(IN)  :: H_ice_n(:,:)       ! [m] Thickness at the start of the step
+        real(wp), intent(IN)  :: H_ice_dyn_n(:,:)   ! [m] Active column thickness at the start of the step
         real(wp), intent(IN)  :: dz_bed_dt(:,:)     ! [m/a]
         real(wp), intent(IN)  :: dz_sl_dt(:,:)      ! [m/a]
         real(wp), intent(IN)  :: rho_ice
@@ -95,7 +102,8 @@ contains
         !$omp parallel do collapse(2) private(i,j,dzb_flt)
         do j = 1, ny
         do i = 1, nx
-            if (f_ice(i,j) .eq. 1.0_wp) then
+            if (f_ice(i,j) .eq. 1.0_wp .and. H_ice_n(i,j) .gt. 0.0_wp .and. &
+                H_ice_dyn(i,j) .eq. H_ice(i,j) .and. H_ice_dyn_n(i,j) .eq. H_ice_n(i,j)) then
                 dzb_flt        = dz_sl_dt(i,j) - rho_frac*dHidt_vert(i,j)
                 dzbdt_kin(i,j) = f_grnd(i,j)*dz_bed_dt(i,j) + (1.0_wp-f_grnd(i,j))*dzb_flt
                 dzsdt_kin(i,j) = dzbdt_kin(i,j) + dHidt_vert(i,j)

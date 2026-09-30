@@ -340,6 +340,7 @@ module yelmo_defs
         real(wp), allocatable   :: dHidt_dyn_raw(:,:)   ! [m/a] Raw advective rate at current state (f_n), set each predictor
         real(wp), allocatable   :: dHidt_dyn_raw_n(:,:) ! [m/a] Raw advective rate at previous step (f_{n-1})
         real(wp), allocatable   :: H_ice_n(:,:)     ! [m] Ice thickness from the previous timestep 
+        real(wp), allocatable   :: H_ice_dyn_n(:,:) ! [m] Active column thickness (H_ice_dyn) from the previous timestep
         real(wp), allocatable   :: z_srf_n(:,:)     ! [m] Surface elevation from the previous timestep 
         real(wp), allocatable   :: lsf_n(:,:)       ! [-] LSF mask from previous timestep 
 

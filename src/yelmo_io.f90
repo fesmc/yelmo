@@ -1208,6 +1208,12 @@ contains
             case("dzsdt")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%dzsdt(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("dzsdt_kin")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dzsdt_kin(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("dzbdt_kin")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dzbdt_kin(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("eps_eff")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%eps_eff(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
