@@ -62,6 +62,10 @@ module yelmo_defs
     real(wp), parameter :: TOL           = real(1e-5,wp)
     real(wp), parameter :: TOL_UNDERFLOW = real(1e-15,wp)
 
+    ! Subgrid front: minimum area fraction behind a prescribed front (level
+    ! set) for a cell to hold ice (CISM: 0.9 on the calving mask)
+    real(wp), parameter :: A_FRONT_MIN   = real(0.1,wp)
+
     ! Values for bnd%mask_ice (ice domain mask)
     integer,  parameter :: MASK_ICE_NONE    = 0     ! No ice; ice thickness must be zero (aligns with H_ice=0)
     integer,  parameter :: MASK_ICE_FIXED   = 1     ! Ice thickness is prescribed (= H_ice_ref)

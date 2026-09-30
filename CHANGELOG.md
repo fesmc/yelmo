@@ -214,6 +214,20 @@ little. MISMIP3D and DIVA runs change more.
 - **Energy SSA: half the basal drag at calving-front faces**, the ice half of the
   face's control area. Grounded marine fronts are 2.2-2.5x faster than before in
   GRL-16/ANT-16/GRL-8; floating fronts are unchanged.
+- **Level-set subgrid fronts** (`use_lsf` with `front_subgrid /= "none"`).
+  The trim of front cells to `a_lsf*H_eff` used an `H_eff` that depends on the
+  cell's own thickness (surface limit, no-neighbour fallback), so each step lowered
+  the next target: a 1000 m marine cliff at `a_lsf=0.7` ended at 247 m and floating,
+  1-2-cell-wide tongues thinned away under a stationary front. The trim now uses a
+  reference from the interior neighbours (`calc_front_H_ref`), and cells without one
+  are not trimmed. `a_lsf` includes the cell centre (continuous for 1-cell-wide
+  tongues, which were emptied at once). Eligible cells are emptied by area
+  (`a_lsf < 0.1`) instead of by the centre `lsf > 0`, ice flows from partial cells
+  into ice-free cells the level set covers, and only ice-free cells without an
+  ice-covered edge neighbour are reset to ocean in the level set (`make lsf_front`).
+  TROUGH (4 km, zero calving): front speed 0.61-0.73 u -> 0.88-0.94 u, ice removed
+  35-38% -> 7-8% of the inflow. ANT-16 (200 yr): trim-caused grounded-to-floating
+  switches 328 -> 17, volume +0.05%. Runs without the level set are unchanged.
 
 - **The hydrology converts its per-year inputs with the domain's own year.**
   `yelmo_hydrology` divided `bmb_w`, `uxy_b` and `A_glen_b` by FastHydrology's

@@ -1,13 +1,13 @@
 module mass_conservation
 
     use yelmo_defs, only : sp, dp, wp, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err, &
-                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
+                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC, A_FRONT_MIN
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
                             fill_borders_2D, set_boundaries_2D_aa
 
     use solver_advection, only : calc_advec2D  
     use velocity_general, only : set_inactive_margins 
-    use topography, only : calc_ice_fraction, calc_front_cells
+    use topography, only : calc_ice_fraction, calc_front_cells, calc_front_H_ref
 
     implicit none 
 
@@ -191,7 +191,7 @@ contains
     end subroutine apply_tendency
 
     subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
-                                                    solver,boundaries,dx,dt,F)
+                                                    solver,boundaries,dx,dt,F,a_front)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving 
 
@@ -208,6 +208,7 @@ contains
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
         real(wp),         intent(IN)    :: dt                   ! [a]   Timestep 
         real(wp),         intent(IN), optional :: F(:,:) 
+        real(wp),         intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front (level set)
 
         ! Local variables 
         integer :: i, j, nx, ny
@@ -230,7 +231,8 @@ contains
         if (present(F)) F_now = F 
 
         ! Ensure that no velocity is defined for outer boundaries of partially-filled margin points
-        call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries)
+        ! (open into cells behind a prescribed front)
+        call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries,a_front)
 
         ! Determine current advective rate of change (time=n)
         call calc_advec2D(G_advec,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries)
@@ -1072,10 +1074,12 @@ contains
                                     front_subgrid,H_eff_min,dHdx,dx,dt,boundaries)
         ! Thickness of the subgrid front cells follows the level set (CISM
         ! subgrid calving mask, H/H_eff = 1 - mask): eligible cells with less
-        ! than a_lsf_min of their area behind the front are emptied, and front
-        ! cells (also eligible cells touching the ocean at a corner) hold at
-        ! most a_lsf*H_eff. Trimming changes H_eff of neighbouring front cells,
-        ! so it is repeated (up to n_iter), each cell trimmed at most once.
+        ! than A_FRONT_MIN of their area behind the front are emptied, and
+        ! front cells (also eligible cells touching the ocean at a corner)
+        ! hold at most a_lsf*H_ref. The reference H_ref comes from the
+        ! remaining interior cells (calc_front_H_ref) and does not depend on
+        ! the trimmed cell's own thickness, so repeated trimming does not
+        ! compound. Cells without an interior neighbour are not trimmed.
         ! Returns the applied calving rate [m/yr, <= 0].
 
         implicit none
@@ -1095,68 +1099,59 @@ contains
         character(len=*), intent(IN) :: boundaries
 
         ! Local variables
-        integer  :: i, j, nx, ny, iter, n_trim
+        integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1, BC
-        logical  :: is_front
+        logical  :: is_flt
         real(wp) :: H_max
-        real(wp), allocatable :: H_now(:,:), H_eff(:,:), f_ice(:,:)
-        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:), trimmed(:,:)
-
-        real(wp), parameter :: a_lsf_min = 0.1_wp       ! Empty cells with less area behind the front (CISM: 0.9 on the mask)
-        integer,  parameter :: n_iter    = 3            ! Maximum trimming passes (CISM)
+        real(wp), allocatable :: H_now(:,:), H_ref(:,:)
+        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:), mask_part(:,:), has_ref(:,:)
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         BC = boundary_code(boundaries)
 
-        allocate(H_now(nx,ny),H_eff(nx,ny),f_ice(nx,ny))
-        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny),trimmed(nx,ny))
+        is_flt = trim(front_subgrid) .eq. "floating"
+
+        allocate(H_now(nx,ny),H_ref(nx,ny))
+        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny),mask_part(nx,ny),has_ref(nx,ny))
 
         H_now = H_ice
 
         ! Empty eligible cells (almost) entirely beyond the front
         call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
-        where (mask_elig .and. a_lsf .lt. a_lsf_min) H_now = 0.0_wp
+        where (mask_elig .and. a_lsf .lt. A_FRONT_MIN) H_now = 0.0_wp
 
-        ! Trim front cells to a_lsf*H_eff
-        trimmed = .FALSE.
+        ! Partial cells: eligible cells not entirely behind the front that
+        ! touch the ocean at an edge (front cells) or a corner
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
 
-        do iter = 1, n_iter
-
-            call calc_ice_fraction(f_ice,H_eff,H_now,z_bed,z_sl,rho_ice,rho_sw, &
-                                    front_subgrid,H_eff_min,dHdx,dx,boundaries)
-            call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
-
-            n_trim = 0
-
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_front,H_max) reduction(+:n_trim)
-            do j = 1, ny
-            do i = 1, nx
-
-                if (.not. mask_elig(i,j) .or. trimmed(i,j) .or. a_lsf(i,j) .ge. 1.0_wp) cycle
-
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                is_front = mask_cf(i,j) .or. &
-                    mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1)
-
-                if (.not. is_front) cycle
-
-                H_max = a_lsf(i,j)*H_eff(i,j)
-
-                if (H_now(i,j) .gt. H_max) then
-                    H_now(i,j)   = H_max
-                    trimmed(i,j) = .TRUE.
-                    n_trim       = n_trim + 1
-                end if
-
-            end do
-            end do
-            !$omp end parallel do
-
-            if (n_trim .eq. 0) exit
-
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            mask_part(i,j) = mask_elig(i,j) .and. a_lsf(i,j) .lt. 1.0_wp .and. &
+                ( mask_cf(i,j) .or. mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. &
+                                    mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1) )
         end do
+        end do
+        !$omp end parallel do
+
+        ! Reference thickness from interior cells (eligible, not front, not partial)
+        call calc_front_H_ref(H_ref,has_ref,H_now,z_bed,z_sl,rho_ice,rho_sw,mask_part, &
+                              mask_elig .and. .not. (mask_cf .or. mask_part),front_subgrid,dHdx,dx,boundaries)
+
+        ! Trim partial cells to a_lsf*H_ref (same bounds as H_eff: at least
+        ! H_eff_min, at most flotation for "floating")
+        !$omp parallel do collapse(2) private(i,j,H_max)
+        do j = 1, ny
+        do i = 1, nx
+            if (.not. has_ref(i,j)) cycle
+            H_max = max(H_ref(i,j), H_eff_min)
+            if (is_flt) H_max = min(H_max, max( (z_sl(i,j)-z_bed(i,j))*rho_sw/rho_ice, 0.0_wp ))
+            H_now(i,j) = min(H_now(i,j), a_lsf(i,j)*H_max)
+        end do
+        end do
+        !$omp end parallel do
 
         if (dt .gt. 0.0_wp) then
             cmb = (H_now - H_ice)/dt

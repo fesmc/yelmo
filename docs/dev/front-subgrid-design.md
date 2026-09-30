@@ -108,7 +108,7 @@ design below maps that onto Yelmo's C-grid.
 - `a_eff = min(H/H_eff, 1)`; stored as `tpo%now%H_eff` (finally filled) and
   used as `f_ice` at fronts. Everywhere else `H_eff = H`, `f_ice = 1` (or 0).
 - `f_ice_method` is retired (step 7): `a_eff = H/H_eff` in both calving paths;
-  with the level set, H is trimmed to `a_lsf`·`H_eff` first (4.7).
+  with the level set, H is trimmed to `a_lsf`·`H_ref` first (4.7).
 - `calc_H_eff` reads the stored field. The `set_frac_zero` call sites
   (`calc_z_srf_max`, `calc_H_grnd`, `scale_beta_gl_zstar`) are reviewed one by
   one: surface and base use `H_eff` in partial cells; `f_grnd` from the true H
@@ -175,19 +175,29 @@ negative-thickness problem CISM hit with edge masks does not arise here.
 
 - The level set sets the front position; it moves by (u + c)·dt with its own
   substepping, so a retreat of more than one cell per step needs no carry-over.
-- `a_lsf` = area fraction of the cell behind the level-set front (marching
-  squares, `calc_lsf_area_fraction`), `H_eff` as in 4.1.
-- Thickness follows the level set: in a front cell, ice above `a_lsf`·`H_eff`
-  is calved (CISM subgrid calving mask, H/H_eff = 1 − mask; a cell with
-  `a_lsf` below a small threshold is emptied). Cells beyond the front
-  (`a_lsf` = 0) are emptied as now. If `a_lsf`·`H_eff` > H, the cell keeps its
-  ice and fills by advection.
+- `a_lsf` = area fraction of the cell behind the level-set front
+  (`calc_lsf_area_fraction`): marching squares on four quadrants per cell with
+  the centre, edge-midpoint and corner values, so it stays continuous for
+  1-cell-wide tongues (4-corner means alone give a 0/1 step there).
+- Thickness follows the level set: in a front cell, ice above `a_lsf`·`H_ref`
+  is calved (CISM subgrid calving mask, H/H_eff = 1 − mask). `H_ref` is the
+  neighbour part of `H_eff` (4.1: thickest interior neighbour − dHdx·dist,
+  neighbour-slope limit, `H_eff_min`, flotation for `"floating"`), from cells
+  entirely behind the front (`calc_front_H_ref`). It does not use the cell's own
+  thickness (the `z_srf`+25 m limit and the no-neighbour fallback of `H_eff`), so
+  repeated trimming does not compound. Cells without an interior neighbour are
+  not trimmed. If `a_lsf`·`H_ref` > H, the cell keeps its ice and fills by
+  advection.
 - `a_eff = H/H_eff` after this step, so `f_ice`, the momentum balance and the
   mass balance are the same as in the mass-balance path.
-- As CISM: cells with `a_lsf` < 0.1 are emptied; eligible cells touching the
-  ocean at a corner are trimmed too; up to 3 passes (trimming changes the
-  neighbours' `H_eff`), each cell once. No front advance: a cell below
-  `a_lsf`·`H_eff` fills by advection (decided 2026-09-28).
+- As CISM: eligible cells with `a_lsf` < 0.1 (`A_FRONT_MIN`) are emptied, in
+  place of the centre rule (lsf > 0), which stays for cells that are not
+  eligible; eligible cells touching the ocean at a corner are trimmed too; one
+  pass. No front advance: a cell below `a_lsf`·`H_ref` fills by advection
+  (decided 2026-09-28). Ice flows from a partial cell into an ice-free cell
+  where `a_lsf` ≥ 0.1 there (`set_inactive_margins` with `a_front`), and only
+  ice-free cells without an ice-covered edge neighbour are reset to lsf = 1, so
+  the level set and the thickness advance together (review 2026-09-29, §1.8).
 
 ### 4.8 Not in scope here
 
