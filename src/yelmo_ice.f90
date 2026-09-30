@@ -627,7 +627,10 @@ contains
         character(len=*),  intent(IN), optional :: dyn_solver
         
         ! Local variables 
-        type(yelmo_class) :: dom_ref 
+        type(yelmo_param_class) :: par_ref              ! Original parameters, restored after the equilibration
+        type(ytopo_param_class) :: tpo_par_ref
+        type(ydyn_param_class)  :: dyn_par_ref
+        type(ytherm_param_class):: thrm_par_ref
         real(wp) :: time_now  
         integer  :: n, nstep 
         
@@ -636,7 +639,10 @@ contains
         if (time_tot .gt. 0.0) then 
 
             ! Save original model configuration 
-            dom_ref = dom 
+            par_ref      = dom%par
+            tpo_par_ref  = dom%tpo%par
+            dyn_par_ref  = dom%dyn%par
+            thrm_par_ref = dom%thrm%par
 
             ! Set new, temporary parameter values from arguments
             dom%tpo%par%topo_fixed = topo_fixed 
@@ -647,17 +653,17 @@ contains
             ! Ensure during equilibration that at least 5 ssa iterations
             ! are allowed, for solvers that depend on ssa. Not strictly
             ! necessary, but potentially helps to get things going safely. 
-            dom%dyn%par%ssa_iter_max = max(dom_ref%dyn%par%ssa_iter_max,5)
+            dom%dyn%par%ssa_iter_max = max(dyn_par_ref%ssa_iter_max,5)
             
             ! Do not log timesteps or write the metrics file for the
             ! equilibration period, since time will be inconsistent.
-            ! (Both are restored by dom%par = dom_ref%par after the loop.)
+            ! (Both are restored by dom%par = par_ref after the loop.)
             dom%par%log_timestep     = .FALSE.
             dom%par%write_metrics    = .FALSE.
 
             ! Allow at least n=10 timestep redo iterations. Not strictly
             ! necessary, but potentially helps to get things going safely. 
-            dom%par%pc_n_redo  = max(10,dom_ref%par%pc_n_redo)
+            dom%par%pc_n_redo  = max(10,par_ref%pc_n_redo)
 
             ! Set model time to input time 
             call yelmo_set_time(dom,time)
@@ -673,10 +679,10 @@ contains
             end do
 
             ! Restore original model choices
-            dom%par      = dom_ref%par 
-            dom%tpo%par  = dom_ref%tpo%par
-            dom%dyn%par  = dom_ref%dyn%par 
-            dom%thrm%par = dom_ref%thrm%par  
+            dom%par      = par_ref
+            dom%tpo%par  = tpo_par_ref
+            dom%dyn%par  = dyn_par_ref
+            dom%thrm%par = thrm_par_ref
             
             write(*,*) 
             write(*,*) "Equilibration complete."
