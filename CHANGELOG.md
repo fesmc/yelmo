@@ -7,6 +7,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Level-set calving is the default** (`ycalv.use_lsf = True`, `calv_flt_method` and
+  `calv_grnd_method = "vm-m16"`) in the defaults and in `par/yelmo_initmip.nml`, as
+  in `par/yelmo_Antarctica.nml`. The mass-balance path (`vm-l19` for floating ice,
+  no grounded calving) left thick grounded marine cliffs whose front faces ran at
+  `ssa_vel_max` and set the timestep. 1 kyr on 16 threads: ANT-8KM 27.5 → 16.7 min,
+  GRL-16KM 1.1 → 0.4 min. Benchmarks with a protocol calving law (`kill-pos` in
+  MISMIP3D, MISMIP+ and TROUGH) keep the mass-balance path; all other shipped par
+  files already set `use_lsf = True`.
 - **`ytopo.front_subgrid = "marine"` by default and in all par files** (was
   `"none"` except Antarctica and initmip). Runs without marine ice (EISMINT,
   HALFAR, ISMIP-HOM, SLAB-S06, MASK_ICE) are unchanged; TROUGH, MISMIP3D, MISMIP+
