@@ -64,7 +64,7 @@ contains
     
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
-                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now, &
+                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
                                   f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
@@ -100,6 +100,8 @@ contains
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
         integer,  intent(OUT)   :: ssa_iter_now 
+        integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
+        integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
         real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
@@ -174,6 +176,9 @@ contains
 
         ! Initialize linear solver variables for current and previous iteration
         call linear_solver_init(lgs_now,nx,ny,nvar=2,n_terms=9)
+
+        ssa_lin_iter = 0
+        ssa_lin_fail = 0
 
         do iter = 1, par%ssa_iter_max 
 
@@ -300,6 +305,8 @@ contains
 
             ! Solve linear equation
             call linear_solver_matrix_solve(lgs_now,par%ssa_lis_opt)
+            ssa_lin_iter = ssa_lin_iter + lgs_now%lin_iter
+            if (lgs_now%status .ne. LGS_SUCCESS) ssa_lin_fail = ssa_lin_fail + 1
             
             ! Save L2_norm locally
             L2_norm = lgs_now%L2_rel_norm 
@@ -316,7 +323,8 @@ contains
             !                                            par%ssa_write_log,use_L2_norm=.FALSE.,L2_norm=L2_norm)
             call picard_calc_convergence_l2(is_converged,ssa_resid,ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1, &
                                                 ssa_mask_acx.gt.0,ssa_mask_acy.gt.0,par%ssa_iter_conv,  &
-                                                iter,par%ssa_iter_max,par%ssa_write_log)
+                                                iter,par%ssa_iter_max,par%ssa_write_log, &
+                                                lgs_now%lin_iter,lgs_now%status)
 
             ! Calculate an L1 error metric over matrix for diagnostics
             call picard_calc_convergence_l1rel_matrix(ssa_err_acx,ssa_err_acy,ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1)

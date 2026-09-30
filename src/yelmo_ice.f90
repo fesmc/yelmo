@@ -10,7 +10,7 @@ module yelmo_ice
     use yelmo_timesteps, only : ytime_init, set_pc_beta_coefficients, set_adaptive_timestep, set_adaptive_timestep_pc,   &
                                 set_pc_mask, calc_pc_eta, calc_pc_tau_fe_sbe,calc_pc_tau_ab_sam, calc_pc_tau_heun,  &
                                 limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write
-    use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients
+    use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients, is_finite
     use yelmo_io 
 
     use yelmo_topography
@@ -64,6 +64,7 @@ contains
         real(wp) :: dt_adv_min, dt_pi
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
+        integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
         real(wp) :: ab_zeta 
         logical, allocatable :: pc_mask(:,:) 
 
@@ -114,6 +115,8 @@ contains
         dt_max_0 = max(time-time_now,0.0_wp)
 
         iter_redo_tot = 0   ! Number of times total this loop 
+        n_ssa_fail    = 0
+        n_adv_fail    = 0
         allocate(dt_save(nstep))
         dt_save = missing_value 
 
@@ -125,6 +128,10 @@ contains
 
         allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
         
+        ! Stop on non-finite forcing (under -Ofast it would otherwise be
+        ! turned into finite values without triggering a kill)
+        call yelmo_check_forcing(dom,time)
+
         ! Rates of bedrock elevation and sea level since the previous call
         ! (kinematic boundary conditions of the vertical velocity)
         call ybound_update_rates(dom%bnd,dble(time))
@@ -481,6 +488,9 @@ contains
             call yelmo_calc_running_stats(dom%time%model_speed,dom%time%model_speeds,speed,stat="mean")
             call yelmo_calc_running_stats(dom%time%eta_avg,dom%time%etas,dom%time%pc_eta(1),stat="mean")
             call yelmo_calc_running_stats(dom%time%ssa_iter_avg,dom%time%ssa_iters,real(dom%dyn%par%ssa_iter_now,prec),stat="mean")
+
+            n_ssa_fail = n_ssa_fail + dom%dyn%par%ssa_lin_fail
+            n_adv_fail = n_adv_fail + dom%tpo%par%adv_lin_fail
             
             ! Extra diagnostic field, not necessary for normal runs
             call yelmo_calc_running_stats_2D(dom%time%pc_tau_max,dom%time%pc_taus,dom%time%pc_tau_masked,stat="max")
@@ -490,7 +500,8 @@ contains
 
                 call yelmo_timestep_write(dom%time%log_timestep_file,time_now,dt_now,dt_adv_min,dt_pi, &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,speed,dom%tpo%par%speed,dom%dyn%par%speed, &
-                            dom%dyn%par%ssa_iter_now,iter_redo-1)
+                            dom%dyn%par%ssa_iter_now,iter_redo-1,dom%dyn%par%ssa_lin_iter,dom%dyn%par%ssa_lin_fail, &
+                            dom%tpo%par%adv_lin_iter,dom%tpo%par%adv_lin_fail)
             
             end if 
 
@@ -577,6 +588,14 @@ contains
 
         end if 
 
+
+        ! Linear solves that stopped at breakdown or the iteration limit in accepted steps
+        ! (ssa: last velocity solve of each step; advection: predictor and corrector)
+        if (n_ssa_fail + n_adv_fail .gt. 0) then
+            write(*,"(a,f15.3,a,i0,a,i0,a,i0,a)") "yelmo_update: time = ", time_now, &
+                ": linear solves not converged (breakdown or iteration limit): ssa ", n_ssa_fail, &
+                ", advection ", n_adv_fail, " in ", n_now, " steps"
+        end if
 
         ! Finally, update z_bed relaxation rate to high resolution bedrock topography
         ! This rate should be passed to the isostasy module as needed.
@@ -993,7 +1012,8 @@ contains
             ! Timestep file 
             call yelmo_timestep_write_init(dom%time%log_timestep_file,time,real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
             call yelmo_timestep_write(dom%time%log_timestep_file,time,0.0_wp,0.0_wp,dom%time%pc_dt(1), &
-                            dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0)
+                            dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0, &
+                            0,0,0,0)
         end if 
 
         return
@@ -1664,8 +1684,9 @@ contains
     end subroutine yelmo_set_time
 
     subroutine yelmo_check_kill(dom,time,kill_request)
-            
-        use ieee_arithmetic
+        ! Stop the model (writing yelmo_killed.nc, exit status 1) if the state
+        ! is invalid: non-finite values, thickness or speed out of range, or a
+        ! persistently large predictor-corrector error.
 
         implicit none 
 
@@ -1674,8 +1695,8 @@ contains
         character(len=*), optional, intent(IN) :: kill_request 
 
         ! Local variables 
-        integer :: i, j, k 
-        logical :: kill_it, kill_it_H, kill_it_vel, kill_it_temp, kill_it_nan, kill_it_eta   
+        integer :: k 
+        logical :: kill_it, kill_it_H, kill_it_vel, kill_it_nan, kill_it_eta   
         character(len=512) :: kill_msg 
         real(wp) :: pc_eta_avg 
         character(len=3) :: pc_iter_str(10) 
@@ -1685,7 +1706,6 @@ contains
 
         kill_it_H    = .FALSE.
         kill_it_vel  = .FALSE.
-        kill_it_temp = .FALSE. 
         kill_it_nan  = .FALSE. 
         kill_it_eta  = .FALSE. 
 
@@ -1701,57 +1721,20 @@ contains
         pc_iter_str(9)  = "n-8"
         pc_iter_str(10) = "n-9"
 
-        if ( maxval(abs(dom%tpo%now%H_ice)) .ge. H_lim .or. &
-             maxval(abs(dom%tpo%now%H_ice-dom%tpo%now%H_ice)) .ne. 0.0 ) then 
-            
+        if ( maxval(abs(dom%tpo%now%H_ice)) .ge. H_lim ) then 
             kill_it_H = .TRUE. 
-            kill_msg  = "Ice thickness too high or invalid."
-
+            kill_msg  = "Ice thickness too high."
         end if 
 
-        if ( maxval(abs(dom%dyn%now%uxy_bar)) .ge. u_lim .or. &
-             maxval(abs(dom%dyn%now%uxy_bar-dom%dyn%now%uxy_bar)) .ne. 0.0 ) then 
-
+        if ( maxval(abs(dom%dyn%now%uxy_bar)) .ge. u_lim ) then 
             kill_it_vel = .TRUE. 
-            kill_msg    = "Depth-averaged velocity too fast or invalid."
-
+            kill_msg    = "Depth-averaged velocity too fast."
         end if 
 
-        if (maxval(abs(dom%thrm%now%T_ice-dom%thrm%now%T_ice)) .ne. 0.0 ) then 
-
-            kill_it_temp = .TRUE. 
-            kill_msg     = "Temperature field invalid."
-
-        end if
-
-        ! Additionally check for NANs using intrinsic ieee_arithmetic module 
-        do j = 1, dom%grd%G%ny 
-        do i = 1, dom%grd%G%nx 
-            
-            if (ieee_is_nan(dom%dyn%now%uxy_bar(i,j))) then 
-                kill_it_nan = .TRUE. 
-                write(kill_msg,*) "** NANs detected - uxy_bar ** ... i, j: ", i, j 
-                exit 
-            end if 
-
-            if (ieee_is_nan(dom%tpo%now%H_ice(i,j))) then 
-                kill_it_nan = .TRUE. 
-                write(kill_msg,*) "** NANs detected - H_ice ** ... i, j: ", i, j 
-                exit 
-            end if 
-
-            do k = 1, dom%thrm%par%nz_aa
-
-                if (ieee_is_nan(dom%thrm%now%T_ice(i,j,k))) then 
-                    kill_it_nan = .TRUE. 
-                    write(kill_msg,*) "** NANs detected - T_ice ** ... i, j, k: ", i, j, k
-                    exit 
-                end if 
-
-            end do
-
-        end do 
-        end do 
+        ! Non-finite values (NaN or Inf)
+        call check_finite_2D(dom%tpo%now%H_ice,"H_ice")
+        call check_finite_2D(dom%dyn%now%uxy_bar,"uxy_bar")
+        call check_finite_3D(dom%thrm%now%T_ice,"T_ice")
 
         pc_eta_avg = sum(dom%time%pc_eta) / real(size(dom%time%pc_eta,1),prec) 
 
@@ -1762,7 +1745,7 @@ contains
         end if 
 
         ! Determine if model should be killed 
-        kill_it = kill_it_H .or. kill_it_vel .or. kill_it_temp .or. kill_it_nan .or. kill_it_eta 
+        kill_it = kill_it_H .or. kill_it_vel .or. kill_it_nan .or. kill_it_eta 
 
         ! Definitely kill the model if it was requested externally
         if (present(kill_request)) then 
@@ -1801,13 +1784,80 @@ contains
             write(io_unit_err,"(a,f15.3,a)") "Time =", time, ": stopping model (killed)." 
             write(io_unit_err,*) 
 
-            stop "yelmo_check_kill error, see log."
+            error stop "yelmo_check_kill error, see log."
 
         end if 
 
         return 
 
+    contains
+
+        subroutine check_finite_2D(var,name)
+            real(wp),         intent(IN) :: var(:,:)
+            character(len=*), intent(IN) :: name
+            integer :: loc(2)
+            if (kill_it_nan) return
+            loc = findloc(is_finite(var),.FALSE.)
+            if (loc(1) .gt. 0) then
+                kill_it_nan = .TRUE.
+                write(kill_msg,"(a,a,a,2i6)") "Non-finite value (NaN or Inf) in ", name, " at i, j: ", loc
+            end if
+        end subroutine check_finite_2D
+
+        subroutine check_finite_3D(var,name)
+            real(wp),         intent(IN) :: var(:,:,:)
+            character(len=*), intent(IN) :: name
+            integer :: loc(3)
+            if (kill_it_nan) return
+            loc = findloc(is_finite(var),.FALSE.)
+            if (loc(1) .gt. 0) then
+                kill_it_nan = .TRUE.
+                write(kill_msg,"(a,a,a,3i6)") "Non-finite value (NaN or Inf) in ", name, " at i, j, k: ", loc
+            end if
+        end subroutine check_finite_3D
+
     end subroutine yelmo_check_kill
+
+    subroutine yelmo_check_forcing(dom,time)
+        ! Stop the model (yelmo_check_kill) if a boundary field set by the
+        ! driver or coupler holds a non-finite value (NaN or Inf).
+
+        implicit none
+
+        type(yelmo_class), intent(IN) :: dom
+        real(wp),          intent(IN) :: time
+
+        ! Local variables
+        character(len=512) :: msg
+
+        msg = ""
+        call check_bnd(dom%bnd%z_bed,"z_bed")
+        call check_bnd(dom%bnd%z_sl,"z_sl")
+        call check_bnd(dom%bnd%H_sed,"H_sed")
+        call check_bnd(dom%bnd%smb,"smb")
+        call check_bnd(dom%bnd%T_srf,"T_srf")
+        call check_bnd(dom%bnd%bmb_shlf,"bmb_shlf")
+        call check_bnd(dom%bnd%fmb_shlf,"fmb_shlf")
+        call check_bnd(dom%bnd%T_shlf,"T_shlf")
+        call check_bnd(dom%bnd%tf_shlf,"tf_shlf")
+        call check_bnd(dom%bnd%Q_geo,"Q_geo")
+
+        if (len_trim(msg) .gt. 0) call yelmo_check_kill(dom,time,kill_request=msg)
+
+        return
+
+    contains
+
+        subroutine check_bnd(var,name)
+            real(wp),         intent(IN) :: var(:,:)
+            character(len=*), intent(IN) :: name
+            integer :: loc(2)
+            if (len_trim(msg) .gt. 0) return
+            loc = findloc(is_finite(var),.FALSE.)
+            if (loc(1) .gt. 0) write(msg,"(a,a,a,2i6)") "Non-finite forcing (NaN or Inf) in bnd%", name, " at i, j: ", loc
+        end subroutine check_bnd
+
+    end subroutine yelmo_check_forcing
 
 end module yelmo_ice
 

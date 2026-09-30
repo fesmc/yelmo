@@ -29,17 +29,37 @@ module solver_linear
         real(dp) :: L1_norm, L2_norm, L2_rel_norm
         real(wp) :: solver_time
         integer  :: lin_iter 
+        integer  :: status                      ! Solver return status (LGS_SUCCESS, LGS_BREAKDOWN, LGS_MAXITER, ...)
 
     end type
+
+    ! Solver return status (LIS return codes)
+    integer, parameter :: LGS_SUCCESS   = 0
+    integer, parameter :: LGS_BREAKDOWN = 2
+    integer, parameter :: LGS_MAXITER   = 4
 
     private 
 
     public :: linear_solver_class
+    public :: LGS_SUCCESS, LGS_BREAKDOWN, LGS_MAXITER
+    public :: linear_solver_status_str
     public :: linear_solver_init
     public :: linear_solver_matrix_solve
     public :: linear_solver_print_summary
 
 contains 
+
+    function linear_solver_status_str(status) result(str)
+        ! Short label of a linear solver return status (for logs)
+        integer, intent(IN) :: status
+        character(len=9) :: str
+        select case(status)
+            case(LGS_SUCCESS);   str = "ok"
+            case(LGS_BREAKDOWN); str = "BREAKDOWN"
+            case(LGS_MAXITER);   str = "MAXITER"
+            case DEFAULT;        write(str,"(a,i0)") "ERR", status
+        end select
+    end function linear_solver_status_str
     
     subroutine linear_solver_init(lgs,nx,ny,nvar,n_terms)
         ! Initialize the lgs object that will hold
@@ -94,6 +114,8 @@ contains
         lgs%b_value = 0.0
         lgs%x_value = 0.0
         lgs%copy_from = 0
+        lgs%lin_iter  = 0
+        lgs%status    = LGS_SUCCESS
         
         ! Define indices for reshaping of a 2-d array (with indices i, j)
         ! to a vector (with index n)
@@ -134,6 +156,7 @@ contains
             lgs%L2_rel_norm = 0.0_dp
             lgs%lin_iter    = 0
             lgs%solver_time = 0.0_wp
+            lgs%status      = LGS_SUCCESS
 
             return
 
@@ -179,6 +202,7 @@ contains
         LIS_INTEGER :: nc
         LIS_INTEGER :: nmax
         LIS_INTEGER :: lin_iter
+        LIS_INTEGER :: status
         LIS_REAL    :: residual 
         LIS_REAL    :: solver_time  
         LIS_MATRIX  :: lgs_a
@@ -324,6 +348,7 @@ end if
         ! Get solver solution information
         call lis_solver_get_iter(solver, lin_iter, ierr)
         call lis_solver_get_time(solver,solver_time,ierr)
+        call lis_solver_get_status(solver,status,ierr)
         
         ! Obtain the relative L2_norm == ||b-Ax|| / ||b||
         call lis_solver_get_residualnorm(solver,residual,ierr)
@@ -331,6 +356,7 @@ end if
         ! Store in lgs object too
         lgs%lin_iter    = lin_iter
         lgs%solver_time = solver_time
+        lgs%status      = status
         lgs%L2_rel_norm = residual
 
         ! Print a summary
@@ -369,7 +395,7 @@ end if
         type(linear_solver_class), intent(IN) :: lgs 
         integer, intent(IN) :: io 
 
-        write(io,*) "solve_lis: [time (s), iter, L2_rel_norm] = ", lgs%solver_time, lgs%lin_iter, lgs%L2_rel_norm
+        write(io,*) "solve_lis: [time (s), iter, L2_rel_norm, status] = ", lgs%solver_time, lgs%lin_iter, lgs%L2_rel_norm, lgs%status
 
         return
         

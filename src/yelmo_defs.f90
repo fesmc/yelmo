@@ -197,6 +197,9 @@ module yelmo_defs
 
         real(wp)   :: speed, speed_pred, speed_corr 
 
+        integer    :: adv_lin_iter              ! Linear solver iterations of the thickness advection this step (predictor + corrector)
+        integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
+
     end type
 
     type rk4_class
@@ -475,6 +478,8 @@ module yelmo_defs
         real(dp)   :: time
 
         integer    :: ssa_iter_now              ! Number of iterations used for Picard iteration to solve ssa this timestep
+        integer    :: ssa_lin_iter              ! Linear solver iterations of the last ssa solve (summed over Picard iterations)
+        integer    :: ssa_lin_fail              ! Linear solves of the last ssa solve that ended at breakdown or the iteration limit
         real(wp)   :: speed 
 
         logical    :: init_state_set

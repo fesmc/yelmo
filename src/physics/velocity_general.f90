@@ -10,6 +10,7 @@ module velocity_general
                                     gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
                                     gq3D_to_nodes_acx, gq3D_to_nodes_acy
 
+    use solver_linear, only : linear_solver_status_str
     use deformation, only : calc_strain_rate_horizontal_2D
 
     use solver_ssa_ac, only : ssa_diagnostics_write_init, ssa_diagnostics_write_step
@@ -1909,7 +1910,7 @@ end if
     end subroutine picard_calc_convergence_l1rel_matrix
 
     subroutine picard_calc_convergence_l2(is_converged,resid,ux,uy,ux_prev,uy_prev, &
-                                                mask_acx,mask_acy,resid_tol,iter,iter_max,log)
+                                                mask_acx,mask_acy,resid_tol,iter,iter_max,log,lin_iter,lin_status)
 
         ! Calculate the current level of convergence using the 
         ! L2 relative error norm between the current and previous
@@ -1937,6 +1938,8 @@ end if
         integer,  intent(IN) :: iter 
         integer,  intent(IN) :: iter_max 
         logical,  intent(IN) :: log 
+        integer,  intent(IN) :: lin_iter                ! Linear solver iterations of this Picard iteration
+        integer,  intent(IN) :: lin_status              ! Linear solver return status
 
         ! Local variables
         integer :: i, j, nx, ny, k
@@ -2057,8 +2060,9 @@ end if
             ! Write summary to log if desired and iterations have completed
 
             ! Write summary to log
-            write(*,"(a,a2,i4,g12.4,a3,2i8,2g12.4)") &
-                "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max 
+            write(*,"(a,a2,i4,g12.4,a3,2i8,2g12.4,a,i6,1x,a)") &
+                "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max, &
+                " | lin", lin_iter, trim(linear_solver_status_str(lin_status))
 
         end if 
 

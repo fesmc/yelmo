@@ -11,6 +11,7 @@ module yelmo_topography
     use calving_aa
     use calving_ac
     use lsf_module
+    use solver_linear, only : LGS_SUCCESS
     use topography 
     use discharge
 
@@ -63,6 +64,7 @@ contains
         real(wp), allocatable :: uy_adv(:,:)
         real(wp), allocatable :: a_front(:,:)           ! Level-set area fraction (allocated with a subgrid LSF front)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
+        integer  :: lin_iter, lin_status                ! Linear solver iterations and status of the advection
 
         logical, parameter :: use_rk4 = .FALSE. 
 
@@ -140,7 +142,9 @@ else
                     if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
-                                                 a_front=a_front)
+                                                 a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
+                    tpo%par%adv_lin_iter = lin_iter
+                    tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
                  
 end if
 
@@ -173,7 +177,9 @@ else
                     if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
-                                                a_front=a_front)
+                                                a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
+                    tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
+                    tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
                  
 end if
 
@@ -1639,7 +1645,10 @@ end if
         ! Set some additional values to start out right
         par%pc_step    = "predictor"
         par%speed_pred = 0.0_wp 
-        par%speed_corr = 0.0_wp 
+        par%speed_corr = 0.0_wp
+
+        par%adv_lin_iter = 0
+        par%adv_lin_fail = 0 
 
         return
 

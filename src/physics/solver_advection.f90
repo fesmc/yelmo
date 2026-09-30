@@ -16,7 +16,7 @@ module solver_advection
 
 contains 
 
-    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries)
+    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries,lin_iter,lin_status)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `var_dot`. Various solvers are possible
 
@@ -32,6 +32,8 @@ contains
         real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
         character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
         character(len=*), intent(IN)    :: boundaries           ! Boundary conditions to impose
+        integer, intent(OUT), optional  :: lin_iter             ! Linear solver iterations (impl-lis, else 0)
+        integer, intent(OUT), optional  :: lin_status           ! Linear solver return status (impl-lis, else LGS_SUCCESS)
 
         ! Local variables
         integer :: nx, ny  
@@ -47,6 +49,9 @@ contains
 
         ! Assign local variable to be modified 
         var_now = var 
+
+        if (present(lin_iter))   lin_iter   = 0
+        if (present(lin_status)) lin_status = LGS_SUCCESS
 
         select case(trim(solver))
             ! Choose solver to use 
@@ -100,6 +105,8 @@ contains
                 ! (Same result in single precision.)
                 adv_lis_opt = "-i bicgstab -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
                 call linear_solver_matrix_solve(lgs,adv_lis_opt)
+                if (present(lin_iter))   lin_iter   = lgs%lin_iter
+                if (present(lin_status)) lin_status = lgs%status
                 
                 !call linear_solver_print_summary(lgs,io_unit_err)
 

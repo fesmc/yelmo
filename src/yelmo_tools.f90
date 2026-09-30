@@ -5,6 +5,8 @@ module yelmo_tools
     use yelmo_defs, only : sp, dp, wp, missing_value, TOL_UNDERFLOW, pi, &
                             io_unit_err
 
+    use, intrinsic :: iso_fortran_env, only : int32, int64
+
     !$ use omp_lib
     
     implicit none 
@@ -16,7 +18,13 @@ module yelmo_tools
     integer, parameter :: BND_PERIODIC = 4
     integer, parameter :: BND_PERIODIC_X = 5
     
+    interface is_finite
+        module procedure is_finite_sp
+        module procedure is_finite_dp
+    end interface
+
     private 
+    public :: is_finite
     public :: get_region_indices
     public :: get_neighbor_indices
     public :: get_neighbor_indices_bc_codes
@@ -54,6 +62,25 @@ module yelmo_tools
     public :: BND_ZEROS, BND_INFINITE, BND_MISMIP3D, BND_TROUGH, BND_PERIODIC, BND_PERIODIC_X
 
 contains 
+
+    elemental function is_finite_sp(x) result(ok)
+        ! True unless x is NaN or Inf (all exponent bits set). An integer
+        ! test on the bit pattern, so it is not folded away under -Ofast or
+        ! -ffast-math, which may do that to ieee_is_nan and x /= x.
+        real(sp), intent(IN) :: x
+        logical :: ok
+        integer(int32), parameter :: exp_mask = int(z'7F800000',int32)
+        ok = iand(transfer(x,0_int32),exp_mask) .ne. exp_mask
+    end function is_finite_sp
+
+    elemental function is_finite_dp(x) result(ok)
+        ! Double-precision version of is_finite_sp
+        real(dp), intent(IN) :: x
+        logical :: ok
+        integer(int64), parameter :: exp_mask = int(z'7FF0000000000000',int64)
+        ok = iand(transfer(x,0_int64),exp_mask) .ne. exp_mask
+    end function is_finite_dp
+
 
     subroutine get_region_indices(i1,i2,j1,j2,nx,ny,irange,jrange)
         ! Get indices for a region based on bounds. 
