@@ -85,6 +85,10 @@ contains
                 ! Calculate the basal frictional heating (from quadrature-nodes)
                 call calc_basal_heating_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
                                 beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
+            case(3)   ! "faces" == taub*u formed on the acx/acy faces, averaged to aa-nodes (energy-consistent)
+                ! Calculate the basal frictional heating (from face products)
+                call calc_basal_heating_faces(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
+                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
             case DEFAULT
 
         end select
@@ -712,6 +716,11 @@ end if
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
+            stop "Program stopped."
+        end if
+
+        if (par%qb_method .lt. 1 .or. par%qb_method .gt. 3) then
+            write(io_unit_err,*) "ytherm_par_load:: error: qb_method must be 1, 2 or 3; got ", par%qb_method
             stop "Program stopped."
         end if
 

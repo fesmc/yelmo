@@ -69,6 +69,7 @@ module thermodynamics
 
     public :: calc_basal_heating_nodes
     public :: calc_basal_heating_simplestagger
+    public :: calc_basal_heating_faces
 
     public :: convert_to_enthalpy
     public :: convert_from_enthalpy_column
@@ -906,6 +907,83 @@ contains
         return 
  
     end subroutine calc_basal_heating_simplestagger
+
+    subroutine calc_basal_heating_faces(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
+        ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
+        ! Basal frictional heating formed on the C-grid faces, where both factors of each
+        ! product live: taub_acx*ux_b on acx nodes and taub_acy*uy_b on acy nodes. Each is
+        ! averaged from the two faces of the cell to the aa-node:
+        !
+        !   Q_b(i,j) = 0.5*(Qx(i-1,j) + Qx(i,j)) + 0.5*(Qy(i,j-1) + Qy(i,j)),
+        !   Qx = |taub_acx*ux_b|,  Qy = |taub_acy*uy_b|
+        !
+        ! Friction enters the momentum balance at acx/acy nodes (taub = beta*u), so summed over
+        ! the domain this is the work done by basal friction in the discrete momentum balance:
+        ! the heat released equals the energy the friction removes from the flow. qb_method = 1
+        ! and 2 instead multiply the magnitudes |u||taub| of separately interpolated vectors;
+        ! since beta differs between acx and acy nodes, taub and u are not parallel there and
+        ! the result is not the frictional work (GrIS 8 km / AIS 16 km ISMIP7 spin-ups: domain
+        ! total -1.8% / +6.8%, and >10% different in about a third of the cells).
+        ! The magnitude of each face product is taken so that faces where taub and ux_b have
+        ! opposite signs (e.g. DIVA, where taub = beta_eff*ux_bar, at nearly stagnant faces)
+        ! still contribute positive heat, as in qb_method = 1 and 2.
+        ! As in qb_method = 2, Q_b is set to zero where the cell is not fully ice covered.
+
+        real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
+        real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)    :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)    :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)    :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)    :: f_ice(:,:)         ! [--] Ice area fraction
+        real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: sec_year
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: Qb_aa
+
+        nx = size(Q_b,1)
+        ny = size(Q_b,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+                ! Fully ice-covered point
+
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                ! Face products, averaged from the two faces in each direction [Pa m a-1] == [J a-1 m-2]
+                Qb_aa = 0.5_wp*( abs(taub_acx(im1,j)*ux_b(im1,j)) + abs(taub_acx(i,j)*ux_b(i,j)) ) &
+                      + 0.5_wp*( abs(taub_acy(i,jm1)*uy_b(i,jm1)) + abs(taub_acy(i,j)*uy_b(i,j)) )
+
+                ! Convert to [mW m-2]
+                Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
+
+                ! Get weighted average of Q_b with timestepping factors
+                Q_b(i,j) = beta1*Qb_aa + beta2*Q_b(i,j)
+
+            else
+                ! Not fully ice-covered point
+
+                Q_b(i,j) = 0.0
+
+            end if
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_basal_heating_faces
 
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
