@@ -103,7 +103,7 @@ contains
 
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
         real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
-        real(wp), intent(INOUT) :: tau_1(:,:)               ! 1st principal stress [Pa]. aa-nodes.
+        real(wp), intent(IN)    :: tau_1(:,:)               ! 1st principal stress [Pa]. aa-nodes.
         real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
         real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
         character(len=*), intent(IN) :: boundaries 

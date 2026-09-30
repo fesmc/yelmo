@@ -47,7 +47,8 @@ contains
         character(len=*),  intent(IN), optional :: file_diagnostics
 
         ! Local variables 
-        type(yelmo_class)  :: dom_ref 
+        type(ytopo_class)  :: tpo_ref                   ! Topography and dynamics at the start of the
+        type(ydyn_class)   :: dyn_ref                   ! step, restored when the step is redone
 
         real(wp) :: dt_now, dt_max, dt_max_0
         real(wp) :: time_now 
@@ -74,7 +75,6 @@ contains
         real(wp) :: max_dt_used 
         real(wp) :: min_dt_used 
 
-        logical, parameter :: update_others_pc  = .FALSE. 
         logical, parameter :: very_verbose      = .FALSE. 
 
 
@@ -130,7 +130,7 @@ contains
         
         ! Stop on non-finite forcing (under -Ofast it would otherwise be
         ! turned into finite values without triggering a kill)
-        call yelmo_check_forcing(dom,time)
+        call yelmo_check_forcing(dom,time_now)
 
         ! Rates of bedrock elevation and sea level since the previous call
         ! (kinematic boundary conditions of the vertical velocity)
@@ -153,8 +153,13 @@ contains
             call yelmo_cpu_time(cpu_time0) 
             model_time0 = time_now 
 
-            ! Store initial state of yelmo object in case a reset is necessary due to instability
-            dom_ref = dom 
+            ! Store the state modified by the predictor-corrector (topography and
+            ! dynamics) in case the step is redone. The other components are only
+            ! updated after the step is accepted.
+            if (dom%par%pc_n_redo .gt. 1) then
+                tpo_ref = dom%tpo
+                dyn_ref = dom%dyn
+            end if
 
             ! Update dt_max as a function of the total timestep 
             dt_max = max(time-time_now,0.0_wp)
@@ -296,23 +301,6 @@ contains
 
                 call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time_now)
 
-                if (update_others_pc) then
-                    ! Now, using old topography still, update additional fields.
-
-                    ! Calculate material (ice properties, viscosity, etc.)
-                    call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
-
-                    ! Update passive tracers (euler/tracer/elsa age tracing)
-                    call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time_now)
-
-                    ! Calculate thermodynamics (temperatures and enthalpy)
-                    call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
-
-                    ! Update basal hydrology (fasthydrology). Same gating as
-                    ! ytherm: only fires when calc_ytherm did (update_others_pc).
-                    call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
-                end if
-
                 ! Step 3: Perform corrector step for topography
                 ! Get corrected ice thickness and store it for later use
                 
@@ -393,8 +381,9 @@ contains
                     rho_now = 0.7_wp*(1.0_wp+(eta_now-dom%par%pc_tol)/10.0_wp)**(-1.0_wp) 
 
                     ! Reset yelmo and time variables to beginning of timestep
-                    dom      = dom_ref 
-                    time_now = dom_ref%tpo%par%time
+                    dom%tpo  = tpo_ref
+                    dom%dyn  = dyn_ref
+                    time_now = tpo_ref%par%time
                     dt_now   = max(dt_now*rho_now,dom%par%dt_min)
                     
                 else
@@ -411,22 +400,19 @@ contains
 
             ! === Predictor-corrector completed successfully ===
 
-            if (.not. update_others_pc) then
-                ! Now, using old topography still, update additional fields.
+            ! Now, using old topography still, update additional fields.
 
-                ! Calculate material (ice properties, viscosity, etc.)
-                call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
+            ! Calculate material (ice properties, viscosity, etc.)
+            call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time_now)
 
-                ! Update passive tracers (euler/tracer/elsa age tracing)
-                call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time_now)
+            ! Update passive tracers (euler/tracer/elsa age tracing)
+            call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time_now)
 
-                ! Calculate thermodynamics (temperatures and enthalpy)
-                call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
+            ! Calculate thermodynamics (temperatures and enthalpy)
+            call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time_now)
 
-                ! Update basal hydrology (fasthydrology) on the same step.
-                call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
-
-            end if
+            ! Update basal hydrology (fasthydrology) on the same step.
+            call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now)
 
             ! Update topography accounting for advective changes
             ! and mass balance changes and calving.
@@ -627,7 +613,10 @@ contains
         character(len=*),  intent(IN), optional :: dyn_solver
         
         ! Local variables 
-        type(yelmo_class) :: dom_ref 
+        type(yelmo_param_class) :: par_ref              ! Original parameters, restored after the equilibration
+        type(ytopo_param_class) :: tpo_par_ref
+        type(ydyn_param_class)  :: dyn_par_ref
+        type(ytherm_param_class):: thrm_par_ref
         real(wp) :: time_now  
         integer  :: n, nstep 
         
@@ -636,7 +625,10 @@ contains
         if (time_tot .gt. 0.0) then 
 
             ! Save original model configuration 
-            dom_ref = dom 
+            par_ref      = dom%par
+            tpo_par_ref  = dom%tpo%par
+            dyn_par_ref  = dom%dyn%par
+            thrm_par_ref = dom%thrm%par
 
             ! Set new, temporary parameter values from arguments
             dom%tpo%par%topo_fixed = topo_fixed 
@@ -647,17 +639,17 @@ contains
             ! Ensure during equilibration that at least 5 ssa iterations
             ! are allowed, for solvers that depend on ssa. Not strictly
             ! necessary, but potentially helps to get things going safely. 
-            dom%dyn%par%ssa_iter_max = max(dom_ref%dyn%par%ssa_iter_max,5)
+            dom%dyn%par%ssa_iter_max = max(dyn_par_ref%ssa_iter_max,5)
             
             ! Do not log timesteps or write the metrics file for the
             ! equilibration period, since time will be inconsistent.
-            ! (Both are restored by dom%par = dom_ref%par after the loop.)
+            ! (Both are restored by dom%par = par_ref after the loop.)
             dom%par%log_timestep     = .FALSE.
             dom%par%write_metrics    = .FALSE.
 
             ! Allow at least n=10 timestep redo iterations. Not strictly
             ! necessary, but potentially helps to get things going safely. 
-            dom%par%pc_n_redo  = max(10,dom_ref%par%pc_n_redo)
+            dom%par%pc_n_redo  = max(10,par_ref%pc_n_redo)
 
             ! Set model time to input time 
             call yelmo_set_time(dom,time)
@@ -673,10 +665,10 @@ contains
             end do
 
             ! Restore original model choices
-            dom%par      = dom_ref%par 
-            dom%tpo%par  = dom_ref%tpo%par
-            dom%dyn%par  = dom_ref%dyn%par 
-            dom%thrm%par = dom_ref%thrm%par  
+            dom%par      = par_ref
+            dom%tpo%par  = tpo_par_ref
+            dom%dyn%par  = dyn_par_ref
+            dom%thrm%par = thrm_par_ref
             
             write(*,*) 
             write(*,*) "Equilibration complete."
@@ -1784,7 +1776,8 @@ contains
             write(io_unit_err,"(a,f15.3,a)") "Time =", time, ": stopping model (killed)." 
             write(io_unit_err,*) 
 
-            error stop "yelmo_check_kill error, see log."
+            write(io_unit_err,*) "yelmo_check_kill error, see log."
+            error stop 1
 
         end if 
 
