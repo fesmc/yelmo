@@ -315,6 +315,13 @@ little. MISMIP3D and DIVA runs change more.
 - **Linear solver:** an all-zero RHS returns x = 0. Before, Lis returned NaN, which
   was clamped to +u_max. `limit_vel` now lets NaN through, so it is caught by
   `yelmo_check_kill`.
+- **SSA masks: floating ice ends at a wall across ice-free land.** A face between
+  floating ice and ice-free land was solved as an inner SSA face, driven by the slope
+  from the bare land surface with no friction, and ran at `ssa_vel_max` (the special
+  case meant to set it to zero was never reached). These faces set the Courant
+  timestep. They now have zero velocity. ANT-16KM / GRL-16KM, 200 yr: faces at the
+  velocity limit 7 → 0 / 49 → 0, timesteps 198 → 52 / 261 → 73, volume -0.02% /
+  +0.04%, calving -9% / -11%. TROUGH, CalvingMIP and EISMINT are bit-identical.
 
 ### Non-default options
 
@@ -406,6 +413,11 @@ little. MISMIP3D and DIVA runs change more.
   status (`| lin  187 MAXITER`); a `yelmo_update` call that had such solves (SSA or
   impl-lis thickness advection) prints one summary line; the timestep log
   (`log_timestep`) has `ssa_lin_iter`, `ssa_lin_fail`, `adv_lin_iter`, `adv_lin_fail`.
+- Picard loop of the SSA/DIVA solver: the effective viscosity uses 2D strain arrays
+  (unused 3D quadrature branch removed), and the serial passes (beta staggering,
+  `beta_eff`, basal velocity, relaxation, convergence norms, LIS vector transfer) run
+  in parallel. Main loop -9% (ANT-8KM) and -18% (GRL-8KM) at 16 threads; results
+  bit-identical.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
   (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double
