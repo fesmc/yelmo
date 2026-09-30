@@ -526,9 +526,12 @@ contains
 
     subroutine calc_lsf_area_fraction(a_lsf,lsf,boundaries)
         ! Area fraction of each cell behind the level-set front (lsf < 0).
-        ! Corner LSF values are obtained by averaging the four surrounding
-        ! aa-node lsf values, then the negative-LSF area inside each unit
-        ! cell is computed via marching-squares (linear edge interpolation).
+        ! The cell is split into four quadrants with vertices at the cell
+        ! centre, two edge midpoints and a corner (edge midpoints: mean of two
+        ! aa-nodes, corners: mean of four), and the negative-LSF area of each
+        ! quadrant is computed via marching squares. Including the centre value
+        ! keeps the fraction continuous for 1-cell-wide features, where all
+        ! four corner means are >= 0.
 
         implicit none
 
@@ -538,25 +541,38 @@ contains
 
         integer  :: i, j, nx, ny, BC
         integer  :: im1, ip1, jm1, jp1
+        real(wp) :: phi_c, phi_W, phi_E, phi_S, phi_N
         real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
 
         nx = size(lsf,1)
         ny = size(lsf,2)
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_BL,phi_BR,phi_TR,phi_TL)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_c,phi_W,phi_E,phi_S,phi_N) &
+        !$omp& private(phi_BL,phi_BR,phi_TR,phi_TL)
         do j = 1, ny
         do i = 1, nx
 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Corner LSF values via averaging the four adjacent aa-node values.
+            ! Centre and edge midpoints
+            phi_c = lsf(i,j)
+            phi_W = 0.5_wp*(lsf(im1,j) + lsf(i,j))
+            phi_E = 0.5_wp*(lsf(i,j)   + lsf(ip1,j))
+            phi_S = 0.5_wp*(lsf(i,jm1) + lsf(i,j))
+            phi_N = 0.5_wp*(lsf(i,j)   + lsf(i,jp1))
+
+            ! Corners
             phi_BL = 0.25_wp*(lsf(im1,jm1) + lsf(i,jm1) + lsf(im1,j) + lsf(i,j))
             phi_BR = 0.25_wp*(lsf(i,jm1)   + lsf(ip1,jm1) + lsf(i,j)   + lsf(ip1,j))
             phi_TR = 0.25_wp*(lsf(i,j)     + lsf(ip1,j)   + lsf(i,jp1) + lsf(ip1,jp1))
             phi_TL = 0.25_wp*(lsf(im1,j)   + lsf(i,j)     + lsf(im1,jp1) + lsf(i,jp1))
 
-            a_lsf(i,j) = lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL)
+            ! Quadrants (BL, BR, TR, TL vertices of each)
+            a_lsf(i,j) = 0.25_wp*( lsf_negative_area_fraction(phi_BL,phi_S, phi_c, phi_W ) &
+                                 + lsf_negative_area_fraction(phi_S, phi_BR,phi_E, phi_c ) &
+                                 + lsf_negative_area_fraction(phi_c, phi_E, phi_TR,phi_N ) &
+                                 + lsf_negative_area_fraction(phi_W, phi_c, phi_N, phi_TL) )
 
         end do
         end do
