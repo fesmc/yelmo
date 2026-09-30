@@ -375,6 +375,11 @@ little. MISMIP3D and DIVA runs change more.
   - The unused SIA basal-velocity routines, `ydyn_set_borders`,
     `update_ssa_mask_convergence` and `grounding_line_flux.f90`.
 - Test drivers: output timing uses 64-bit integers.
+- Kill check: NaN and Inf are found with a bit test on the exponent (`is_finite`
+  in `yelmo_tools`), which is kept under `-Ofast` and catches single cells; the
+  `maxval(abs(x-x))` form missed isolated NaNs and never caught Inf. Non-finite
+  forcing (`bnd` fields) stops the run at the start of `yelmo_update`. A kill ends
+  with `error stop` (exit status 1, SLURM reports FAILED).
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
   (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double
