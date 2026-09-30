@@ -107,13 +107,24 @@ contains
         allocate(lgs%x_value(lgs%nmax))
         
         ! Initialize array values to zero
-        lgs%a_value = 0.0
-        lgs%a_index = 0
-        lgs%a_ptr   = 0
+        !$omp parallel private(n)
+        !$omp do
+        do n = 1, lgs%n_sprs
+            lgs%a_value(n) = 0.0
+            lgs%a_index(n) = 0
+        end do
+        !$omp end do nowait
+        !$omp do
+        do n = 1, lgs%nmax
+            lgs%a_ptr(n)     = 0
+            lgs%b_value(n)   = 0.0
+            lgs%x_value(n)   = 0.0
+            lgs%copy_from(n) = 0
+        end do
+        !$omp end do
+        !$omp end parallel
+        lgs%a_ptr(lgs%nmax+1) = 0
 
-        lgs%b_value = 0.0
-        lgs%x_value = 0.0
-        lgs%copy_from = 0
         lgs%lin_iter  = 0
         lgs%status    = LGS_SUCCESS
         
@@ -220,7 +231,6 @@ contains
         !ajr: new method
         integer :: i, k
         LIS_INTEGER :: nnz
-        LIS_INTEGER, allocatable :: idx(:)
         LIS_INTEGER, allocatable :: a_ptr(:)
         LIS_INTEGER, allocatable :: a_index(:)
         LIS_REAL,    allocatable :: a_value(:)
@@ -284,7 +294,6 @@ else
         nnz = lgs%a_ptr(nmax+1)-1
 
         ! allocate arrays of LIS types
-        allocate(idx(1:nmax))
         allocate(a_ptr(1:nmax+1))
         allocate(a_index(1:nnz))
         allocate(a_value(1:nnz))
@@ -296,7 +305,6 @@ else
         ! Store vector information
         !$omp do
         do k = 1, nmax
-            idx(k) = k
             b_value(k) = lgs%b_value(k)
             x_value(k) = lgs%x_value(k)
         end do
@@ -325,10 +333,10 @@ else
         call lis_matrix_assemble(lgs_a, ierr)
         call CHKERR(ierr)
 
-        ! Define vectors in LIS
-        call lis_vector_set_values(LIS_INS_VALUE, nmax, idx, b_value, lgs_b, ierr)
+        ! Define vectors in LIS (whole vector at once)
+        call lis_vector_scatter(b_value, lgs_b, ierr)
         call CHKERR(ierr)
-        call lis_vector_set_values(LIS_INS_VALUE, nmax, idx, x_value, lgs_x, ierr)
+        call lis_vector_scatter(x_value, lgs_x, ierr)
         call CHKERR(ierr)
 end if
 
@@ -364,12 +372,15 @@ end if
 
         ! Gather x values in local array of lis-type
         allocate(lgs_x_value_out(nmax))
-        lgs_x_value_out = 0.0_wp
         call lis_vector_gather(lgs_x, lgs_x_value_out, ierr)
         call CHKERR(ierr)
         
         ! Save to lgs object
-        lgs%x_value = lgs_x_value_out
+        !$omp parallel do private(k)
+        do k = 1, nmax
+            lgs%x_value(k) = lgs_x_value_out(k)
+        end do
+        !$omp end parallel do
         
         ! Destroy all lis variables
         call lis_matrix_destroy(lgs_a, ierr)

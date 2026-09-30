@@ -1800,12 +1800,9 @@ end if
         call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
         ! Populate strain rates over the whole domain on acx- and acy-nodes
+        ! (all four terms are set at every point)
 
-        dudx = 0.0
-        dvdy = 0.0
-        dudy = 0.0
-        dvdx = 0.0
-        
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2)
         do j = 1, ny  
         do i = 1, nx
             
@@ -1867,6 +1864,7 @@ end if
         
         end do
         end do
+        !$omp end parallel do
 
         ! To do... ? 
         

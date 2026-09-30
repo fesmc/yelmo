@@ -386,7 +386,13 @@ contains
         end do 
         !$omp end parallel do
 
-        beta = beta / f_slide 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            beta(i,j) = beta(i,j) / f_slide(i,j)
+        end do 
+        end do 
+        !$omp end parallel do
 
         return
         
@@ -515,7 +521,13 @@ contains
         ! that may be applied during the staggering step.
 
         !  Simply set beta to zero where purely floating
-        where (f_grnd .eq. 0.0) beta = 0.0 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            if (f_grnd(i,j) .eq. 0.0) beta(i,j) = 0.0 
+        end do 
+        end do 
+        !$omp end parallel do
         
 
         ! Apply additional condition for particular experiments
@@ -547,7 +559,13 @@ contains
         end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
-        where(beta .gt. 0.0 .and. beta .lt. beta_min) beta = beta_min 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            if (beta(i,j) .gt. 0.0 .and. beta(i,j) .lt. beta_min) beta(i,j) = beta_min 
+        end do 
+        end do 
+        !$omp end parallel do
 
 
         ! ================================================================
@@ -579,7 +597,7 @@ contains
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: nx, ny 
+        integer :: i, j, nx, ny 
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
@@ -668,8 +686,14 @@ contains
         end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
-        where(beta_acx .gt. 0.0 .and. beta_acx .lt. beta_min) beta_acx = beta_min 
-        where(beta_acy .gt. 0.0 .and. beta_acy .lt. beta_min) beta_acy = beta_min 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            if (beta_acx(i,j) .gt. 0.0 .and. beta_acx(i,j) .lt. beta_min) beta_acx(i,j) = beta_min 
+            if (beta_acy(i,j) .gt. 0.0 .and. beta_acy(i,j) .lt. beta_min) beta_acy(i,j) = beta_min 
+        end do 
+        end do 
+        !$omp end parallel do
         
         return 
 
@@ -1238,6 +1262,7 @@ contains
             stop 
         end if 
          
+        !$omp parallel do collapse(2) private(i,j,f_scale)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1247,6 +1272,7 @@ contains
 
         end do 
         end do  
+        !$omp end parallel do
 
         return
         
@@ -1279,7 +1305,7 @@ contains
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
 
-        ! acx-nodes 
+        !$omp parallel do collapse(2) private(i,j,H_eff,f_scale)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1304,6 +1330,7 @@ contains
 
         end do 
         end do  
+        !$omp end parallel do
 
         return
         
@@ -1341,6 +1368,7 @@ contains
         BC = boundary_code(boundaries)
 
         ! === Stagger to ac-nodes === 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1387,6 +1415,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
         
         return
         
@@ -1422,6 +1451,7 @@ contains
 
         ! === Stagger to ac-nodes === 
 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1454,6 +1484,7 @@ contains
 
         end do 
         end do
+        !$omp end parallel do
 
         return
         
@@ -1490,6 +1521,7 @@ contains
         ! === Stagger to ac-nodes === 
 
         ! acx-nodes
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1522,6 +1554,7 @@ contains
             
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
@@ -1558,6 +1591,7 @@ contains
         BC = boundary_code(boundaries)
 
         ! Apply simple staggering to ac-nodes
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,wt)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1602,6 +1636,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
@@ -1640,6 +1675,7 @@ contains
 
         ! Apply simple staggering to ac-nodes
 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,ux_aa_a,ux_aa_b,uy_aa_a,uy_aa_b)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1700,6 +1736,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
