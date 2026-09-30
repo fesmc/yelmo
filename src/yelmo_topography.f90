@@ -186,8 +186,12 @@ end if
                     tpo%now%H_ice = tpo%now%H_ice_n
                     tpo%now%lsf   = tpo%now%lsf_n
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.)
-                    
+
             end select
+
+            ! The mass balance below acts on the ice present after transport
+            ! (area fraction of cells that received or lost ice)
+            call update_ice_fraction(tpo,bnd)
 
             ! Note: at this point, mass has only been advected (moved around). In principle,
             ! this is fully conservative and the net Δmb=0. However, due to the predictor-corrector

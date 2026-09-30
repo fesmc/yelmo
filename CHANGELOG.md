@@ -228,6 +228,11 @@ little. MISMIP3D and DIVA runs change more.
   TROUGH (4 km, zero calving): front speed 0.61-0.73 u -> 0.88-0.94 u, ice removed
   35-38% -> 7-8% of the inflow. ANT-16 (200 yr): trim-caused grounded-to-floating
   switches 328 -> 17, volume +0.05%. Runs without the level set are unchanged.
+- **Mass balance on the ice fraction after transport.** smb, bmb, fmb and dmb
+  used `f_ice` from before the advection step, so a cell that had just received ice
+  (f_ice = 0) took the full per-area melt: with the level set, ~100 ice-free cells
+  behind the ANT-16 front melted all inflow every step (bmb_shlf = -2 m/yr on the
+  whole cell, ~23 km3/yr at t=200) and never filled.
 
 - **The hydrology converts its per-year inputs with the domain's own year.**
   `yelmo_hydrology` divided `bmb_w`, `uxy_b` and `A_glen_b` by FastHydrology's
