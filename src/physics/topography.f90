@@ -18,12 +18,19 @@ module topography
     integer, parameter :: mask_bed_island  = 6
     integer, parameter :: mask_bed_partial = 7
 
+    ! CISM limits of the effective surface at marine-grounded fronts
+    ! ("AIS testing showed that values of 25 m and 0.001 prevent large
+    ! ice speeds that can lead to instability")
+    real(wp), parameter :: dz_srf_max    = 25.0_wp  ! [m]   z_srf_eff - z_srf
+    real(wp), parameter :: dz_srf_dx_max = 0.001_wp ! [m/m] upward surface slope at the front
+
     private  
 
     public :: gen_mask_bed
     public :: calc_column_kinematic_rates
 
     public :: calc_ice_fraction
+    public :: calc_front_H_ref
     public :: calc_lsf_area_fraction
     public :: calc_front_cells
     public :: calc_ice_front
@@ -290,11 +297,11 @@ contains
         ! front_subgrid = "marine":   floating and marine-grounded cells can be.
         !
         ! A front cell is an eligible ice cell with an ice-free ocean edge
-        ! neighbour. Its H_eff is the thickest interior (eligible, not front)
-        ! edge neighbour, or diagonal neighbour if there is none, minus
-        ! dHdx*distance. Floating neighbours are capped at their flotation
-        ! thickness ("floating"); for "marine" the effective surface is limited
-        ! instead. H_eff >= H_eff_min in all eligible cells, and <= flotation in
+        ! neighbour. Its H_eff is the reference thickness from its interior
+        ! (eligible, not front) neighbours (calc_front_H_ref); for "marine" the
+        ! effective surface is also at most dz_srf_max above the actual
+        ! surface. Front cells without an interior neighbour keep H_eff = H_ice.
+        ! H_eff >= H_eff_min in all eligible cells, and <= flotation in
         ! floating front cells ("floating"). f_ice = min(H_ice/H_eff,1) in front
         ! cells, 1 in other ice cells, 0 elsewhere.
 
@@ -314,30 +321,18 @@ contains
         character(len=*), intent(IN) :: boundaries
 
         ! Local variables 
-        integer  :: i, j, k, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        integer  :: BC
-        integer  :: in(8), jn(8)
-        integer  :: k_max
-        real(wp) :: H_nb, H_max, dist
-        real(wp) :: z_srf_eff, z_srf_max, z_srf_now, z_srf_nb
-        logical  :: is_float
+        integer  :: i, j, nx, ny
+        real(wp) :: z_srf_eff, z_srf_max
         logical  :: is_none, is_flt, is_mar             ! front_subgrid choice
         logical, allocatable  :: mask_elig(:,:)         ! Eligible (marine) ice cells
         logical, allocatable  :: mask_cf(:,:)           ! Front cells (eligible, ocean edge neighbour)
         logical, allocatable  :: mask_ocn(:,:)          ! Ice-free ocean cells
+        logical, allocatable  :: has_ref(:,:)           ! Front cells with an interior neighbour
+        real(wp), allocatable :: H_ref(:,:)             ! [m] Reference thickness of front cells
         real(wp), allocatable :: H_flot(:,:)            ! [m] Flotation thickness
-
-        ! CISM limits of the effective surface at marine-grounded fronts
-        ! ("AIS testing showed that values of 25 m and 0.001 prevent large
-        ! ice speeds that can lead to instability")
-        real(wp), parameter :: dz_srf_max    = 25.0_wp  ! [m]   z_srf_eff - z_srf
-        real(wp), parameter :: dz_srf_dx_max = 0.001_wp ! [m/m] upward surface slope at the front
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
-
-        BC = boundary_code(boundaries)
 
         is_none = trim(front_subgrid) .eq. "none"
         is_flt  = trim(front_subgrid) .eq. "floating"
@@ -366,64 +361,31 @@ contains
         allocate(mask_elig(nx,ny))
         allocate(mask_cf(nx,ny))
         allocate(mask_ocn(nx,ny))
+        allocate(has_ref(nx,ny))
+        allocate(H_ref(nx,ny))
 
         call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,in,jn,k_max,H_nb,H_max,dist) &
-        !$omp& private(is_float,z_srf_eff,z_srf_max,z_srf_now,z_srf_nb)
+        call calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_cf, &
+                              mask_elig .and. .not. mask_cf,front_subgrid,dHdx,dx,boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,z_srf_eff,z_srf_max)
         do j = 1, ny
         do i = 1, nx
 
-            if (.not. mask_cf(i,j)) cycle
+            if (has_ref(i,j)) then
 
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                H_eff(i,j) = H_ref(i,j)
 
-            ! Edge neighbours (1-4), then diagonal neighbours (5-8)
-            in = [im1,ip1,i,i,  im1,ip1,im1,ip1]
-            jn = [j,j,jm1,jp1,  jm1,jm1,jp1,jp1]
-
-            ! Thickest interior edge neighbour, else thickest interior diagonal
-            k_max = 0
-            H_max = 0.0_wp
-            do k = 1, 8
-                if (k .eq. 5 .and. k_max .gt. 0) exit
-                if (.not. mask_elig(in(k),jn(k)) .or. mask_cf(in(k),jn(k))) cycle
-                H_nb = H_ice(in(k),jn(k))
-                if (is_flt) H_nb = min(H_nb,H_flot(in(k),jn(k)))
-                if (H_nb .gt. H_max) then
-                    H_max = H_nb
-                    k_max = k
+                if (is_mar) then
+                    ! Limit the effective surface to dz_srf_max above the actual surface
+                    z_srf_eff = srf_elev(H_eff(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+                    z_srf_max = srf_elev(H_ice(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw) + dz_srf_max
+                    if (z_srf_eff .gt. z_srf_max) &
+                        H_eff(i,j) = srf_thickness(z_srf_max,z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
                 end if
-            end do
 
-            if (k_max .eq. 0) cycle     ! No interior neighbour: H_eff = H_ice, floor below
-
-            dist = dx
-            if (k_max .gt. 4) dist = sqrt(2.0_wp)*dx
-
-            H_eff(i,j) = H_max - dHdx*dist
-
-            if (is_mar) then
-                ! Limit the effective surface: its upward slope from the
-                ! neighbour and its height above the actual surface
-                z_srf_nb  = srf_elev(H_ice(in(k_max),jn(k_max)),z_bed(in(k_max),jn(k_max)),z_sl(in(k_max),jn(k_max)))
-                z_srf_now = srf_elev(H_ice(i,j),z_bed(i,j),z_sl(i,j))
-                z_srf_eff = srf_elev(H_eff(i,j),z_bed(i,j),z_sl(i,j))
-                z_srf_max = min(z_srf_nb + dz_srf_dx_max*dist, z_srf_now + dz_srf_max)
-                if (z_srf_eff .gt. z_srf_max) then
-                    ! Thickness with surface z_srf_max: floating, or grounded if thinner
-                    H_eff(i,j) = (z_srf_max - z_sl(i,j)) * rho_sw/(rho_sw-rho_ice)
-                    H_eff(i,j) = min(H_eff(i,j), z_srf_max - z_bed(i,j))
-                end if
             end if
-
-        end do
-        end do
-        !$omp end parallel do
-
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, ny
-        do i = 1, nx
 
             ! Lower limit in all eligible cells (most fronts are at least a few tens of metres thick)
             if (mask_elig(i,j)) H_eff(i,j) = max(H_eff(i,j), H_eff_min)
@@ -440,20 +402,122 @@ contains
 
         return 
 
-    contains
-
-        pure function srf_elev(H,zb,zsl) result(zs)
-            ! Surface elevation of a column: floating or grounded
-            real(wp), intent(IN) :: H, zb, zsl
-            real(wp) :: zs
-            if (zb - zsl .lt. -rho_ice/rho_sw*H) then
-                zs = zsl + (1.0_wp - rho_ice/rho_sw)*H
-            else
-                zs = zb + H
-            end if
-        end function srf_elev
-
     end subroutine calc_ice_fraction
+
+    subroutine calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_tgt,mask_int, &
+                                    front_subgrid,dHdx,dx,boundaries)
+        ! Reference (full-column) thickness of subgrid front cells, independent
+        ! of the cell's own thickness: the thickest interior edge neighbour, or
+        ! diagonal neighbour if there is none, minus dHdx*distance. Floating
+        ! neighbours are capped at their flotation thickness ("floating"); for
+        ! "marine" the effective surface rises at most dz_srf_dx_max*distance
+        ! above the neighbour's surface. has_ref is false for target cells
+        ! without an interior neighbour and outside mask_tgt (H_ref = 0).
+
+        implicit none
+
+        real(wp), intent(OUT) :: H_ref(:,:)             ! [m]  Reference thickness
+        logical,  intent(OUT) :: has_ref(:,:)           ! Reference found
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        logical,  intent(IN)  :: mask_tgt(:,:)          ! Cells that need a reference
+        logical,  intent(IN)  :: mask_int(:,:)          ! Interior cells (references)
+        character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
+        real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
+        real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: in(8), jn(8)
+        integer  :: k_max
+        real(wp) :: H_nb, H_max, dist
+        real(wp) :: z_srf_eff, z_srf_max, z_srf_nb
+        logical  :: is_flt, is_mar
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        is_flt = trim(front_subgrid) .eq. "floating"
+        is_mar = trim(front_subgrid) .eq. "marine"
+
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,in,jn,k_max,H_nb,H_max,dist) &
+        !$omp& private(z_srf_eff,z_srf_max,z_srf_nb)
+        do j = 1, ny
+        do i = 1, nx
+
+            H_ref(i,j)   = 0.0_wp
+            has_ref(i,j) = .FALSE.
+
+            if (.not. mask_tgt(i,j)) cycle
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Edge neighbours (1-4), then diagonal neighbours (5-8)
+            in = [im1,ip1,i,i,  im1,ip1,im1,ip1]
+            jn = [j,j,jm1,jp1,  jm1,jm1,jp1,jp1]
+
+            ! Thickest interior edge neighbour, else thickest interior diagonal
+            k_max = 0
+            H_max = 0.0_wp
+            do k = 1, 8
+                if (k .eq. 5 .and. k_max .gt. 0) exit
+                if (.not. mask_int(in(k),jn(k))) cycle
+                H_nb = H_ice(in(k),jn(k))
+                if (is_flt) H_nb = min(H_nb, max( (z_sl(in(k),jn(k))-z_bed(in(k),jn(k)))*rho_sw/rho_ice, 0.0_wp ))
+                if (H_nb .gt. H_max) then
+                    H_max = H_nb
+                    k_max = k
+                end if
+            end do
+
+            if (k_max .eq. 0) cycle
+
+            dist = dx
+            if (k_max .gt. 4) dist = sqrt(2.0_wp)*dx
+
+            H_ref(i,j)   = H_max - dHdx*dist
+            has_ref(i,j) = .TRUE.
+
+            if (is_mar) then
+                ! Limit the upward slope of the effective surface from the neighbour
+                z_srf_nb  = srf_elev(H_ice(in(k_max),jn(k_max)),z_bed(in(k_max),jn(k_max)),z_sl(in(k_max),jn(k_max)), &
+                                     rho_ice,rho_sw)
+                z_srf_eff = srf_elev(H_ref(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+                z_srf_max = z_srf_nb + dz_srf_dx_max*dist
+                if (z_srf_eff .gt. z_srf_max) H_ref(i,j) = srf_thickness(z_srf_max,z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_front_H_ref
+
+    pure function srf_elev(H,zb,zsl,rho_ice,rho_sw) result(zs)
+        ! Surface elevation of a column: floating or grounded
+        real(wp), intent(IN) :: H, zb, zsl, rho_ice, rho_sw
+        real(wp) :: zs
+        if (zb - zsl .lt. -rho_ice/rho_sw*H) then
+            zs = zsl + (1.0_wp - rho_ice/rho_sw)*H
+        else
+            zs = zb + H
+        end if
+    end function srf_elev
+
+    pure function srf_thickness(zs,zb,zsl,rho_ice,rho_sw) result(H)
+        ! Thickness of a column with surface zs: floating, or grounded if thinner
+        real(wp), intent(IN) :: zs, zb, zsl, rho_ice, rho_sw
+        real(wp) :: H
+        H = min( (zs - zsl)*rho_sw/(rho_sw-rho_ice), zs - zb )
+    end function srf_thickness
 
     subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
         ! Front cells of the subgrid front scheme (ytopo.front_subgrid):
