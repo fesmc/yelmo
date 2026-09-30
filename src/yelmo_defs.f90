@@ -195,7 +195,8 @@ module yelmo_defs
         real(wp)   :: dt_zeta, dt_beta(4)
         integer    :: pc_k 
 
-        real(wp)   :: speed, speed_pred, speed_corr 
+        real(wp)   :: speed                     ! [kyr/hr] Model speed of the topography step (predictor + corrector + advance)
+        real(8)    :: cpu_step                  ! [s] Wall time of the topography calls of the current step
 
         integer    :: adv_lin_iter              ! Linear solver iterations of the thickness advection this step (predictor + corrector)
         integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit

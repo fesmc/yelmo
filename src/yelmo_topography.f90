@@ -68,6 +68,11 @@ contains
 
         logical, parameter :: use_rk4 = .FALSE. 
 
+        real(8)  :: cpu_time0, cpu_time1
+
+        ! Store initial cpu time for the speed metric
+        call yelmo_cpu_time(cpu_time0)
+
         nx = size(tpo%now%H_ice,1)
         ny = size(tpo%now%H_ice,2)
 
@@ -510,8 +515,16 @@ end if
         end if
 
 
+        ! Computational performance (model speed in kyr/hr) of the topography
+        ! calls of this step: the predictor starts the count, the advance ends it
+        call yelmo_cpu_time(cpu_time1)
+        if (trim(pc_step) .eq. "predictor") tpo%par%cpu_step = 0.0d0
+        tpo%par%cpu_step = tpo%par%cpu_step + (cpu_time1 - cpu_time0)
+
         if (trim(pc_step) .eq. "advance") then 
             ! Advance timestep here whether topo_fixed was true or not...
+
+            call yelmo_calc_speed(tpo%par%speed,real(tpo%par%time,wp),time,0.0d0,tpo%par%cpu_step)
             
             ! Update ytopo time to current time 
             tpo%par%time = dble(time)
@@ -1647,8 +1660,8 @@ end if
 
         ! Set some additional values to start out right
         par%pc_step    = "predictor"
-        par%speed_pred = 0.0_wp 
-        par%speed_corr = 0.0_wp
+        par%speed      = 0.0_wp 
+        par%cpu_step   = 0.0d0
 
         par%adv_lin_iter = 0
         par%adv_lin_fail = 0 
