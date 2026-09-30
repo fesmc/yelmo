@@ -322,6 +322,16 @@ little. MISMIP3D and DIVA runs change more.
   timestep. They now have zero velocity. ANT-16KM / GRL-16KM, 200 yr: faces at the
   velocity limit 7 → 0 / 49 → 0, timesteps 198 → 52 / 261 → 73, volume -0.02% /
   +0.04%, calving -9% / -11%. TROUGH, CalvingMIP and EISMINT are bit-identical.
+- **Level set (`lsf_method = "snap"`): two free cells on each side of the front.**
+  The snap left one free cell, so the cell ahead of the front was held at +1 until
+  the front cell changed sign, and the front moved at only 0.87 of the advection
+  speed for small Courant numbers (0.92 at C = 0.13), depending on the timestep. With
+  two free cells it moves at 0.96-0.98. Every level-set run with a moving front
+  changes (fronts up to 12% faster, in advance and retreat). TROUGH with zero
+  calving: ice removed by the front trim 7.3% → 3.8% of the inflow. CalvingMIP exp2:
+  maximum retreat 0.92 → 0.98 of the prescribed one; exp1: steady front 5 km further
+  out, volume +1.3%. ANT-16KM, 200 yr: floating area +1%, volume within 0.02%. Runs
+  without the level set are bit-identical.
 
 ### Non-default options
 
