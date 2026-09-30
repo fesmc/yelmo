@@ -7,6 +7,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ytopo.front_subgrid = "marine"` by default and in all par files** (was
+  `"none"` except Antarctica and initmip). Runs without marine ice (EISMINT,
+  HALFAR, ISMIP-HOM, SLAB-S06, MASK_ICE) are unchanged; TROUGH, MISMIP3D, MISMIP+
+  and CalvingMIP now use subgrid fronts. Set `"none"` for the binary front.
 - **`ydyn.scale_T`/`T_frz` replaced by `ydyn.slide_T`, `gamma_T`, `lambda_min`.**
   `scale_T` raised `c_bed` of a frozen bed only up to `cf_ref*N_eff`, so frozen
   beds still slid (0.2–1 m/a in ANT-32km initmip, 10–100 m/a with low `cf_ref`).

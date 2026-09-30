@@ -210,7 +210,7 @@ negative-thickness problem CISM hit with edge masks does not arise here.
 
 | Parameter | Group | Default | Replaces |
 |---|---|---|---|
-| `front_subgrid` | ytopo | `"none"` (target `"marine"`) | `margin_flt_subgrid` (retired) |
+| `front_subgrid` | ytopo | `"marine"` (was `"none"` until 2026-09-30) | `margin_flt_subgrid` (retired) |
 | `front_H_eff_min` | ytopo | 50 m | – |
 | `front_dHdx` | ytopo | 0.0 | – |
 | `f_ice_method` | ytopo | – | retired (step 7) |
