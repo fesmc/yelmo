@@ -933,8 +933,11 @@ end if
                 ! Floating point
                 tpo%now%cr_acx(i,j) = tpo%now%cmb_flt_x(i,j)
             else
-                if(0.5*(bnd%z_bed(i,j)+bnd%z_bed(ip1,j)) .gt. 0.5*(bnd%z_sl(i,j)+bnd%z_sl(ip1,j))) then
-                    ! Point above sea level. Do not allow to move here. (check)
+                if (bnd%z_bed(i,j) .ge. bnd%z_sl(i,j) .and. bnd%z_bed(ip1,j) .ge. bnd%z_sl(ip1,j)) then
+                    ! Face between two land cells (lsf pinned to -1 in both): the
+                    ! level set does not move here. A face between a land and a
+                    ! marine cell stays open, so the level set can follow the ice
+                    ! across the coast.
                     tpo%now%cr_acx(i,j) = -1*dyn%now%ux_bar(i,j)
                 else
                     ! Marine-terminating point.
@@ -947,8 +950,8 @@ end if
                 ! Floating point
                 tpo%now%cr_acy(i,j) = tpo%now%cmb_flt_y(i,j)
             else
-                if(0.5*(bnd%z_bed(i,j)+bnd%z_bed(i,jp1)) .gt. 0.5*(bnd%z_sl(i,j)+bnd%z_sl(i,jp1))) then
-                    ! Point above sea level. Do nothing for now.
+                if (bnd%z_bed(i,j) .ge. bnd%z_sl(i,j) .and. bnd%z_bed(i,jp1) .ge. bnd%z_sl(i,jp1)) then
+                    ! Face between two land cells (see x-direction)
                     tpo%now%cr_acy(i,j) = -1*dyn%now%uy_bar(i,j)
                 else
                     ! Marine-terminating point.
