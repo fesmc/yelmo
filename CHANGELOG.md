@@ -366,6 +366,8 @@ little. MISMIP3D and DIVA runs change more.
   - The unused SIA basal-velocity routines, `ydyn_set_borders`,
     `update_ssa_mask_convergence` and `grounding_line_flux.f90`.
 - Test drivers: output timing uses 64-bit integers.
+- `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
+  (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double
   precision for DIVA, and a plan for double-precision internals).
 
