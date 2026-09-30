@@ -434,12 +434,13 @@ contains
         nx = size(beta,1)
         ny = size(beta,2)
 
+        ! beta (aa-nodes) has been defined externally: leave it exactly as given
+        ! (no grounding-line scaling, no zero under floating ice, no lower limit)
+        if (beta_method .eq. -1) return
+
         ! 1. Apply beta method of choice 
         select case(beta_method)
 
-            case(-1)
-                ! beta (aa-nodes) has been defined externally - do nothing
-                
             case(0)
                 ! Constant beta everywhere
 
