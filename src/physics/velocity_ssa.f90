@@ -250,7 +250,8 @@ contains
 
             ! Stagger beta
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_b,uy_b, &
-                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
+                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
+                        par%beta_method .ne. -1,par%boundaries)
 
             ! Reduce sliding where the base is below the pressure melting point (beta/f_slide).
             ! An imposed beta (beta_method=-1 on aa-nodes, beta_gl_stag=-1 on ac-nodes) is not

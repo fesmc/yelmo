@@ -579,7 +579,8 @@ contains
 
     end subroutine calc_beta
 
-    subroutine stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,beta_gl_stag,beta_min,boundaries)
+    subroutine stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,beta_gl_stag,beta_min, &
+                                                                                            limit_beta,boundaries)
 
         implicit none 
 
@@ -595,6 +596,7 @@ contains
         real(wp), intent(IN)    :: f_grnd_acy(:,:) 
         integer,  intent(IN)    :: beta_gl_stag 
         real(wp), intent(IN)    :: beta_min 
+        logical,  intent(IN)    :: limit_beta       ! Apply the lower limit beta_min (not to an imposed beta)
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
@@ -687,14 +689,16 @@ contains
         end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, ny 
-        do i = 1, nx
-            if (beta_acx(i,j) .gt. 0.0 .and. beta_acx(i,j) .lt. beta_min) beta_acx(i,j) = beta_min 
-            if (beta_acy(i,j) .gt. 0.0 .and. beta_acy(i,j) .lt. beta_min) beta_acy(i,j) = beta_min 
-        end do 
-        end do 
-        !$omp end parallel do
+        if (limit_beta) then
+            !$omp parallel do collapse(2) private(i,j)
+            do j = 1, ny 
+            do i = 1, nx
+                if (beta_acx(i,j) .gt. 0.0 .and. beta_acx(i,j) .lt. beta_min) beta_acx(i,j) = beta_min 
+                if (beta_acy(i,j) .gt. 0.0 .and. beta_acy(i,j) .lt. beta_min) beta_acy(i,j) = beta_min 
+            end do 
+            end do 
+            !$omp end parallel do
+        end if
         
         return 
 
