@@ -453,6 +453,13 @@ little. MISMIP3D and DIVA runs change more.
   than the start time. `ytrc.time_end` defaults to 0.0 (present day). elsa v3.0.0
   applies the time-mean forcing over each coupling period; its restart sidecars
   (`*_elsa.nc`) written by earlier versions no longer load.
+- **Calving diagnostics `cmb_flt` and `cmb_grnd`** are now the applied calving (all
+  removal at the front) in floating (`f_grnd = 0`) and grounded cells, on both calving
+  paths, so `cmb_flt + cmb_grnd = cmb` and their regional sums in `yelmo_ts.nc` are
+  mass fluxes. With the level set they held the magnitude of the front calving speed
+  at every cell, and the regional "mass balance" was that speed times the cell area.
+  The front speeds are new fields `calv_rate_flt` and `calv_rate_grnd` [m/yr], set at
+  front cells (ice with an ice-free ocean edge neighbour) on the level-set path.
 - `speed_tpo` in the timestep log (`log_timestep`) is now the speed of the topography
   step (predictor + corrector + advance); it was always zero.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness

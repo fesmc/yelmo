@@ -540,9 +540,9 @@ contains
 
         call nc_write(filename,"cmb",reg%cmb,units="m^3/yr",long_name="Calving mass balance rate", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"cmb_flt",reg%cmb_flt,units="m^3/yr",long_name="Potential calving mass balance rate (floating)", &
+        call nc_write(filename,"cmb_flt",reg%cmb_flt,units="m^3/yr",long_name="Calving mass balance rate (floating cells)", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"cmb_grnd",reg%cmb_grnd,units="m^3/yr",long_name="Potential calving mass balance rate (grounded)", &
+        call nc_write(filename,"cmb_grnd",reg%cmb_grnd,units="m^3/yr",long_name="Calving mass balance rate (grounded cells)", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"dmb",reg%dmb,units="m^3/yr",long_name="Discharge mass balance rate", &

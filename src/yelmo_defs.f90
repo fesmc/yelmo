@@ -286,10 +286,12 @@ module yelmo_defs
         real(wp), allocatable   :: fmb_ref(:,:)     ! Combined field of fmb_grnd and fmb_shlf    
         real(wp), allocatable   :: dmb_ref(:,:)     ! Subgrid discharge mb rate
 
-        real(wp), allocatable   :: cmb_flt(:,:)     ! Reference floating calving rate, aa-node [m/a]
+        real(wp), allocatable   :: cmb_flt(:,:)     ! Calving mass balance applied in floating cells (f_grnd = 0) [m/a]
         real(wp), allocatable   :: cmb_flt_x(:,:)   ! Reference floating calving rate, ac-node [m/a]
         real(wp), allocatable   :: cmb_flt_y(:,:)   ! Reference floating calving rate, ac-node [m/a]
-        real(wp), allocatable   :: cmb_grnd(:,:)    ! Reference grounded calving rate [m/a]
+        real(wp), allocatable   :: cmb_grnd(:,:)    ! Calving mass balance applied in grounded cells [m/a]
+        real(wp), allocatable   :: calv_rate_flt(:,:)  ! Calving speed of floating front cells (level set) [m/a]
+        real(wp), allocatable   :: calv_rate_grnd(:,:) ! Calving speed of grounded front cells (level set) [m/a]
         real(wp), allocatable   :: cmb_grnd_x(:,:)  ! Reference grounded calving rate, ac-node [m/a]
         real(wp), allocatable   :: cmb_grnd_y(:,:)  ! Reference grounded calving rate, ac-node [m/a]
         real(wp), allocatable   :: cr_acx(:,:)      ! LSF net calving rate, ac-node [m/a]
