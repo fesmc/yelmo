@@ -152,7 +152,7 @@
     kt_ref              = 0.0025
     kt_deep             = 0.1
     tau_ice_flt         = 250.0e3
-    tau_ice_grnd        = 250.0e3
+    tau_ice_grnd        = 1.0e6
 
     Hc_ref_flt          = 200.0
     Hc_ref_grnd         = 200.0
