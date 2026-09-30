@@ -322,6 +322,13 @@ little. MISMIP3D and DIVA runs change more.
   timestep. They now have zero velocity. ANT-16KM / GRL-16KM, 200 yr: faces at the
   velocity limit 7 → 0 / 49 → 0, timesteps 198 → 52 / 261 → 73, volume -0.02% /
   +0.04%, calving -9% / -11%. TROUGH, CalvingMIP and EISMINT are bit-identical.
+- **An imposed beta is used as given.** With `beta_method = -1` (beta on aa-nodes) or
+  `beta_gl_stag = -1` (beta on ac-nodes) the friction coefficient is no longer
+  modified: no grounding-line scaling, no zero under floating ice, no `beta_min`
+  limit and no `f_slide` scaling. Before, an imposed beta was divided by `f_slide`
+  again in every Picard iteration, so it kept growing over a frozen bed. With
+  `beta_method = -1` the face values are still staggered from the imposed beta as
+  set by `beta_gl_stag`. ISMIP-HOM C and F (`f_slide = 1`) are bit-identical.
 - **Level set (`lsf_method = "snap"`): two free cells on each side of the front.**
   The snap left one free cell, so the cell ahead of the front was held at +1 until
   the front cell changed sign, and the front moved at only 0.87 of the advection
@@ -428,6 +435,8 @@ little. MISMIP3D and DIVA runs change more.
   `beta_eff`, basal velocity, relaxation, convergence norms, LIS vector transfer) run
   in parallel. Main loop -9% (ANT-8KM) and -18% (GRL-8KM) at 16 threads; results
   bit-identical.
+- `speed_tpo` in the timestep log (`log_timestep`) is now the speed of the topography
+  step (predictor + corrector + advance); it was always zero.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
   (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double

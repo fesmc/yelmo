@@ -255,10 +255,15 @@ contains
 
             ! Stagger beta 
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_bar,uy_bar, &
-                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
+                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
+                        par%beta_method .ne. -1,par%boundaries)
 
-            ! Reduce sliding where the base is below the pressure melting point (beta/f_slide)
-            call scale_beta_slide(beta_acx,beta_acy,beta,f_slide,f_ice,par%boundaries)
+            ! Reduce sliding where the base is below the pressure melting point (beta/f_slide).
+            ! An imposed beta (beta_method=-1 on aa-nodes, beta_gl_stag=-1 on ac-nodes) is not
+            ! modified: it would also be divided again in every iteration.
+            if (par%beta_method .ne. -1 .and. par%beta_gl_stag .ne. -1) then
+                call scale_beta_slide(beta_acx,beta_acy,beta,f_slide,f_ice,par%boundaries)
+            end if
             
             ! Calculate effective beta on ac-nodes from staggered beta and F2 (as in L19),
             ! so that ub = ubar/(1+beta*F2) and taub = beta*ub hold on each ac-node.
