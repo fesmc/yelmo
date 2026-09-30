@@ -7,6 +7,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ytopo.front_subgrid = "marine"` by default and in all par files** (was
+  `"none"` except Antarctica and initmip). Runs without marine ice (EISMINT,
+  HALFAR, ISMIP-HOM, SLAB-S06, MASK_ICE) are unchanged; TROUGH, MISMIP3D, MISMIP+
+  and CalvingMIP now use subgrid fronts. Set `"none"` for the binary front.
 - **`ydyn.scale_T`/`T_frz` replaced by `ydyn.slide_T`, `gamma_T`, `lambda_min`.**
   `scale_T` raised `c_bed` of a frozen bed only up to `cf_ref*N_eff`, so frozen
   beds still slid (0.2–1 m/a in ANT-32km initmip, 10–100 m/a with low `cf_ref`).
@@ -228,6 +232,11 @@ little. MISMIP3D and DIVA runs change more.
   TROUGH (4 km, zero calving): front speed 0.61-0.73 u -> 0.88-0.94 u, ice removed
   35-38% -> 7-8% of the inflow. ANT-16 (200 yr): trim-caused grounded-to-floating
   switches 328 -> 17, volume +0.05%. Runs without the level set are unchanged.
+- **Mass balance on the ice fraction after transport.** smb, bmb, fmb and dmb
+  used `f_ice` from before the advection step, so a cell that had just received ice
+  (f_ice = 0) took the full per-area melt: with the level set, ~100 ice-free cells
+  behind the ANT-16 front melted all inflow every step (bmb_shlf = -2 m/yr on the
+  whole cell, ~23 km3/yr at t=200) and never filled.
 
 - **The hydrology converts its per-year inputs with the domain's own year.**
   `yelmo_hydrology` divided `bmb_w`, `uxy_b` and `A_glen_b` by FastHydrology's
@@ -366,6 +375,8 @@ little. MISMIP3D and DIVA runs change more.
   - The unused SIA basal-velocity routines, `ydyn_set_borders`,
     `update_ssa_mask_convergence` and `grounding_line_flux.f90`.
 - Test drivers: output timing uses 64-bit integers.
+- `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
+  (`restart_H_ice=True`); the analytic initial thickness overwrote it.
 - New docs page on numerical precision (why the symmetry check needs double
   precision for DIVA, and a plan for double-precision internals).
 

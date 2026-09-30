@@ -35,6 +35,8 @@ program yelmo_trough
     real(wp) :: B, L  
     real(wp), allocatable :: ux_ref(:,:) 
     real(wp), allocatable :: tau_c_ref(:,:)
+    real(wp), allocatable :: H_init(:,:)            ! [m] Analytic initial ice thickness
+    real(wp), allocatable :: z_srf_init(:,:)        ! [m] Analytic initial surface elevation
 
     real(wp) :: xmax, ymin, ymax, y0 
     integer  :: i, j, nx, ny 
@@ -160,7 +162,11 @@ program yelmo_trough
     ! Initialize output file 
     call yelmo_write_init(yelmo1,file2D,time_init=ts%time,units="years")
     
-    ! Intialize topography 
+    ! Intialize topography (bed always; the initial ice thickness is
+    ! applied below unless it comes from the restart file)
+    allocate(H_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    allocate(z_srf_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+
     select case(trim(domain)) 
 
         case("RAYMOND")
@@ -174,10 +180,10 @@ program yelmo_trough
             yelmo1%tpo%par%slope_bg_x = -s06_alpha
             yelmo1%bnd%z_bed = 10000.0_wp
 
-            yelmo1%tpo%now%H_ice = s06_H0
+            H_init = s06_H0
 
             ! Define surface elevation 
-            yelmo1%tpo%now%z_srf = yelmo1%bnd%z_bed + yelmo1%tpo%now%H_ice
+            z_srf_init = yelmo1%bnd%z_bed + H_init
 
             ! Define reference ice thickness (for prescribing boundary values, potentially)
             yelmo1%bnd%H_ice_ref = s06_H0 
@@ -204,11 +210,11 @@ program yelmo_trough
             yelmo1%tpo%par%slope_bg_x = -s06_alpha
             yelmo1%bnd%z_bed = 10000.0_wp
 
-            yelmo1%tpo%now%H_ice = s06_H0
+            H_init = s06_H0
             yelmo1%bnd%H_ice_ref = s06_H0 
 
             ! Define surface elevation 
-            yelmo1%tpo%now%z_srf = yelmo1%bnd%z_bed + yelmo1%tpo%now%H_ice
+            z_srf_init = yelmo1%bnd%z_bed + H_init
 
             ! Calculate analytical stream function to get tau_c and ux
 
@@ -248,13 +254,13 @@ program yelmo_trough
         case("TROUGH-F17")
             ! Feldmann and Levermann (2017) domain 
 
-            call trough_f17_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
+            call trough_f17_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                                     yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
         
         case("MISMIP+") 
             ! MISMIP+ domain 
 
-            call trough_mismipp_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
+            call trough_mismipp_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                                     yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
         
         case("SLAB-SHELF")
@@ -263,7 +269,7 @@ program yelmo_trough
             ! call trough_f17_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
             !                         yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
             
-            call slab_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
+            call slab_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                                     yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3)
 
 
@@ -274,6 +280,12 @@ program yelmo_trough
 
     end select 
 
+
+    ! Initial ice thickness, unless yelmo_init loaded it from the restart file
+    if (.not. (yelmo1%par%use_restart .and. yelmo1%par%restart_H_ice)) then
+        yelmo1%tpo%now%H_ice = H_init
+        yelmo1%tpo%now%z_srf = z_srf_init
+    end if
 
     ! Define calving front 
     call define_calving_front(yelmo1%bnd%calv_mask,yelmo1%grd%x*1e-3,x_cf)

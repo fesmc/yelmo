@@ -30,6 +30,8 @@ program yelmo_mismip
 
     integer :: n_att, n_att_tot, q_att, q
     real(prec), allocatable :: ATT_values(:)
+    real(wp),   allocatable :: H_init(:,:)          ! [m] Analytic initial ice thickness
+    real(wp),   allocatable :: z_srf_init(:,:)      ! [m] Analytic initial surface elevation
     real(prec) :: ATT_time, ATT_dt 
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
@@ -174,9 +176,16 @@ program yelmo_mismip
     ! Initialize output file 
     call yelmo_write_init(yelmo1,file2D,time_init=time_init,units="years")
     
-    ! Intialize topography 
-    call mismip3D_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
+    ! Intialize topography (bed always; the initial ice thickness only
+    ! if it does not come from the restart file, loaded by yelmo_init)
+    allocate(H_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    allocate(z_srf_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    call mismip3D_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                             yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,experiment)
+    if (.not. (yelmo1%par%use_restart .and. yelmo1%par%restart_H_ice)) then
+        yelmo1%tpo%now%H_ice = H_init
+        yelmo1%tpo%now%z_srf = z_srf_init
+    end if
 
     ! Initialize the LSF mask from the topography, if not restarting
     if (.not. yelmo1%par%use_restart) then
