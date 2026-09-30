@@ -191,7 +191,7 @@ contains
     end subroutine apply_tendency
 
     subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
-                                                    solver,boundaries,dx,dt,F)
+                                                    solver,boundaries,dx,dt,F,a_front)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving 
 
@@ -208,6 +208,7 @@ contains
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
         real(wp),         intent(IN)    :: dt                   ! [a]   Timestep 
         real(wp),         intent(IN), optional :: F(:,:) 
+        real(wp),         intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front (level set)
 
         ! Local variables 
         integer :: i, j, nx, ny
@@ -230,7 +231,8 @@ contains
         if (present(F)) F_now = F 
 
         ! Ensure that no velocity is defined for outer boundaries of partially-filled margin points
-        call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries)
+        ! (open into cells behind a prescribed front)
+        call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries,a_front)
 
         ! Determine current advective rate of change (time=n)
         call calc_advec2D(G_advec,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries)

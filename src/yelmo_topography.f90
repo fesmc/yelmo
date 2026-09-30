@@ -61,6 +61,7 @@ contains
         real(wp), allocatable :: H_prev(:,:)
         real(wp), allocatable :: ux_adv(:,:)
         real(wp), allocatable :: uy_adv(:,:)
+        real(wp), allocatable :: a_front(:,:)           ! Level-set area fraction (allocated with a subgrid LSF front)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
 
         logical, parameter :: use_rk4 = .FALSE. 
@@ -73,6 +74,11 @@ contains
         allocate(ux_adv(nx,ny))
         allocate(uy_adv(nx,ny))
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
+
+        ! With a subgrid front following the level set, ice flows from partial
+        ! cells into ice-free cells the front covers (set_inactive_margins);
+        ! a_front stays unallocated (absent) otherwise
+        if (tpo%par%use_lsf .and. trim(tpo%par%front_subgrid) .ne. "none") allocate(a_front(nx,ny))
 
         ! Initialize time if necessary 
         if (tpo%par%time .gt. dble(time)) then 
@@ -131,8 +137,10 @@ if (use_rk4) then
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
+                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                 a_front=a_front)
                  
 end if
 
@@ -162,8 +170,10 @@ if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
+                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt)
+                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                a_front=a_front)
                  
 end if
 

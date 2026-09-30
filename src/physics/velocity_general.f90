@@ -1,7 +1,8 @@
 module velocity_general 
     ! This module contains general routines that are used by several solvers. 
     
-    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND
+    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
+                            A_FRONT_MIN
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -1584,7 +1585,14 @@ end if
 
     end subroutine integrate_gl_driving_stress_linear
     
-    subroutine set_inactive_margins(ux,uy,f_ice,boundaries)
+    subroutine set_inactive_margins(ux,uy,f_ice,boundaries,a_front)
+        ! Zero the velocity on faces between an ice-free cell and a cell that
+        ! is not fully ice covered: a partial cell fills before ice flows
+        ! beyond it. With a_front, the area fraction of each cell behind a
+        ! prescribed front (the level set), a face into an ice-free cell stays
+        ! open where the front covers at least A_FRONT_MIN of that cell, so
+        ! cells fill as the front advances over them. Without a prescribed
+        ! front the only front is the ice itself (a_front = f_ice).
 
         implicit none
 
@@ -1592,11 +1600,13 @@ end if
         real(wp), intent(INOUT) :: uy(:,:) 
         real(wp), intent(IN)    :: f_ice(:,:) 
         character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1
         integer :: BC
+        logical, allocatable :: fill(:,:)               ! Ice-free cells that may be filled
 
         nx = size(f_ice,1) 
         ny = size(f_ice,2) 
@@ -1604,9 +1614,13 @@ end if
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Find partially-filled outer margins and set velocity to zero
-        ! (this will also treat all other ice-free points too) 
-        
+        allocate(fill(nx,ny))
+        if (present(a_front)) then
+            fill = a_front .ge. A_FRONT_MIN
+        else
+            fill = .FALSE.
+        end if
+
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx 
@@ -1614,25 +1628,25 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(ip1,j) .eq. 0.0_wp) then 
-                ux(i,j) = 0.0_wp 
-            end if
-            if (f_ice(i,j) .eq. 0.0_wp .and. f_ice(ip1,j) .lt. 1.0_wp) then 
-                ux(i,j) = 0.0_wp
-            end if 
-
-            if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(i,jp1) .eq. 0.0_wp) then 
-                uy(i,j) = 0.0_wp 
-            end if
-            if (f_ice(i,j) .eq. 0.0_wp .and. f_ice(i,jp1) .lt. 1.0_wp) then 
-                uy(i,j) = 0.0_wp 
-            end if
+            if (face_closed(f_ice(i,j),f_ice(ip1,j),fill(i,j),fill(ip1,j))) ux(i,j) = 0.0_wp
+            if (face_closed(f_ice(i,j),f_ice(i,jp1),fill(i,j),fill(i,jp1))) uy(i,j) = 0.0_wp
 
         end do
         end do
         !$omp end parallel do
 
         return
+
+    contains
+
+        pure logical function face_closed(f_a,f_b,fill_a,fill_b)
+            ! Face between an ice-free cell that may not be filled and a
+            ! cell that is not fully ice covered
+            real(wp), intent(IN) :: f_a, f_b
+            logical,  intent(IN) :: fill_a, fill_b
+            face_closed = (f_b .eq. 0.0_wp .and. .not. fill_b .and. f_a .lt. 1.0_wp) .or. &
+                          (f_a .eq. 0.0_wp .and. .not. fill_a .and. f_b .lt. 1.0_wp)
+        end function face_closed
 
     end subroutine set_inactive_margins
 
