@@ -181,15 +181,25 @@ contains
         do iter = 1, par%ssa_iter_max 
 
             ! Store solution from previous iteration (nm1 == n minus 1) 
-            !$omp parallel do collapse(2) private(i,j)
+            !$omp parallel private(i,j,k)
+            !$omp do collapse(2)
+            do k = 1, nz_aa
             do j = 1, ny
             do i = 1, nx
-                visc_eff_nm1(i,j,:) = visc_eff(i,j,:)
+                visc_eff_nm1(i,j,k) = visc_eff(i,j,k)
             end do
             end do
-            !$omp end parallel do
-            ux_bar_nm1   = ux_bar 
-            uy_bar_nm1   = uy_bar 
+            end do
+            !$omp end do nowait
+            !$omp do collapse(2)
+            do j = 1, ny
+            do i = 1, nx
+                ux_bar_nm1(i,j) = ux_bar(i,j)
+                uy_bar_nm1(i,j) = uy_bar(i,j)
+            end do
+            end do
+            !$omp end do
+            !$omp end parallel
             
             ! =========================================================================================
             ! Step 1: Calculate fields needed by ssa solver (visc_eff_int, beta_eff)
@@ -360,10 +370,12 @@ contains
         call calc_vel_horizontal_3D(ux,uy,ux_b,uy_b,taub_acx,taub_acy,visc_eff,H_ice,f_ice,zeta_aa,par%boundaries)
 
         ! Also calculate the shearing contribution
+        !$omp parallel do private(k)
         do k = 1, nz_aa 
             ux_i(:,:,k) = ux(:,:,k) - ux_b 
             uy_i(:,:,k) = uy(:,:,k) - uy_b 
         end do
+        !$omp end parallel do
     
 if (.FALSE.) then
         if (par%visc_method .eq. 0) then 
@@ -918,25 +930,36 @@ end if
         real(wp), intent(IN)  :: F2(:,:)
         logical,  intent(IN)  :: no_slip 
 
-        if (no_slip) then 
-            ! No basal sliding allowed, impose beta_eff derived from viscosity 
-            ! following L19, Eq. 35 (or G11, Eq. 42)
-            ! F2=0 only where no neighboring cell is fully ice covered (no
-            ! velocity solved, see set_ssa_masks), so no basal stress there.
+        ! Local variables
+        integer :: i, j
 
-            where (F2 .gt. 0.0_wp)
-                beta_eff = 1.0_wp / F2 
-            elsewhere
-                beta_eff = 0.0_wp
-            end where
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(beta_eff,2)
+        do i = 1, size(beta_eff,1)
 
-        else 
-            ! Basal sliding allowed, calculate beta_eff 
-            ! following L19, Eq. 33 (or G11, Eq. 41)
+            if (no_slip) then 
+                ! No basal sliding allowed, impose beta_eff derived from viscosity 
+                ! following L19, Eq. 35 (or G11, Eq. 42)
+                ! F2=0 only where no neighboring cell is fully ice covered (no
+                ! velocity solved, see set_ssa_masks), so no basal stress there.
 
-            beta_eff = beta / (1.0_wp+beta*F2)
+                if (F2(i,j) .gt. 0.0_wp) then
+                    beta_eff(i,j) = 1.0_wp / F2(i,j) 
+                else
+                    beta_eff(i,j) = 0.0_wp
+                end if
 
-        end if 
+            else 
+                ! Basal sliding allowed, calculate beta_eff 
+                ! following L19, Eq. 33 (or G11, Eq. 41)
+
+                beta_eff(i,j) = beta(i,j) / (1.0_wp+beta(i,j)*F2(i,j))
+
+            end if 
+
+        end do
+        end do
+        !$omp end parallel do
 
         return 
 
@@ -960,23 +983,34 @@ end if
         real(wp), intent(IN)  :: taub_acy(:,:)
         logical,  intent(IN)  :: no_slip
 
-        if (no_slip) then 
-            ! Set basal velocity to zero 
-            ! (this comes out naturally more or less with beta_eff set as above, 
-            !  but ensuring basal velocity is zero adds stability)
-            
-            ux_b = 0.0_wp 
-            uy_b = 0.0_wp 
+        ! Local variables
+        integer :: i, j
 
-        else 
-            ! Calculate basal velocity normally 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux_b,2)
+        do i = 1, size(ux_b,1)
 
-            ux_b = ux_bar - taub_acx*F2_acx 
-            uy_b = uy_bar - taub_acy*F2_acy 
+            if (no_slip) then 
+                ! Set basal velocity to zero 
+                ! (this comes out naturally more or less with beta_eff set as above, 
+                !  but ensuring basal velocity is zero adds stability)
+                
+                ux_b(i,j) = 0.0_wp 
+                uy_b(i,j) = 0.0_wp 
 
-            ! No treatment of boundary conditions needed since ux_b/uy_b are derived.
+            else 
+                ! Calculate basal velocity normally 
 
-        end if 
+                ux_b(i,j) = ux_bar(i,j) - taub_acx(i,j)*F2_acx(i,j) 
+                uy_b(i,j) = uy_bar(i,j) - taub_acy(i,j)*F2_acy(i,j) 
+
+                ! No treatment of boundary conditions needed since ux_b/uy_b are derived.
+
+            end if 
+
+        end do
+        end do
+        !$omp end parallel do
 
         return
         

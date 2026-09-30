@@ -55,8 +55,14 @@ contains
         !$omp end parallel do
 
         ! Limit the velocity generally =====================
-        call limit_vel(ux,ulim)
-        call limit_vel(uy,ulim)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            call limit_vel(ux(i,j),ulim)
+            call limit_vel(uy(i,j),ulim)
+        end do
+        end do
+        !$omp end parallel do
 
         return
 

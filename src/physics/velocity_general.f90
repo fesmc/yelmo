@@ -1887,23 +1887,32 @@ end if
         real(wp), intent(IN)  :: uy_prev(:,:)  
 
         ! Local variables
+        integer :: i, j
 
         real(wp), parameter :: ssa_vel_tolerance = 1e-2   ! [m/a] only consider points with velocity above this tolerance limit
         real(wp), parameter :: tol = 1e-5 
 
-        ! Error in x-direction
-        where (abs(ux) .gt. ssa_vel_tolerance) 
-            err_x = 2.0_wp * abs(ux - ux_prev) / abs(ux + ux_prev + tol)
-        elsewhere 
-            err_x = 0.0_wp
-        end where 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
 
-        ! Error in y-direction 
-        where (abs(uy) .gt. ssa_vel_tolerance) 
-            err_y = 2.0_wp * abs(uy - uy_prev) / abs(uy + uy_prev + tol)
-        elsewhere 
-            err_y = 0.0_wp
-        end where 
+            ! Error in x-direction
+            if (abs(ux(i,j)) .gt. ssa_vel_tolerance) then
+                err_x(i,j) = 2.0_wp * abs(ux(i,j) - ux_prev(i,j)) / abs(ux(i,j) + ux_prev(i,j) + tol)
+            else
+                err_x(i,j) = 0.0_wp
+            end if
+
+            ! Error in y-direction 
+            if (abs(uy(i,j)) .gt. ssa_vel_tolerance) then
+                err_y(i,j) = 2.0_wp * abs(uy(i,j) - uy_prev(i,j)) / abs(uy(i,j) + uy_prev(i,j) + tol)
+            else
+                err_y(i,j) = 0.0_wp
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
 
         return 
 
@@ -1944,7 +1953,7 @@ end if
         ! Local variables
         integer :: i, j, nx, ny, k
         real(dp) :: tmpx, tmpy
-        real(dp) :: res1, res2
+        real(dp) :: res1, res2, res3
         
         real(wp) :: ux_resid_max 
         real(wp) :: uy_resid_max 
@@ -1958,70 +1967,72 @@ end if
         nx = size(ux,1)
         ny = size(ux,2)
 
-        ! Count how many points should be checked for convergence
-        nx_check = count(abs(ux).gt.vel_tol .and. mask_acx)
-        ny_check = count(abs(uy).gt.vel_tol .and. mask_acy)
+        ! One pass over the domain: count the points to check, sum the
+        ! squared differences and get the maximum difference per direction
+        nx_check = 0
+        ny_check = 0
+        res1 = 0.0
+        res2 = 0.0
+        res3 = 0.0
+        ux_resid_max = 0.0
+        uy_resid_max = 0.0
+
+        !$omp parallel do collapse(2) private(i,j,tmpx,tmpy) &
+        !$omp& reduction(+:nx_check,ny_check,res1,res2,res3) reduction(max:ux_resid_max,uy_resid_max)
+        do j = 1, ny
+        do i = 1, nx
+
+            ! x-direction contribution (acx-node, own mask)
+            if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
+                nx_check = nx_check + 1
+                ux_resid_max = max(ux_resid_max,abs(ux(i,j)-ux_prev(i,j)))
+
+                tmpx = ux(i,j)-ux_prev(i,j)
+                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                res1 = res1 + tmpx*tmpx
+
+                tmpx = ux_prev(i,j)
+                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                res2 = res2 + tmpx*tmpx
+
+                tmpx = ux(i,j)+ux_prev(i,j)
+                res3 = res3 + tmpx*tmpx
+            end if
+
+            ! y-direction contribution (acy-node, own mask)
+            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
+                ny_check = ny_check + 1
+                uy_resid_max = max(uy_resid_max,abs(uy(i,j)-uy_prev(i,j)))
+
+                tmpy = uy(i,j)-uy_prev(i,j)
+                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                res1 = res1 + tmpy*tmpy
+
+                tmpy = uy_prev(i,j)
+                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                res2 = res2 + tmpy*tmpy
+
+                tmpy = uy(i,j)+uy_prev(i,j)
+                res3 = res3 + tmpy*tmpy
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
 
         if ( (nx_check+ny_check) .gt. 0 ) then
 
             select case(norm_method)
 
                 case(1)
-                    
-                    res1 = 0.0
-                    res2 = 0.0
 
-                    do j = 1, ny
-                    do i = 1, nx
-
-                            ! x-direction contribution (acx-node, own mask)
-                            if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
-                                tmpx = ux(i,j)-ux_prev(i,j)
-                                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                res1 = res1 + tmpx*tmpx
-
-                                tmpx = ux_prev(i,j)
-                                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                res2 = res2 + tmpx*tmpx
-                            end if
-
-                            ! y-direction contribution (acy-node, own mask)
-                            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
-                                tmpy = uy(i,j)-uy_prev(i,j)
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res1 = res1 + tmpy*tmpy
-
-                                tmpy = uy_prev(i,j)
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res2 = res2 + tmpy*tmpy
-                            end if
-                    end do
-                    end do
-
-                    ! res1 = sqrt( sum((ux-ux_prev)*(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                    !            + sum((uy-uy_prev)*(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    ! res2 = sqrt( sum((ux_prev)*(ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                    !            + sum((uy_prev)*(uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    res1 = sqrt(res1)
-                    res2 = sqrt(res2)
-
-                    resid = res1/(res2+du_reg)
+                    resid = sqrt(res1)/(sqrt(res2)+du_reg)
 
                 case(2)
 
-                    res1 = sqrt( sum((ux-ux_prev)*(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                               + sum((uy-uy_prev)*(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    res2 = sqrt( sum((ux+ux_prev)*(ux+ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                               + sum((uy+uy_prev)*(uy+uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    resid = 2.0_wp*res1/(res2+du_reg)
+                    resid = 2.0_wp*sqrt(res1)/(sqrt(res3)+du_reg)
 
             end select 
-
-             
 
         else 
             ! No points available for comparison, set residual equal to zero 
@@ -2040,19 +2051,6 @@ end if
         else 
             is_converged = .FALSE. 
             converged_txt = ""
-        end if 
-
-        ! Also calculate maximum error magnitude for perspective
-        if (nx_check .gt. 0) then 
-            ux_resid_max = maxval(abs(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx)
-        else 
-            ux_resid_max = 0.0 
-        end if 
-
-        if (ny_check .gt. 0) then 
-            uy_resid_max = maxval(abs(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy)
-        else 
-            uy_resid_max = 0.0 
         end if 
 
         !if (log .and. is_converged) then
@@ -2094,20 +2092,29 @@ end if
 
     end subroutine picard_calc_convergence_l2
 
-    elemental subroutine picard_relax_vel(ux,uy,ux_prev,uy_prev,rel)
+    subroutine picard_relax_vel(ux,uy,ux_prev,uy_prev,rel)
         ! Relax velocity solution with previous iteration 
 
         implicit none 
 
-        real(wp), intent(INOUT) :: ux
-        real(wp), intent(INOUT) :: uy
-        real(wp), intent(IN)    :: ux_prev
-        real(wp), intent(IN)    :: uy_prev
+        real(wp), intent(INOUT) :: ux(:,:)
+        real(wp), intent(INOUT) :: uy(:,:)
+        real(wp), intent(IN)    :: ux_prev(:,:)
+        real(wp), intent(IN)    :: uy_prev(:,:)
         real(wp), intent(IN)    :: rel
 
+        ! Local variables
+        integer :: i, j
+
         ! Apply relaxation 
-        ux = ux_prev + rel*(ux-ux_prev)
-        uy = uy_prev + rel*(uy-uy_prev)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            ux(i,j) = ux_prev(i,j) + rel*(ux(i,j)-ux_prev(i,j))
+            uy(i,j) = uy_prev(i,j) + rel*(uy(i,j)-uy_prev(i,j))
+        end do
+        end do
+        !$omp end parallel do
         
         return 
 
@@ -2127,9 +2134,9 @@ end if
 
         ! Apply relaxation 
         !$omp parallel do collapse(2) private(i,j,k)
+        do k = 1, size(visc,3)
         do j = 1, size(visc,2)
         do i = 1, size(visc,1)
-        do k = 1, size(visc,3)
             visc(i,j,k) = exp( (1.0-rel)*log(visc_prev(i,j,k)) + rel*log(visc(i,j,k)) )
         end do
         end do

@@ -177,9 +177,25 @@ contains
         do iter = 1, par%ssa_iter_max 
 
             ! Store solution from previous iteration (nm1 == n minus 1) 
-            visc_eff_nm1 = visc_eff 
-            ux_b_nm1     = ux_b 
-            uy_b_nm1     = uy_b 
+            !$omp parallel private(i,j,k)
+            !$omp do collapse(2)
+            do k = 1, nz_aa
+            do j = 1, ny
+            do i = 1, nx
+                visc_eff_nm1(i,j,k) = visc_eff(i,j,k)
+            end do
+            end do
+            end do
+            !$omp end do nowait
+            !$omp do collapse(2)
+            do j = 1, ny
+            do i = 1, nx
+                ux_b_nm1(i,j) = ux_b(i,j)
+                uy_b_nm1(i,j) = uy_b(i,j)
+            end do
+            end do
+            !$omp end do
+            !$omp end parallel
             
             ! =========================================================================================
             ! Step 1: Calculate fields needed by ssa solver (visc_eff_int, beta)
