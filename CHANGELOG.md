@@ -232,6 +232,18 @@ little. MISMIP3D and DIVA runs change more.
   TROUGH (4 km, zero calving): front speed 0.61-0.73 u -> 0.88-0.94 u, ice removed
   35-38% -> 7-8% of the inflow. ANT-16 (200 yr): trim-caused grounded-to-floating
   switches 328 -> 17, volume +0.05%. Runs without the level set are unchanged.
+- **Level set crosses the coast.** Grounded faces with a mean bed above mean sea
+  level had `cr = -u` (no level-set motion), which also closed many faces between a
+  land and a marine cell, so the land value could not reach the first marine cell.
+  With a subgrid front that cell filled with ice while `lsf > 0`, and the value
+  spread along grid-aligned flow lines (CalvingMIP: near-zero `lsf` under the ice
+  on the axes, a one-cell ice-free channel on each axis in exp2). Now only faces
+  between two land cells are closed.
+  CalvingMIP (marine): no `lsf > 0` under interior ice (was 84 cells), exp2 axis
+  front 742 km at 1 kyr (was 601 km), exp1 volume +0.5%, ice crosses the coast on
+  the axis at 1400 yr (was 4200). ANT-16 (200 yr): volume +0.001%, calving -5%;
+  re-advance after a retreat to the coast regains 23% more area. Runs without the
+  level set are unchanged.
 - **Mass balance on the ice fraction after transport.** smb, bmb, fmb and dmb
   used `f_ice` from before the advection step, so a cell that had just received ice
   (f_ice = 0) took the full per-area melt: with the level set, ~100 ice-free cells
