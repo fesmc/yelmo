@@ -166,6 +166,13 @@ ssa_energy : yelmo-static tests/test_ssa_energy.f90
 		@echo "    test_ssa_energy.x is ready."
 		@echo " "
 
+front_strain : yelmo-static tests/test_front_strain.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_front_strain.x tests/test_front_strain.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_front_strain.x is ready."
+		@echo " "
+
 ssa_energy_sym : yelmo-static tests/test_ssa_energy_sym.f90
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_ssa_energy_sym.x tests/test_ssa_energy_sym.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)

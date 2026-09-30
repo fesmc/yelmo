@@ -4,7 +4,7 @@ module yelmo_material
     use nml 
 
     use yelmo_defs
-    use yelmo_tools, only : calc_vertical_integrated_2D, calc_vertical_integrated_3D, fill_partial_ice_cells
+    use yelmo_tools, only : calc_vertical_integrated_2D, calc_vertical_integrated_3D
     
     use deformation
     use ice_tracer  
@@ -232,15 +232,14 @@ contains
         ! Note: this viscosity which is used for material and thermodynamic properties may be
         ! different than the visocity calculated locally in the dynamics module
         
-        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,tpo%now%H_ice,tpo%now%f_ice, &
+        ! On the active ice geometry of the dynamics (H_ice_dyn, f_ice_dyn), where the
+        ! strain rate is computed: partial front cells get their own viscosity
+        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                                                             mat%par%n_glen,mat%par%visc_min,dyn%par%eps_0)
-        
+
         ! Calculate visc_bar and visc_int (vertically integrated visc) as diagnostic quantities
         mat%now%visc_bar = calc_vertical_integrated_2D(mat%now%visc,mat%par%zeta_aa)
-        ! visc is only calculated at fully ice-covered points; define visc_bar at
-        ! margin points too, consistent with strn2D (see fill_strain_2D_partial)
-        call fill_partial_ice_cells(mat%now%visc_bar,tpo%now%f_ice,dyn%par%boundaries)
-        call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice,tpo%now%f_ice, &
+        call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                                                     mat%par%zeta_aa,dyn%par%boundaries)
 
         ! 3. Calculate the deviatoric stress tensor and 2D average
