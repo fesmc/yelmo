@@ -773,7 +773,9 @@ end if
 
     subroutine calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,time_now)
         ! Calving computed as a flux. LSF mask is updated with velocity - calving front velocity.
-        ! Points in ocean domain (LSF > 0) will be deleted with a melt equal to the ice thickness.
+        ! Ice in cells whose centre is in the ocean domain (LSF > 0) is deleted with a melt
+        ! equal to the ice thickness. With a subgrid front, cells eligible for it follow the
+        ! level-set area instead (calc_G_lsf_front).
 
         implicit none
     
@@ -792,6 +794,7 @@ end if
         real(wp) :: dt_kill
         real(wp), allocatable :: mbal_now(:,:)
         real(wp), allocatable :: a_lsf(:,:)
+        logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         !real(wp), allocatable :: u_acx_fill(:,:), v_acy_fill(:,:)
         integer  :: BC
         integer  :: i1, i2, j1, j2
@@ -809,6 +812,7 @@ end if
 
         allocate(mbal_now(nx,ny))
         allocate(a_lsf(nx,ny))
+        allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
 
         ! === Floating calving laws ===
         
@@ -999,7 +1003,12 @@ end if
         end select
 
         ! === Calving ===
-        ! Apply calving as a melt rate equal to ice thickness where lsf is positive
+        ! Apply calving as a melt rate equal to ice thickness where lsf is positive,
+        ! except in cells eligible for the subgrid front (none with front_subgrid="none"),
+        ! which are emptied by area below (calc_G_lsf_front)
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                              bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid,tpo%par%boundaries)
+
         tpo%now%cmb = 0.0_wp
         do j=1,ny
         do i=1,nx
@@ -1012,7 +1021,7 @@ end if
             tpo%now%cmb_grnd(i,j) = ((0.5*(tpo%now%cmb_grnd_x(im1,j)+tpo%now%cmb_grnd_x(i,j)))**2 + &
                                      (0.5*(tpo%now%cmb_grnd_y(i,jm1)+tpo%now%cmb_grnd_y(i,j)))**2)**0.5
 
-            if (tpo%now%lsf(i,j) .gt. 0.0_wp) then
+            if (tpo%now%lsf(i,j) .gt. 0.0_wp .and. .not. mask_elig(i,j)) then
                 ! Calve ice outside LSF mask (cmb = H_ice / dt_kill)
                 tpo%now%cmb(i,j) = -(tpo%now%H_ice(i,j) / dt_kill)
             end if
@@ -1058,12 +1067,26 @@ end if
 
         call update_ice_fraction(tpo,bnd)
 
-        ! if there is no ice (for example due to oceanic melt) ensure that point is now ocean in the lsf mask
+        ! Ice-free marine cells behind the front (for example emptied by oceanic melt) are
+        ! returned to the ocean side of the lsf mask, unless an edge neighbour holds ice
+        ! that can fill them as the front advances
         select case(trim(tpo%par%calv_flt_method))
             case("equil")
                     ! Do nothing here
             case DEFAULT
-                    where(tpo%now%H_ice .le. 0.0 .and. tpo%now%lsf .lt. 0.0 .and. bnd%z_bed .lt. bnd%z_sl) tpo%now%lsf = 1.0_wp
+                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+                do j = 1, ny
+                do i = 1, nx
+                    call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                    if (tpo%now%H_ice(i,j) .le. 0.0_wp .and. tpo%now%lsf(i,j) .lt. 0.0_wp .and. &
+                        bnd%z_bed(i,j) .lt. bnd%z_sl(i,j) .and. &
+                        .not. (tpo%now%H_ice(im1,j) .gt. 0.0_wp .or. tpo%now%H_ice(ip1,j) .gt. 0.0_wp .or. &
+                               tpo%now%H_ice(i,jm1) .gt. 0.0_wp .or. tpo%now%H_ice(i,jp1) .gt. 0.0_wp)) then
+                        tpo%now%lsf(i,j) = 1.0_wp
+                    end if
+                end do
+                end do
+                !$omp end parallel do
         end select 
 
         ! compute diagnostic fields for output (all points in periodic
