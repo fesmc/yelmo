@@ -420,8 +420,16 @@ contains
         !$omp end parallel do
 
         ! Reduce ice thickness for margin points that are thicker 
-        ! than inland neighbors. Not for subgrid front cells: there
-        ! the excess above H_eff is moved on by the front advance ====
+        ! than inland neighbors. Not for subgrid front cells (mask_cf),
+        ! which are bounded per calving path: mass-balance path, the
+        ! excess above H_eff is moved on by the front advance
+        ! (calc_G_front_advance); level-set path, partial cells are
+        ! trimmed to a_lsf*H_ref (calc_G_lsf_front) and full cells pass
+        ! their outflow to the ocean neighbour (set_inactive_margins),
+        ! where it is kept if the level set covers that cell and calved
+        ! otherwise. A front cell thicker than its neighbours is mostly
+        ! geometry there (deeper bed, partial neighbours), not excess ice
+        ! (review 2026-10-01, TPO-8) ====
 
         H_tmp = H_ice_new
 
