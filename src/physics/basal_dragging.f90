@@ -415,7 +415,11 @@ contains
         end select 
 
         ! 2. Reduce sliding where the base is below the pressure melting point,
-        ! on aa-nodes before staggering, like any other spatial variation of friction
+        ! on aa-nodes before staggering, like any other spatial variation of friction.
+        ! Note: a frozen grounded cell at the grounding line passes its beta/f_slide
+        ! (up to beta/lambda_min, effectively no slip) to its grounding-line faces.
+        ! This is rare; whether sliding should be imposed at the grounding line is
+        ! an open question (review 2026-10-01, DYN-1).
         beta = beta / f_slide
 
         ! 3. Scale beta as it approaches grounding line 
