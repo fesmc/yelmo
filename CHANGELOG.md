@@ -430,6 +430,13 @@ little. MISMIP3D and DIVA runs change more.
 - **`ytopo.margin2nd`:** the one-sided margin gradient was twice too large and
   failed the EISMINT symmetry check. It now passes (Linf/Hmax 2e-6).
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
+- **Basal frictional heating:** new `ytherm.qb_method = 3` ("faces") forms
+  `taub_acx*ux_b` on acx nodes and `taub_acy*uy_b` on acy nodes and averages the two
+  faces of each cell to the aa-node. Its domain total equals the work done by basal
+  friction in the C-grid momentum balance; `qb_method = 1, 2` multiply the magnitudes of
+  separately interpolated vectors and do not (ISMIP7 spin-ups: total −1.8% GrIS 8 km,
+  +6.8% AIS 16 km vs the frictional work). `ytherm_par_load` now stops on a
+  `qb_method` other than 1, 2 or 3 (before, `Q_b` was silently left unchanged).
 
 ### Diagnostics
 
