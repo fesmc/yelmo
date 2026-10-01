@@ -11,7 +11,7 @@ module yelmo
 !     use yelmo_topography
 !     use yelmo_boundaries 
     use yelmo_regions, only : yelmo_write_reg_init, yelmo_write_reg_step, &
-                    yelmo_regions_init, yelmo_regions_update, yelmo_regions_write, &
+                    yelmo_regions_init, yelmo_regions_update, yelmo_regions_write_init, yelmo_regions_write, &
                     yelmo_region_init
     
     use basal_dragging, only : calc_cb_ref 
