@@ -70,6 +70,7 @@ module thermodynamics
     public :: calc_basal_heating_nodes
     public :: calc_basal_heating_simplestagger
     public :: calc_basal_heating_faces
+    public :: calc_basal_heating_faces_nodes
 
     public :: convert_to_enthalpy
     public :: convert_from_enthalpy_column
@@ -988,6 +989,99 @@ contains
         return
 
     end subroutine calc_basal_heating_faces
+
+    subroutine calc_basal_heating_faces_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
+        ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
+        ! Basal frictional heating formed on the C-grid faces as in qb_method = 3,
+        ! Qx = |taub_acx*ux_b| on acx nodes and Qy = |taub_acy*uy_b| on acy nodes,
+        ! then interpolated to the quadrature points of the cell like the staggered
+        ! fields of qb_method = 2, summed there and averaged to the aa-node:
+        !
+        !   Q_b(i,j) = sum_n wt_n*(Qx_n + Qy_n) / wt_tot
+        !
+        ! The quadrature mean equals the mean of the cell-corner values, so each face
+        ! gives 1/4 of its heat to each of the two cells it separates and 1/8 to each of
+        ! their neighbours across the face direction (a 1-2-1 smoothing of qb_method = 3).
+        ! The domain total is therefore the same as for qb_method = 3, the work done by
+        ! basal friction in the discrete momentum balance, apart from the heat given to
+        ! cells that are not fully ice covered, where Q_b is set to zero.
+
+        real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
+        real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)    :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)    :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)    :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)    :: f_ice(:,:)         ! [--] Ice area fraction
+        real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: sec_year
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: Qxn(4)
+        real(wp) :: Qyn(4)
+        real(wp) :: Qb_aa
+        real(wp), allocatable :: Qx(:,:)
+        real(wp), allocatable :: Qy(:,:)
+
+        type(gq2D_class) :: gq2D
+        real(wp) :: dx_tmp, dy_tmp
+
+        ! Initialize gaussian quadrature calculations
+        call gq2D_init(gq2D)
+        dx_tmp = 1.0
+        dy_tmp = 1.0
+
+        nx = size(Q_b,1)
+        ny = size(Q_b,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        ! Face products [Pa m a-1] == [J a-1 m-2]
+        allocate(Qx(nx,ny))
+        allocate(Qy(nx,ny))
+        Qx = abs(taub_acx*ux_b)
+        Qy = abs(taub_acy*uy_b)
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+                ! Fully ice-covered point
+
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                ! Face products at the quadrature points
+                call gq2D_to_nodes_acx(gq2D,Qxn,Qx,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2D,Qyn,Qy,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+
+                ! Sum at the quadrature points and average to the aa-node [J a-1 m-2]
+                Qb_aa = sum((Qxn+Qyn)*gq2D%wt)/gq2D%wt_tot
+
+                ! Convert to [mW m-2]
+                Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
+
+                ! Get weighted average of Q_b with timestepping factors
+                Q_b(i,j) = beta1*Qb_aa + beta2*Q_b(i,j)
+
+            else
+                ! Not fully ice-covered point
+
+                Q_b(i,j) = 0.0
+
+            end if
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_basal_heating_faces_nodes
 
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
