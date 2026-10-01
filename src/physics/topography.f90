@@ -194,7 +194,7 @@ contains
     end subroutine gen_mask_bed
 
     subroutine calc_ice_fraction(f_ice,H_eff,H_ice,z_bed,z_sl,rho_ice,rho_sw, &
-                                    front_subgrid,H_eff_min,dHdx,dx,boundaries)
+                                    front_subgrid,H_eff_min,dHdx,dx,boundaries,a_lsf)
         ! Ice area fraction f_ice and effective thickness H_eff of each cell,
         ! following the CISM subgrid calving-front scheme (which_ho_calving_front).
         !
@@ -203,8 +203,10 @@ contains
         ! front_subgrid = "marine":   floating and marine-grounded cells can be.
         !
         ! A front cell is an eligible ice cell with an ice-free ocean edge
-        ! neighbour. Its H_eff is the reference thickness from its interior
-        ! (eligible, not front) neighbours (calc_front_H_ref); for "marine" the
+        ! neighbour (with the level set a_lsf, also one cut by the front that
+        ! touches the ocean at a corner; calc_front_cells). Its H_eff is the
+        ! reference thickness from its interior (eligible, not front)
+        ! neighbours (calc_front_H_ref); for "marine" the
         ! effective surface is also at most dz_srf_max above the actual
         ! surface. Front cells without an interior neighbour keep H_eff = H_ice.
         ! H_eff >= H_eff_min in all eligible cells, and <= flotation in
@@ -225,6 +227,7 @@ contains
         real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
         real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
         character(len=*), intent(IN) :: boundaries
+        real(wp), optional, intent(IN) :: a_lsf(:,:)    ! [--] Level-set area fraction (LSF calving)
 
         ! Local variables 
         integer  :: i, j, nx, ny
@@ -270,7 +273,7 @@ contains
         allocate(has_ref(nx,ny))
         allocate(H_ref(nx,ny))
 
-        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
 
         call calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_cf, &
                               mask_elig .and. .not. mask_cf,front_subgrid,dHdx,dx,boundaries)
@@ -425,11 +428,15 @@ contains
         H = min( (zs - zsl)*rho_sw/(rho_sw-rho_ice), zs - zb )
     end function srf_thickness
 
-    subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+    subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
         ! Front cells of the subgrid front scheme (ytopo.front_subgrid):
         ! eligible ice cells (floating, or floating and marine-grounded)
-        ! with at least one ice-free ocean edge neighbour. With "none" no
-        ! cell is eligible.
+        ! with at least one ice-free ocean edge neighbour. With the level-set
+        ! area fraction a_lsf (LSF calving), eligible cells not entirely behind
+        ! the front (a_lsf < 1) that touch the ocean only at a corner are front
+        ! cells too. This is the one front/interior classification of the
+        ! level-set trim (calc_G_lsf_front) and of calc_ice_fraction. With
+        ! "none" no cell is eligible.
 
         implicit none
 
@@ -443,6 +450,7 @@ contains
         real(wp), intent(IN)  :: rho_sw
         character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
         character(len=*), intent(IN) :: boundaries
+        real(wp), optional, intent(IN) :: a_lsf(:,:)    ! [--] Area fraction behind the level-set front
 
         ! Local variables
         integer :: i, j, nx, ny, im1, ip1, jm1, jp1, BC
@@ -489,6 +497,20 @@ contains
         end do
         end do
         !$omp end parallel do
+
+        if (present(a_lsf)) then
+            ! Corner cells cut by the level-set front
+            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+            do j = 1, ny
+            do i = 1, nx
+                if (mask_cf(i,j) .or. .not. mask_elig(i,j) .or. a_lsf(i,j) .ge. 1.0_wp) cycle
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                mask_cf(i,j) = mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. &
+                               mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1)
+            end do
+            end do
+            !$omp end parallel do
+        end if
 
         return
 

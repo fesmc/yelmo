@@ -71,10 +71,12 @@ the rise of the effective surface), and the ice fraction
 With the level set, the thickness of these cells follows the front
 (`calc_G_lsf_front`): `a_lsf`, the area fraction of the cell behind the zero
 contour, is computed from the cell's centre, edge and corner values of
-$\varphi$. Cells with `a_lsf` < 0.1 are emptied, and front cells (also those
-touching the ocean at a corner) are trimmed to `a_lsf`·`H_ref`, with `H_ref`
-the reference thickness from the interior neighbours. `f_ice` is then
-approximately `a_lsf`. In the momentum balance, partial front cells use
+$\varphi$. Cells with `a_lsf` < 0.1 are emptied. With the level set, eligible
+cells cut by the front (`a_lsf` < 1) that touch the ocean only at a corner are
+front cells too; the trim and `f_ice` use this one front/interior
+classification. Front cells with `a_lsf` < 1 are trimmed to `a_lsf`·`H_ref`,
+with `H_ref` the reference thickness from the interior neighbours, so `f_ice`
+is approximately `a_lsf`. In the momentum balance, partial front cells use
 `H_eff` as their thickness and the front boundary condition is applied on
 their ocean faces.
 

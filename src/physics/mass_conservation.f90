@@ -822,9 +822,11 @@ contains
         ! Thickness of the subgrid front cells follows the level set (CISM
         ! subgrid calving mask, H/H_eff = 1 - mask): eligible cells with less
         ! than A_FRONT_MIN of their area behind the front are emptied, and
-        ! front cells (also eligible cells touching the ocean at a corner)
-        ! hold at most a_lsf*H_ref. The reference H_ref comes from the
-        ! remaining interior cells (calc_front_H_ref) and does not depend on
+        ! front cells (calc_front_cells with a_lsf: also cells cut by the
+        ! front that touch the ocean at a corner) not entirely behind the
+        ! front hold at most a_lsf*H_ref. calc_ice_fraction uses the same
+        ! classification, so these cells get f_ice ~ a_lsf. The reference
+        ! H_ref comes from the remaining interior cells (calc_front_H_ref) and does not depend on
         ! the trimmed cell's own thickness, so repeated trimming does not
         ! compound. Cells without an interior neighbour are not trimmed.
         ! Returns the applied calving rate [m/yr, <= 0].
@@ -847,7 +849,6 @@ contains
 
         ! Local variables
         integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1, BC
         logical  :: is_flt
         real(wp) :: H_max
         real(wp), allocatable :: H_now(:,:), H_ref(:,:)
@@ -855,7 +856,6 @@ contains
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
-        BC = boundary_code(boundaries)
 
         is_flt = trim(front_subgrid) .eq. "floating"
 
@@ -868,24 +868,15 @@ contains
         call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
         where (mask_elig .and. a_lsf .lt. A_FRONT_MIN) H_now = 0.0_wp
 
-        ! Partial cells: eligible cells not entirely behind the front that
-        ! touch the ocean at an edge (front cells) or a corner
-        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries)
+        ! Front cells (ocean edge neighbour, or cut by the front with an ocean
+        ! corner neighbour), the same classification as in calc_ice_fraction;
+        ! those not entirely behind the front are trimmed
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_now,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
+        mask_part = mask_cf .and. a_lsf .lt. 1.0_wp
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
-        do j = 1, ny
-        do i = 1, nx
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            mask_part(i,j) = mask_elig(i,j) .and. a_lsf(i,j) .lt. 1.0_wp .and. &
-                ( mask_cf(i,j) .or. mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. &
-                                    mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1) )
-        end do
-        end do
-        !$omp end parallel do
-
-        ! Reference thickness from interior cells (eligible, not front, not partial)
+        ! Reference thickness from interior cells (eligible, not front)
         call calc_front_H_ref(H_ref,has_ref,H_now,z_bed,z_sl,rho_ice,rho_sw,mask_part, &
-                              mask_elig .and. .not. (mask_cf .or. mask_part),front_subgrid,dHdx,dx,boundaries)
+                              mask_elig .and. .not. mask_cf,front_subgrid,dHdx,dx,boundaries)
 
         ! Trim partial cells to a_lsf*H_ref (same bounds as H_eff: at least
         ! H_eff_min, at most flotation for "floating")
