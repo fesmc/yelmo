@@ -500,6 +500,7 @@ module yelmo_defs
         real(wp), allocatable :: uxy(:,:,:)
         real(wp), allocatable :: uz(:,:,:)  
         real(wp), allocatable :: uz_star(:,:,:)
+        real(wp), allocatable :: uz_srf_err(:,:)    ! [m/yr] uz_star at the surface + smb (0 if consistent)
         
         real(wp), allocatable :: ux_bar(:,:) 
         real(wp), allocatable :: uy_bar(:,:)

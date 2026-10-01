@@ -260,6 +260,16 @@ contains
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method
                 stop
         end select
+
+        ! Diagnostic: surface sigma-velocity mismatch. Kinematically uz_star = -smb at the
+        ! surface; a non-zero value comes from the different velocity fields and
+        ! discretisations of the thickness rate (dzsdt_kin) and of uz. Fully ice-covered cells only.
+        where (tpo%now%f_ice_dyn .eq. 1.0_wp)
+            dyn%now%uz_srf_err = dyn%now%uz_star(:,:,nz_ac) + tpo%now%smb
+        elsewhere
+            dyn%now%uz_srf_err = 0.0_wp
+        end where
+
         ! ===== Finish calculating velocity Jacobian (uz-dependent terms) ================
 
         call calc_jacobian_vel_3D_uzterms(dyn%now%jvel, dyn%now%ux, dyn%now%uy, dyn%now%uz, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, &
@@ -829,6 +839,7 @@ contains
         allocate(now%ux_b(nx,ny)) 
         allocate(now%uy_b(nx,ny))
         allocate(now%uz_b(nx,ny))
+        allocate(now%uz_srf_err(nx,ny))
         allocate(now%uxy_b(nx,ny))
 
         allocate(now%ux_s(nx,ny)) 
@@ -939,6 +950,7 @@ contains
         now%ux_b              = 0.0 
         now%uy_b              = 0.0
         now%uz_b              = 0.0
+        now%uz_srf_err        = 0.0
         now%uxy_b             = 0.0
 
         now%ux_s              = 0.0 
@@ -1057,6 +1069,7 @@ contains
         if (allocated(now%ux_b))            deallocate(now%ux_b) 
         if (allocated(now%uy_b))            deallocate(now%uy_b)
         if (allocated(now%uz_b))            deallocate(now%uz_b)
+        if (allocated(now%uz_srf_err))      deallocate(now%uz_srf_err)
         if (allocated(now%uxy_b))           deallocate(now%uxy_b)
         
         if (allocated(now%ux_s))            deallocate(now%ux_s) 
