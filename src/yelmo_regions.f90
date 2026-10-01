@@ -11,6 +11,7 @@ module yelmo_regions
     private
     public :: yelmo_regions_init
     public :: yelmo_regions_update
+    public :: yelmo_regions_write_init
     public :: yelmo_regions_write
     public :: yelmo_region_init
 
@@ -148,6 +149,35 @@ contains
 
     end subroutine yelmo_regions_update
 
+    subroutine yelmo_regions_write_init(ylmo,time,units)
+        ! Initialize the output files of all regions that should
+        ! be written, without writing a time step
+
+        implicit none 
+
+        type(yelmo_class), intent(IN) :: ylmo
+        real(wp),          intent(IN) :: time
+        character(len=*),  intent(IN) :: units 
+
+        ! Local variables
+        integer :: k 
+
+        if (ylmo%reg%write) then
+            call yelmo_write_reg_init(ylmo,ylmo%reg%fnm,time,units,ylmo%reg%mask)
+        end if 
+
+        if (ylmo%par%n_reg .gt. 0) then
+            do k = 1, ylmo%par%n_reg 
+                if (ylmo%regs(k)%write) then
+                    call yelmo_write_reg_init(ylmo,ylmo%regs(k)%fnm,time,units,ylmo%regs(k)%mask)
+                end if
+            end do
+        end if
+
+        return 
+
+    end subroutine yelmo_regions_write_init
+
     subroutine yelmo_regions_write(ylmo,time,init,units)
         ! Write all regions defined in the yelmo object
         ! that should be written
@@ -177,12 +207,10 @@ contains
             initialize_files = .FALSE.
         end if
 
+        if (initialize_files) call yelmo_regions_write_init(ylmo,time,units)
+
         ! First write the global region
         if (ylmo%reg%write) then
-
-            if (initialize_files) then
-                call yelmo_write_reg_init(ylmo,ylmo%reg%fnm,time,units,ylmo%reg%mask)
-            end if
 
             call yelmo_write_reg_step(ylmo,ylmo%reg%fnm,time,reg_now=ylmo%reg)
         end if 
@@ -193,10 +221,6 @@ contains
             do k = 1, ylmo%par%n_reg 
                 if (ylmo%regs(k)%write) then
 
-                    if (initialize_files) then
-                        call yelmo_write_reg_init(ylmo,ylmo%regs(k)%fnm,time,units,ylmo%regs(k)%mask)
-                    end if
-            
                     call yelmo_write_reg_step(ylmo,ylmo%regs(k)%fnm,time,reg_now=ylmo%regs(k))
                 end if
             end do

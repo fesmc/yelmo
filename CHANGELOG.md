@@ -470,7 +470,9 @@ little. MISMIP3D and DIVA runs change more.
   `trst` output schedule (always at `time_end`), and has `ctrl.restart_mode`:
   `"state"` (start at `time_init` from a restart state, as before) or `"continue"`
   (stop unless `time_init` equals the restart file's time). Cold starts change
-  slightly; a continuation now reproduces the straight run.
+  slightly; a continuation now reproduces the straight run. New
+  `yelmo_regions_write_init` creates the regional output files without writing a
+  record, so `yelmo_initmip` no longer writes its `time_init` regional record twice.
 - `speed_tpo` in the timestep log (`log_timestep`) is now the speed of the topography
   step (predictor + corrector + advance); it was always zero.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness

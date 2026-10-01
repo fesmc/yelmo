@@ -306,7 +306,7 @@ program yelmo_test
 
     ! Initialize output files
 
-    call yelmo_regions_write(yelmo1,ts%time,init=.TRUE.,units="years")
+    call yelmo_regions_write_init(yelmo1,ts%time,units="years")
 
     if (t2Dsm%active) then
         call yelmo_write_init(yelmo1,t2Dsm%filename,time_init=ts%time,units="years")
