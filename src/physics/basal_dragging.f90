@@ -33,12 +33,6 @@ module basal_dragging
     public :: calc_beta 
     public :: stagger_beta 
 
-    ! Effective pressure
-    public :: calc_effective_pressure_overburden
-    public :: calc_effective_pressure_marine
-    public :: calc_effective_pressure_till
-    public :: calc_effective_pressure_two_value 
-    
     ! c_bed functions
     public :: calc_lambda_bed_lin
     public :: calc_lambda_bed_exp
@@ -559,11 +553,10 @@ contains
             ! Modify beta at the grounding line 
             select case(beta_gl_stag) 
      
-                case(-1,0) 
+                case(0) 
 
-                    ! Do nothing, staggering has already been computed properly 
-                    ! -1: beta_acx and beta_acy have been defined externally 
-                    !  0: beta_acx and beta_acy have been defined with simple staggering above 
+                    ! Do nothing, beta_acx and beta_acy have been defined
+                    ! with simple staggering above 
 
                 case(1) 
                     ! Apply upstream beta_aa value at ac-node with at least one neighbor H_grnd_aa > 0
@@ -644,205 +637,6 @@ contains
         return 
 
     end subroutine stagger_beta
-
-    elemental function calc_effective_pressure_overburden(H_ice,f_ice,f_grnd,rho_ice,g) result(N_eff)
-        ! Effective pressure as overburden pressure N_eff = rho*g*H_ice 
-
-        implicit none 
-
-        real(wp), intent(IN) :: H_ice 
-        real(wp), intent(IN) :: f_ice
-        real(wp), intent(IN) :: f_grnd 
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        real(wp) :: N_eff                 ! [Pa]
-
-        ! Local variables 
-        real(wp) :: H_eff 
-
-        ! Get effective ice thickness 
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-        ! Calculate effective pressure [Pa] (overburden pressure)
-        ! Set N_eff to zero for purely floating points, but do not
-        ! scale grounding-line points by f_grnd. This is done on
-        ! the beta-staggering step.
-        if (f_grnd .gt. 0.0) then
-            N_eff = (rho_ice*g*H_eff)
-        else
-            N_eff = 0.0 
-        end if 
-
-        return 
-
-    end function calc_effective_pressure_overburden
-
-    elemental function calc_effective_pressure_marine(H_ice,f_ice,z_bed,z_sl,H_w,p,rho_ice,rho_sw,g) result(N_eff)
-        ! Effective pressure as a function of connectivity to the ocean
-        ! as defined by Leguy et al. (2014), Eq. 14, and modified
-        ! by Robinson and Alvarez-Solas to account for basal water pressure (to do!)
-
-        ! Note: input is for a given point, should be on central aa-nodes
-        ! or shifted to ac-nodes before entering this routine 
-
-        implicit none 
-
-        real(wp), intent(IN) :: H_ice 
-        real(wp), intent(IN) :: f_ice 
-        real(wp), intent(IN) :: z_bed 
-        real(wp), intent(IN) :: z_sl 
-        real(wp), intent(IN) :: H_w 
-        real(wp), intent(IN) :: p       ! [0:1], 0: no ocean connectivity, 1: full ocean connectivity
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: rho_sw
-        real(wp), intent(IN) :: g
-        
-        real(wp) :: N_eff               ! [Pa]
-
-        ! Local variables 
-        real(wp) :: H_eff  
-        real(wp) :: H_float     ! Maximum ice thickness to allow floating ice
-        real(wp) :: p_w         ! Pressure of water at the base of the ice sheet
-        real(wp) :: x 
-        real(wp) :: rho_sw_ice 
-
-        rho_sw_ice = rho_sw/rho_ice 
-
-        ! Determine the maximum ice thickness to allow floating ice
-        H_float = max(0.0_wp, rho_sw_ice*(z_sl-z_bed))
-
-        ! Get effective ice thickness 
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-        ! Calculate basal water pressure 
-        if (H_eff .eq. 0.0) then
-            ! No water pressure for ice-free points
-
-            p_w = 0.0 
-
-        else if (H_eff .lt. H_float) then 
-            ! Floating ice: water pressure equals ice pressure 
-
-            p_w   = (rho_ice*g*H_eff)
-
-        else
-            ! Determine water pressure based on marine connectivity (Leguy et al., 2014, Eq. 14)
-
-            x     = min(1.0_wp, H_float/H_eff)
-            p_w   = (rho_ice*g*H_eff)*(1.0_wp - (1.0_wp-x)**p)
-
-        end if 
-
-        ! Calculate effective pressure [Pa] (overburden pressure minus basal water pressure)
-        ! Note: this will set N_eff to zero for purely floating points, but do not
-        ! scale grounding-line points by f_grnd. This is done on
-        ! the beta-staggering step.
-        N_eff = (rho_ice*g*H_eff) - p_w 
-
-        return 
-
-    end function calc_effective_pressure_marine
-
-    elemental subroutine calc_effective_pressure_till(N_eff,H_w,H_ice,f_ice,f_grnd,H_w_max,N0,delta,e0,Cc,rho_ice,g)
-        ! Calculate the effective pressure of the till
-        ! following van Pelt and Bueler (2015), Eq. 23.
-        
-        implicit none 
-        
-        real(wp), intent(OUT) :: N_eff              ! [Pa] Effective pressure 
-        real(wp), intent(IN)  :: H_w
-        real(wp), intent(IN)  :: H_ice
-        real(wp), intent(IN)  :: f_ice 
-        real(wp), intent(IN)  :: f_grnd  
-        real(wp), intent(IN)  :: H_w_max            ! [m] Maximum allowed water depth 
-        real(wp), intent(IN)  :: N0                 ! [Pa] Reference effective pressure 
-        real(wp), intent(IN)  :: delta              ! [--] Fraction of overburden pressure for saturated till
-        real(wp), intent(IN)  :: e0                 ! [--] Reference void ratio at N0 
-        real(wp), intent(IN)  :: Cc                 ! [--] Till compressibility 
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        
-        ! Local variables  
-        real(wp) :: H_eff
-        real(wp) :: P0, s 
-        real(wp) :: q1 
-
-        if (f_grnd .eq. 0.0_wp) then 
-            ! No effective pressure at base for floating ice
-        
-            N_eff = 0.0_wp 
-
-        else 
-
-            ! Get effective ice thickness 
-            call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-            ! Get overburden pressure 
-            P0 = rho_ice*g*H_eff
-
-            ! Get ratio of water layer thickness to maximum
-            s  = min(H_w/H_w_max,1.0)  
-
-            ! Calculate exponent in expression 
-            q1 = (e0/Cc)*(1-s)
-
-            ! Limit exponent to reasonable values to avoid an explosion 
-            ! (eg s=1, e0=0.52, Cc=0.014 => q1=37,14)
-            q1 = min(q1,10.0_wp) 
-
-            ! Calculate the effective pressure in the till [Pa] (van Pelt and Bueler, 2015, Eq. 23-24)
-            ! Note: do not scale grounding-line points by f_grnd. This is done on
-            ! the beta-staggering step.
-            N_eff = min( N0*(delta*P0/N0)**s * 10**q1, P0 ) 
-
-        end if  
-
-        return 
-
-    end subroutine calc_effective_pressure_till
-    
-    elemental subroutine calc_effective_pressure_two_value(N_eff,f_pmp,H_ice,f_ice,f_grnd,delta,rho_ice,g)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: N_eff
-        real(wp), intent(IN)  :: f_pmp 
-        real(wp), intent(IN)  :: H_ice 
-        real(wp), intent(IN)  :: f_ice 
-        real(wp), intent(IN)  :: f_grnd 
-        real(wp), intent(IN)  :: delta
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        
-        ! Local variables 
-        real(wp) :: H_eff
-        real(wp) :: P0, P1
-
-        if (f_grnd .eq. 0.0_wp) then 
-            ! No effective pressure at base for purely floating ice
-        
-            N_eff = 0.0_wp 
-
-        else 
-
-            ! Get effective ice thickness 
-            call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-            ! Get overburden pressure 
-            P0 = rho_ice*g*H_eff
-
-            ! Calculate reduced pressure assuming full application of delta
-            P1 = P0 * delta 
-
-            ! Calculate effective pressure as a weighted average of 
-            ! P0 and P1 via f_pmp 
-            N_eff = P0*(1.0_wp-f_pmp) + P1*f_pmp
-            
-        end if  
-
-        return
-
-    end subroutine calc_effective_pressure_two_value
 
     elemental function calc_lambda_bed_lin(z_bed,z_sl,z0,z1) result(lambda)
         ! Calculate scaling function: linear 

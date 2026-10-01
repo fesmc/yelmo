@@ -24,9 +24,7 @@ module velocity_diva
 
         character(len=56)  :: ssa_solver        ! "residual" | "energy"
         character(len=256) :: ssa_lis_opt
-        character(len=256) :: ssa_lateral_bc
         character(len=256) :: boundaries 
-        character(len=256) :: glf_method 
         logical  :: no_slip 
         integer  :: visc_method
         real(wp) :: visc_const
@@ -49,9 +47,6 @@ module velocity_diva
         real(wp) :: rho_ice 
         real(wp) :: rho_sw 
         real(wp) :: g 
-
-        real(wp) :: glf_Q0                  ! Q0=0.61_wp
-        real(wp) :: glf_f_drag              ! f_drag=0.6_wp
     end type
 
     private
@@ -65,7 +60,7 @@ contains
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
-                                  f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
+                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
         ! following the Depth-Integrated Viscosity Approximation (DIVA),
         ! as outlined by Lipscomb et al. (2019). Method originally 
@@ -112,7 +107,6 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)        ! [-]
         real(wp), intent(IN)    :: f_grnd_acx(:,:)    ! [-]
         real(wp), intent(IN)    :: f_grnd_acy(:,:)    ! [-]
-        integer,  intent(IN)    :: mask_frnt(:,:)     ! [-]
         real(wp), intent(IN)    :: ATT(:,:,:)         ! [a^-1 Pa^-n_glen]
         real(wp), intent(IN)    :: zeta_aa(:)         ! [-]
         real(wp), intent(IN)    :: z_sl(:,:)          ! [m]
@@ -138,8 +132,6 @@ contains
 
         real(wp) :: L2_norm 
         real(wp) :: ssa_resid 
-
-        integer  :: ntot, ip1, jp1  
 
         logical, parameter :: write_ssa_diagnostics      = .FALSE. 
         logical, parameter :: write_ssa_diagnostics_stop = .FALSE.   ! Stop simulation after completing iterations?
@@ -172,7 +164,7 @@ contains
             call ssa_diagnostics_write_init("yelmo_ssa.nc",nx,ny,time_init=1.0_wp)
         end if 
 
-        ! Initialize linear solver variables for current and previous iteration
+        ! Initialize linear solver variables
         call linear_solver_init(lgs_now,nx,ny,nvar=2,n_terms=9)
 
         ssa_lin_iter = 0
@@ -300,13 +292,13 @@ contains
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
                     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
                     call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
             end select
 
             ! Solve linear equation

@@ -1120,7 +1120,7 @@ end if
     end subroutine calc_driving_stress
 
     subroutine calc_driving_stress_gl(taud_acx,taud_acy,H_ice,z_srf,z_bed,z_sl,H_grnd, &
-                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method,beta_gl_stag)
+                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method)
         ! taud = rho_ice*g*H_ice
         ! Calculate driving stress on staggered grid points, with 
         ! special treatment of the grounding line 
@@ -1145,7 +1145,6 @@ end if
         real(wp), intent(IN)  :: rho_sw 
         real(wp), intent(IN)  :: g 
         integer,    intent(IN)  :: method        ! Which driving stress calculation to use
-        integer,    intent(IN)  :: beta_gl_stag  ! Method of grounding line staggering of beta 
 
         ! Local variables 
         integer :: i, j, nx, ny

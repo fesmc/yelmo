@@ -40,7 +40,6 @@ program test_ssa_energy_lr_sym
     real(wp) :: beta_acx(nx,ny), beta_acy(nx,ny)
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
-    integer  :: mask_frnt(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
@@ -62,7 +61,6 @@ program test_ssa_energy_lr_sym
     uy            = 0.0_wp
     taul_int_acx  = 0.0_wp
     taul_int_acy  = 0.0_wp
-    mask_frnt     = 0
     ssa_mask_acx  = 0
     ssa_mask_acy  = 0
 
@@ -108,8 +106,8 @@ program test_ssa_energy_lr_sym
     ! using fully-periodic is fine and keeps the boundary handling out of
     ! the symmetry check.
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic")
     call check_lr_reflection(lgs, total_fail)
 
     ! ---------- Case B: horizontal ice strip, T<->B reflection ----------
@@ -136,8 +134,8 @@ program test_ssa_energy_lr_sym
     end do
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic")
     call check_tb_reflection(lgs, total_fail)
 
     ! ---------- Case C: square ice patch, both reflections at once ----------
@@ -174,8 +172,8 @@ program test_ssa_energy_lr_sym
     end do
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "infinite", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy, beta_min, "infinite")
     call check_lr_reflection(lgs, total_fail)
     call check_tb_reflection(lgs, total_fail)
 
