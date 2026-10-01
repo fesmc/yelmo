@@ -3,6 +3,7 @@ module yelmo_thermodynamics
 
     use nml 
     use yelmo_defs 
+    use fast_hydrology, only : TRANSPORT_NONE
     use yelmo_grid, only : calc_zeta
     use yelmo_tools, only : smooth_gauss_2D, smooth_gauss_3D, gauss_values, fill_borders_2D, fill_borders_3D, &
             boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
@@ -37,6 +38,7 @@ contains
         real(wp), allocatable :: dTdz_b_now(:,:)
         real(wp), allocatable :: C_cap(:,:)      ! [m/a ice equiv.] freeze-on capacity for the basal BC
         real(wp), allocatable :: Q_wat(:,:)      ! [mW m-2] water-side basal heat (Q_diss + Q_sens)
+        character(len=56)     :: cap_source      ! thrm%par%cap_source with "auto" resolved
 
         logical, parameter :: calculate_Q_strn_derivative = .FALSE.
 
@@ -169,9 +171,22 @@ contains
                     ! water-side basal heat (used under either basal BC rule).
                     ! hyd stores them in SI: C_frz [m/s ice equiv.], Q_diss/Q_sens [W m-2].
                     allocate(C_cap(nx,ny), Q_wat(nx,ny))
-                    select case(trim(thrm%par%cap_source))
+                    cap_source = thrm%par%cap_source
+                    if (trim(cap_source) .eq. "auto") then
+                        ! The transport model's own C if there is one, else the bucket's stock.
+                        if (hyd%par%method_transport .ne. TRANSPORT_NONE) then
+                            cap_source = "hyd"
+                        else
+                            cap_source = "till"
+                        end if
+                    end if
+                    select case(trim(cap_source))
                         case("hyd")
                             C_cap = hyd%now%C_frz * bnd%c%sec_year
+                        case("till")
+                            ! Stock estimate from the bucket: all till water above the
+                            ! floor refrozen over this step, converted to ice equivalent.
+                            C_cap = (bnd%c%rho_w/bnd%c%rho_ice) * max(hyd%now%W_til - thrm%par%cap_W_floor, 0.0_wp) / dt
                         case("water")
                             ! Stock estimate from the water thickness: all water above
                             ! the floor refrozen over this step, converted to ice equivalent.
@@ -747,24 +762,29 @@ end if
         call nml_read(filename,group,"cap_eps",        par%cap_eps,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
 
         select case(trim(par%basal_bc_method))
-            case("wtil","capacity")
+            case("capacity")
                 ! ok
+            case("wtil")
+                write(io_unit_err,*) "ytherm_par_load:: warning: basal_bc_method='wtil' is deprecated; use 'capacity'."
             case DEFAULT
                 write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method must be 'wtil' or 'capacity'; got ", trim(par%basal_bc_method)
                 stop
         end select
 
         select case(trim(par%cap_source))
-            case("hyd","water","none")
+            case("auto","hyd","till","water","none")
                 ! ok
             case DEFAULT
-                write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'hyd', 'water' or 'none'; got ", trim(par%cap_source)
+                write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'auto', 'hyd', 'till', 'water' or 'none'; got ", trim(par%cap_source)
                 stop
         end select
 
         if (trim(par%basal_bc_method) .eq. "capacity" .and. trim(par%method) .ne. "enth") then
-            write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method='capacity' requires method='enth'; got method=", trim(par%method)
-            stop
+            ! Only the enthalpy column has the capacity rule; the other
+            ! solvers keep their own basal treatment.
+            write(io_unit_err,*) "ytherm_par_load:: note: basal_bc_method='capacity' applies to method='enth' only; ", &
+                                 "using 'wtil' with method=", trim(par%method)
+            par%basal_bc_method = "wtil"
         end if
 
         if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
