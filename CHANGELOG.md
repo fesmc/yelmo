@@ -7,6 +7,29 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Capacity basal boundary condition is the default** (`ytherm.basal_bc_method =
+  "capacity"`); the till-water rule `"wtil"` still works but is deprecated. A grounded
+  base is held at the pressure melting point if the freezing it needs is at most the
+  freeze-on capacity C of the bed water; otherwise all of C is frozen and the base
+  cools under the flux condition. `ytherm.cap_source = "auto"` (default) takes C from
+  the hydrology model with water transport on (`"hyd"`, e.g. K24's routed inflow) and
+  from the bucket's `W_til` otherwise (`"till"`). Methods other than `"enth"` keep
+  `"wtil"`. GRL-16KM initmip, 1 kyr: about 3% of grounded cells change from held at
+  T_pmp to the flux condition with K24; within 0.2% without transport.
+- **Hydrology heat in the basal balance under either rule**: Q_diss + Q_sens from the
+  hydrology model enter `bmb_grnd` and the frozen-bed flux condition also with
+  `"wtil"`. Zero without a model that computes them.
+- **K24 source from terms**: `hydro_update` gives K24 the geothermal heat, the heat
+  conducted into the ice (`Q_ice_b`), the drained englacial water (new field
+  `thrm%now%melt_int`, as `i_eb`) and the sliding fields; `bmb_grnd` drives the bucket
+  only. `yhyd.k24_long_coupling_water` is replaced by `k24_coupling_length_kamb86`
+  (twice the old value; external par files need the rename, `nml_validate` stops),
+  and K24 gains the FastHydrology.jl routing, fill, friction and sliding-law options.
+- New output: `bmb_grnd_star`, `bc_b`, `bmb_clamp`, `melt_int` (ytherm), `hyd_C_frz`,
+  `hyd_Q_diss`; C-API getters `thrm_bmb_grnd_star`, `thrm_bc_b`, `thrm_bmb_clamp`,
+  `thrm_melt_int` and setters `hyd_C_frz`, `hyd_Q_diss`, `hyd_Q_sens` for an external
+  hydrology model.
+
 - **`ytherm.qb_method` renumbered**: 1 = faces, 2 = faces to quadrature nodes
   (default), 3 = simple stagger (was 1), 4 = quadrature (was 2). A par file with
   `qb_method = 1` or `2` now selects an energy-consistent method; set 3 or 4 to keep
