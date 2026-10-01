@@ -32,7 +32,7 @@ module mass_conservation
 contains 
     
     subroutine check_mass_conservation(H_ice,f_ice,f_grnd,dHidt,mb_net,cmb,dHidt_dyn,smb,bmb,fmb,dmb, &
-                                                                mb_resid,dx,sec_year,time,dt,units,label)
+                                                                mb_resid,mb_clip,dx,sec_year,time,dt,units,label)
 
         implicit none
 
@@ -48,6 +48,7 @@ contains
         real(wp), intent(IN) :: fmb(:,:)
         real(wp), intent(IN) :: dmb(:,:)
         real(wp), intent(IN) :: mb_resid(:,:)
+        real(wp), intent(IN) :: mb_clip(:,:)            ! Clip of negative H after transport
         real(wp), intent(IN) :: dx 
         real(wp), intent(IN) :: sec_year
         real(wp), intent(IN) :: time
@@ -64,6 +65,7 @@ contains
         real(dp) :: tot_mb_net
         real(dp) :: tot_cmb
         real(dp) :: tot_dHidt_dyn
+        real(dp) :: tot_mb_clip
         real(dp) :: tot_gross
         real(dp) :: conv
         real(dp) :: resid
@@ -107,27 +109,28 @@ contains
         tot_mb_net      = sum(real(mb_net,dp))    * real(dx,dp)**2 * conv
         tot_cmb         = sum(real(cmb,dp))       * real(dx,dp)**2 * conv
         tot_dHidt_dyn   = sum(real(dHidt_dyn,dp)) * real(dx,dp)**2 * conv
+        tot_mb_clip     = sum(real(mb_clip,dp))   * real(dx,dp)**2 * conv
 
         ! Gross throughput: sum of the magnitudes of the same component fluxes
         ! per cell, so opposing fluxes do not cancel (non-zero at equilibrium)
-        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
+        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_clip,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
                                                         * real(dx,dp)**2 * conv
 
         ! Get total of components and residual, absolute [units] and relative
         ! to the gross throughput
         ! (dHidt_dyn integrates to the net flux across the domain boundary,
         ! so it must be included for the budget to close)
-        tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
+        tot_components = tot_dHidt_dyn + tot_mb_clip + tot_mb_net + tot_cmb
         resid          = tot_components - tot_dHidt
         resid_rel      = resid / max(tot_gross,tiny(tot_gross))
 
         flag = ""
         if (abs(resid_rel) .gt. tol_rel) flag = "FAIL"
 
-        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,3g13.4)") &
+        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,4g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
                     tot_dHidt, tot_components, resid, resid_rel, flag, " | ", &
-                    tot_dHidt_dyn, tot_mb_net, tot_cmb
+                    tot_dHidt_dyn, tot_mb_clip, tot_mb_net, tot_cmb
 
         return
 

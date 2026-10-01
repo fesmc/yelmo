@@ -1178,6 +1178,9 @@ contains
             case("mb_resid")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_resid(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("mb_clip")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_clip(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("mb_err")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_err(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
