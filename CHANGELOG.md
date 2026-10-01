@@ -561,6 +561,8 @@ little. MISMIP3D and DIVA runs change more.
 - `taub` uses the friction of the SSA matrix: `beta_min` at grounded faces with zero
   β (`beta_eff` for DIVA) is set once before the solve, not inside the assemblers,
   where `taub` stayed 0. Results are bit-identical.
+- With `ytill.method = -1` (external `cb_ref`), `calc_ydyn` stops if `cb_ref <= 0`
+  under grounded ice, a hint that the driver did not set it.
 
 - `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
   were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
