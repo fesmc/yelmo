@@ -539,7 +539,7 @@ end if
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
-                                basal_bc_method,C_cap,Q_wat,cap_eps)
+                                basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -586,6 +586,9 @@ end if
         real(wp), intent(IN), optional :: C_cap          ! [m/a ice equiv.] Freeze-on capacity (capacity rule)
         real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (capacity rule)
         real(wp), intent(IN), optional :: cap_eps        ! [m/a ice equiv.] Capacity below which the bed counts as dry
+        real(wp), intent(OUT), optional :: bmb_star_out  ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
+        real(wp), intent(OUT), optional :: bc_b_out      ! [--] basal BC used: 0 not grounded, 1 held at T_pmp, 2 flux
+        real(wp), intent(OUT), optional :: bmb_clamp_out ! [m/a] freeze-on removed by the capacity safety clamp
 
         ! Local variables
         integer  :: k, nz_aa, nz_ac
@@ -594,7 +597,7 @@ end if
         logical  :: use_capacity
         logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
         real(wp) :: C_now, Q_wat_now, eps_now
-        real(wp) :: q_up_star, net_enth_b, bmb_star
+        real(wp) :: q_up_star, net_enth_b, bmb_star, bmb_clamp
         real(wp) :: dz
         real(wp) :: omega_excess
         real(wp) :: melt_internal
@@ -689,6 +692,8 @@ end if
         use_capacity = .FALSE.
         if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
         cap_flux  = .FALSE.
+        bmb_star  = 0.0_wp
+        bmb_clamp = 0.0_wp
         C_now     = 0.0_wp
         Q_wat_now = 0.0_wp
         eps_now   = 0.0_wp
@@ -784,6 +789,17 @@ end if
 
         end if  ! floating or grounded 
 
+        ! Record the basal BC used (diagnostic)
+        if (present(bc_b_out)) then
+            if (f_grnd .lt. 1.0_wp) then
+                bc_b_out = 0.0_wp
+            else if (is_basal_flux) then
+                bc_b_out = 2.0_wp
+            else
+                bc_b_out = 1.0_wp
+            end if
+        end if
+
         ! === Solver =============================
      
         call calc_enth_column_internal(enth,kappa_aa,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
@@ -871,11 +887,17 @@ end if
                                             Q_ice_b_now,Q_b_now+Q_wat_now,Q_lith_now,rho_ice,L_ice)
                 ! Safety clamp: never freeze more water than the bed holds. Can
                 ! bind when the start-of-step bmb_grnd* underestimated the freezing.
-                if (use_capacity .and. bmb_grnd .gt. C_now) bmb_grnd = C_now
+                if (use_capacity .and. bmb_grnd .gt. C_now) then
+                    bmb_clamp = bmb_grnd - C_now
+                    bmb_grnd  = C_now
+                end if
             end if
         else
             bmb_grnd = 0.0_wp
         end if
+
+        if (present(bmb_star_out))  bmb_star_out  = bmb_star
+        if (present(bmb_clamp_out)) bmb_clamp_out = bmb_clamp
 
         ! Include internal melting in bmb_grnd
         bmb_grnd = bmb_grnd - melt_internal

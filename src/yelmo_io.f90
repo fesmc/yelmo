@@ -1954,6 +1954,15 @@ contains
             case("H_cts")
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%H_cts(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("bmb_grnd_star")
+                call nc_write(filename,trim(v%varname),ylmo%thrm%now%bmb_grnd_star(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("bc_b")
+                call nc_write(filename,trim(v%varname),ylmo%thrm%now%bc_b(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("bmb_clamp")
+                call nc_write(filename,trim(v%varname),ylmo%thrm%now%bmb_clamp(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("advecxy") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%advecxy(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)

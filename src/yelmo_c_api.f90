@@ -472,6 +472,9 @@ contains
       case("thrm_Q_ice_b");      v2D = real(ylmo%thrm%now%Q_ice_b,      c_double)
       case("thrm_T_prime_b");    v2D = real(ylmo%thrm%now%T_prime_b,    c_double)
       case("thrm_H_cts");        v2D = real(ylmo%thrm%now%H_cts,        c_double)
+      case("thrm_bmb_grnd_star"); v2D = real(ylmo%thrm%now%bmb_grnd_star, c_double)
+      case("thrm_bc_b");         v2D = real(ylmo%thrm%now%bc_b,         c_double)
+      case("thrm_bmb_clamp");    v2D = real(ylmo%thrm%now%bmb_clamp,    c_double)
       case("thrm_Q_rock");       v2D = real(ylmo%thrm%now%Q_rock,       c_double)
 
       ! -----------------------------------------------------------------------
