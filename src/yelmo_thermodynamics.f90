@@ -3,6 +3,7 @@ module yelmo_thermodynamics
 
     use nml 
     use yelmo_defs 
+    use fast_hydrology, only : TRANSPORT_NONE
     use yelmo_grid, only : calc_zeta
     use yelmo_tools, only : smooth_gauss_2D, smooth_gauss_3D, gauss_values, fill_borders_2D, fill_borders_3D, &
             boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
@@ -35,6 +36,9 @@ contains
         integer :: i, j, k, nx, ny
         real(wp) :: dt
         real(wp), allocatable :: dTdz_b_now(:,:)
+        real(wp), allocatable :: C_cap(:,:)      ! [m/a ice equiv.] freeze-on capacity for the basal BC
+        real(wp), allocatable :: Q_wat(:,:)      ! [mW m-2] water-side basal heat (Q_diss + Q_sens)
+        character(len=56)     :: cap_source      ! thrm%par%cap_source with "auto" resolved
 
         logical, parameter :: calculate_Q_strn_derivative = .FALSE.
 
@@ -163,6 +167,35 @@ contains
                     
                     end if 
 
+                    ! Freeze-on capacity (used only when basal_bc_method="capacity") and
+                    ! water-side basal heat (used under either basal BC rule).
+                    ! hyd stores them in SI: C_frz [m/s ice equiv.], Q_diss/Q_sens [W m-2].
+                    allocate(C_cap(nx,ny), Q_wat(nx,ny))
+                    cap_source = thrm%par%cap_source
+                    if (trim(cap_source) .eq. "auto") then
+                        ! The transport model's own C if there is one, else the bucket's stock.
+                        if (hyd%par%method_transport .ne. TRANSPORT_NONE) then
+                            cap_source = "hyd"
+                        else
+                            cap_source = "till"
+                        end if
+                    end if
+                    select case(trim(cap_source))
+                        case("hyd")
+                            C_cap = hyd%now%C_frz * bnd%c%sec_year
+                        case("till")
+                            ! Stock estimate from the bucket: all till water above the
+                            ! floor refrozen over this step, converted to ice equivalent.
+                            C_cap = (bnd%c%rho_w/bnd%c%rho_ice) * max(hyd%now%W_til - thrm%par%cap_W_floor, 0.0_wp) / dt
+                        case("water")
+                            ! Stock estimate from the water thickness: all water above
+                            ! the floor refrozen over this step, converted to ice equivalent.
+                            C_cap = (bnd%c%rho_w/bnd%c%rho_ice) * max(hyd%now%W - thrm%par%cap_W_floor, 0.0_wp) / dt
+                        case DEFAULT    ! "none"
+                            C_cap = 0.0_wp
+                    end select
+                    Q_wat = (hyd%now%Q_diss + hyd%now%Q_sens) * 1e3_wp
+
                     ! Now calculate the thermodynamics:
 
                     call calc_ytherm_enthalpy_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%bmb_grnd, &
@@ -172,7 +205,10 @@ contains
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
-                                thrm%par%boundaries)
+                                thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
+                                thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp,thrm%now%melt_int)
+
+                    deallocate(C_cap, Q_wat)
 
                 case("robin")
                     ! Use Robin solution for ice temperature
@@ -275,7 +311,7 @@ contains
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                         cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
-                                        boundaries)
+                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp,melt_int)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column.
         ! The column is that of the dynamics (thickness H_ice_dyn, paired with
@@ -330,6 +366,14 @@ contains
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
         character(len=*), intent(IN) :: boundaries      ! Boundary treatment
+        real(wp),         intent(IN) :: C_cap(:,:)      ! [m/a ice equiv.] Freeze-on capacity (basal_bc_method="capacity")
+        real(wp),         intent(IN) :: Q_wat(:,:)      ! [mW m-2] Water-side basal heat, Q_diss + Q_sens
+        character(len=*), intent(IN) :: basal_bc_method ! "wtil" or "capacity"
+        real(wp),         intent(IN) :: cap_eps         ! [m/a ice equiv.] Capacity below which the bed counts as dry
+        real(wp),         intent(OUT) :: bmb_grnd_star(:,:) ! [m/a] bmb of a base held at T_pmp (capacity rule)
+        real(wp),         intent(OUT) :: bc_b(:,:)          ! [--] basal BC used: 0 not grounded/solved, 1 held at T_pmp, 2 flux
+        real(wp),         intent(OUT) :: bmb_clamp(:,:)     ! [m/a] freeze-on removed by the capacity safety clamp
+        real(wp),         intent(OUT) :: melt_int(:,:)      ! [m/a ice equiv.] englacial water drained to the bed
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac  
@@ -402,7 +446,9 @@ contains
                     call calc_enth_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                            basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps, &
+                            bmb_grnd_star(i,j),bc_b(i,j),bmb_clamp(i,j),melt_int_out=melt_int(i,j))
 
                 else
 
@@ -410,6 +456,10 @@ contains
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
                             zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                    bmb_grnd_star(i,j) = 0.0_wp
+                    bc_b(i,j)          = 0.0_wp
+                    bmb_clamp(i,j)     = 0.0_wp
+                    melt_int(i,j)      = 0.0_wp
 
                 end if
 
@@ -430,8 +480,12 @@ contains
                 omega(i,j,:)  = 0.0_wp
                 call convert_to_enthalpy_ice(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),T_pmp(i,j,:),L_ice,enth_integral)
                 bmb_grnd(i,j) = 0.0_wp
-                Q_ice_b(i,j)  = 0.0_wp 
+                Q_ice_b(i,j)  = 0.0_wp
                 H_cts(i,j)    = 0.0_wp
+                bmb_grnd_star(i,j) = 0.0_wp
+                bc_b(i,j)          = 0.0_wp
+                bmb_clamp(i,j)     = 0.0_wp
+                melt_int(i,j)      = 0.0_wp
 
             end if 
 
@@ -521,6 +575,10 @@ end if
         call fill_borders_2D(bmb_grnd,nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         call fill_borders_2D(Q_ice_b, nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         call fill_borders_2D(H_cts,   nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(bmb_grnd_star,nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(bc_b,         nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(bmb_clamp,    nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(melt_int,     nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         
         return 
 
@@ -697,6 +755,43 @@ end if
         call nml_read(filename,group,"H_ice_thin",     par%H_ice_thin,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"enth_cp_method",  par%enth_cp_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         par%enth_integral = (trim(par%enth_cp_method) .eq. "integral")
+
+        call nml_read(filename,group,"basal_bc_method",par%basal_bc_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_source",     par%cap_source,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_W_floor",    par%cap_W_floor,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_eps",        par%cap_eps,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+
+        select case(trim(par%basal_bc_method))
+            case("capacity")
+                ! ok
+            case("wtil")
+                write(io_unit_err,*) "ytherm_par_load:: warning: basal_bc_method='wtil' is deprecated; use 'capacity'."
+            case DEFAULT
+                write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method must be 'wtil' or 'capacity'; got ", trim(par%basal_bc_method)
+                stop
+        end select
+
+        select case(trim(par%cap_source))
+            case("auto","hyd","till","water","none")
+                ! ok
+            case DEFAULT
+                write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'auto', 'hyd', 'till', 'water' or 'none'; got ", trim(par%cap_source)
+                stop
+        end select
+
+        if (trim(par%basal_bc_method) .eq. "capacity" .and. trim(par%method) .ne. "enth") then
+            ! Only the enthalpy column has the capacity rule; the other
+            ! solvers keep their own basal treatment.
+            write(io_unit_err,*) "ytherm_par_load:: note: basal_bc_method='capacity' applies to method='enth' only; ", &
+                                 "using 'wtil' with method=", trim(par%method)
+            par%basal_bc_method = "wtil"
+        end if
+
+        if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
+            write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps
+            stop
+        end if
+
         ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate
         ! and par%W_til_max in fasthydrology). They are no longer read here.
 
@@ -816,6 +911,10 @@ end if
         allocate(now%cp(nx,ny,nz_aa))
         allocate(now%kt(nx,ny,nz_aa))
         allocate(now%H_cts(nx,ny))
+        allocate(now%bmb_grnd_star(nx,ny))
+        allocate(now%bc_b(nx,ny))
+        allocate(now%bmb_clamp(nx,ny))
+        allocate(now%melt_int(nx,ny))
         allocate(now%T_prime_b(nx,ny))
         allocate(now%advecxy(nx,ny,nz_aa))
 
@@ -835,7 +934,11 @@ end if
         now%Q_ice_b     = 0.0 
         now%cp          = 0.0 
         now%kt          = 0.0 
-        now%H_cts       = 0.0 
+        now%H_cts       = 0.0
+        now%bmb_grnd_star = 0.0
+        now%bc_b          = 0.0
+        now%bmb_clamp     = 0.0
+        now%melt_int      = 0.0
         now%T_prime_b   = 0.0
 
         now%advecxy     = 0.0
@@ -867,6 +970,10 @@ end if
         if (allocated(now%cp))          deallocate(now%cp)
         if (allocated(now%kt))          deallocate(now%kt)
         if (allocated(now%H_cts))       deallocate(now%H_cts)
+        if (allocated(now%bmb_grnd_star)) deallocate(now%bmb_grnd_star)
+        if (allocated(now%bc_b))          deallocate(now%bc_b)
+        if (allocated(now%bmb_clamp))     deallocate(now%bmb_clamp)
+        if (allocated(now%melt_int))      deallocate(now%melt_int)
         if (allocated(now%T_prime_b))   deallocate(now%T_prime_b)
 
         if (allocated(now%advecxy))     deallocate(now%advecxy)

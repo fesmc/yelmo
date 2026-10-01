@@ -567,6 +567,10 @@ contains
         call yelmo_write_var(filename,"Q_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"Q_ice_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"bmb_grnd",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bmb_grnd_star",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bc_b",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bmb_clamp",ylmo,n,ncid)
+        call yelmo_write_var(filename,"melt_int",ylmo,n,ncid)
         ! Note: basal water moved to hyd; output as "hyd_W_til" below.
         call yelmo_write_var(filename,"T_rock",ylmo,n,ncid)
 
@@ -581,6 +585,8 @@ contains
         call yelmo_write_var(filename,"hyd_q_y",ylmo,n,ncid)
         call yelmo_write_var(filename,"hyd_N",ylmo,n,ncid)
         call yelmo_write_var(filename,"hyd_kappa",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_C_frz",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_Q_diss",ylmo,n,ncid)
         
         !call yelmo_write_var(filename,"Q_strn",ylmo,n,ncid)
         call nc_write(filename,"Q_strn",ylmo%thrm%now%Q_strn/(ylmo%bnd%c%rho_ice*ylmo%thrm%now%cp),units="K a-1",long_name="Strain heating", &

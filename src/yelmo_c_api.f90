@@ -477,7 +477,18 @@ contains
       case("thrm_Q_ice_b");      v2D = real(ylmo%thrm%now%Q_ice_b,      c_double)
       case("thrm_T_prime_b");    v2D = real(ylmo%thrm%now%T_prime_b,    c_double)
       case("thrm_H_cts");        v2D = real(ylmo%thrm%now%H_cts,        c_double)
+      case("thrm_bmb_grnd_star"); v2D = real(ylmo%thrm%now%bmb_grnd_star, c_double)
+      case("thrm_bc_b");         v2D = real(ylmo%thrm%now%bc_b,         c_double)
+      case("thrm_bmb_clamp");    v2D = real(ylmo%thrm%now%bmb_clamp,    c_double)
+      case("thrm_melt_int");     v2D = real(ylmo%thrm%now%melt_int,     c_double)
       case("thrm_Q_rock");       v2D = real(ylmo%thrm%now%Q_rock,       c_double)
+
+      ! -----------------------------------------------------------------------
+      ! hyd%now — basal energy exchange fields
+      ! -----------------------------------------------------------------------
+      case("hyd_C_frz");         v2D = real(ylmo%hyd%now%C_frz,         c_double)
+      case("hyd_Q_diss");        v2D = real(ylmo%hyd%now%Q_diss,        c_double)
+      case("hyd_Q_sens");        v2D = real(ylmo%hyd%now%Q_sens,        c_double)
 
       case DEFAULT
         if (VERBOSE) then
@@ -665,6 +676,9 @@ contains
       ! -----------------------------------------------------------------------
       case("hyd_N");             ylmo%hyd%now%N             = real(v2D, wp)
       case("hyd_W_til");         ylmo%hyd%now%W_til         = real(v2D, wp)
+      case("hyd_C_frz");         ylmo%hyd%now%C_frz         = real(v2D, wp)
+      case("hyd_Q_diss");        ylmo%hyd%now%Q_diss        = real(v2D, wp)
+      case("hyd_Q_sens");        ylmo%hyd%now%Q_sens        = real(v2D, wp)
 
       case DEFAULT
         write(*,*) "yelmo_set_var2D:: variable not found or not settable: "//trim(f_name)
