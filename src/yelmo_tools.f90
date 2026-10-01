@@ -34,6 +34,7 @@ module yelmo_tools
 
     public :: calc_gradient_acx
     public :: calc_gradient_acy
+    public :: calc_gradient_column_ac
 
     public :: mean_mask
     public :: minmax
@@ -574,6 +575,90 @@ end if
         return 
 
     end subroutine calc_gradient_acy
+
+    subroutine calc_gradient_column_ac(dvdx_c,dvdy_c,dvdx,dvdy,f_ice,boundaries)
+        ! Gradient of the ice-column geometry (surface or base elevation) on
+        ! ac-nodes, for the sigma-coordinate transform. A face between an
+        ! ice-covered and an ice-free cell holds the jump to the ice-free cell
+        ! (a cliff, eg the calving front), not a slope of the column: there the
+        ! gradient of the adjacent face on the ice side is used, if that face
+        ! lies between two ice-covered cells (otherwise zero). Faces without
+        ! ice on either side are zero.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: dvdx_c(:,:)        ! acx-nodes
+        real(wp), intent(OUT) :: dvdy_c(:,:)        ! acy-nodes
+        real(wp), intent(IN)  :: dvdx(:,:)          ! acx-nodes
+        real(wp), intent(IN)  :: dvdy(:,:)          ! acy-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)         ! aa-nodes, ice-covered where f_ice == 1
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        integer :: im1, ip1, jm1, jp1
+        integer :: im2, ip2, jm2, jp2
+        integer :: BC
+        logical :: ice_0, ice_1
+
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
+
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,ice_0,ice_1)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! acx-node between (i,j) and (ip1,j)
+            ice_0 = f_ice(i,j)   .eq. 1.0_wp
+            ice_1 = f_ice(ip1,j) .eq. 1.0_wp
+
+            dvdx_c(i,j) = 0.0_wp
+            if (ice_0 .and. ice_1) then 
+                dvdx_c(i,j) = dvdx(i,j)
+            else if (ice_0) then 
+                ! Ice on the left: face between (im1,j) and (i,j)
+                if (im1 .ne. i) then 
+                    if (f_ice(im1,j) .eq. 1.0_wp) dvdx_c(i,j) = dvdx(im1,j)
+                end if 
+            else if (ice_1) then 
+                ! Ice on the right: face between (ip1,j) and (ip2,j)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,ip1,j,nx,ny,BC)
+                if (ip2 .ne. ip1) then 
+                    if (f_ice(ip2,j) .eq. 1.0_wp) dvdx_c(i,j) = dvdx(ip1,j)
+                end if 
+            end if 
+
+            ! acy-node between (i,j) and (i,jp1)
+            ice_0 = f_ice(i,j)   .eq. 1.0_wp
+            ice_1 = f_ice(i,jp1) .eq. 1.0_wp
+
+            dvdy_c(i,j) = 0.0_wp
+            if (ice_0 .and. ice_1) then 
+                dvdy_c(i,j) = dvdy(i,j)
+            else if (ice_0) then 
+                ! Ice below: face between (i,jm1) and (i,j)
+                if (jm1 .ne. j) then 
+                    if (f_ice(i,jm1) .eq. 1.0_wp) dvdy_c(i,j) = dvdy(i,jm1)
+                end if 
+            else if (ice_1) then 
+                ! Ice above: face between (i,jp1) and (i,jp2)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,i,jp1,nx,ny,BC)
+                if (jp2 .ne. jp1) then 
+                    if (f_ice(i,jp2) .eq. 1.0_wp) dvdy_c(i,j) = dvdy(i,jp1)
+                end if 
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return 
+
+    end subroutine calc_gradient_column_ac
     
     function mean_mask(var,mask) result(ave)
 

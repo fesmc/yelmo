@@ -6,7 +6,7 @@ module yelmo_dynamics
 
     use yelmo_defs
     use yelmo_tools, only : calc_magnitude_from_staggered, calc_vertical_integrated_2D, &
-                            boundary_code, get_neighbor_indices_bc_codes
+                            boundary_code, get_neighbor_indices_bc_codes, calc_gradient_column_ac
 
     use deformation, only : calc_jacobian_vel_3D_uxyterms, calc_jacobian_vel_3D_uzterms, &
                             calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D
@@ -64,6 +64,8 @@ contains
         real(wp) :: model_time0, model_time1 
 
         real(wp), allocatable :: uxy_prev(:,:) 
+        real(wp), allocatable :: dzsdx_c(:,:), dzsdy_c(:,:)
+        real(wp), allocatable :: dzbdx_c(:,:), dzbdy_c(:,:)
 
         logical, parameter :: write_ssa_diagnostics = .FALSE.
 
@@ -74,6 +76,8 @@ contains
         nz_ac = dyn%par%nz_ac 
         
         allocate(uxy_prev(nx,ny)) 
+        allocate(dzsdx_c(nx,ny),dzsdy_c(nx,ny))
+        allocate(dzbdx_c(nx,ny),dzbdy_c(nx,ny))
 
 
         ! Initialize time if necessary 
@@ -216,11 +220,17 @@ contains
         where (abs(dyn%now%ux_bar) .lt. TOL_UNDERFLOW) dyn%now%ux_bar = 0.0_wp 
         where (abs(dyn%now%uy_bar) .lt. TOL_UNDERFLOW) dyn%now%uy_bar = 0.0_wp 
         
+        ! ===== Geometry of the ice column for the sigma-coordinate transform ===================
+        ! (surface and base gradients without the cliff at faces to ice-free cells)
+
+        call calc_gradient_column_ac(dzsdx_c,dzsdy_c,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%f_ice_dyn,dyn%par%boundaries)
+        call calc_gradient_column_ac(dzbdx_c,dzbdy_c,tpo%now%dzbdx,tpo%now%dzbdy,tpo%now%f_ice_dyn,dyn%par%boundaries)
+
         ! ===== Calculate the velocity Jacobian ===============================================
         ! (note uses uz from previous iteration)
 
         call calc_jacobian_vel_3D_uxyterms(dyn%now%jvel, dyn%now%ux, dyn%now%uy, dyn%now%uz, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, &
-                                            tpo%now%f_grnd, tpo%now%dzsdx, tpo%now%dzsdy,tpo%now%dzbdx, tpo%now%dzbdy,   &
+                                            tpo%now%f_grnd, dzsdx_c, dzsdy_c, dzbdx_c, dzbdy_c,   &
                                             dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, dyn%par%boundaries)
 
         ! ===== Calculate the vertical velocity through continuity ============================
@@ -229,16 +239,16 @@ contains
         select case(dyn%par%uz_method)
             case(1)     ! "uz_aa" == original, simplest formulation
                 call calc_uz_3D_aa(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
-                                    tpo%now%f_grnd,bnd%z_bed,tpo%now%z_srf,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%dzbdx, &
-                                    tpo%now%dzbdy,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
+                                    tpo%now%f_grnd,bnd%z_bed,tpo%now%z_srf,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c, &
+                                    dzbdy_c,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
             case(2)     ! "uz_nodes" == intermediate-level formulation
                 call calc_uz_3D(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
-                                    tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%dzbdx, &
-                                    tpo%now%dzbdy,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
+                                    tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c, &
+                                    dzbdy_c,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
             case(3)     ! "uz_jac" == this is the default method that is most stable, most correct
                 call calc_uz_3D_jac(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,dyn%now%jvel,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
-                                    tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%dzbdx, &
-                                    tpo%now%dzbdy,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
+                                    tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c, &
+                                    dzbdy_c,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
             case DEFAULT
                 write(io_unit_err,*) "Error: calc_ydyn:: vertical velocity integration method not recognized."
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method
@@ -247,7 +257,7 @@ contains
         ! ===== Finish calculating velocity Jacobian (uz-dependent terms) ================
 
         call calc_jacobian_vel_3D_uzterms(dyn%now%jvel, dyn%now%ux, dyn%now%uy, dyn%now%uz, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, &
-                                            tpo%now%f_grnd, tpo%now%dzsdx, tpo%now%dzsdy,tpo%now%dzbdx, tpo%now%dzbdy,   &
+                                            tpo%now%f_grnd, dzsdx_c, dzsdy_c, dzbdx_c, dzbdy_c,   &
                                             dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, dyn%par%boundaries)
 
         ! ===== Strain rate tensor ===========================
