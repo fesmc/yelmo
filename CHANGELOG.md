@@ -208,6 +208,12 @@ little. MISMIP3D and DIVA runs change more.
 - **`ytopo.surf_gl_method` and `ydyn.ssa_beta_max` removed.** Both were read but
   never used (the surface is always `calc_z_srf_max`). Remove them from external
   par files (`nml_validate` stops).
+- **`yelmo.experiment` and `ytherm.enth_cp_method` are validated.** An unknown
+  value now stops the run. Before, a typo silently gave `"zeros"` boundaries
+  (`experiment`) or the constant heat capacity (`enth_cp_method`). Valid
+  experiments: `None`, `EISMINT`, `MISMIP3D`, `MISMIP+`, `TROUGH-F17`, `SLAB`,
+  `ISMIPHOM`, `slab`, `periodic`, `periodic-xy`, `periodic-x`, `infinite`,
+  `MASK_ICE`.
 
 ### Answer-changing fixes
 

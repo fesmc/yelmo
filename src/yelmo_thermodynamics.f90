@@ -703,6 +703,7 @@ end if
         call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
+        call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
