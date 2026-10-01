@@ -703,6 +703,9 @@ little. MISMIP3D and DIVA runs change more.
   periodic directions. `ybound_define_mask_ice` builds the mask in two parts (where
   ice is allowed in the domain, then the border) and takes `mask_border` as a new
   argument.
+- `yelmo_init_grid(grd, grid0)` builds the Yelmo grid from a coords `grid_class`
+  defined elsewhere (e.g. a coupler's grid description), with the axes converted to
+  meters. Use it before `yelmo_init(..., grid_def="none")`.
 
 ## v2.3.1 (2026-07-17)
 
