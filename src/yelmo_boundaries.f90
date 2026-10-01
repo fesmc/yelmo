@@ -354,8 +354,9 @@ contains
         ! Rates of bedrock elevation and sea level since the previous call of
         ! yelmo_update (both are set by the driver between calls). Zero on the
         ! first call after initialisation. The previous-call state (z_bed_n,
-        ! z_sl_n, time_n, rates_init) is in the restart, so a continued run gets
-        ! the same rates as a straight run (old restarts without it: zero rates).
+        ! z_sl_n, time_n, rates_init) is in the restart, so a continued run (model
+        ! time at initialisation = restart time) gets the same rates as a straight
+        ! run; other restarts give zero rates on the first call.
 
         implicit none
 

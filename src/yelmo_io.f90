@@ -746,6 +746,7 @@ contains
         ! Local variables
         integer  :: ncid, n, nx, ny
         real(wp) :: time_of_restart_file 
+        logical  :: is_continuation
 
         ! Read all yelmo data from file,
         ! in order to restart a simulation.
@@ -870,9 +871,14 @@ contains
         call nc_read_interp(filename,"z_bed_ref",   bnd%z_bed_ref,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
         ! Previous-call state of ybound_update_rates, so the first call after the
-        ! restart gives the same dz_bed_dt, dz_sl_dt as a straight run. Old restarts
-        ! without it: keep rates_init = .FALSE. (zero rates on the first call).
-        if (nc_exists_var(filename,"bnd_rates_init")) then
+        ! restart gives the same dz_bed_dt, dz_sl_dt as a straight run. Restored only
+        ! for a true continuation: the model time at initialisation equals the restart
+        ! file's time (tolerance 1e-3 yr, or a few ulps of the single-precision time).
+        ! Otherwise (restart used as a state at another time, or an old restart
+        ! without it) keep rates_init = .FALSE. (zero rates on the first call).
+        call nc_read(filename,"time",time_of_restart_file,start=[n],count=[1],ncid=ncid)
+        is_continuation = abs(time - time_of_restart_file) .le. max(1e-3_wp,4.0_wp*spacing(abs(time)))
+        if (is_continuation .and. nc_exists_var(filename,"bnd_rates_init")) then
             call nc_read(filename,"bnd_rates_init", bnd%rates_init,start=[n],count=[1],ncid=ncid)
             call nc_read(filename,"bnd_time_n",     bnd%time_n,    start=[n],count=[1],ncid=ncid)
             call nc_read_interp(filename,"z_bed_n", bnd%z_bed_n,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
