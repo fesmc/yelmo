@@ -167,10 +167,13 @@ end if
                     ! clips them to zero (a mass source). The clip is booked in mb_clip,
                     ! so that dHidt_dyn stays pure transport and the budget shows it.
                     ! dHidt_vert holds the applied rate (dHidt_dyn + mb_clip), see below.
+                    ! dHidt_dyn is then the applied transport rate (with the rounding of
+                    ! the update), so the budget closes; the history is dHidt_dyn_raw.
                     tpo%now%H_ice      = tpo%now%H_ice_n
                     tpo%now%dHidt_vert = tpo%now%dHidt_dyn
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_pred",adjust_mb=.TRUE., &
                                         mb_clip=tpo%now%mb_clip)
+                    tpo%now%dHidt_dyn  = tpo%now%dHidt_vert - tpo%now%mb_clip
 
                 case("corrector") 
 
@@ -198,12 +201,14 @@ end if
                     ! depending on timestepping method chosen 
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
-                    ! Apply rate and update ice thickness (corrected), clip booked in mb_clip
+                    ! Apply rate and update ice thickness (corrected), clip booked in mb_clip,
+                    ! dHidt_dyn the applied transport rate (as in the predictor)
                     tpo%now%H_ice      = tpo%now%H_ice_n
                     tpo%now%lsf        = tpo%now%lsf_n
                     tpo%now%dHidt_vert = tpo%now%dHidt_dyn
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_corr",adjust_mb=.TRUE., &
                                         mb_clip=tpo%now%mb_clip)
+                    tpo%now%dHidt_dyn  = tpo%now%dHidt_vert - tpo%now%mb_clip
 
             end select
 
