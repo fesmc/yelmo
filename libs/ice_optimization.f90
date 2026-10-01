@@ -606,7 +606,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='analog' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -623,7 +623,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='nearest' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -653,7 +653,7 @@ contains
                 write(io_unit_err,*)
                 write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
                 write(io_unit_err,*) "fill_method = ", trim(fill_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -845,7 +845,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='analog' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -862,7 +862,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='nearest' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -892,7 +892,7 @@ contains
                 write(io_unit_err,*)
                 write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
                 write(io_unit_err,*) "fill_method = ", trim(fill_method)
-                stop 
+                error stop 1
 
         end select
 
@@ -1092,7 +1092,7 @@ contains
         write(io_unit_err,*) "optimize_cb_ref:: Error: &
         &fill_method='analog' is not working right now!"
         write(io_unit_err,*)
-        stop 
+        error stop 1
 
         ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
         ! of cf_min and cf_max, instead of just single values. 
@@ -1109,7 +1109,7 @@ contains
         write(io_unit_err,*) "optimize_cb_ref:: Error: &
         &fill_method='nearest' is not working right now!"
         write(io_unit_err,*)
-        stop 
+        error stop 1
 
         ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
         ! of cf_min and cf_max, instead of just single values. 
@@ -1139,7 +1139,7 @@ contains
         write(io_unit_err,*)
         write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
         write(io_unit_err,*) "fill_method = ", trim(fill_method)
-        stop 
+        error stop 1
 
         end select
 
