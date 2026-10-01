@@ -169,8 +169,8 @@ end if
                     ! dHidt_vert holds the applied rate (dHidt_dyn + mb_clip), see below.
                     tpo%now%H_ice      = tpo%now%H_ice_n
                     tpo%now%dHidt_vert = tpo%now%dHidt_dyn
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_pred",adjust_mb=.TRUE.)
-                    tpo%now%mb_clip    = tpo%now%dHidt_vert - tpo%now%dHidt_dyn
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_pred",adjust_mb=.TRUE., &
+                                        mb_clip=tpo%now%mb_clip)
 
                 case("corrector") 
 
@@ -202,8 +202,8 @@ end if
                     tpo%now%H_ice      = tpo%now%H_ice_n
                     tpo%now%lsf        = tpo%now%lsf_n
                     tpo%now%dHidt_vert = tpo%now%dHidt_dyn
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_corr",adjust_mb=.TRUE.)
-                    tpo%now%mb_clip    = tpo%now%dHidt_vert - tpo%now%dHidt_dyn
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_corr",adjust_mb=.TRUE., &
+                                        mb_clip=tpo%now%mb_clip)
 
             end select
 

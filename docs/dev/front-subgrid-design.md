@@ -205,6 +205,13 @@ negative-thickness problem CISM hit with edge masks does not arise here.
   where `a_lsf` ≥ 0.1 there (`set_inactive_margins` with `a_front`), and only
   ice-free cells without an ice-covered edge neighbour are reset to lsf = 1, so
   the level set and the thickness advance together (review 2026-09-29, §1.8).
+- Front cells are exempt from the margin cap (H ≤ thickest neighbour) on both
+  paths. On the level-set path they are bounded by the trim (partial cells)
+  and by open outflow faces (full cells pass u·H to the ocean neighbour,
+  kept where the level set covers it, calved otherwise). Front cells thicker
+  than all neighbours are mostly geometry (deeper bed, partial neighbours);
+  capping them removes ice the flow brings back every step (ANT-16 5.5,
+  GRL-16 0.9 km³/yr; review 2026-10-01, TPO-8), so there is no cap.
 
 ### 4.8 Not in scope here
 
