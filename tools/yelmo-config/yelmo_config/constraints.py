@@ -68,7 +68,28 @@ def _guard_holds(when_name, when_value, when_contains, gmap: dict) -> bool:
 
 
 @dataclass
+class Interval:
+    """A closed, open or half-open interval; a missing bound is unbounded."""
+    min: float | None = None
+    max: float | None = None
+    min_inclusive: bool = True
+    max_inclusive: bool = True
+
+    def contains(self, v: float) -> bool:
+        if self.min is not None:
+            if v < self.min or (not self.min_inclusive and v == self.min):
+                return False
+        if self.max is not None:
+            if v > self.max or (not self.max_inclusive and v == self.max):
+                return False
+        return True
+
+
+@dataclass
 class RangeConstraint:
+    """Allowed values of a numeric parameter: the interval given by
+    ``min``/``max``, or, if ``any_of`` is set, the union of those intervals
+    (e.g. "<= 0 or >= 0.01")."""
     group: str
     name: str
     min: float | None = None
@@ -79,23 +100,24 @@ class RangeConstraint:
     when_name: str | None = None
     when_value: str | None = None       # guard holds when when_name == when_value
     when_contains: str | None = None    # guard holds when when_name contains this substring
+    any_of: list = field(default_factory=list)  # list[Interval]
 
     def guard_holds(self, gmap: dict) -> bool:
         """Whether this range check applies for the given config."""
         return _guard_holds(self.when_name, self.when_value, self.when_contains, gmap)
+
+    @property
+    def intervals(self) -> list:
+        if self.any_of:
+            return self.any_of
+        return [Interval(self.min, self.max, self.min_inclusive, self.max_inclusive)]
 
     def violates(self, value) -> bool:
         try:
             v = float(value)
         except (TypeError, ValueError):
             return False
-        if self.min is not None:
-            if v < self.min or (not self.min_inclusive and v == self.min):
-                return True
-        if self.max is not None:
-            if v > self.max or (not self.max_inclusive and v == self.max):
-                return True
-        return False
+        return not any(iv.contains(v) for iv in self.intervals)
 
 
 @dataclass
@@ -301,6 +323,12 @@ def load_bundled_enums(path: Path) -> dict:
 # --------------------------------------------------------------------------- #
 # Range / ordering from curated TOML
 # --------------------------------------------------------------------------- #
+def _interval(d: dict) -> Interval:
+    return Interval(min=d.get("min"), max=d.get("max"),
+                    min_inclusive=d.get("min_inclusive", True),
+                    max_inclusive=d.get("max_inclusive", True))
+
+
 def _load_toml(path: Path) -> tuple[list, list]:
     data = tomllib.loads(path.read_text())
     ranges = [
@@ -312,6 +340,7 @@ def _load_toml(path: Path) -> tuple[list, list]:
             note=r.get("note", ""),
             when_name=r.get("when_name"), when_value=r.get("when_value"),
             when_contains=r.get("when_contains"),
+            any_of=[_interval(a) for a in r.get("any_of", [])],
         )
         for r in data.get("range", [])
     ]

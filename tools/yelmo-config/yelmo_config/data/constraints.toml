@@ -11,7 +11,8 @@
 #
 # Keep in sync with src/*.f90 when the Fortran checks change.
 
-# --- scalar range checks: op is one of  gt | ge | lt | le  (vs `bound`) ---
+# --- scalar range checks: `min`/`max` with `min_inclusive`/`max_inclusive`
+# (default true), or `any_of` = a list of such intervals (union) ---
 [[range]]
 group = "yelmo"
 name = "cfl_max"
@@ -122,6 +123,16 @@ name = "tau_ice_grnd"
 min = 0.0
 min_inclusive = false
 note = "must be > 0"
+
+# Union of intervals: the value must lie in one of the `any_of` intervals.
+[[range]]
+group = "ycalv"
+name = "dt_lsf"
+note = "must be <= 0 (disabled) or >= 0.01 yr"
+any_of = [
+    { max = 0.0, max_inclusive = true },
+    { min = 0.01, min_inclusive = true },
+]
 
 # Conditional ranges: enforced only when the guard holds (as for [[order]] below).
 [[range]]
