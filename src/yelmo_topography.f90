@@ -855,6 +855,7 @@ end if
         integer  :: BC
         logical  :: is_front
         real(wp) :: cr_x, cr_y
+        character(len=256) :: bnd_lsf
 
         ! Make sure dt is not zero
         dt_kill = dt 
@@ -1007,16 +1008,20 @@ end if
         ! === LSF advection ===
         ! Store previous lsf mask. Necessary to avoid compute it two times.
         tpo%now%lsf_n = tpo%now%lsf
-        ! Use "infinite" (Neumann-zero) boundaries for the LSF advection
-        ! regardless of the model-wide tpo%par%boundaries: the LSF is a
-        ! signed-distance field that must continue smoothly outside the
+        ! Boundaries for the LSF advection: the model-wide tpo%par%boundaries
+        ! (periodic directions wrap, as in LSFsnap and the area fraction), but
+        ! "infinite" (Neumann-zero) instead of zero (Dirichlet) borders: the LSF is
+        ! a signed-distance field that must continue smoothly outside the
         ! domain. A Dirichlet-zero boundary would create a spurious LSF=0
         ! contour one cell from the boundary that the Sussman/Osher
         ! redistance fights every step (see issue #34 follow-up). Matches
         ! Yelmo.jl, whose Oceananigans `:bounded` BC zeros only the halo,
         ! leaving edge cells free.
+        bnd_lsf = tpo%par%boundaries
+        if (trim(bnd_lsf) .eq. "zeros") bnd_lsf = "infinite"
+
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       tpo%par%dx,tpo%par%dy,dt,"infinite")
+                       tpo%par%dx,tpo%par%dy,dt,bnd_lsf)
 
         ! Marine points where ice is not allowed (bnd%mask_ice = MASK_ICE_NONE, 
         ! where H_ice is held at zero) are ocean by definition: keep the LSF
@@ -1044,10 +1049,10 @@ end if
         ! level set, producing lsf ≈ ±1 at adjacent cells. Passing physical
         ! dx (e.g. 25000 m) would make the smoothed sign function
         ! ≈ ±lsf/dx ≈ 0 several cells out from the front, freezing the
-        ! front in place (see issue #34). Matches Yelmo.jl. Boundary is
-        ! "infinite" for the same reason as the LSF advection call above:
-        ! Neumann-zero is the only sensible BC for the SO redistance of a
-        ! signed-distance field.
+        ! front in place (see issue #34). Matches Yelmo.jl. Boundaries as
+        ! for the LSF advection call above (periodic wraps, otherwise
+        ! Neumann-zero, the only sensible non-periodic BC for the SO
+        ! redistance of a signed-distance field).
         select case(trim(tpo%par%lsf_method))
             case("redist")
                 if (tpo%par%lsf_redist_n_iter .le. 0) then
@@ -1057,7 +1062,7 @@ end if
                     stop
                 end if
                 call LSFredistance(tpo%now%lsf,1.0_wp,1.0_wp, &
-                                   tpo%par%lsf_redist_n_iter,"infinite")
+                                   tpo%par%lsf_redist_n_iter,bnd_lsf)
             case("snap")
                 ! Handled after cmb loop below.
             case default
