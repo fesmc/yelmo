@@ -423,6 +423,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- ISMIP-HOM Experiment F (`yelmo_ismiphom`, `ctrl.experiment = "EXPF1"` no slip,
+  `"EXPF2"` slip ratio 1; Pattyn et al., 2008): a 1000 m slab on a 3° slope over a
+  Gaussian bed bump relaxes to steady state with zero SMB, n = 1 and
+  A = 2.140373e-7 Pa⁻¹ a⁻¹. The driver sets the 100 km domain, n, A, β and lifts
+  `ydyn.taud_lim` (the driving stress is 4.7e5 Pa). Steady state after ~1000 yr
+  (`time_end = 2000`); along the central flowline Yelmo (DIVA or hybrid) is within
+  0.4-0.6 m (surface) and 0.2-0.5 m/a (speed) of the full-Stokes results. Before,
+  `"EXPF"` was a placeholder that ran without ice.
 - runme OpenMP jobs run one thread per physical core (`--hint=nomultithread`,
   `OMP_PLACES=cores`) with `KMP_BLOCKTIME=0`. On Levante `shared`, 16 threads were
   placed on 8 cores with 2 SMT threads each; ANT-8KM 200 yr: 20.5 -> 15.8 min,
