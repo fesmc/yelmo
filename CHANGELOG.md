@@ -242,6 +242,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Gaps in the topography files are filled** (`yelmo_init_topo`, `ydata_load`):
+  where a dataset has missing values (e.g. outside its coverage, as in the ISMIP7
+  obs files), there is no ice, the bed comes from the nearest valid cell (fesm-utils
+  `fill_nearest`), the surface from the bed and the ice thickness (sea level 0), and
+  `z_bed_sd` is 0. Before, the bed was -9999 there, and `grad_lim_zb` pulled the
+  valid bed down from those cliffs up to 85 cells into the domain (ISMIP7 GRL-8KM:
+  21,000 cells, by up to 7 km); the initial `z_srf` and `z_bed_sd` read the raw fill
+  values. New `ydata_fill_topo_gaps`. Files without gaps are unchanged.
 - **Basal frictional heating: `ytherm.qb_method = 4` by default.** New options 3
   ("faces", PR #11) and 4 ("faces to quadrature nodes") form the friction work
   `|taub_acx*ux_b|` and `|taub_acy*uy_b|` on the C-grid faces, where both factors live.

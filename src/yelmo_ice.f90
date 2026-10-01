@@ -1030,6 +1030,7 @@ contains
         real(wp)            :: z_bed_f_sd 
         real(wp)            :: smooth_H_ice
         real(wp)            :: smooth_z_bed
+        logical             :: has_sd, has_srf
 
         real(wp), allocatable :: H_ice(:,:) 
         real(wp), allocatable :: z_bed(:,:) 
@@ -1093,26 +1094,25 @@ contains
             call nc_read(init_topo_path,init_topo_names(1), H_ice, missing_value=mv)
             call nc_read(init_topo_path,init_topo_names(2), z_bed, missing_value=mv) 
 
-            if (trim(init_topo_names(3)) .ne. ""     .and. &
-                trim(init_topo_names(3)) .ne. "none" .and. &
-                trim(init_topo_names(3)) .ne. "None") then 
-
-                call nc_read(init_topo_path,init_topo_names(3),z_bed_sd)
-
-                ! Apply scaling to adjust z_bed depending on standard deviation
-                z_bed = z_bed + z_bed_f_sd*z_bed_sd 
-
-            else
-                z_bed_sd = 0.0_wp 
-            end if 
+            has_sd = (trim(init_topo_names(3)) .ne. ""     .and. &
+                      trim(init_topo_names(3)) .ne. "none" .and. &
+                      trim(init_topo_names(3)) .ne. "None")
+            if (has_sd) call nc_read(init_topo_path,init_topo_names(3),z_bed_sd,missing_value=mv)
 
             ! If desired and available, read surface elevation field
             ! too, in order to correct for englacial lakes.
-            if (trim(init_topo_names(4)) .ne. ""     .and. &
-                trim(init_topo_names(4)) .ne. "none" .and. &
-                trim(init_topo_names(4)) .ne. "None") then 
+            has_srf = (trim(init_topo_names(4)) .ne. ""     .and. &
+                       trim(init_topo_names(4)) .ne. "none" .and. &
+                       trim(init_topo_names(4)) .ne. "None")
+            if (has_srf) call nc_read(init_topo_path,init_topo_names(4),z_srf,missing_value=mv)
 
-                call nc_read(init_topo_path,init_topo_names(4),z_srf)
+            ! Fill the gaps of the dataset (e.g. outside its coverage)
+            call ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
+
+            ! Apply scaling to adjust z_bed depending on standard deviation
+            if (has_sd) z_bed = z_bed + z_bed_f_sd*z_bed_sd
+
+            if (has_srf) then
 
                 ! Note: this routine uses z_sl, that is likely still set to zero
                 ! here. This routine is mainly for fixing present-day datasets,
