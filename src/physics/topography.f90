@@ -1887,7 +1887,6 @@ end if
         real(wp), parameter :: rignot16_b     = 0.15_wp    
         real(wp), parameter :: rignot16_alpha = 0.39_wp    
         real(wp), parameter :: rignot16_beta  = 1.18_wp    
-        real(wp), parameter :: rignot16_days_yr = 365.0_wp 
 
         
         real(wp) :: q_sg_norm 
@@ -2024,13 +2023,13 @@ end if
                         area_flt = real(n_margin,wp)*dz*dx 
 
                         if (area_flt .gt. 0.0_wp) then
-                            ! q = 86400 * Q / A  [m/dia], A = area_flt [m2], Q_sg [m3/s]
+                            ! q = sec_yr * Q / A; A = area_flt [m2], Q_sg [m3/s]
                             q_sg_norm = 86400.0_wp * Q_sg(i,j) / area_flt
  
                             tf_now = max(tf_shlf(i,j), 0.0_wp)
 
                             fmb(i,j) = - fmb_lambda * (rignot16_a*dz*(q_sg_norm**rignot16_alpha) + rignot16_b) &
-                                            * (tf_now**rignot16_beta) * (area_flt/area_tot)     
+                                            * (tf_now**rignot16_beta) * (area_flt/area_tot) * 365.0_wp
                         else
                             fmb(i,j) = 0.0_wp
                         end if 
