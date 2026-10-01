@@ -242,6 +242,20 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Basal frictional heating: `ytherm.qb_method = 4` by default.** New options 3
+  ("faces", PR #11) and 4 ("faces to quadrature nodes") form the friction work
+  `|taub_acx*ux_b|` and `|taub_acy*uy_b|` on the C-grid faces, where both factors live.
+  3 averages the two faces of each cell to the aa-node; 4 brings both terms to the
+  quadrature points and sums them there (a 1-2-1 smoothing of 3 across each face). The
+  heat of a face next to a cell that is not fully ice covered (`Q_b = 0`) goes to the
+  fully covered cells, so the domain total is the work done by basal friction in the
+  momentum balance (GRL-16: 1.0000 with 4, 0.995 with 3). `qb_method = 1, 2` multiply
+  the magnitudes of separately interpolated vectors and do not (2: −10.5 % GRL-16;
+  ISMIP7 spin-ups −1.8 % GrIS 8 km, +6.8 % AIS 16 km). GRL-16, 1 kyr from a spun-up
+  state, friction fixed: grounded basal melt +12 % with 4 (+10 % with 3) vs 2; temperate
+  area and volume change at the noise level. `ytherm_par_load` stops on a `qb_method`
+  other than 1-4 (before, an unknown value left `Q_b` unchanged).
+
 - **Sub-temperate sliding and basal drag at grounding lines and margins**
   (review 2026-10-01). β is divided by `f_slide` on aa-nodes in `calc_beta`,
   before staggering, like any other spatial variation of friction
@@ -469,13 +483,6 @@ little. MISMIP3D and DIVA runs change more.
 - **`ytopo.margin2nd`:** the one-sided margin gradient was twice too large and
   failed the EISMINT symmetry check. It now passes (Linf/Hmax 2e-6).
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
-- **Basal frictional heating:** new `ytherm.qb_method = 3` ("faces") forms
-  `taub_acx*ux_b` on acx nodes and `taub_acy*uy_b` on acy nodes and averages the two
-  faces of each cell to the aa-node. Its domain total equals the work done by basal
-  friction in the C-grid momentum balance; `qb_method = 1, 2` multiply the magnitudes of
-  separately interpolated vectors and do not (ISMIP7 spin-ups: total −1.8% GrIS 8 km,
-  +6.8% AIS 16 km vs the frictional work). `ytherm_par_load` now stops on a
-  `qb_method` other than 1, 2 or 3 (before, `Q_b` was silently left unchanged).
 
 ### Diagnostics
 

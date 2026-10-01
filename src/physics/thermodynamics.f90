@@ -69,6 +69,7 @@ module thermodynamics
     public :: calc_basal_heating_nodes
     public :: calc_basal_heating_simplestagger
     public :: calc_basal_heating_faces
+    public :: calc_basal_heating_faces_nodes
 
     public :: convert_to_enthalpy
     public :: convert_from_enthalpy_column
@@ -884,7 +885,9 @@ contains
         ! The magnitude of each face product is taken so that faces where taub and ux_b have
         ! opposite signs (e.g. DIVA, where taub = beta_eff*ux_bar, at nearly stagnant faces)
         ! still contribute positive heat, as in qb_method = 1 and 2.
-        ! As in qb_method = 2, Q_b is set to zero where the cell is not fully ice covered.
+        ! As in qb_method = 2, Q_b is set to zero where the cell is not fully ice covered; the
+        ! heat of a face next to such a cell goes to the fully covered cell (see
+        ! calc_basal_heating_face_products), so the domain total is the frictional work.
 
         real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
         real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
@@ -902,12 +905,19 @@ contains
         integer  :: im1, ip1, jm1, jp1
         integer  :: BC
         real(wp) :: Qb_aa
+        real(wp), allocatable :: Qx(:,:)
+        real(wp), allocatable :: Qy(:,:)
 
         nx = size(Q_b,1)
         ny = size(Q_b,2)
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Face products, shared among the fully ice-covered cells [Pa m a-1] == [J a-1 m-2]
+        allocate(Qx(nx,ny))
+        allocate(Qy(nx,ny))
+        call calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,"faces",BC)
 
         do j = 1, ny
         do i = 1, nx
@@ -918,9 +928,8 @@ contains
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-                ! Face products, averaged from the two faces in each direction [Pa m a-1] == [J a-1 m-2]
-                Qb_aa = 0.5_wp*( abs(taub_acx(im1,j)*ux_b(im1,j)) + abs(taub_acx(i,j)*ux_b(i,j)) ) &
-                      + 0.5_wp*( abs(taub_acy(i,jm1)*uy_b(i,jm1)) + abs(taub_acy(i,j)*uy_b(i,j)) )
+                ! Face products, averaged from the two faces in each direction [J a-1 m-2]
+                Qb_aa = 0.5_wp*( Qx(im1,j) + Qx(i,j) ) + 0.5_wp*( Qy(i,jm1) + Qy(i,j) )
 
                 ! Convert to [mW m-2]
                 Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
@@ -941,6 +950,205 @@ contains
         return
 
     end subroutine calc_basal_heating_faces
+
+    subroutine calc_basal_heating_faces_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
+        ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
+        ! Basal frictional heating formed on the C-grid faces as in qb_method = 3,
+        ! Qx = |taub_acx*ux_b| on acx nodes and Qy = |taub_acy*uy_b| on acy nodes,
+        ! then interpolated to the quadrature points of the cell like the staggered
+        ! fields of qb_method = 2, summed there and averaged to the aa-node:
+        !
+        !   Q_b(i,j) = sum_n wt_n*(Qx_n + Qy_n) / wt_tot
+        !
+        ! The quadrature mean equals the mean of the cell-corner values, so each face
+        ! gives 1/4 of its heat to each of the two cells it separates and 1/8 to each of
+        ! their neighbours across the face direction (a 1-2-1 smoothing of qb_method = 3).
+        ! Q_b is set to zero where the cell is not fully ice covered; the heat of a face
+        ! that would go to such a cell goes to the fully covered cells of its stencil
+        ! instead (see calc_basal_heating_face_products), so the domain total is the work
+        ! done by basal friction in the discrete momentum balance, as for qb_method = 3.
+
+        real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
+        real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)    :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)    :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)    :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)    :: f_ice(:,:)         ! [--] Ice area fraction
+        real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: sec_year
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: Qxn(4)
+        real(wp) :: Qyn(4)
+        real(wp) :: Qb_aa
+        real(wp), allocatable :: Qx(:,:)
+        real(wp), allocatable :: Qy(:,:)
+
+        type(gq2D_class) :: gq2D
+        real(wp) :: dx_tmp, dy_tmp
+
+        ! Initialize gaussian quadrature calculations
+        call gq2D_init(gq2D)
+        dx_tmp = 1.0
+        dy_tmp = 1.0
+
+        nx = size(Q_b,1)
+        ny = size(Q_b,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        ! Face products, shared among the fully ice-covered cells [Pa m a-1] == [J a-1 m-2]
+        allocate(Qx(nx,ny))
+        allocate(Qy(nx,ny))
+        call calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,"nodes",BC)
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+                ! Fully ice-covered point
+
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                ! Face products at the quadrature points
+                call gq2D_to_nodes_acx(gq2D,Qxn,Qx,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2D,Qyn,Qy,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+
+                ! Sum at the quadrature points and average to the aa-node [J a-1 m-2]
+                Qb_aa = sum((Qxn+Qyn)*gq2D%wt)/gq2D%wt_tot
+
+                ! Convert to [mW m-2]
+                Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
+
+                ! Get weighted average of Q_b with timestepping factors
+                Q_b(i,j) = beta1*Qb_aa + beta2*Q_b(i,j)
+
+            else
+                ! Not fully ice-covered point
+
+                Q_b(i,j) = 0.0
+
+            end if
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_basal_heating_faces_nodes
+
+    subroutine calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,stencil,BC)
+        ! Face products of basal friction work, Qx = |taub_acx*ux_b| (acx) and
+        ! Qy = |taub_acy*uy_b| (acy) [Pa m a-1] == [J a-1 m-2], for qb_method = 3
+        ! (stencil = "faces") and 4 (stencil = "nodes").
+        !
+        ! Each method gives every face's heat to the cells of its stencil with weights
+        ! that sum to one (3: 1/2 to each of the two cells the face separates; 4: 1/4 to
+        ! each of these and 1/8 to each of their neighbours across the face direction,
+        ! from the quadrature mean = mean of the four cell-corner values, each corner the
+        ! mean of two faces). Cells that are not fully ice covered get Q_b = 0, so their
+        ! share would be lost. Instead each face value is divided by the summed weight of
+        ! the fully covered cells of its stencil, which then receive all of its heat.
+        ! The weights are summed by scattering from each fully covered cell with the same
+        ! neighbour indices the methods gather with (so also at domain borders). Faces
+        ! without a fully covered cell in their stencil give no heat. Away from cells that
+        ! are not fully covered the sum is exactly one and the face value is unchanged.
+
+        implicit none
+
+        real(wp), intent(OUT) :: Qx(:,:)            ! [J a-1 m-2] Face product (acx)
+        real(wp), intent(OUT) :: Qy(:,:)            ! [J a-1 m-2] Face product (acy)
+        real(wp), intent(IN)  :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)  :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)  :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)  :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)  :: f_ice(:,:)         ! [--] Ice area fraction
+        character(len=*), intent(IN) :: stencil     ! "faces" (qb_method = 3) or "nodes" (qb_method = 4)
+        integer,  intent(IN)  :: BC                 ! Boundary condition code
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        real(wp), allocatable :: wx(:,:)
+        real(wp), allocatable :: wy(:,:)
+
+        nx = size(Qx,1)
+        ny = size(Qx,2)
+
+        allocate(wx(nx,ny))
+        allocate(wy(nx,ny))
+
+        ! Summed weight of the fully ice-covered cells that receive each face's heat
+        wx = 0.0_wp
+        wy = 0.0_wp
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                select case(trim(stencil))
+
+                    case("faces")
+
+                        wx(im1,j) = wx(im1,j) + 0.5_wp
+                        wx(i,j)   = wx(i,j)   + 0.5_wp
+                        wy(i,jm1) = wy(i,jm1) + 0.5_wp
+                        wy(i,j)   = wy(i,j)   + 0.5_wp
+
+                    case("nodes")
+
+                        wx(im1,jm1) = wx(im1,jm1) + 0.125_wp
+                        wx(im1,j)   = wx(im1,j)   + 0.25_wp
+                        wx(im1,jp1) = wx(im1,jp1) + 0.125_wp
+                        wx(i,jm1)   = wx(i,jm1)   + 0.125_wp
+                        wx(i,j)     = wx(i,j)     + 0.25_wp
+                        wx(i,jp1)   = wx(i,jp1)   + 0.125_wp
+
+                        wy(im1,jm1) = wy(im1,jm1) + 0.125_wp
+                        wy(i,jm1)   = wy(i,jm1)   + 0.25_wp
+                        wy(ip1,jm1) = wy(ip1,jm1) + 0.125_wp
+                        wy(im1,j)   = wy(im1,j)   + 0.125_wp
+                        wy(i,j)     = wy(i,j)     + 0.25_wp
+                        wy(ip1,j)   = wy(ip1,j)   + 0.125_wp
+
+                    case DEFAULT
+
+                        write(io_unit_err,*) "calc_basal_heating_face_products:: Error: stencil not recognized: "//trim(stencil)
+                        error stop 1
+
+                end select
+
+            end if
+
+        end do
+        end do
+
+        ! Face products, shared among the fully ice-covered cells
+        where (wx .gt. 0.0_wp)
+            Qx = abs(taub_acx*ux_b) / wx
+        elsewhere
+            Qx = 0.0_wp
+        end where
+
+        where (wy .gt. 0.0_wp)
+            Qy = abs(taub_acy*uy_b) / wy
+        elsewhere
+            Qy = 0.0_wp
+        end where
+
+        return
+
+    end subroutine calc_basal_heating_face_products
 
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
