@@ -258,6 +258,32 @@ little. MISMIP3D and DIVA runs change more.
   state, friction fixed: grounded basal melt +12 % with 4 (+10 % with 3) vs 2; temperate
   area and volume change at the noise level. `ytherm_par_load` stops on a `qb_method`
   other than 1-4 (before, an unknown value left `Q_b` unchanged).
+- **Thermodynamics on the dynamic column** (review MAT-3). The enthalpy solve,
+  `T_pmp`, `T_shlf`, the SIA strain heating, the Robin/linear profiles and the
+  bedrock shelf temperature use `H_ice_dyn` (the column of `uz_star`) instead of
+  `H_ice/f_ice` or `H_ice`. `f_ice == 1` still decides where the column is solved.
+  Changes front and `H_eff`-floor cells (1511 in ANT-16, 353 in GRL-16): basal T′ at
+  ocean fronts +0.01 K (ANT) and +0.05 K (GRL); TROUGH max|ΔH| 0.1 m; CalvingMIP,
+  MISMIP3D and EISMINT keep their ice thickness. ANT/GRL-16 300 yr changes are at
+  the noise level of a 1e-4 perturbation of `enh_shear`.
+- **One front classification for the level-set trim and `f_ice`** (review TPO-4).
+  `calc_front_cells` with the level-set area fraction makes eligible cells cut by
+  the front (`a_lsf` < 1) that touch the ocean only at a corner front cells, in both
+  `calc_G_lsf_front` and `calc_ice_fraction`. These cells are now partial (`f_ice` ≈
+  `a_lsf`, `H_ice_dyn = H_ref`) instead of thin full cells. 187 such cells in ANT-16,
+  37 in GRL-16, 60 in CalvingMIP exp1 (10 ka). ANT-16 300 yr: floating area −0.3 %,
+  calving +6.5 %; GRL-16: floating area +17 %, calving +21 %; CalvingMIP exp1:
+  area −0.17 %, equivalent front radius 753.5 → 752.9 km. Level-set runs only.
+- **Exact `f_ice == 1` test for full ice cover** (review OMP-6) in the DIVA
+  viscosity, `calc_F_integral`, `calc_visc_eff_int`, the SSA masks and assemblers,
+  `calc_ice_front` and `gen_mask_bed` (was `is_equal`, tolerance 1e-5). No cell
+  with 1−1e-5 < `f_ice` < 1 occurred; all validation runs are bit-identical.
+- **Half drag at mask-4 front faces** (review DYN-7). Front faces treated as inner
+  SSA (grounded fronts, faces to ice-free land) get ½β like mask-3 faces, in the
+  residual and the energy assembler. GRL-16 300 yr (~650 such faces): volume
+  −4.5e-4, floating area +5.6 %, grounding-line flux −4.7 %; ANT-16: floating area
+  +0.14 %, grounding-line flux +2.2 %; CalvingMIP exp1 at 1 ka (advancing grounded
+  margin): volume −0.2 %; no change at 10 ka, EISMINT (SIA) unchanged.
 
 - **Sub-temperate sliding and basal drag at grounding lines and margins**
   (review 2026-10-01). β is divided by `f_slide` on aa-nodes in `calc_beta`,

@@ -2,7 +2,7 @@ module velocity_general
     ! This module contains general routines that are used by several solvers. 
     
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
-                            A_FRONT_MIN, is_equal
+                            A_FRONT_MIN
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax, is_finite
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -2224,7 +2224,7 @@ end if
         do j = 1, ny 
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
                 ! Calculate the vertically averaged viscosity for this point
                 visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
 

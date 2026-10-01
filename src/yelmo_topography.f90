@@ -2162,16 +2162,28 @@ end if
         ! tpo%now%H_eff from tpo%now%H_ice (CISM-style front scheme,
         ! ytopo.front_subgrid). With the level set, the front cells'
         ! thickness is trimmed to the level-set area first (calc_G_lsf_front),
-        ! so the same f_ice = H_ice/H_eff holds in both calving paths.
+        ! so the same f_ice = H_ice/H_eff holds in both calving paths. The
+        ! front cells are classified as in the trim, from the current level
+        ! set (a_lsf: cells cut by the front at an ocean corner are front cells).
 
         implicit none
 
         type(ytopo_class),  intent(INOUT) :: tpo
         type(ybound_class), intent(IN)    :: bnd
 
-        call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
-                               bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
-                               tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries)
+        real(wp), allocatable :: a_lsf(:,:)
+
+        if (tpo%par%use_lsf .and. trim(tpo%par%front_subgrid) .ne. "none") then
+            allocate(a_lsf(size(tpo%now%H_ice,1),size(tpo%now%H_ice,2)))
+            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%par%boundaries)
+            call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                                   bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
+                                   tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries,a_lsf)
+        else
+            call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
+                                   bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
+                                   tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries)
+        end if
 
         return
 
