@@ -1107,6 +1107,18 @@ contains
         end if
         call nc_read_interp(filename,"hyd_N",         dom%hyd%now%N,         ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"hyd_kappa",     dom%hyd%now%kappa,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        ! Basal energy exchange fields (added later). Older restarts will not
+        ! have them; keep the zero seed, which the hydrology model or coupled
+        ! host overwrites before the fields are next used.
+        if (nc_exists_var(filename,"hyd_C_frz")) then
+            call nc_read_interp(filename,"hyd_C_frz", dom%hyd%now%C_frz, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_Q_diss")) then
+            call nc_read_interp(filename,"hyd_Q_diss", dom%hyd%now%Q_diss, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_Q_sens")) then
+            call nc_read_interp(filename,"hyd_Q_sens", dom%hyd%now%Q_sens, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
 
         ! Mark fasthydrology as initialized from the restart (state was
         ! already allocated and seeded by yhyd_init_state earlier in the
@@ -2027,6 +2039,15 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("hyd_kappa")
                 call nc_write(filename,trim(v%varname),ylmo%hyd%now%kappa(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_C_frz")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%C_frz(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_Q_diss")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%Q_diss(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("hyd_Q_sens")
+                call nc_write(filename,trim(v%varname),ylmo%hyd%now%Q_sens(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
 
             case DEFAULT
