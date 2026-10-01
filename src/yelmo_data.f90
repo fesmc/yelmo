@@ -167,7 +167,7 @@ contains
 
     end subroutine ydata_compare
 
-    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group)
+    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group,topo_pd)
 
         implicit none 
 
@@ -178,6 +178,7 @@ contains
         real(wp),           intent(IN)    :: dx 
         character(len=*),   intent(IN)    :: boundaries 
         character(len=*),  intent(IN), optional :: group
+        type(ytopo_input_class), intent(IN), optional :: topo_pd    ! Present-day topography supplied by the driver (replaces pd_topo_path)
 
         ! Local variables 
         character(len=1028) :: filename 
@@ -204,26 +205,43 @@ contains
 
         z_sl_pd = 0.0_wp    ! [m] Define present day relative sea level as zero
 
-        if (dta%par%pd_topo_load) then 
-            ! Load present-day data from specified files and fields
+        if (dta%par%pd_topo_load .or. present(topo_pd)) then
+            ! Load present-day data from specified files and fields,
+            ! or take them as supplied by the driver
 
-            ! =========================================
-            ! Load topography data from netcdf file 
-            filename = dta%par%pd_topo_path
-            nms(1:4) = dta%par%pd_topo_names 
+            if (present(topo_pd)) then
 
-            call nc_read(filename,nms(1), dta%pd%H_ice, missing_value=mv)
-            call nc_read(filename,nms(2), dta%pd%z_bed, missing_value=mv) 
+                dta%pd%H_ice = topo_pd%H_ice
+                dta%pd%z_bed = topo_pd%z_bed
+                dta%pd%z_srf = topo_pd%z_srf
             
-            ! If available read in bedrock standard deviation field
-            has_sd = (trim(nms(3)) .ne. ""     .and. &
-                      trim(nms(3)) .ne. "none" .and. &
-                      trim(nms(3)) .ne. "None")
+                has_sd = allocated(topo_pd%z_bed_sd)
+                z_bed_sd = 0.0_wp
+                if (has_sd) z_bed_sd = topo_pd%z_bed_sd
 
-            z_bed_sd = 0.0_wp
-            if (has_sd) call nc_read(filename,nms(3),z_bed_sd, missing_value=mv)
+            else
 
-            call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
+                ! =========================================
+                ! Load topography data from netcdf file
+                filename = dta%par%pd_topo_path
+                nms(1:4) = dta%par%pd_topo_names
+
+                call yelmo_check_file("yelmo_data","pd_topo_path",filename)
+
+                call nc_read(filename,nms(1), dta%pd%H_ice, missing_value=mv)
+                call nc_read(filename,nms(2), dta%pd%z_bed, missing_value=mv)
+
+                ! If available read in bedrock standard deviation field
+                has_sd = (trim(nms(3)) .ne. ""     .and. &
+                          trim(nms(3)) .ne. "none" .and. &
+                          trim(nms(3)) .ne. "None")
+
+                z_bed_sd = 0.0_wp
+                if (has_sd) call nc_read(filename,nms(3),z_bed_sd, missing_value=mv)
+
+                call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
+
+            end if
 
             ! Fill the gaps of the dataset (e.g. outside its coverage)
             call ydata_fill_topo_gaps(dta%pd%H_ice,dta%pd%z_bed,dta%pd%z_srf,z_bed_sd, &
@@ -501,8 +519,8 @@ contains
         call yelmo_parse_path(par%pd_vel_path, domain,grid_name)
         call yelmo_parse_path(par%pd_age_path, domain,grid_name)
 
-        ! Check that requested data files exist
-        if (par%pd_topo_load) call yelmo_check_file(group,"pd_topo_path",par%pd_topo_path)
+        ! Check that requested data files exist (pd_topo_path is checked in
+        ! ydata_load, since a coupled driver may supply the topography instead)
         if (par%pd_tsrf_load) call yelmo_check_file(group,"pd_tsrf_path",par%pd_tsrf_path)
         if (par%pd_smb_load)  call yelmo_check_file(group,"pd_smb_path", par%pd_smb_path)
         if (par%pd_vel_load)  call yelmo_check_file(group,"pd_vel_path", par%pd_vel_path)

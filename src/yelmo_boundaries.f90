@@ -134,14 +134,17 @@ contains
 
     end subroutine ybound_define_physical_constants
     
-    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name)
+    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,basins,regions)
         ! Load masks for managing regions and basins, etc. 
+        ! basins and regions supplied by the driver replace the file reads.
 
         implicit none 
 
         type(ybound_class), intent(INOUT) :: bnd 
         character(len=*), intent(IN)      :: nml_path, nml_group
         character(len=*), intent(IN)      :: domain, grid_name 
+        real(wp), intent(IN), optional    :: basins(:,:)
+        real(wp), intent(IN), optional    :: regions(:,:)
 
         ! Local variables
         logical            :: load_var
@@ -165,7 +168,11 @@ contains
 
         call nml_read(nml_path,nml_group,"basins_load",load_var,defaults_file=def_file,defaults_group=def_masks)
 
-        if (load_var) then
+        if (present(basins)) then
+
+            bnd%basins = basins
+
+        else if (load_var) then
 
             call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
@@ -206,7 +213,11 @@ contains
 
         call nml_read(nml_path,nml_group,"regions_load",load_var,defaults_file=def_file,defaults_group=def_masks)
 
-        if (load_var) then
+        if (present(regions)) then
+
+            bnd%regions = regions
+
+        else if (load_var) then
 
             call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
@@ -230,28 +241,59 @@ contains
 
     end subroutine ybound_load_masks
 
-    subroutine ybound_define_mask_ice(bnd,domain,boundaries)
+    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border,mask_ice)
         ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
         ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
+        ! The mask is built in two parts: where ice is allowed in the domain
+        ! (from the regions, or supplied by the driver), then the treatment
+        ! of the domain border.
 
         implicit none
 
         type(ybound_class), intent(INOUT) :: bnd
         character(len=*),   intent(IN)    :: domain
         character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
-
-        ! Local variables
-        integer :: i, nx, ny
-        logical :: per_x, per_y
-
-        nx = size(bnd%mask_ice,1)
-        ny = size(bnd%mask_ice,2)
-
-        ! Initially mark all points as dynamic (ice is solved)
-        bnd%mask_ice = MASK_ICE_DYNAMIC
+        character(len=*),   intent(IN)    :: mask_border    ! yelmo.mask_border
+        integer, intent(IN), optional     :: mask_ice(:,:)  ! Where ice is allowed in the domain
 
         ! Also set calv_mask false everywhere (no imposed calving front)
         bnd%calv_mask   = .FALSE.
+
+        if (present(mask_ice)) then
+
+            if (any(mask_ice .ne. MASK_ICE_NONE .and. mask_ice .ne. MASK_ICE_FIXED &
+                                                .and. mask_ice .ne. MASK_ICE_DYNAMIC)) then
+                write(io_unit_err,*) "ybound_define_mask_ice:: Error: mask_ice values must be &
+                                     &MASK_ICE_NONE, MASK_ICE_FIXED or MASK_ICE_DYNAMIC."
+                write(io_unit_err,*) "range(mask_ice): ", minval(mask_ice), maxval(mask_ice)
+                error stop 1
+            end if
+
+            bnd%mask_ice = mask_ice
+
+        else
+
+            call define_mask_ice_domain(bnd%mask_ice,bnd%regions,domain)
+
+        end if
+
+        call define_mask_ice_border(bnd%mask_ice,domain,boundaries,mask_border)
+
+        return
+
+    end subroutine ybound_define_mask_ice
+
+    subroutine define_mask_ice_domain(mask_ice,regions,domain)
+        ! Where ice is allowed in the domain, from the regions field.
+
+        implicit none
+
+        integer,          intent(OUT) :: mask_ice(:,:)
+        real(wp),         intent(IN)  :: regions(:,:)
+        character(len=*), intent(IN)  :: domain
+
+        ! Initially mark all points as dynamic (ice is solved)
+        mask_ice = MASK_ICE_DYNAMIC
 
         ! Determine allowed regions based on domain
         select case(trim(domain))
@@ -260,95 +302,157 @@ contains
                 ! Allow ice everywhere except the open ocean (region 1.0 in the
                 ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
-                where (bnd%regions .eq. 1.0) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+                where (regions .eq. 1.0) mask_ice = MASK_ICE_NONE
 
             case ("Eurasia")
                 ! Allow ice only in the Eurasia domain (1.2*)
 
-                if (count(bnd%regions .ge. 1.2 .and. bnd%regions .le. 1.29) .eq. 0) then
+                if (count(regions .ge. 1.2 .and. regions .le. 1.29) .eq. 0) then
                     ! Without a regions file (regions=0), ice would be forbidden everywhere
                     write(io_unit_err,*) "ybound_define_mask_ice:: Error: domain='Eurasia' requires a regions &
                                          &field with Eurasia codes (1.2 <= regions <= 1.29), but none were found."
-                    write(io_unit_err,*) "range(regions): ", minval(bnd%regions), maxval(bnd%regions)
+                    write(io_unit_err,*) "range(regions): ", minval(regions), maxval(regions)
                     error stop 1
                 end if
 
-                where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+                where (regions .lt. 1.2 .or. regions .gt. 1.29) mask_ice = MASK_ICE_NONE
 
             case ("Greenland")
 
-                bnd%mask_ice = MASK_ICE_NONE
-                where (bnd%regions .eq. 1.3)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Main Greenland region
-                where (bnd%regions .eq. 1.11) bnd%mask_ice = MASK_ICE_DYNAMIC   ! Ellesmere Island
-                where (bnd%regions .eq. 1.0)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
+                mask_ice = MASK_ICE_NONE
+                where (regions .eq. 1.3)  mask_ice = MASK_ICE_DYNAMIC   ! Main Greenland region
+                where (regions .eq. 1.11) mask_ice = MASK_ICE_DYNAMIC   ! Ellesmere Island
+                where (regions .eq. 1.0)  mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
 
             case ("Antarctica")
                 ! Allow ice everywhere except the open ocean (region 2.0 in the
                 ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
 
-                where (bnd%regions .eq. 2.0) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
-
-
-            case ("EISMINT")
-
-                ! Ice can grow everywhere, except borders
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
-
-            case ("MISMIP","MISMIP3D","MISMIP+","TROUGH","TROUGH-F17")
-
-                ! Ice can grow everywhere, except farthest x-border.
-                !
-                ! "MISMIP3D" must be listed here explicitly. yelmo_init already
-                ! maps experiment="MISMIP3D" onto the MISMIP3D (y-periodic)
-                ! tpo/dyn/thrm boundaries, but this select case used to omit it,
-                ! so a domain named "MISMIP3D" fell through to case DEFAULT and
-                ! had all four borders marked MASK_ICE_FIXED. With bnd%H_ice_ref
-                ! left at its zero default, calc_G_boundaries then reset
-                ! H_ice = H_ice_ref = 0 on the whole perimeter every timestep --
-                ! silently draining ice at the flowband divide (i=1) and along
-                ! both lateral edges (j=1, j=ny), which no MISMIP-type setup wants.
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                where (regions .eq. 2.0) mask_ice = MASK_ICE_NONE
 
             case DEFAULT
-                ! Unknown domain: dynamic interior, prescribed borders
-                ! in non-periodic directions (in a periodic direction the
-                ! border points are interior points)
-                ! (mask_ice can always be modified later)
-
-                call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
-
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                if (.not. per_x) then
-                    bnd%mask_ice(1,:)  = MASK_ICE_FIXED
-                    bnd%mask_ice(nx,:) = MASK_ICE_FIXED
-                end if
-                if (.not. per_y) then
-                    bnd%mask_ice(:,1)  = MASK_ICE_FIXED
-                    bnd%mask_ice(:,ny) = MASK_ICE_FIXED
-                end if
+                ! Ice can grow everywhere
 
         end select
 
         return
 
-    end subroutine ybound_define_mask_ice
+    end subroutine define_mask_ice_domain
+
+    subroutine define_mask_ice_border(mask_ice,domain,boundaries,mask_border)
+        ! Treatment of the domain border (yelmo.mask_border):
+        !   "auto":    by domain (below)
+        !   "none":    no ice on the border
+        !   "fixed":   ice thickness prescribed on the border (= H_ice_ref)
+        !   "dynamic": the border is left as the domain mask defines it
+        ! "none" and "fixed" skip periodic directions, where the border points
+        ! are interior points.
+
+        implicit none
+
+        integer,          intent(INOUT) :: mask_ice(:,:)
+        character(len=*), intent(IN)    :: domain
+        character(len=*), intent(IN)    :: boundaries
+        character(len=*), intent(IN)    :: mask_border
+
+        ! Local variables
+        integer :: nx, ny
+        logical :: per_x, per_y
+
+        nx = size(mask_ice,1)
+        ny = size(mask_ice,2)
+
+        call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
+
+        select case(trim(mask_border))
+
+            case("auto")
+
+                select case(trim(domain))
+
+                    case ("North","Eurasia","Antarctica","EISMINT")
+                        ! No ice on any border
+
+                        call set_border(mask_ice,MASK_ICE_NONE,per_x=.FALSE.,per_y=.FALSE.)
+
+                    case ("Greenland")
+                        ! The border is outside of the allowed regions
+
+                    case ("MISMIP","MISMIP3D","MISMIP+","TROUGH","TROUGH-F17")
+
+                        ! Ice can grow everywhere, except farthest x-border.
+                        !
+                        ! "MISMIP3D" must be listed here explicitly. yelmo_init already
+                        ! maps experiment="MISMIP3D" onto the MISMIP3D (y-periodic)
+                        ! tpo/dyn/thrm boundaries, but this select case used to omit it,
+                        ! so a domain named "MISMIP3D" fell through to case DEFAULT and
+                        ! had all four borders marked MASK_ICE_FIXED. With bnd%H_ice_ref
+                        ! left at its zero default, calc_G_boundaries then reset
+                        ! H_ice = H_ice_ref = 0 on the whole perimeter every timestep --
+                        ! silently draining ice at the flowband divide (i=1) and along
+                        ! both lateral edges (j=1, j=ny), which no MISMIP-type setup wants.
+                        mask_ice(nx,:) = MASK_ICE_NONE
+
+                    case DEFAULT
+                        ! Unknown domain: prescribed borders in non-periodic directions
+                        ! (mask_ice can always be modified later)
+
+                        call set_border(mask_ice,MASK_ICE_FIXED,per_x,per_y)
+
+                end select
+
+            case("none")
+
+                call set_border(mask_ice,MASK_ICE_NONE,per_x,per_y)
+
+            case("fixed")
+
+                call set_border(mask_ice,MASK_ICE_FIXED,per_x,per_y)
+
+            case("dynamic")
+
+                ! Pass, border as defined by the domain mask
+
+            case DEFAULT
+
+                write(io_unit_err,*) "ybound_define_mask_ice:: Error: yelmo.mask_border not recognized."
+                write(io_unit_err,*) "mask_border = ", trim(mask_border)
+                write(io_unit_err,*) "Options: auto, none, fixed, dynamic."
+                error stop 1
+
+        end select
+
+        return
+
+    end subroutine define_mask_ice_border
+
+    subroutine set_border(mask_ice,val,per_x,per_y)
+        ! Set the border points of mask_ice to val, except in periodic directions.
+
+        implicit none
+
+        integer, intent(INOUT) :: mask_ice(:,:)
+        integer, intent(IN)    :: val
+        logical, intent(IN)    :: per_x, per_y
+
+        ! Local variables
+        integer :: nx, ny
+
+        nx = size(mask_ice,1)
+        ny = size(mask_ice,2)
+
+        if (.not. per_x) then
+            mask_ice(1,:)  = val
+            mask_ice(nx,:) = val
+        end if
+        if (.not. per_y) then
+            mask_ice(:,1)  = val
+            mask_ice(:,ny) = val
+        end if
+
+        return
+
+    end subroutine set_border
 
     subroutine ybound_update_rates(bnd,time)
         ! Rates of bedrock elevation and sea level since the previous call of

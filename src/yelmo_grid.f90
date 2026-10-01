@@ -3,8 +3,9 @@ module yelmo_grid
     !
     ! The horizontal grid is represented by the fesm-utils/coords grid_class
     ! (dom%grd). This module provides yelmo-facing entry points that build a
-    ! grid_class from a predefined name, a netcdf file, explicit options or
-    ! explicit axes, all delegating the heavy lifting to coords grid_init.
+    ! grid_class from a predefined name, a netcdf file, explicit options,
+    ! explicit axes or another grid_class, all delegating the heavy lifting to
+    ! coords grid_init.
 
     use yelmo_defs, only : sp, dp, wp, pi
     use yelmo_tools, only : get_region_indices
@@ -20,6 +21,7 @@ module yelmo_grid
         module procedure yelmo_init_grid_fromfile
         module procedure yelmo_init_grid_fromopt
         module procedure yelmo_init_grid_fromaxes
+        module procedure yelmo_init_grid_fromgrid
     end interface
 
     private
@@ -31,6 +33,7 @@ module yelmo_grid
     public :: yelmo_init_grid_fromname
     public :: yelmo_init_grid_fromaxes
     public :: yelmo_init_grid_fromopt
+    public :: yelmo_init_grid_fromgrid
     public :: yelmo_grid_write
 
 contains
@@ -340,6 +343,32 @@ contains
         return
 
     end subroutine yelmo_init_grid_fromaxes
+
+    subroutine yelmo_init_grid_fromgrid(grd,grid0)
+        ! Build the yelmo grid from a grid_class defined elsewhere (e.g. a
+        ! coupler's grid description): same name, axes and coordinate system,
+        ! with the axes converted to meters.
+
+        implicit none
+
+        type(grid_class), intent(INOUT) :: grd
+        type(grid_class), intent(IN)    :: grid0
+
+        if (.not. (grid0%cs%is_cartesian .or. grid0%cs%is_projection)) then
+            write(*,*) "yelmo_init_grid_fromgrid:: error: the grid must be cartesian &
+                       &or projected: "//trim(grid0%name)//", mtype = "//trim(grid0%cs%mtype)
+            error stop 1
+        end if
+
+        call grid_init(grd,name=trim(grid0%name),mtype=trim(grid0%cs%mtype),units="meters", &
+                       planet=trim(grid0%cs%planet%name),lon180=grid0%cs%is_lon180, &
+                       x=grid0%G%x*grid0%cs%xy_conv,y=grid0%G%y*grid0%cs%xy_conv, &
+                       lambda=grid0%cs%proj%lambda,phi=grid0%cs%proj%phi,alpha=grid0%cs%proj%alpha, &
+                       x_e=grid0%cs%proj%x_e,y_n=grid0%cs%proj%y_n)
+
+        return
+
+    end subroutine yelmo_init_grid_fromgrid
 
     subroutine yelmo_grid_write(grid, fnm, domain, grid_name, create, irange, jrange)
         ! Write grid info to netcdf file respecting coordinate conventions

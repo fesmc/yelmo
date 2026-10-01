@@ -379,6 +379,16 @@ module yelmo_defs
         
     end type
 
+    ! Topography supplied by a coupled driver in place of a file read
+    ! (yelmo_init arguments topo_init and topo_pd). z_bed_sd and z_srf may be
+    ! left unallocated when not available (topo_pd requires z_srf).
+    type ytopo_input_class
+        real(wp), allocatable :: H_ice(:,:)       ! [m] Ice thickness
+        real(wp), allocatable :: z_bed(:,:)       ! [m] Bedrock elevation
+        real(wp), allocatable :: z_bed_sd(:,:)    ! [m] Standard deviation of bedrock elevation
+        real(wp), allocatable :: z_srf(:,:)       ! [m] Surface elevation
+    end type
+
     ! =========================================================================
     !
     ! YELMO objects: ydyn 
@@ -1075,6 +1085,7 @@ module yelmo_defs
         character (len=512) :: grid_path
         character (len=512) :: phys_const
         character (len=256) :: experiment
+        character (len=56)  :: mask_border     ! Ice mask on the domain border: auto, none, fixed, dynamic
         
         ! nml group names
         character(len=32)   :: nml_ytopo

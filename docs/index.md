@@ -121,6 +121,21 @@ inside of a program, run the model forward in time and then terminate the instan
 
 ```
 
+A coupled program that owns the domain definition (grid, masks, topography) can
+pass these to `yelmo_init` instead of having Yelmo read them from files. Each
+optional field replaces the matching file read; the processing that follows is
+the same:
+
+```fortran
+    type(ytopo_input_class) :: topo_pd, topo_init   ! H_ice, z_bed [, z_bed_sd, z_srf]
+
+    call yelmo_init_grid(yelmo1%grd,grid)           ! grid: a coords grid_class
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init, &
+                    domain=domain,grid_name=grid%name, &
+                    regions=regions,basins=basins,mask_ice=mask_ice, &
+                    topo_pd=topo_pd,topo_init=topo_init)
+```
+
 That's it!
 
 See [Getting started](getting-started.md) to see how to get the code,
