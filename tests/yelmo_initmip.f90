@@ -84,8 +84,6 @@ program yelmo_test
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
     call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref)        ! Filename holding cb_ref to load 
 
-    call nml_read(path_par,"ctrl","load_bmelt",     ctl%load_bmelt)         ! Load bmelt from file?
-    call nml_read(path_par,"ctrl","file_bmelt",     ctl%file_bmelt)         ! Filename holding bmelt field to load 
         
     ! Load climate (eg, set_pd or set_lgm)
     call nml_read(path_par,ctl%set_nm,  "init_topo_path",  ctl%init_topo_path)
@@ -106,7 +104,10 @@ program yelmo_test
     call nml_set_param(path_par, "yelmo_data", "pd_tsrf_monthly", merge("True ","False",ctl%pd_tsrf_monthly), quoted=.FALSE.)
     call nml_set_param(path_par, "yelmo_data", "pd_smb_monthly",  merge("True ","False",ctl%pd_smb_monthly),  quoted=.FALSE.)
     
-    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [yr] Constant imposed bmb_shlf value
+    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
+    call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
+    if (ctl%load_bmelt) &
+        call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
     call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
     call nml_read(path_par,ctl%set_nm,  "z_sl",            ctl%z_sl)                      ! [m] Sea level relative to present-day
 

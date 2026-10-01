@@ -12,15 +12,12 @@
 
     with_ice_sheet  = True              ! Active ice-sheet component? 
     equil_method    = "opt"             ! "none", "relax", "opt"
-    init_temp       = "robin-cold"      ! Initial temperature profile: "robin" or "robin-cold" (cold base)
+    init_temp       = "robin"           ! Initial temperature profile: "robin" or "robin-cold" (cold base)
 
     set_nm          = "set_grl_pd"     ! "set_grl_pd", "set_ant_pd" or "set_ant_lgm"
     
     load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
     file_cb_ref     = "ice_data/{domain}/{grid_name}/{grid_name}_cf_ref_opt.nc"  ! Filename holding cf_ref to load 
-
-    load_bmelt      = False             ! Load PD bmelt observations from file? Else use bmb_shlf_const 
-    file_bmelt      = "ice_data/{domain}/{grid_name}/{grid_name}_BMELT-R13.nc"
 
 /
 
@@ -32,7 +29,8 @@
     pd_vel_path       = "ice_data/{domain}/{grid_name}/{grid_name}_VEL-J18.nc"
     pd_tsrf_monthly = False             ! MAR annual-mean file
     pd_smb_monthly  = False             ! MAR annual-mean file
-    bmb_shlf_const  = -1.0              ! [m/a] Basal mass balance of ice shelves
+    bmb_shlf_const  = -10.0             ! [m/a] Basal mass balance of ice shelves
+    load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
 /
@@ -46,6 +44,8 @@
     pd_tsrf_monthly = True              ! RACMO monthly file
     pd_smb_monthly  = True              ! RACMO monthly file
     bmb_shlf_const  = -0.2              ! [m/a] Basal mass balance of ice shelves
+    load_bmelt      = True              ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
+    file_bmelt      = "ice_data/{domain}/{grid_name}/{grid_name}_BMELT-R13.nc"
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
 /
@@ -59,6 +59,7 @@
     pd_tsrf_monthly = True              ! RACMO monthly file
     pd_smb_monthly  = True              ! RACMO monthly file
     bmb_shlf_const  = 0.0               ! [m/a] Basal mass balance of ice shelves
+    load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     dT_ann          = -10.0             ! [K] Temperature anomaly (atm)
     z_sl            = -120.0            ! [m] Sea level relative to present-day 
 /
@@ -227,8 +228,8 @@
     w2                  = 0.0               ! Weighting coefficient of 2nd principal strain/stress
     kt_ref              = 0.0025            ! [m yr-1 Pa-1] vm-l19 calving scaling parameter
     kt_deep             = 0.1               ! [m yr-1 Pa-1] vm-l19 calving scaling parameter for deep ocean
-    tau_ice_flt         = 250.0e3           ! [Pa] Ice strength failure, floating fronts (vm-m16)
-    tau_ice_grnd        = 1.0e6             ! [Pa] Ice strength failure, marine-grounded fronts (vm-m16)
+    tau_ice_flt         = 62.5e3            ! [Pa] Ice strength failure, floating fronts (vm-m16; ANT-16 PD calibration 2026-10-01)
+    tau_ice_grnd        = 2.5e5             ! [Pa] Ice strength failure, marine-grounded fronts (vm-m16)
 
     ! === threshold method ===
     Hc_ref_flt          = 200.0             ! [m] Calving limit in ice thickness - floating (thinner ice calves)
