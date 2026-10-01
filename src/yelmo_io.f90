@@ -1001,6 +1001,15 @@ contains
         call nc_read_interp(filename,"jvel_dzy",      dom%dyn%now%jvel%dzy, ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_ac,1],map=mp)
         call nc_read_interp(filename,"jvel_dzz",      dom%dyn%now%jvel%dzz, ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz_ac,1],map=mp) 
 
+        if (nc_exists_var(filename,"f_ice_solv")) then
+            call nc_read_interp(filename,"H_ice_solv",    dom%dyn%now%H_ice_solv,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
+            call nc_read_interp(filename,"f_ice_solv",    dom%dyn%now%f_ice_solv,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
+        else
+            ! Legacy restart: take the geometry of the restart state
+            dom%dyn%now%H_ice_solv = dom%tpo%now%H_ice_dyn
+            dom%dyn%now%f_ice_solv = dom%tpo%now%f_ice_dyn
+        end if
+
         ! == ymat variables ===
 
         call nc_read_interp(filename,"enh",         dom%mat%now%enh,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
@@ -1618,6 +1627,12 @@ contains
             case("jvel_dzz") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%jvel%dzz(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("H_ice_solv")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%H_ice_solv(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("f_ice_solv")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%f_ice_solv(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             
             case DEFAULT 
 

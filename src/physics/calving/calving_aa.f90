@@ -19,6 +19,7 @@ module calving_aa
     ! Calving related stress/strain routines 
     public :: calc_eps_eff
     public :: calc_tau_eff
+    public :: fill_stress_new_ice
 
     ! Floating calving routines 
     public :: define_calving_thickness_threshold
@@ -663,6 +664,78 @@ contains
 
     end function calc_eps_eff_now
     
+    subroutine fill_stress_new_ice(tau_eig_1_f,tau_eig_2_f,tau_eig_1,tau_eig_2,f_ice,f_ice_solv,boundaries)
+        ! Principal stresses for the calving laws on the current ice geometry.
+        ! The stresses come from the last velocity solution (geometry f_ice_solv),
+        ! so a cell that received ice since then (f_ice > 0, f_ice_solv == 0) has
+        ! none: it takes the mean of its edge neighbours that were part of the
+        ! solution (zero if there are none).
+
+        implicit none 
+
+        real(wp), intent(OUT) :: tau_eig_1_f(:,:)
+        real(wp), intent(OUT) :: tau_eig_2_f(:,:)
+        real(wp), intent(IN)  :: tau_eig_1(:,:)
+        real(wp), intent(IN)  :: tau_eig_2(:,:) 
+        real(wp), intent(IN)  :: f_ice(:,:) 
+        real(wp), intent(IN)  :: f_ice_solv(:,:) 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, k, nx, ny, n
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        integer  :: inb(4), jnb(4)
+        real(wp) :: tau1, tau2
+
+        nx = size(tau_eig_1,1)
+        ny = size(tau_eig_1,2)
+
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,k,n,im1,ip1,jm1,jp1,inb,jnb,tau1,tau2)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            tau_eig_1_f(i,j) = tau_eig_1(i,j)
+            tau_eig_2_f(i,j) = tau_eig_2(i,j)
+
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_ice_solv(i,j) .eq. 0.0_wp) then 
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                inb = [im1,ip1,i,i]
+                jnb = [j,j,jm1,jp1]
+
+                n    = 0
+                tau1 = 0.0_wp
+                tau2 = 0.0_wp
+                do k = 1, 4
+                    if (f_ice_solv(inb(k),jnb(k)) .eq. 1.0_wp) then 
+                        n    = n + 1
+                        tau1 = tau1 + tau_eig_1(inb(k),jnb(k))
+                        tau2 = tau2 + tau_eig_2(inb(k),jnb(k))
+                    end if 
+                end do 
+
+                if (n .gt. 0) then 
+                    tau_eig_1_f(i,j) = tau1 / real(n,wp)
+                    tau_eig_2_f(i,j) = tau2 / real(n,wp)
+                else 
+                    tau_eig_1_f(i,j) = 0.0_wp
+                    tau_eig_2_f(i,j) = 0.0_wp
+                end if 
+
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return 
+
+    end subroutine fill_stress_new_ice
+
     subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2)
         ! Effective stress at ice-covered points. Partial front cells are
         ! part of the active ice geometry (f_ice_dyn) and carry their own stresses.

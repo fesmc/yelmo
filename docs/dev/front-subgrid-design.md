@@ -117,7 +117,9 @@ design below maps that onto Yelmo's C-grid.
 ### 4.2 Momentum balance
 
 - `H_ice_dyn = H_eff`, `f_ice_dyn = 1` in partial front cells (in
-  `calc_ytopo_diagnostic`). `ssa_lat_bc = "slab"`/`"slab-ext"` are removed
+  `calc_ytopo_diagnostic`). Full front cells holding more ice than `H_eff`
+  keep their own column (`H_ice_dyn = max(H_eff, H_ice)`); `H_eff` stays the
+  reference of the front advance and trim. `ssa_lat_bc = "slab"`/`"slab-ext"` are removed
   (only used in fully ice-covered periodic domains, where they had no effect).
 - Everything in the dynamics uses the `_dyn` fields: `set_ssa_masks` (now uses
   `f_ice`), `calc_lateral_bc_stress_2D` (now uses `H_ice`), driving stress,

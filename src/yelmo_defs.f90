@@ -505,6 +505,11 @@ module yelmo_defs
         real(wp), allocatable :: ux_bar_prev(:,:) 
         real(wp), allocatable :: uy_bar_prev(:,:)
 
+        ! Active ice geometry of the last velocity solution (tpo%now%H_ice_dyn and
+        ! f_ice_dyn when calc_ydyn ran): the geometry of the strain rates
+        real(wp), allocatable :: H_ice_solv(:,:)
+        real(wp), allocatable :: f_ice_solv(:,:)
+
         real(wp), allocatable :: ux_b(:,:) 
         real(wp), allocatable :: uy_b(:,:)
         real(wp), allocatable :: uz_b(:,:)

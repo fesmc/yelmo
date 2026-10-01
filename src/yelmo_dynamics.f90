@@ -92,6 +92,10 @@ contains
         ! (for use with higher-order ice thickness timestepping) 
         dyn%now%ux_bar_prev = dyn%now%ux_bar 
         dyn%now%uy_bar_prev = dyn%now%uy_bar 
+
+        ! Store the active ice geometry of this solution
+        dyn%now%H_ice_solv = tpo%now%H_ice_dyn
+        dyn%now%f_ice_solv = tpo%now%f_ice_dyn
         
         ! Store initial uxy_bar solution 
         uxy_prev = dyn%now%uxy_bar 
@@ -807,6 +811,8 @@ contains
         
         allocate(now%ux_bar_prev(nx,ny)) 
         allocate(now%uy_bar_prev(nx,ny))
+        allocate(now%H_ice_solv(nx,ny))
+        allocate(now%f_ice_solv(nx,ny))
 
         allocate(now%ux_b(nx,ny)) 
         allocate(now%uy_b(nx,ny))
@@ -915,6 +921,8 @@ contains
 
         now%ux_bar_prev       = 0.0 
         now%uy_bar_prev       = 0.0
+        now%H_ice_solv        = 0.0
+        now%f_ice_solv        = 0.0
         
         now%ux_b              = 0.0 
         now%uy_b              = 0.0
@@ -1031,6 +1039,8 @@ contains
         
         if (allocated(now%ux_bar_prev))     deallocate(now%ux_bar_prev) 
         if (allocated(now%uy_bar_prev))     deallocate(now%uy_bar_prev)
+        if (allocated(now%H_ice_solv))      deallocate(now%H_ice_solv)
+        if (allocated(now%f_ice_solv))      deallocate(now%f_ice_solv)
         
         if (allocated(now%ux_b))            deallocate(now%ux_b) 
         if (allocated(now%uy_b))            deallocate(now%uy_b)
