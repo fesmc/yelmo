@@ -70,7 +70,7 @@ contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D(lgs,ux,uy,beta_acx,beta_acy, &
                             N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries,lateral_bc)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for the SSA momentum balance equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -94,7 +94,6 @@ contains
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] Vertically integrated lateral stress (acx nodes)
         real(wp), intent(IN) :: taul_int_acy(:,:)       ! [Pa m] Vertically integrated lateral stress (acy nodes) 
         real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] Minimum allowed basal friction for grounded ice
 
         character(len=*), intent(IN) :: boundaries 
         character(len=*), intent(IN) :: lateral_bc
@@ -120,7 +119,6 @@ contains
 
         integer :: im1, ip1, jm1, jp1 
         real(wp) :: N_aa_now
-        integer  :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
@@ -223,13 +221,6 @@ contains
         lgs%a_ptr(1) = 1
 
         k = 0
-
-        ! Counters of inner grounded rows (and those with beta > 0) for the
-        ! beta consistency check after assembly
-        n_grnd_x = 0
-        n_beta_x = 0
-        n_grnd_y = 0
-        n_beta_y = 0
 
         do n=1, lgs%nmax-1, 2
 
@@ -467,13 +458,8 @@ contains
             else
                 ! === Inner SSA solution === 
 
+                ! beta_min at grounded faces with beta=0 is set before the call (set_beta_min_grounded)
                 beta_now = beta_acx(i,j)
-                if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0) beta_now = beta_min
-
-                if (ssa_mask_acx(i,j) .eq. 1) then
-                    n_grnd_x = n_grnd_x + 1
-                    if (beta_acx(i,j) .gt. 0.0) n_beta_x = n_beta_x + 1
-                end if
 
                 ! -- vx terms -- 
 
@@ -756,12 +742,6 @@ contains
                 ! === Inner SSA solution === 
 
                 beta_now = beta_acy(i,j)
-                if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0) beta_now = beta_min
-
-                if (ssa_mask_acy(i,j) .eq. 1) then
-                    n_grnd_y = n_grnd_y + 1
-                    if (beta_acy(i,j) .gt. 0.0) n_beta_y = n_beta_y + 1
-                end if
 
                 ! -- vy terms -- 
 
@@ -826,24 +806,6 @@ contains
             lgs%a_ptr(nr+1) = k+1   ! row is completed, store index to next row
 
         end do
-
-        ! Consistency check: ensure beta is defined well for grounded ice.
-        ! Only inner rows (momentum equations with a friction term) are counted;
-        ! border and lateral-bc rows do not use beta.
-        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
-             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
-            ! No inner grounded points found with a non-zero beta,
-            ! something was not well-defined/well-initialized, give a warning
-            ! with some statistics. In the assembly above, beta=beta_min
-            ! was used for these points.
-
-            write(*,*)
-            write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
-            write(*,*) "inner grounded acx rows: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
-            write(*,*) "inner grounded acy rows: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
-            write(*,*)
-
-        end if
 
         ! Done: A, x and b matrices in Ax=b have been populated 
         ! and stored in lgs object. 

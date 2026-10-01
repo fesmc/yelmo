@@ -32,7 +32,6 @@ program test_ssa_energy_sym
 
     integer, parameter :: nx = 9, ny = 9
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp
-    real(wp), parameter :: beta_min = 0.0_wp
     real(wp), parameter :: tol = 1.0e-3_wp     ! absolute tolerance on |K(I,J) - K(J,I)|
 
     real(wp) :: ux(nx,ny), uy(nx,ny)
@@ -74,7 +73,7 @@ program test_ssa_energy_sym
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                taul_int_acx,taul_int_acy,dx,dy,"periodic","none")
     call check_K_symmetry(lgs, total_fail)
 
     ! ---------- Case 2: zero (no-slip) boundaries, all interior ----------
@@ -87,7 +86,7 @@ program test_ssa_energy_sym
     ! per the "zeros" string.
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"zeros","none")
+                taul_int_acx,taul_int_acy,dx,dy,"zeros","none")
     call check_K_symmetry(lgs, total_fail)
 
     ! ---------- Case 3: periodic with a mask=3 calving-front strip ----------
@@ -104,7 +103,7 @@ program test_ssa_energy_sym
     end do
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                taul_int_acx,taul_int_acy,dx,dy,"periodic","none")
     call check_K_symmetry(lgs, total_fail)
 
     ! ---------- Cases 4-6: ice reaching free-slip domain edges ----------
@@ -125,7 +124,7 @@ program test_ssa_energy_sym
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"infinite","none")
+                taul_int_acx,taul_int_acy,dx,dy,"infinite","none")
     call check_K_symmetry(lgs, total_fail)
 
     ! Solve (CG) and check that tied edge velocities equal their inner roots
@@ -150,7 +149,7 @@ program test_ssa_energy_sym
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic-x","none")
+                taul_int_acx,taul_int_acy,dx,dy,"periodic-x","none")
     call check_K_symmetry(lgs, total_fail)
 
     write(*,*)
@@ -159,7 +158,7 @@ program test_ssa_energy_sym
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"MISMIP3D","none")
+                taul_int_acx,taul_int_acy,dx,dy,"MISMIP3D","none")
     call check_K_symmetry(lgs, total_fail)
 
     write(*,*)

@@ -32,6 +32,7 @@ module basal_dragging
     public :: calc_f_slide
     public :: calc_beta 
     public :: stagger_beta 
+    public :: set_beta_min_grounded
 
     ! Effective pressure
     public :: calc_effective_pressure_overburden
@@ -596,38 +597,39 @@ contains
 
             end select 
 
+            ! Note: periodic directions need no treatment here, since the
+            ! staggering above uses BC-aware (wrapped) neighbor indices.
+            ! An imposed beta_acx/acy (beta_gl_stag=-1) is left as given.
+
+            ! x-direction borders
+            select case(trim(boundaries))
+
+                case("infinite","MISMIP3D","mask")
+
+                    beta_acx(1,:)    = beta_acx(2,:)
+                    beta_acx(nx-1,:) = beta_acx(nx-2,:)
+                    beta_acx(nx,:)   = beta_acx(nx-2,:)
+
+                    beta_acy(1,:)    = beta_acy(2,:)
+                    beta_acy(nx,:)   = beta_acy(nx-1,:)
+
+            end select
+
+            ! y-direction borders (MISMIP3D is periodic in y)
+            select case(trim(boundaries))
+
+                case("infinite","mask")
+
+                    beta_acx(:,1)    = beta_acx(:,2)
+                    beta_acx(:,ny)   = beta_acx(:,ny-1)
+
+                    beta_acy(:,1)    = beta_acy(:,2)
+                    beta_acy(:,ny-1) = beta_acy(:,ny-2)
+                    beta_acy(:,ny)   = beta_acy(:,ny-2)
+
+            end select
+
         end if 
-
-        ! Note: periodic directions need no treatment here, since the
-        ! staggering above uses BC-aware (wrapped) neighbor indices.
-
-        ! x-direction borders
-        select case(trim(boundaries))
-
-            case("infinite","MISMIP3D","mask")
-
-                beta_acx(1,:)    = beta_acx(2,:)
-                beta_acx(nx-1,:) = beta_acx(nx-2,:)
-                beta_acx(nx,:)   = beta_acx(nx-2,:)
-
-                beta_acy(1,:)    = beta_acy(2,:)
-                beta_acy(nx,:)   = beta_acy(nx-1,:)
-
-        end select
-
-        ! y-direction borders (MISMIP3D is periodic in y)
-        select case(trim(boundaries))
-
-            case("infinite","mask")
-
-                beta_acx(:,1)    = beta_acx(:,2)
-                beta_acx(:,ny)   = beta_acx(:,ny-1)
-
-                beta_acy(:,1)    = beta_acy(:,2)
-                beta_acy(:,ny-1) = beta_acy(:,ny-2)
-                beta_acy(:,ny)   = beta_acy(:,ny-2)
-
-        end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
         if (limit_beta) then
@@ -644,6 +646,82 @@ contains
         return 
 
     end subroutine stagger_beta
+
+    subroutine set_beta_min_grounded(beta_acx,beta_acy,ssa_mask_acx,ssa_mask_acy,beta_min,boundaries)
+        ! Friction used by the SSA matrix (beta_acx/acy for SSA, beta_eff_acx/acy for DIVA):
+        ! set beta=beta_min on grounded faces (ssa_mask=1) with beta=0, so that the
+        ! diagnosed basal stress (beta*u) equals the friction the matrix uses.
+        ! Applies to every beta_method (also an imposed beta).
+
+        implicit none
+
+        real(wp), intent(INOUT) :: beta_acx(:,:)
+        real(wp), intent(INOUT) :: beta_acy(:,:)
+        integer,  intent(IN)    :: ssa_mask_acx(:,:)
+        integer,  intent(IN)    :: ssa_mask_acy(:,:)
+        real(wp), intent(IN)    :: beta_min
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
+        logical :: per_x, per_y
+
+        nx = size(beta_acx,1)
+        ny = size(beta_acx,2)
+
+        ! Consistency check: count grounded faces (and those with beta > 0) whose
+        ! momentum equation is solved, i.e. not on a non-periodic domain border
+        ! (border rows of the residual assembler do not use beta)
+        select case(trim(boundaries))
+            case("periodic")
+                per_x = .TRUE.;  per_y = .TRUE.
+            case("periodic-x")
+                per_x = .TRUE.;  per_y = .FALSE.
+            case("periodic-y","MISMIP3D","TROUGH")
+                per_x = .FALSE.; per_y = .TRUE.
+            case DEFAULT
+                per_x = .FALSE.; per_y = .FALSE.
+        end select
+
+        n_grnd_x = 0
+        n_beta_x = 0
+        n_grnd_y = 0
+        n_beta_y = 0
+
+        do j = 1, ny
+        do i = 1, nx
+            if (.not. per_x .and. (i .eq. 1 .or. i .eq. nx)) cycle
+            if (.not. per_y .and. (j .eq. 1 .or. j .eq. ny)) cycle
+            if (ssa_mask_acx(i,j) .eq. 1) then
+                n_grnd_x = n_grnd_x + 1
+                if (beta_acx(i,j) .gt. 0.0_wp) n_beta_x = n_beta_x + 1
+            end if
+            if (ssa_mask_acy(i,j) .eq. 1) then
+                n_grnd_y = n_grnd_y + 1
+                if (beta_acy(i,j) .gt. 0.0_wp) n_beta_y = n_beta_y + 1
+            end if
+        end do
+        end do
+
+        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
+             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
+            ! No inner grounded points found with a non-zero beta,
+            ! something was not well-defined/well-initialized, give a warning
+            ! with some statistics. beta=beta_min is used for these points.
+            write(*,*)
+            write(*,"(a)") "set_beta_min_grounded:: Warning: beta appears to be zero everywhere for grounded ice."
+            write(*,*) "inner grounded acx faces: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
+            write(*,*) "inner grounded acy faces: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
+            write(*,*)
+        end if
+
+        where (ssa_mask_acx .eq. 1 .and. beta_acx .eq. 0.0_wp) beta_acx = beta_min
+        where (ssa_mask_acy .eq. 1 .and. beta_acy .eq. 0.0_wp) beta_acy = beta_min
+
+        return
+
+    end subroutine set_beta_min_grounded
 
     elemental function calc_effective_pressure_overburden(H_ice,f_ice,f_grnd,rho_ice,g) result(N_eff)
         ! Effective pressure as overburden pressure N_eff = rho*g*H_ice 

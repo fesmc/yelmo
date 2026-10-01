@@ -64,7 +64,7 @@ contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
                             N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries,lateral_bc)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
         ! Same argument list so the two assemblers are interchangeable from the
         ! Picard loop. Assembles K (symmetric) and b such that K * [u; v] = b.
@@ -87,7 +87,6 @@ contains
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] vertically integrated lateral stress (acx-nodes)
         real(wp), intent(IN) :: taul_int_acy(:,:)       ! [Pa m] vertically integrated lateral stress (acy-nodes)
         real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] minimum allowed basal friction
         character(len=*), intent(IN) :: boundaries
         character(len=*), intent(IN) :: lateral_bc
 
@@ -493,8 +492,7 @@ contains
 
                 ! Face: basal drag and driving stress, or boundary work at a front
                 mask     = ssa_mask_acx(i,j)
-                beta_now = beta_acx(i,j)
-                if (mask .eq. 1 .and. beta_acx(i,j) .eq. 0.0_wp) beta_now = beta_min
+                beta_now = beta_acx(i,j)      ! beta_min at mask 1 is set before the call
                 if (mask .eq. 3) then
                     ! Calving front: only the ice half of the face's control area has drag
                     call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
@@ -519,7 +517,6 @@ contains
 
                 mask     = ssa_mask_acy(i,j)
                 beta_now = beta_acy(i,j)
-                if (mask .eq. 1 .and. beta_acy(i,j) .eq. 0.0_wp) beta_now = beta_min
                 if (mask .eq. 3) then
                     ! Calving front: only the ice half of the face's control area has drag
                     call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
