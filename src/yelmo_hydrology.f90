@@ -93,6 +93,17 @@ contains
         !   -thrm%now%bmb_grnd *
         !       rho_ice / rho_w     ->  mdot    (water-equivalent, +ve = source)
         !   dyn%now%uxy_b           ->  uxy_b
+        !   bnd%Q_geo               ->  G      (geothermal heat into the bed)
+        !   thrm%now%Q_ice_b        ->  q_T    (conductive heat into the ice)
+        !   dyn%now%ux_b, uy_b      ->  ux_b, uy_b (C-grid, staggered friction)
+        !   dyn%now%taub            ->  taub   (prescribed-field sliding law)
+        !   dyn%now%cb_ref          ->  c_till (regularized-Coulomb-field law)
+        !   i_eb = 0 for now: Yelmo's drained englacial water (melt_internal)
+        !   is not yet kept as a field.
+        !
+        ! K24 builds its water source from these terms (and the friction and
+        ! dissipation heat it computes itself); mdot (from bmb_grnd) drives the
+        ! bucket only. G and q_T are mW m-2 in Yelmo, W m-2 in fasthydrology.
         !   mat%now%ATT(:,:,1)      ->  A_glen  (basal layer; zeta_aa(1) = 0)
         !   time                    ->  time    [a]
         !
@@ -120,6 +131,8 @@ contains
         real(wp), allocatable :: bmb_w(:,:)
         real(wp), allocatable :: uxy_b(:,:)
         real(wp), allocatable :: A_glen_b(:,:)
+        real(wp), allocatable :: G(:,:), q_T(:,:), i_eb(:,:)
+        real(wp), allocatable :: ux_b(:,:), uy_b(:,:)
         integer :: nx, ny
 
         nx = size(tpo%now%H_ice, 1)
@@ -129,6 +142,7 @@ contains
         allocate(bmb_w(nx,ny))
         allocate(uxy_b(nx,ny))
         allocate(A_glen_b(nx,ny))
+        allocate(G(nx,ny), q_T(nx,ny), i_eb(nx,ny), ux_b(nx,ny), uy_b(nx,ny))
 
         ! Active-hydrology mask: grounded ice cells.
         where (tpo%now%f_ice >= 0.5_wp .and. tpo%now%f_grnd > 0.0_wp)
@@ -153,11 +167,23 @@ contains
         ! yelmo, so index 1 is the base.
         A_glen_b = mat%now%ATT(:,:,1) / bnd%c%sec_year
 
+        ! Terms of the K24 water source [W m-2]; i_eb [m/s water-equivalent].
+        G    = bnd%Q_geo        * 1e-3_wp
+        q_T  = thrm%now%Q_ice_b * 1e-3_wp
+        i_eb = 0.0_wp
+
+        ! C-grid basal velocities [m/a] -> [m/s] (staggered friction).
+        ux_b = dyn%now%ux_b / bnd%c%sec_year
+        uy_b = dyn%now%uy_b / bnd%c%sec_year
+
         call hydro_update(hyd, tpo%now%H_ice, bnd%z_bed, bnd%z_sl,        &
                           tpo%now%f_ice, tpo%now%f_grnd, mask,            &
-                          bmb_w, uxy_b, A_glen_b, time)
+                          bmb_w, G, q_T, i_eb, uxy_b, A_glen_b, time,     &
+                          ux_b=ux_b, uy_b=uy_b, taub=dyn%now%taub,        &
+                          c_till=dyn%now%cb_ref)
 
         deallocate(mask, bmb_w, uxy_b, A_glen_b)
+        deallocate(G, q_T, i_eb, ux_b, uy_b)
 
         return
 
