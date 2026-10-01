@@ -808,11 +808,15 @@ end if
             call apply_tendency(tpo%now%H_ice,mbal_now,dt,"advance",adjust_mb=.TRUE.)
             tpo%now%dHidt_dyn = tpo%now%dHidt_dyn + mbal_now
             call update_ice_fraction(tpo,bnd)
+
+            ! Treat fractional points that are not connected to full ice-covered points
+            ! (a donor of the advance, left just below H_eff, counts as full)
+            call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt, &
+                                                tpo%par%boundaries,H_eff=tpo%now%H_eff)
+        else
+            ! Treat fractional points that are not connected to full ice-covered points
+            call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
         end if
-
-
-        ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,mbal_now,dt,"frac",adjust_mb=.TRUE.)

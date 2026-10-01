@@ -28,6 +28,9 @@ module mass_conservation
     public :: calc_G_calving_front
     public :: calc_G_lsf_front
     public :: remove_icebergs
+
+    ! [m] The front advance leaves the donor cell this much below H_eff (partial)
+    real(wp), parameter :: dH_small = 0.1_wp
     
 contains 
     
@@ -945,8 +948,6 @@ contains
         integer  :: in(4), jn(4)
         real(wp) :: u_out(4), u_tot, dH_tot
 
-        real(wp), parameter :: dH_small = 0.1_wp       ! [m] Leaves the cell slightly below H_eff
-
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         BC = boundary_code(boundaries)
@@ -1168,10 +1169,13 @@ contains
 
     end subroutine calc_G_lsf_front
 
-    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
+    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries,H_eff)
         ! Eliminate fractional ice covered points (icebergs) that have
         ! no fully ice-covered edge or diagonal neighbor, at the rate
         ! H/tau (all of it when dt >= tau). 
+        ! With H_eff (mass-balance calving with the front advance), a front
+        ! cell with H_ice >= H_eff - dH_small also counts as full: the advance
+        ! leaves the donor there, and its receiver must stay connected.
 
         implicit none 
 
@@ -1181,11 +1185,13 @@ contains
         real(wp), intent(IN)  :: tau                ! [yr] Removal timescale
         real(wp), intent(IN)  :: dt 
         character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN), optional :: H_eff(:,:)    ! [m] Effective thickness
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_new(:,:) 
+        logical,  allocatable :: is_full(:,:)
         real(wp) :: f_rm 
         integer :: BC
 
@@ -1196,8 +1202,15 @@ contains
         BC = boundary_code(boundaries)
 
         allocate(H_new(nx,ny)) 
+        allocate(is_full(nx,ny))
 
         H_new = H_ice 
+
+        ! Cells that connect a fractional neighbour (partial cells are front cells;
+        ! factor 2 on dH_small: margin for round-off of the advance)
+        is_full = f_ice .eq. 1.0_wp
+        if (present(H_eff)) is_full = is_full .or. &
+                    (f_ice .gt. 0.0_wp .and. H_ice .ge. H_eff - 2.0_wp*dH_small)
 
         f_rm = 1.0_wp
         if (tau .gt. dt) f_rm = dt/tau
@@ -1212,9 +1225,8 @@ contains
             if (f_ice(i,j) .gt. 0.0 .and. f_ice(i,j) .lt. 1.0) then 
                 ! Fractional ice-covered point 
 
-                if ( count([f_ice(im1,j),f_ice(ip1,j),f_ice(i,jm1),f_ice(i,jp1), &
-                            f_ice(im1,jm1),f_ice(ip1,jm1),f_ice(im1,jp1),f_ice(ip1,jp1)] &
-                            .eq. 1.0) .eq. 0) then 
+                if ( count([is_full(im1,j),is_full(ip1,j),is_full(i,jm1),is_full(i,jp1), &
+                            is_full(im1,jm1),is_full(ip1,jm1),is_full(im1,jp1),is_full(ip1,jp1)]) .eq. 0) then 
                     ! No fully ice-covered neighbors available.
                     ! Point should be removed. 
 
