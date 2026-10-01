@@ -79,22 +79,22 @@ contains
         ! === Calculate heat source terms (Yelmo vertical grid) === 
 
         select case(thrm%par%qb_method)
-            case(1)     ! "aa" == simple stagger to aa-nodes directly
+            case(1)   ! "faces" == taub*u formed on the acx/acy faces, averaged to aa-nodes (energy-consistent)
+                ! Calculate the basal frictional heating (from face products)
+                call calc_basal_heating_faces(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
+                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
+            case(2)   ! "faces-nodes" == taub*u formed on the acx/acy faces, to quadrature nodes, averaged to aa-nodes (energy-consistent), default
+                ! Calculate the basal frictional heating (from face products at quadrature-nodes)
+                call calc_basal_heating_faces_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
+                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
+            case(3)     ! "aa" == simple stagger to aa-nodes directly
                 ! Calculate the basal frictional heating (from aa-nodes)
                 call calc_basal_heating_simplestagger(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
                                                     beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year, &
                                                     boundaries=thrm%par%boundaries)
-            case(2)   ! "nodes" == Gaussian quadrature to aa-node
+            case(4)   ! "nodes" == Gaussian quadrature to aa-node
                 ! Calculate the basal frictional heating (from quadrature-nodes)
                 call calc_basal_heating_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
-                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
-            case(3)   ! "faces" == taub*u formed on the acx/acy faces, averaged to aa-nodes (energy-consistent)
-                ! Calculate the basal frictional heating (from face products)
-                call calc_basal_heating_faces(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
-                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
-            case(4)   ! "faces-nodes" == taub*u formed on the acx/acy faces, to quadrature nodes, averaged to aa-nodes (energy-consistent), default
-                ! Calculate the basal frictional heating (from face products at quadrature-nodes)
-                call calc_basal_heating_faces_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
                                 beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
             case DEFAULT
 

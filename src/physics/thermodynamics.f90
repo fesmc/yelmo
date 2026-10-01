@@ -877,15 +877,15 @@ contains
         !
         ! Friction enters the momentum balance at acx/acy nodes (taub = beta*u), so summed over
         ! the domain this is the work done by basal friction in the discrete momentum balance:
-        ! the heat released equals the energy the friction removes from the flow. qb_method = 1
-        ! and 2 instead multiply the magnitudes |u||taub| of separately interpolated vectors;
+        ! the heat released equals the energy the friction removes from the flow. qb_method = 3
+        ! and 4 instead multiply the magnitudes |u||taub| of separately interpolated vectors;
         ! since beta differs between acx and acy nodes, taub and u are not parallel there and
         ! the result is not the frictional work (GrIS 8 km / AIS 16 km ISMIP7 spin-ups: domain
         ! total -1.8% / +6.8%, and >10% different in about a third of the cells).
         ! The magnitude of each face product is taken so that faces where taub and ux_b have
         ! opposite signs (e.g. DIVA, where taub = beta_eff*ux_bar, at nearly stagnant faces)
-        ! still contribute positive heat, as in qb_method = 1 and 2.
-        ! As in qb_method = 2, Q_b is set to zero where the cell is not fully ice covered; the
+        ! still contribute positive heat, as in qb_method = 3 and 4.
+        ! As in qb_method = 4, Q_b is set to zero where the cell is not fully ice covered; the
         ! heat of a face next to such a cell goes to the fully covered cell (see
         ! calc_basal_heating_face_products), so the domain total is the frictional work.
 
@@ -953,20 +953,20 @@ contains
 
     subroutine calc_basal_heating_faces_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
         ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
-        ! Basal frictional heating formed on the C-grid faces as in qb_method = 3,
+        ! Basal frictional heating formed on the C-grid faces as in qb_method = 1,
         ! Qx = |taub_acx*ux_b| on acx nodes and Qy = |taub_acy*uy_b| on acy nodes,
         ! then interpolated to the quadrature points of the cell like the staggered
-        ! fields of qb_method = 2, summed there and averaged to the aa-node:
+        ! fields of qb_method = 4, summed there and averaged to the aa-node:
         !
         !   Q_b(i,j) = sum_n wt_n*(Qx_n + Qy_n) / wt_tot
         !
         ! The quadrature mean equals the mean of the cell-corner values, so each face
         ! gives 1/4 of its heat to each of the two cells it separates and 1/8 to each of
-        ! their neighbours across the face direction (a 1-2-1 smoothing of qb_method = 3).
+        ! their neighbours across the face direction (a 1-2-1 smoothing of qb_method = 1).
         ! Q_b is set to zero where the cell is not fully ice covered; the heat of a face
         ! that would go to such a cell goes to the fully covered cells of its stencil
         ! instead (see calc_basal_heating_face_products), so the domain total is the work
-        ! done by basal friction in the discrete momentum balance, as for qb_method = 3.
+        ! done by basal friction in the discrete momentum balance, as for qb_method = 1.
 
         real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
         real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
@@ -1046,7 +1046,7 @@ contains
 
     subroutine calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,stencil,BC)
         ! Face products of basal friction work, Qx = |taub_acx*ux_b| (acx) and
-        ! Qy = |taub_acy*uy_b| (acy) [Pa m a-1] == [J a-1 m-2], for qb_method = 3
+        ! Qy = |taub_acy*uy_b| (acy) [Pa m a-1] == [J a-1 m-2], for qb_method = 1
         ! (stencil = "faces") and 4 (stencil = "nodes").
         !
         ! Each method gives every face's heat to the cells of its stencil with weights
@@ -1070,7 +1070,7 @@ contains
         real(wp), intent(IN)  :: taub_acx(:,:)      ! Basal friction (acx)
         real(wp), intent(IN)  :: taub_acy(:,:)      ! Basal friction (acy)
         real(wp), intent(IN)  :: f_ice(:,:)         ! [--] Ice area fraction
-        character(len=*), intent(IN) :: stencil     ! "faces" (qb_method = 3) or "nodes" (qb_method = 4)
+        character(len=*), intent(IN) :: stencil     ! "faces" (qb_method = 1) or "nodes" (qb_method = 2)
         integer,  intent(IN)  :: BC                 ! Boundary condition code
 
         ! Local variables

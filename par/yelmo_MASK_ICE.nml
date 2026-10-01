@@ -290,7 +290,7 @@
 
 &ytherm
     method          = "enth"
-    qb_method       = 4                 ! 1: simple-stagger, 2: quadrature, 3: faces, 4: faces to quadrature nodes (3, 4: energy-consistent)
+    qb_method       = 2                 ! 1: faces, 2: faces to quadrature nodes, 3: simple-stagger, 4: quadrature (1, 2: energy-consistent)
     dt_method       = "FE"
     solver_advec    = "impl-upwind"
     advecxy_order   = 2
