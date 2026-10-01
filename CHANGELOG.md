@@ -7,6 +7,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ytherm.qb_method` renumbered**: 1 = faces, 2 = faces to quadrature nodes
+  (default), 3 = simple stagger (was 1), 4 = quadrature (was 2). A par file with
+  `qb_method = 1` or `2` now selects an energy-consistent method; set 3 or 4 to keep
+  the former one (see Answer-changing fixes).
 - **Level-set calving is the default** (`ycalv.use_lsf = True`, `calv_flt_method` and
   `calv_grnd_method = "vm-m16"`) in the defaults and in `par/yelmo_initmip.nml`.
   The mass-balance path (`vm-l19` for floating ice, no grounded calving) left thick
@@ -253,19 +257,20 @@ little. MISMIP3D and DIVA runs change more.
   valid bed down from those cliffs up to 85 cells into the domain (ISMIP7 GRL-8KM:
   21,000 cells, by up to 7 km); the initial `z_srf` and `z_bed_sd` read the raw fill
   values. New `ydata_fill_topo_gaps`. Files without gaps are unchanged.
-- **Basal frictional heating: `ytherm.qb_method = 4` by default.** New options 3
-  ("faces", PR #11) and 4 ("faces to quadrature nodes") form the friction work
+- **Basal frictional heating: `ytherm.qb_method = 2` by default.** New options 1
+  ("faces", PR #11) and 2 ("faces to quadrature nodes") form the friction work
   `|taub_acx*ux_b|` and `|taub_acy*uy_b|` on the C-grid faces, where both factors live.
-  3 averages the two faces of each cell to the aa-node; 4 brings both terms to the
-  quadrature points and sums them there (a 1-2-1 smoothing of 3 across each face). The
+  1 averages the two faces of each cell to the aa-node; 2 brings both terms to the
+  quadrature points and sums them there (a 1-2-1 smoothing of 1 across each face). The
   heat of a face next to a cell that is not fully ice covered (`Q_b = 0`) goes to the
   fully covered cells, so the domain total is the work done by basal friction in the
-  momentum balance (GRL-16: 1.0000 with 4, 0.995 with 3). `qb_method = 1, 2` multiply
-  the magnitudes of separately interpolated vectors and do not (2: −10.5 % GRL-16;
-  ISMIP7 spin-ups −1.8 % GrIS 8 km, +6.8 % AIS 16 km). GRL-16, 1 kyr from a spun-up
-  state, friction fixed: grounded basal melt +12 % with 4 (+10 % with 3) vs 2; temperate
-  area and volume change at the noise level. `ytherm_par_load` stops on a `qb_method`
-  other than 1-4 (before, an unknown value left `Q_b` unchanged).
+  momentum balance (GRL-16: 1.0000 with 2, 0.995 with 1). The former options 1 (simple
+  stagger) and 2 (quadrature) are now 3 and 4; they multiply the magnitudes of
+  separately interpolated vectors and do not (4: −10.5 % GRL-16; ISMIP7 spin-ups
+  −1.8 % GrIS 8 km, +6.8 % AIS 16 km). GRL-16, 1 kyr from a spun-up state, friction
+  fixed: grounded basal melt +12 % with 2 (+10 % with 1) vs 4; temperate area and
+  volume change at the noise level. `ytherm_par_load` stops on a `qb_method` other
+  than 1-4 (before, an unknown value left `Q_b` unchanged).
 - **Thermodynamics on the dynamic column** (review MAT-3). The enthalpy solve,
   `T_pmp`, `T_shlf`, the SIA strain heating, the Robin/linear profiles and the
   bedrock shelf temperature use `H_ice_dyn` (the column of `uz_star`) instead of
