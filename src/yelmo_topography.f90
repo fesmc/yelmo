@@ -1191,8 +1191,10 @@ end if
         ! Geometry of the active ice column, used for the surface and the
         ! dynamics: every ice-covered cell is active, and partial front cells
         ! (ytopo.front_subgrid) take part as full cells with thickness H_eff.
+        ! A full front cell holding more ice than its reference H_eff keeps its
+        ! own column (H_eff remains the reference of the front advance and trim).
         ! With front_subgrid="none", H_ice_dyn == H_ice and f_ice_dyn == f_ice.
-        tpo%now%H_ice_dyn = tpo%now%H_eff
+        tpo%now%H_ice_dyn = max(tpo%now%H_eff,tpo%now%H_ice)
         where (tpo%now%H_ice .gt. 0.0_wp)
             tpo%now%f_ice_dyn = 1.0_wp
         elsewhere

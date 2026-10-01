@@ -79,8 +79,8 @@ contains
         ! front advance or removals) and follows the actual thickness, so it
         ! is only the column's rate where the column is the actual ice
         ! (H_ice_dyn == H_ice) at the start and the end of the step. Elsewhere
-        ! (partial front cells, front cells holding excess ice or on the H_eff
-        ! floor, newly ice-covered cells) the column is re-derived: zero rates.
+        ! (partial front cells, cells on the H_eff floor, newly ice-covered
+        ! cells) the column is re-derived: zero rates.
 
         implicit none
 
