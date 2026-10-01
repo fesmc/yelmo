@@ -12,8 +12,6 @@ module ice_optimization
         real(wp) :: cf_time_init
         real(wp) :: cf_time_end
         real(wp) :: cf_init
-        logical  :: use_yelmo_cf_min
-        real(wp) :: opt_cf_min
         real(wp) :: tau_c 
         real(wp) :: H0
         real(wp) :: sigma_err 
@@ -82,8 +80,6 @@ contains
         call nml_read(path_par,group,"cf_time_init",opt%cf_time_init)
         call nml_read(path_par,group,"cf_time_end", opt%cf_time_end)
         call nml_read(path_par,group,"cf_init",     opt%cf_init)
-        call nml_read(path_par,group,"use_yelmo_cf_min",  opt%use_yelmo_cf_min)
-        call nml_read(path_par,group,"opt_cf_min",  opt%opt_cf_min)
         call nml_read(path_par,group,"tau_c",       opt%tau_c)
         call nml_read(path_par,group,"H0",          opt%H0)   
         call nml_read(path_par,group,"sigma_err",   opt%sigma_err)   
