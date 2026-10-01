@@ -478,6 +478,11 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Diagnostics
 
+- Level-set calving diagnostics (`calv_rate_flt/grnd`, `cmb_flt_x/y`, `cmb_grnd_x/y`,
+  `cr_acx/acy`) are saved with the predictor/corrector fields, so the output shows the
+  same stage as `lsf` and `cmb` (they mixed predictor and corrector). `calv_rate_*`
+  are built from `cr_acx/cr_acy`, the face rates the level set uses (law chosen by
+  `f_grnd_acx/acy`). Model state is unchanged.
 - `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
   were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
   advection does (was the mean of the two cells).
@@ -521,7 +526,8 @@ little. MISMIP3D and DIVA runs change more.
 - The restart carries the previous-call bedrock and sea level of
   `ybound_update_rates` (`z_bed_n`, `z_sl_n`, `bnd_time_n`, `bnd_rates_init`), so a
   continued run has the straight run's `dz_bed_dt`/`dz_sl_dt` on its first step (they
-  were zero). Old restarts load as before.
+  were zero). It is restored only when the start time equals the restart time; a
+  restart used as a state at another time, and old restarts, give zero rates as before.
 - The restart read of the 3D `enh_bnd` uses 3D start/count.
 - `hyd%now%q` is written to restarts. MISMIP3D is handled in
   `ybound_define_mask_ice`.
