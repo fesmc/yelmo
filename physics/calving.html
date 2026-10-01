@@ -373,6 +373,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -438,6 +444,12 @@ window.Quarto = {
   <ul>
   <li><a href="#calving-schemes" id="toc-calving-schemes" class="nav-link active" data-scroll-target="#calving-schemes">Calving schemes</a>
   <ul class="collapse">
+  <li><a href="#default-level-set-front-with-von-mises-calving" id="toc-default-level-set-front-with-von-mises-calving" class="nav-link" data-scroll-target="#default-level-set-front-with-von-mises-calving">Default: level-set front with von Mises calving</a>
+  <ul class="collapse">
+  <li><a href="#calving-rate" id="toc-calving-rate" class="nav-link" data-scroll-target="#calving-rate">Calving rate</a></li>
+  <li><a href="#level-set-front" id="toc-level-set-front" class="nav-link" data-scroll-target="#level-set-front">Level-set front</a></li>
+  <li><a href="#subgrid-front" id="toc-subgrid-front" class="nav-link" data-scroll-target="#subgrid-front">Subgrid front</a></li>
+  </ul></li>
   <li><a href="#lipscomb-et-al.-2019" id="toc-lipscomb-et-al.-2019" class="nav-link" data-scroll-target="#lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</a></li>
   </ul></li>
   </ul>
@@ -452,8 +464,37 @@ window.Quarto = {
 <section id="calving-schemes" class="level1">
 <h1>Calving schemes</h1>
 <p>Here is a summary of calving schemes.</p>
+<section id="default-level-set-front-with-von-mises-calving" class="level2">
+<h2 class="anchored" data-anchor-id="default-level-set-front-with-von-mises-calving">Default: level-set front with von Mises calving</h2>
+<p>The defaults (<code>input/yelmo_defaults.nml</code>) use a level-set front (<code>ycalv.use_lsf = True</code>), the von Mises law <code>vm-m16</code> for floating and marine-grounded fronts (<code>calv_flt_method = calv_grnd_method = "vm-m16"</code>) and the subgrid front (<code>ytopo.front_subgrid = "marine"</code>). This path is computed in <code>calc_ytopo_calving_lsf</code> (<code>src/yelmo_topography.f90</code>).</p>
+<section id="calving-rate" class="level3">
+<h3 class="anchored" data-anchor-id="calving-rate">Calving rate</h3>
+<p><code>vm-m16</code> follows Morlighem et al.&nbsp;(2016, Eq. 4). On each velocity face the calving rate is</p>
+<p><span class="math display">
+c = u \, \max\left(0, \frac{\tau_1}{\tau_{\rm ice}}\right)
+</span></p>
+<p>directed against the ice velocity <span class="math inline">u</span>, where <span class="math inline">\tau_1</span> is the first principal value of the depth-averaged deviatoric stress (mean of the two cells, or the ice cell’s value at a face between ice and an ice-free cell) and <span class="math inline">\tau_{\rm ice}</span> is the ice strength: <code>ycalv.tau_ice_flt</code> (default 250 kPa) on floating faces (<code>f_grnd_ac = 0</code>) and <code>ycalv.tau_ice_grnd</code> (default 1 MPa) on the other marine faces. Faces between two land cells (bed at or above sea level) get <span class="math inline">c = u</span>, so the level set does not move there. The front is stationary where <span class="math inline">\tau_1 = \tau_{\rm ice}</span>.</p>
+<p>The stresses come from the last velocity solution. A cell that received ice since then takes the mean of its edge neighbours that were part of that solution (<code>fill_stress_new_ice</code>).</p>
+<p>Other laws on this path: <code>"zero"</code>, <code>"equil"</code> (front held in place), <code>"threshold"</code>, the CalvingMIP laws <code>"exp1"</code>–<code>"exp5"</code> (floating) and <code>"ismip7"</code> (grounded).</p>
+</section>
+<section id="level-set-front" class="level3">
+<h3 class="anchored" data-anchor-id="level-set-front">Level-set front</h3>
+<p>The level set <span class="math inline">\varphi</span> is negative in the ice domain and positive in the ocean; its zero contour is the calving front (<code>src/physics/calving/lsf_module.f90</code>). It is advected with the front velocity <span class="math inline">w = u + c</span> (with <span class="math inline">c</span> against <span class="math inline">u</span>),</p>
+<p><span class="math display">
+\frac{\partial \varphi}{\partial t} + w \cdot \nabla \varphi = 0,
+</span></p>
+<p>with first-order upwinding on the faces and explicit sub-steps (<code>LSFupdate</code>). <span class="math inline">w</span> is extended into the ocean from the faces next to ice, and <span class="math inline">\varphi</span> is kept in <span class="math inline">[-1, 1]</span>. Cells with the bed at or above sea level are set to <span class="math inline">\varphi = -1</span>. With <code>ycalv.lsf_method = "snap"</code> (default), cells more than two cells from the front are reset to <span class="math inline">\pm 1</span>; <code>"redist"</code> uses Sussman/Osher redistancing instead.</p>
+<p>Ice in cells with <span class="math inline">\varphi &gt; 0</span> is removed in one step, except in cells that can be partial front cells (below). Ice-free marine cells behind the front without an ice-covered edge neighbour are returned to the ocean (<span class="math inline">\varphi = 1</span>).</p>
+</section>
+<section id="subgrid-front" class="level3">
+<h3 class="anchored" data-anchor-id="subgrid-front">Subgrid front</h3>
+<p>With <code>ytopo.front_subgrid = "marine"</code>, ice cells with the bed below sea level (<code>"floating"</code>: floating cells only) can be partially ice covered. A front cell (such a cell with an ice-free ocean edge neighbour) has an effective thickness <code>H_eff</code>, taken from its thickest interior neighbour minus <code>ytopo.front_dHdx</code>·distance (at least <code>ytopo.front_H_eff_min</code>, with a limit on the rise of the effective surface), and the ice fraction <code>f_ice = H_ice/H_eff</code>. Front cells without an interior neighbour keep <code>H_eff = H_ice</code>.</p>
+<p>With the level set, the thickness of these cells follows the front (<code>calc_G_lsf_front</code>): <code>a_lsf</code>, the area fraction of the cell behind the zero contour, is computed from the cell’s centre, edge and corner values of <span class="math inline">\varphi</span>. Cells with <code>a_lsf</code> &lt; 0.1 are emptied, and front cells (also those touching the ocean at a corner) are trimmed to <code>a_lsf</code>·<code>H_ref</code>, with <code>H_ref</code> the reference thickness from the interior neighbours. <code>f_ice</code> is then approximately <code>a_lsf</code>. In the momentum balance, partial front cells use <code>H_eff</code> as their thickness and the front boundary condition is applied on their ocean faces.</p>
+</section>
+</section>
 <section id="lipscomb-et-al.-2019" class="level2">
 <h2 class="anchored" data-anchor-id="lipscomb-et-al.-2019">Lipscomb et al.&nbsp;(2019)</h2>
+<p>Used on the mass-balance calving path (<code>use_lsf = False</code>, <code>calv_flt_method = "vm-l19"</code>).</p>
 <p><span class="math display">
 c = k_\tau \tau_{\rm ec}
 </span></p>
@@ -461,7 +502,7 @@ c = k_\tau \tau_{\rm ec}
 <p><span class="math display">
 \tau_{\rm ec}^2 = \max(\tau_1,0)^2 + \omega_2 \max(\tau_2,0)^2
 </span></p>
-<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant. For partially ice-covered grid cells (with <span class="math inline">f_{\rm ice} &lt; 1</span>), these stresses are taken from the upstream neighbor.</p>
+<p><span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are the eigenvalues of the 2D horizontal deviatoric stress tensor and <span class="math inline">\omega_2</span> is an empirical weighting constant (<code>ycalv.w2</code>).</p>
 <p>The eigenvalues <span class="math inline">\tau_1</span> and <span class="math inline">\tau_2</span> are calculated from the depth-averaged (2D) stress tensor <span class="math inline">\tau_{\rm ij}</span> as follows. Given the stress tensor components <span class="math inline">\tau_{\rm xx}</span>, <span class="math inline">\tau_{\rm yy}</span> and <span class="math inline">\tau_{\rm xy}</span>, we can solve for the real roots <span class="math inline">\lambda</span> of the tensor from the quadratic equation:</p>
 <p><span class="math display">
 a \lambda^2 + b \lambda + c = 0

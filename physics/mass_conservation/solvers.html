@@ -338,6 +338,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -475,15 +481,15 @@ F^{x}_{i+\tfrac12,j}(H^{n+1})
 \;=\; H^{n}_{i,j}
 \;+\; \Delta t\,\dot m_{i,j},
 </span></p>
-<p>with <span class="math inline">F^{x}_{i+\tfrac12,j} = \bar u_{i+\tfrac12,j}\,\Delta y \cdot H^{\mathrm{up}}_{i+\tfrac12,j}</span> and analogously for <span class="math inline">F^{y}</span>. Each face contributes a single off-diagonal coefficient to the row for cell <span class="math inline">(i,j)</span> — the one corresponding to its upwind neighbour — and a diagonal contribution when cell <span class="math inline">(i,j)</span> itself is the upwind donor. The assembled operator <span class="math inline">A\,H^{n+1} = b</span> therefore has at most five non-zeros per row (centre plus four neighbours), is stored in CSR form, and is solved each timestep by <a href="http://www.ssisc.org/lis/">LIS</a>. The default solver configuration is BiCG with an ILU preconditioner, configurable at runtime via <code>ytopo.adv_lis_opt</code>.</p>
+<p>with <span class="math inline">F^{x}_{i+\tfrac12,j} = \bar u_{i+\tfrac12,j}\,\Delta y \cdot H^{\mathrm{up}}_{i+\tfrac12,j}</span> and analogously for <span class="math inline">F^{y}</span>. Each face contributes a single off-diagonal coefficient to the row for cell <span class="math inline">(i,j)</span> — the one corresponding to its upwind neighbour — and a diagonal contribution when cell <span class="math inline">(i,j)</span> itself is the upwind donor. The assembled operator <span class="math inline">A\,H^{n+1} = b</span> therefore has at most five non-zeros per row (centre plus four neighbours), is stored in CSR form, and is solved each timestep by <a href="http://www.ssisc.org/lis/">LIS</a> with BiCGSTAB and a Jacobi preconditioner (tolerance 1e-12, set in <code>solver_advection.f90</code>, not a parameter).</p>
 <p>Boundary rows are set per face by the <code>boundaries</code> flag: <code>"zero"</code> imposes <span class="math inline">H = 0</span> at the edge (Dirichlet), <code>"infinite"</code> zeroes the normal derivative (Neumann outflow), and <code>"periodic"</code> wraps the stencil to the opposite edge. The mask values <code>mask = 0</code> and <code>mask = -1</code> further allow per-cell pinning of <span class="math inline">H</span> to zero or to its previous value.</p>
 <p>Because the implicit upwind scheme is unconditionally stable for this linear transport problem, it tolerates larger timesteps than <code>expl-upwind</code> — typically the limiting factor becomes the <em>physical</em> adaptive timestep used by Yelmo (driven by the momentum balance and the mass-balance terms) rather than a CFL constraint on the advection. The price is one sparse linear solve per timestep and a slightly more diffusive solution than the explicit upwind scheme at the same <span class="math inline">\Delta t</span>.</p>
 </section>
 <section id="choosing-between-the-two" class="level2">
 <h2 class="anchored" data-anchor-id="choosing-between-the-two">Choosing between the two</h2>
 <ul>
-<li><code>expl-upwind</code> is fast, simple, fully local, and the natural default for high-resolution simulations where <span class="math inline">\Delta t</span> is already small for other reasons (e.g.&nbsp;fast streaming flow).</li>
-<li><code>impl-lis</code> is the right choice when the velocity field has localised fast peaks that would force <code>expl-upwind</code> into very small timesteps — it lets the global adaptive <span class="math inline">\Delta t</span> be set by physics elsewhere in the model.</li>
+<li><code>expl-upwind</code> is fast, simple and fully local, a reasonable choice for high-resolution simulations where <span class="math inline">\Delta t</span> is already small for other reasons (e.g.&nbsp;fast streaming flow).</li>
+<li><code>impl-lis</code> (the default, <code>ytopo.solver</code>) is the right choice when the velocity field has localised fast peaks that would force <code>expl-upwind</code> into very small timesteps — it lets the global adaptive <span class="math inline">\Delta t</span> be set by physics elsewhere in the model.</li>
 </ul>
 <p>Both schemes are mass-conservative to round-off; the choice does not change the continuum equation being solved, only the time-stepping and the resulting cost / smoothing trade-off.</p>
 

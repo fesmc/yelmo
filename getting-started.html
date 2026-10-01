@@ -329,6 +329,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -431,8 +437,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/fesmc/configme</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, from the directory where you want the checkout to live, install Yelmo and the packages it needs with a single command:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This clones Yelmo together with <code>fesm-utils</code>, configures each for your machine and compiler, links them, and builds <code>fesm-utils</code> (LIS + FFTW + utils, which can take 10-30 min). If <code>configme</code> can detect your machine from the hostname it does so, otherwise it prompts you.</p>
-<p>The only system dependency you must install yourself is <strong>netCDF</strong> (see <a href="#dependencies">Dependencies</a>). Everything else — LIS, FFTW, the <code>fesm-utils</code> libraries, and <code>runme</code> — is managed by <code>configme</code>.</p>
+<p>This clones Yelmo together with <code>fesm-utils</code>, <code>FastHydrology</code>, <code>elsa</code> and <code>tracer</code>, configures each for your machine and compiler, links them, and builds <code>fesm-utils</code> (LIS + FFTW + utils, which can take 10-30 min). If <code>configme</code> can detect your machine from the hostname it does so, otherwise it prompts you.</p>
+<p>The only system dependency you must install yourself is <strong>netCDF</strong> (see <a href="#dependencies">Dependencies</a>). LIS, FFTW and the Fortran packages are managed by <code>configme</code>. The <code>runme</code> command is installed separately (<code>pip install git+https://github.com/fesmc/runme</code>), and its local config is created in the checkout with <code>runme config init</code>.</p>
 <p>Once the install finishes you are ready to compile and run; see <a href="#usage">Usage</a> below.</p>
 <section id="configme-install-options" class="level3">
 <h3 class="anchored" data-anchor-id="configme-install-options">configme install options</h3>
@@ -467,7 +473,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>FFTW (ver. 3.9+)</li>
 <li><a href="https://github.com/fesmc/runme">‘runme’ Python package (fesmc)</a></li>
 </ul>
-<p>Of these, only <strong>NetCDF</strong> must be installed on your system beforehand. LIS, FFTW (built via <code>fesm-utils</code>) and <code>runme</code> are all managed for you by <code>configme</code>. Installation tips for netCDF can be found below.</p>
+<p>Of these, only <strong>NetCDF</strong> must be installed on your system beforehand. LIS and FFTW (built via <code>fesm-utils</code>) are managed for you by <code>configme</code>; <code>runme</code> is installed with <code>pip</code> (see <a href="#quick-start">Quick start</a>). Installation tips for netCDF can be found below.</p>
 <section id="installing-netcdf-preferably-version-4.0-or-higher" class="level3">
 <h3 class="anchored" data-anchor-id="installing-netcdf-preferably-version-4.0-or-higher">Installing NetCDF (preferably version 4.0 or higher)</h3>
 <p>The NetCDF library is typically available with different distributions (Linux, Mac, etc). Along with installing <code>libnetcdf</code>, it will be necessary to install the package <code>libnetcdf-dev</code>. Installing the NetCDF viewing program <code>ncview</code> is also recommended.</p>
@@ -502,7 +508,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="usage" class="level2">
 <h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>After <code>configme install yelmo</code> (see <a href="#quick-start">Quick start</a>) you have a configured Yelmo checkout with its <code>Makefile</code>, linked libraries and <code>.runme_config</code> already in place. The steps below cover (1) compiling the code and (2) running a simulation.</p>
+<p>After <code>configme install yelmo</code> (see <a href="#quick-start">Quick start</a>) you have a configured Yelmo checkout with its <code>Makefile</code> and linked libraries in place. Create the local runme config once with <code>runme config init</code> (writes <code>.runme/config.toml</code>). The steps below cover (1) compiling the code and (2) running a simulation.</p>
 <section id="compile-the-code" class="level3">
 <h3 class="anchored" data-anchor-id="compile-the-code">1. Compile the code</h3>
 <p>Now you are ready to compile Yelmo as a static library:</p>
@@ -520,7 +526,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="run-the-model" class="level3">
 <h3 class="anchored" data-anchor-id="run-the-model">2. Run the model</h3>
-<p>Once an executable has been created, you can run the model. This can be achieved via the <code>runme</code> command (installed for you by <code>configme</code>). The following steps are carried out by <code>runme</code>:</p>
+<p>Once an executable has been created, you can run the model. This can be achieved via the <code>runme</code> command (installed with <code>pip</code>). The following steps are carried out by <code>runme</code>:</p>
 <ol type="1">
 <li>The output directory is created.</li>
 <li>The executable is copied to the output directory</li>
@@ -529,14 +535,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>The executable is run from the output directory, either as a background process or it is submitted to the queue via <code>sbatch</code> (the SLURM workload manager).</li>
 </ol>
 <p>To run a benchmark simulation, for example, use the following command:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT_moving.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>where the option <code>-r</code> implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while <code>-s</code> instead will submit the simulation to cluster queue system instead of running in the background. The option <code>-e</code> lets you specify the executable. For some standard cases, shortcuts have been created:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">benchmarks</span> = libyelmo/bin/yelmo_benchmarks.x</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yemo_mismip.x</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yelmo_mismip.x</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The last two mandatory arguments <code>-o OUTDIR</code> and <code>-n PAR_PATH</code> are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as <code>output/test</code>, where all model parameters (loaded from the file <code>par/yelmo_EISMINT.nml</code>) and model output can be found.</p>
+<p>The last two mandatory arguments <code>-o OUTDIR</code> and <code>-n PAR_PATH</code> are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as <code>output/test</code>, where all model parameters (loaded from the file <code>par/yelmo_EISMINT_moving.nml</code>) and model output can be found.</p>
 <p>It is also possible to modify parameters inline via the option <code>-p KEY=VAL [KEY=VAL ...]</code>. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT_moving.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>For ensembles, pass comma-separated values to <code>-p</code> (e.g.&nbsp;<code>-p ctrl.dx=10,20,40</code>); <code>runme</code> creates one run directory per combination under <code>-o</code>. See <code>runme -h</code> for more details, or the <a href="https://github.com/fesmc/runme">runme README</a>.</p>
 
 

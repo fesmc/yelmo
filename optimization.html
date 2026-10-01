@@ -330,6 +330,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -411,7 +417,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Basal friction optimization</h1>
 <p>A simple optimization program has developed that attempts to optimize the basal friction field applied in Yelmo so that the errors between simulated and observed ice thickness are minimized.</p>
 <p>Program: <code>tests/yelmo_opt.f90</code> To compile: <code>make opt</code> To run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-rs</span> <span class="at">-e</span> opt <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_Antarctica_opt.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-rs</span> <span class="at">-e</span> opt <span class="at">-o</span> output/test <span class="at">-n</span> <span class="op">&lt;</span>par file<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>No parameter file for <code>yelmo_opt.x</code> is included in <code>par/</code>: it needs <code>&amp;ctrl</code> (<code>opt_method</code>, <code>cb_ref_init_method</code>, <code>sigma_err</code>, <code>sigma_vel</code>, <code>cf_min</code>, <code>cf_max</code>, <code>bmb_shlf_const</code>, <code>dT_ann</code>, <code>z_sl</code>) and <code>&amp;opt_P12</code> or <code>&amp;opt_L21</code> in addition to the Yelmo groups. The maintained route for basal friction optimization is <code>yelmo_initmip.x</code> with <code>ctrl.equil_method = "opt"</code> and the <code>&amp;opt</code> group of <code>par/yelmo_initmip.nml</code> (see <a href="./benchmarks.html">Benchmarks</a>).</p>
 <p>The program consists of the following steps:</p>
 <section id="spin-up-a-steady-state-ice-sheet-with-constant-forcing-and-fixed-topography" class="level2">
 <h2 class="anchored" data-anchor-id="spin-up-a-steady-state-ice-sheet-with-constant-forcing-and-fixed-topography">1. Spin-up a steady-state ice sheet with constant forcing and fixed topography</h2>

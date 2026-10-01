@@ -330,6 +330,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -465,7 +471,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><code>enth</code> and <code>temp</code> share one driver, <code>calc_ytherm_enthalpy_3D</code>, which loops columns and calls <code>calc_enth_column</code> or <code>calc_temp_column</code>.</li>
 <li><code>temp</code> is <code>enth</code> with <code>enth_cr=1.0</code> and <code>omega_max=0.0</code> forced at par-load (so temperate ice has cold-ice conductivity and zero water content).</li>
-<li>Default is <code>method="temp"</code> (<code>input/yelmo_defaults.nml</code>); <strong>every</strong> shipped par file uses <code>temp</code> or <code>fixed</code>. No shipped configuration uses <code>enth</code>.</li>
+<li>Default was <code>method="temp"</code> (<code>input/yelmo_defaults.nml</code>) when this plan was written, and every shipped par file used <code>temp</code> or <code>fixed</code>. Since v2.3 the default is <code>method="enth"</code>.</li>
 </ul>
 <p>The enthalpy <em>scaffolding</em> (horizontal advection of <code>enth</code>, <code>convert_to/from_enthalpy</code>, CTS index, omega diagnosis, per-column enth output) is present and structurally exercised. Only the per-column solve is incomplete.</p>
 </section>

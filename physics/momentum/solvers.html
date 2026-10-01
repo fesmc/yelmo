@@ -338,6 +338,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -405,7 +411,7 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#discretisation-conventions" id="toc-discretisation-conventions" class="nav-link" data-scroll-target="#discretisation-conventions">Discretisation conventions</a></li>
   <li><a href="#solver-a-residual-form-yelmo-v1" id="toc-solver-a-residual-form-yelmo-v1" class="nav-link" data-scroll-target="#solver-a-residual-form-yelmo-v1">Solver A — residual form (Yelmo v1)</a></li>
-  <li><a href="#solver-b-energy-form-new" id="toc-solver-b-energy-form-new" class="nav-link" data-scroll-target="#solver-b-energy-form-new">Solver B — energy form (new)</a>
+  <li><a href="#solver-b-energy-form-default" id="toc-solver-b-energy-form-default" class="nav-link" data-scroll-target="#solver-b-energy-form-default">Solver B — energy form (default)</a>
   <ul class="collapse">
   <li><a href="#energy-density" id="toc-energy-density" class="nav-link" data-scroll-target="#energy-density">Energy density</a></li>
   <li><a href="#discrete-assembly" id="toc-discrete-assembly" class="nav-link" data-scroll-target="#discrete-assembly">Discrete assembly</a></li>
@@ -434,7 +440,7 @@ window.Quarto = {
 <li><strong>acy-nodes</strong> (top face): <span class="math inline">\bar v</span>, <span class="math inline">\tau_{d,y}</span>, <span class="math inline">\beta_{\mathrm{eff},y}</span>.</li>
 <li><strong>ab-nodes</strong> (cell corners): cross-coupling viscosity <span class="math inline">(\bar\mu H)^{\mathrm{ab}}</span>, obtained by averaging <span class="math inline">\bar\mu\,H</span> from its four neighbouring aa-cells (<code>stagger_visc_aa_ab</code>).</li>
 </ul>
-<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt</code>.</p>
+<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt_residual</code> or <code>ydyn.ssa_lis_opt_energy</code>, depending on <code>ydyn.ssa_solver</code>.</p>
 <p>Per-row solver masks (<code>ssa_mask_acx</code>, <code>ssa_mask_acy</code>) classify each ac-node as one of:</p>
 <ul>
 <li><code>0</code>: Dirichlet zero velocity (frozen bed, edge of domain, etc.);</li>
@@ -465,10 +471,10 @@ window.Quarto = {
 <li>Dirichlet rows replace the equation by <span class="math inline">\bar u_{i,j} = u^*</span> with the corresponding column kept in place (non-symmetric).</li>
 <li>Free-slip, no-slip and periodic conditions are applied per side via the boundary-code helper <code>get_neighbor_indices_bc_codes</code>.</li>
 </ul>
-<p>This is the formulation inherited from Yelmo v1 and is the legacy default.</p>
+<p>This is the formulation inherited from Yelmo v1 (the default before v2.0).</p>
 </section>
-<section id="solver-b-energy-form-new" class="level2">
-<h2 class="anchored" data-anchor-id="solver-b-energy-form-new">Solver B — energy form (new)</h2>
+<section id="solver-b-energy-form-default" class="level2">
+<h2 class="anchored" data-anchor-id="solver-b-energy-form-default">Solver B — energy form (default)</h2>
 <p>The energy assembler (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/solver_ssa_ac_energy.f90"><code>solver_ssa_ac_energy.f90</code></a>) builds the Hessian of a discrete energy functional and solves <span class="math inline">K\,\mathbf x = \mathbf b</span> for the velocity that minimises that energy. With <span class="math inline">(\mu, \beta, H)</span> frozen during each Picard step the energy is quadratic, so <span class="math inline">K = \frac{\partial^{2} W}{\partial \mathbf x^{\,2}}</span> is symmetric positive (semi-)definite and the linear step can use a symmetric Krylov method — CG with an AMG preconditioner — in place of BiCGStab.</p>
 <section id="energy-density" class="level3">
 <h3 class="anchored" data-anchor-id="energy-density">Energy density</h3>
@@ -491,7 +497,7 @@ W \;=\;
 <section id="discrete-assembly" class="level3">
 <h3 class="anchored" data-anchor-id="discrete-assembly">Discrete assembly</h3>
 <p>Yelmo’s discrete energy is the cell-by-cell evaluation of <span class="math inline">W</span> on the C-grid, with the derivatives <span class="math inline">\frac{\partial \bar u}{\partial x}, \frac{\partial \bar v}{\partial y},
-\frac{\partial \bar u}{\partial y}, \frac{\partial \bar v}{\partial x}</span> expressed as the natural finite differences between adjacent ac-nodes. The Hessian <span class="math inline">K</span> then has the same stencil graph as the residual matrix but is symmetric in <span class="math inline">(\bar u, \bar v)</span>. At inner cells the two formulations are related by an exact algebraic identity (documented in the header of the energy assembler):</p>
+\frac{\partial \bar u}{\partial y}, \frac{\partial \bar v}{\partial x}</span> expressed as the natural finite differences between adjacent ac-nodes: membrane terms on aa-cells, shear terms on ab-corners, drag and driving terms on the ac-faces. <span class="math inline">K</span> is assembled element by element from these terms: each cell or corner contributes a <span class="math inline">4\times4</span> local Hessian over its four velocities, and each velocity is mapped to a matrix unknown before it is added (free, Dirichlet, tied to an inner unknown, or a ghost beyond the domain edge; see below). Since every entry comes from a local Hessian and a linear map, <span class="math inline">K</span> is symmetric for any mask and boundary type. Each row gathers the terms of the elements around its unknown, so rows are assembled independently (in parallel with OpenMP). Inside the domain <span class="math inline">K</span> has the same stencil graph as the residual matrix. At inner cells the two formulations are related by an exact algebraic identity (documented in the header of the energy assembler):</p>
 <p><span class="math display">
 K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 \qquad
@@ -499,8 +505,9 @@ K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 </span></p>
 <p>So the energy formulation is, at interior cells, the residual formulation rescaled by the cell area and a sign — the physical solution at interior cells is identical to machine precision. Where the two solvers differ is at boundaries:</p>
 <ul>
-<li><strong>Lateral / calving-front BC</strong>: the front stress enters the energy as a boundary-work term <span class="math inline">\pm\,\tau_{l,\mathrm{int}}\,\Delta y</span> on the RHS, with the sign determined by the outward normal. This is the variational form of the Neumann condition and is symmetric by construction.</li>
-<li><strong>Dirichlet rows</strong>: prescribed values are imposed by <strong>static condensation</strong> — the prescribed column is multiplied by the known velocity and moved to the RHS — instead of by row replacement. This preserves the symmetry of <span class="math inline">K</span> and so allows CG / AMG to be used without spoiling the SPD structure.</li>
+<li><strong>Lateral / calving-front BC</strong>: the front stress enters the energy as a boundary-work term <span class="math inline">\pm\,\tau_{l,\mathrm{int}}\,\Delta y</span> on the RHS, with the sign determined by the outward normal. This is the variational form of the Neumann condition and is symmetric by construction. It replaces the driving stress in front rows: there <span class="math inline">\tau_d</span> is taken across the ice front (<span class="math inline">H/2</span> times the surface jump), so <span class="math inline">\tau_d\,\Delta x\,\Delta y</span> is the same front force, and keeping both would apply it twice.</li>
+<li><strong>Free-slip domain edges</strong>: the edge unknown is tied to its inner neighbour (<span class="math inline">u_\mathrm{edge} = u_\mathrm{inner}</span>, as in the residual solver) and folded into its row, <span class="math inline">K_\mathrm{red} = T^\mathsf{T} K T</span>, which keeps <span class="math inline">K</span> symmetric. The edge cell’s own membrane and shear terms are kept in the folded row (the residual solver drops them), so the two solvers differ in the edge row of cells. After the solve the edge unknown takes its root’s value (<code>lgs%copy_from</code>). Velocities one cell beyond an edge are periodic wraps, copies of the edge value (free-slip) or zero (no-slip).</li>
+<li><strong>Dirichlet rows</strong>: prescribed values (ice-free faces, <code>ssa_mask = -1</code>, no-slip edges) are imposed by <strong>static condensation</strong> — the column is multiplied by the known velocity and moved to the RHS — instead of by row replacement. This preserves the symmetry of <span class="math inline">K</span> and so allows CG / AMG to be used without spoiling the SPD structure.</li>
 </ul>
 <p>The viscosity staggering aa <span class="math inline">\to</span> ab is the same routine (<code>stagger_visc_aa_ab</code>) used by the residual assembler.</p>
 </section>

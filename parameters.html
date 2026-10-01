@@ -373,6 +373,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -438,7 +444,10 @@ window.Quarto = {
   <ul>
   <li><a href="#parameters" id="toc-parameters" class="nav-link active" data-scroll-target="#parameters">Parameters</a>
   <ul class="collapse">
-  <li><a href="#basal-friction" id="toc-basal-friction" class="nav-link" data-scroll-target="#basal-friction">Basal friction</a></li>
+  <li><a href="#basal-friction" id="toc-basal-friction" class="nav-link" data-scroll-target="#basal-friction">Basal friction</a>
+  <ul class="collapse">
+  <li><a href="#sub-temperate-sliding" id="toc-sub-temperate-sliding" class="nav-link" data-scroll-target="#sub-temperate-sliding">Sub-temperate sliding</a></li>
+  </ul></li>
   <li><a href="#effective-pressure" id="toc-effective-pressure" class="nav-link" data-scroll-target="#effective-pressure">Effective pressure</a></li>
   </ul></li>
   </ul>
@@ -488,18 +497,26 @@ c_b = {\rm tan}(c_{\rm b,ref}) * N_{\rm eff}
 </span></p>
 <p>This is controlled by the user option <code>ytill.is_angle</code>. If <code>ytill.is_angle=True</code>, then <span class="math inline">c_{\rm b,ref}</span> (variable <code>cb_ref</code> in the code) is considered as an angle and the latter formulation above is used, following e.g., Bueler and van Pelt (2015). If <code>ytill.is_angle=False</code>, then <code>cb_ref</code> is used as a scalar field directly. In both cases, this field represents the till or basal properties (roughness, etc.) that are rather independent from how the effective pressure <span class="math inline">N_{\rm eff}</span> (variable <code>N_eff</code>) may be defined.</p>
 <p>With the variables formulated as above, it is possible to consider <code>cb_ref</code> as a tunable field that can be adjusted to improve model performance on a given domain. This can be achieved, for example, by performing optimization via the <code>ice_optimization</code> module, which adjusts <code>cb_ref</code> as a function of the mismatch of the simulated ice thickness with a target field. Also, <code>cb_ref</code> can either be optimized as a scalar field itself, or as an angle that is input to <span class="math inline">{\rm tan}(c_{\rm b,ref})</span> above.</p>
-<p>Another possibility is to tune <code>cb_ref</code> as a function of other model or boundary variables. The most common approach is to tune it as as function of the bedrock elevation relative to present-day sea level (e.g., Winkelmann et al., 2011). In Yelmo, this is controlled by the parameter choices in the <code>ytill</code> section, and in particular the parameter <code>ytill.scale=['none','lin','exp']</code>. When <code>ytill.scale='none'</code>, no scaling function is applied and then <code>cb_ref=ytill.cf_ref</code> everywhere. When <code>ytill.scale='lin'</code>, a linear scaling is applied so that <code>cb_ref</code> goes from <code>ytill.cf_min</code> to <code>ytill.cb_ref</code> for bedrock elevations between <code>ytill.z0</code> and <code>ytill.z1</code> (saturating otherwise). Finally, if <code>ytill.scale='exp'</code>, an exponential decay function is applied, such that <code>cb_ref=ytill.cf_ref</code> for <code>z_bed &gt;= ytill.z1</code>, and decays following a curve that reaches ~30% of its value at <code>z_bed=ytill.z0</code>. Finally, all values are limited to a minimum value of <code>ytill.cf_min</code>.</p>
+<p>Another possibility is to tune <code>cb_ref</code> as a function of other model or boundary variables. The most common approach is to tune it as as function of the bedrock elevation relative to present-day sea level (e.g., Winkelmann et al., 2011). In Yelmo, this is controlled by the parameter choices in the <code>ytill</code> section, and in particular the parameter <code>ytill.scale_zb</code> (0: none, 1: linear, 2: exponential). When <code>ytill.scale_zb=0</code>, no scaling function is applied and then <code>cb_ref=ytill.cf_ref</code> everywhere. When <code>ytill.scale_zb=1</code>, a linear scaling is applied so that <code>cb_ref</code> goes from <code>ytill.cf_min</code> to <code>ytill.cf_ref</code> for bedrock elevations between <code>ytill.z0</code> and <code>ytill.z1</code> (saturating otherwise). Finally, if <code>ytill.scale_zb=2</code>, an exponential decay function is applied, such that <code>cb_ref=ytill.cf_ref</code> for <code>z_bed &gt;= ytill.z1</code>, and decays following a curve that reaches ~30% of its value at <code>z_bed=ytill.z0</code>. Finally, all values are limited to a minimum value of <code>ytill.cf_min</code>.</p>
+<section id="sub-temperate-sliding" class="level3">
+<h3 class="anchored" data-anchor-id="sub-temperate-sliding">Sub-temperate sliding</h3>
+<p>The friction laws above cap the basal stress at a value set by <span class="math inline">c_b</span>, so a frozen bed still slides wherever <span class="math inline">\tau_d</span> is large compared to <span class="math inline">\beta</span>. With <code>ydyn.slide_T=True</code>, sliding is reduced below the pressure melting point by dividing <span class="math inline">\beta</span> by a sliding factor</p>
+<p><span class="math display">
+f_{\rm slide} = {\rm max}\left(\lambda_{\rm min}, \exp(T'_b/\gamma_T)\right)
+</span></p>
+<p>where <span class="math inline">T'_b \le 0</span> is the basal homologous temperature, <span class="math inline">\gamma_T</span> is <code>ydyn.gamma_T</code> [K] and <span class="math inline">\lambda_{\rm min}</span> is <code>ydyn.lambda_min</code> (e.g., Fowler, 1986; Hindmarsh and Le Meur, 2001). <span class="math inline">f_{\rm slide}=1</span> where the base is temperate or not grounded. <span class="math inline">\beta</span> is divided by <span class="math inline">f_{\rm slide}</span> (output as <code>f_slide</code>) at the cell centres, after the friction law and before the grounding-line scaling and the staggering to the velocity nodes, for any <code>beta_method</code> except an imposed <span class="math inline">\beta</span> (<code>beta_method=-1</code>). The velocity nodes across a frozen/temperate transition get the mean of <span class="math inline">\beta/f_{\rm slide}</span>. For DIVA, <span class="math inline">\beta \to \infty</span> tends to the no-slip limit <span class="math inline">\beta_{\rm eff}=1/F_2</span>, so small <span class="math inline">\lambda_{\rm min}</span> is safe.</p>
+</section>
 </section>
 <section id="effective-pressure" class="level2">
 <h2 class="anchored" data-anchor-id="effective-pressure">Effective pressure</h2>
-<p>Effective pressure (<code>N_eff</code>, <span class="math inline">N_{\rm eff}</span>) in Yelmo is currently only used in the basal friction formulation as shown above. It provides a mechanism to alter the basal friction as a function of the state of the ice sheet, which is separate from <span class="math inline">c_{\rm b,ref}</span> (<code>cb_ref</code>), which represents the properties of the bed beneath the ice sheet. The calculation of <code>N_eff</code> can be done with several methods:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yneff.method</span> = <span class="pp">[-</span><span class="ss">1,0,1,2,3</span><span class="pp">]</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">-1:</span> Set N_eff external to Yelmo, do not modify it internally.</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a> <span class="ex">0:</span> Impose a constant value, N_eff = yneff.const</span>
+<p>Effective pressure (<code>N_eff</code>, <span class="math inline">N_{\rm eff}</span>) in Yelmo is currently only used in the basal friction formulation as shown above. It provides a mechanism to alter the basal friction as a function of the state of the ice sheet, which is separate from <span class="math inline">c_{\rm b,ref}</span> (<code>cb_ref</code>), which represents the properties of the bed beneath the ice sheet. <code>N_eff</code> comes from the basal hydrology (FastHydrology, group <code>&amp;yhyd</code>). With the till bucket (<code>yhyd.method_til=1</code>, no transport), the closure is chosen with <code>yhyd.bkt_N_closure</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yhyd.bkt_N_closure</span> = <span class="pp">[-</span><span class="ss">1,0,1,2,3</span><span class="pp">]</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">-1:</span> Set N externally <span class="er">(</span><span class="ex">host</span> model, via yelmo_set_var2D<span class="er">(</span><span class="st">"hyd_N"</span><span class="kw">))</span><span class="ex">,</span> not modified internally.</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a> <span class="ex">0:</span> Impose a constant value, N_eff = yhyd.const_N</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a> <span class="ex">1:</span> Impose the overburden pressure, N_eff = rho_ice<span class="pp">*</span>g<span class="pp">*</span>H_ice</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a> <span class="ex">2:</span> Calculate N_eff following the Leguy formulation</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a> <span class="ex">3:</span> Calculate N_eff as till pressure following Bueler and van Pelt <span class="er">(</span><span class="ex">2015</span><span class="kw">)</span><span class="bu">.</span> </span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a> <span class="ex">4:</span> Calculate N_eff as a <span class="st">'two-valued'</span> function scaled by f_pmp using yneff.delta.</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a> <span class="ex">2:</span> Marine closure following Leguy et al. <span class="er">(</span><span class="ex">2014</span><span class="kw">)</span><span class="ex">,</span> exponent yhyd.marine_p</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a> <span class="ex">3:</span> Till pressure following Bueler and van Pelt <span class="er">(</span><span class="ex">2015</span><span class="kw">)</span><span class="ex">,</span> parameters yhyd.till_<span class="pp">*</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The former <code>&amp;yneff</code> group (<code>yneff.method</code>) was retired in v2.1.</p>
 
 
 </section>

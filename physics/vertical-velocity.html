@@ -373,6 +373,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ytherm</span></a>
   </div>
@@ -549,7 +555,15 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <p>The corrected divergence is then integrated upward (Greve and Blatter, 2009, Eq. 5.95), with <span class="math inline">H\,\Delta\zeta = \Delta z</span>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>uz(i,j,<span class="dv">1</span>) <span class="kw">=</span> dzbdt_now <span class="kw">+</span> f_bmb<span class="kw">*</span>bmb(i,j) <span class="kw">+</span> ux_aa<span class="kw">*</span>dzbdx_aa <span class="kw">+</span> uy_aa<span class="kw">*</span>dzbdy_aa<span class="co">   ! basal KBC</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>uz(i,j,k) <span class="kw">=</span> uz(i,j,k<span class="kw">-</span><span class="dv">1</span>) <span class="kw">-</span> H_now<span class="kw">*</span>(zeta_ac(k)<span class="kw">-</span>zeta_ac(k<span class="kw">-</span><span class="dv">1</span>))<span class="kw">*</span>(dudx_aa<span class="kw">+</span>dvdy_<span class="co">aa)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>with <code>dzbdt_now = dzsdt_now - dhdt_now</code> (the base rate is deduced from the surface and thickness rates, so no explicit bedrock-uplift input is needed, and the expression is valid for grounded <em>and</em> floating ice).</p>
+<p>with <code>dzbdt_now = tpo%now%dzbdt_kin</code>, the kinematic rate of the column base (<code>dzsdt_kin</code> for the surface), computed in <code>calc_ytopo_pc</code> from the tendencies:</p>
+<ul>
+<li>vertical thickness change of the column, <code>dHidt_vert</code> = advection + smb + bmb (+ relaxation). Calving, frontal melt, discharge, front advance and removals are lateral and do not move the column surface or base;</li>
+<li>grounded ice: the base follows the bedrock, <code>dzbdt_kin = dz_bed/dt</code>;</li>
+<li>floating ice: the column floats, <code>dzbdt_kin = dz_sl/dt - (rho_ice/rho_sw)*dHidt_vert</code>;</li>
+<li>blended by the grounded fraction; <code>dzsdt_kin = dzbdt_kin + dHidt_vert</code>;</li>
+<li>partial front cells (column from <code>H_eff</code>) and ice-free cells: zero.</li>
+</ul>
+<p>The bedrock and sea-level rates are the changes since the previous call of <code>yelmo_update</code> (<code>ybound_update_rates</code>), zero on the first call after initialisation or a restart. Before, the base rate was the difference <code>dzsdt - dHidt</code>, which mixed the <code>H_eff</code>-based surface with the true thickness at subgrid fronts and counted lateral removals as vertical motion (basal <code>uz</code> of several km/yr in the first steps).</p>
 <p><strong>The sigma-ness is removed, not embedded.</strong> The coordinate corrections are applied to the <em>horizontal derivatives</em> precisely so that what gets integrated is the true constant-<span class="math inline">z</span> divergence. What comes out, <code>uz</code>, is honest physical <span class="math inline">w</span> in a fixed frame.</p>
 </section>
 <section id="the-three-methods" class="level3">
@@ -586,7 +600,7 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <h3 class="anchored" data-anchor-id="practical-caveats">Practical caveats</h3>
 <ul>
 <li><strong>The surface kinematic BC is not enforced.</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward. The corresponding surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is computed but the redistribution correction is commented out in all three routines. So <code>uz</code> is <em>exactly divergence-consistent and exactly satisfies the basal BC</em>; any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. “Consistent with mass conservation” should be read in that precise sense.</li>
-<li><strong>Stability clamps.</strong> The basal value is floored at <code>uz_min = -10 m/yr</code>, and <code>calc_uz_3D_jac</code> additionally clamps <span class="math inline">|w| \le</span> <code>uz_lim = 10 m/yr</code> throughout. Values below <code>TOL_UNDERFLOW</code> are zeroed. These are numerical guards that only bite when something is already going wrong, but they do make <code>uz</code> mildly non-physical near the bed in those cases.</li>
+<li><strong>No clamps.</strong> <code>uz</code> and <code>uz_star</code> are not limited (the former ±10 m/yr clamps cut the physical <span class="math inline">w</span> in fast outlets, where it reaches tens of m/yr). Values below <code>TOL_UNDERFLOW</code> are zeroed.</li>
 <li><strong>Ice-free points</strong> get <code>uz = dzbdt - max(smb,0)</code> and <code>uz_star = uz</code>.</li>
 </ul>
 </section>
@@ -725,7 +739,7 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 </tbody>
 </table>
 <p>Put briefly: <strong>integrate <span class="math inline">z</span> → <code>uz</code>; integrate <span class="math inline">\zeta</span> → <code>uz_star</code>.</strong> Anything reasoning in physical space wants <code>uz</code>; anything stepping through the model’s own layers wants <code>uz_star</code>.</p>
-<p>A worked example of the second row: to hand <span class="math inline">(u, v, w)</span> to an offline Lagrangian particle tracer that integrates <span class="math inline">\dot x = u,\ \dot y = v,\ \dot z = w</span>, pass <code>ux</code>, <code>uy</code>, <code>uz</code> — never <code>uz_star</code>. (Note the basal <code>uz_min</code> clamp above if trajectories approach the bed.)</p>
+<p>A worked example of the second row: to hand <span class="math inline">(u, v, w)</span> to an offline Lagrangian particle tracer that integrates <span class="math inline">\dot x = u,\ \dot y = v,\ \dot z = w</span>, pass <code>ux</code>, <code>uy</code>, <code>uz</code> — never <code>uz_star</code>.</p>
 </section>
 <section id="where-each-field-is-used-in-the-code" class="level2">
 <h2 class="anchored" data-anchor-id="where-each-field-is-used-in-the-code">Where each field is used in the code</h2>

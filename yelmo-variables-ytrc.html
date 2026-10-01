@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>yelmo-variables – Yelmo</title>
+<title>yelmo-variables-ytrc – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -33,8 +33,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./yelmo-variables-ybound.html" rel="next">
-<link href="./physics/calving.html" rel="prev">
+<link href="./yelmo-variables-ytherm.html" rel="next">
+<link href="./yelmo-variables-ymat.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -120,7 +120,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ytrc.html">ytrc</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -262,7 +262,7 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link active">
+            <a href="./yelmo-variables.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Variables</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -295,7 +295,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+  <a href="./yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">ytrc</span></a>
   </div>
 </li>
@@ -364,29 +364,87 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#yelmo-variable-tables" id="toc-yelmo-variable-tables" class="nav-link active" data-scroll-target="#yelmo-variable-tables">Yelmo variable tables</a></li>
+  <li><a href="#ytrc" id="toc-ytrc" class="nav-link active" data-scroll-target="#ytrc">ytrc</a></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ytrc.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./yelmo-variables.html">Variables</a></li><li class="breadcrumb-item"><a href="./yelmo-variables-ytrc.html">ytrc</a></li></ol></nav></header>
 
 
 
 
-<section id="yelmo-variable-tables" class="level1">
-<h1>Yelmo variable tables</h1>
-<p>Here are tables containing all variables available within Yelmo with dimensions and units. These tables are used directly in the code for output writing routines, to select which variables to write. The pages are copied from <code>input/yelmo-variables-*.md</code> when the site is rendered (<code>_scripts/sync-variable-tables.sh</code>).</p>
-<ul>
-<li><a href="./yelmo-variables-ytopo.html">Yelmo topography</a></li>
-<li><a href="./yelmo-variables-ydyn.html">Yelmo dynamics</a></li>
-<li><a href="./yelmo-variables-ymat.html">Yelmo material</a></li>
-<li><a href="./yelmo-variables-ytrc.html">Yelmo tracers</a></li>
-<li><a href="./yelmo-variables-ytherm.html">Yelmo thermodynamics</a></li>
-<li><a href="./yelmo-variables-yhyd.html">Yelmo hydrology</a></li>
-<li><a href="./yelmo-variables-ybound.html">Yelmo boundaries</a></li>
-<li><a href="./yelmo-variables-ydata.html">Yelmo data</a></li>
-</ul>
+<section id="ytrc" class="level1">
+<h1>ytrc</h1>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 3%">
+<col style="width: 17%">
+<col style="width: 16%">
+<col style="width: 12%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>id</th>
+<th>variable</th>
+<th>dimensions</th>
+<th>units</th>
+<th>long_name</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>t_dep</td>
+<td>xc, yc, zeta</td>
+<td>yr</td>
+<td>Deposition time, authoritative backend</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>t_dep_euler</td>
+<td>xc, yc, zeta</td>
+<td>yr</td>
+<td>Deposition time, Eulerian backend</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>t_dep_trc</td>
+<td>xc, yc, zeta</td>
+<td>yr</td>
+<td>Deposition time, Lagrangian particle backend</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>t_dep_elsa</td>
+<td>xc, yc, zeta</td>
+<td>yr</td>
+<td>Deposition time, Lagrangian layer (elsa) backend</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>depth_iso</td>
+<td>xc, yc, time_iso</td>
+<td>m</td>
+<td>Depth of isochronal layers, authoritative backend</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>trc_count</td>
+<td>xc, yc, depth_norm</td>
+<td>1</td>
+<td>Tracer particle count per normalized-depth band</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td>trc_depth_iso</td>
+<td>xc, yc, time_iso</td>
+<td>m</td>
+<td>Isochrone depth from the particle cloud (tracer)</td>
+</tr>
+</tbody>
+</table>
 
 
 </section>
@@ -799,13 +857,13 @@ ul.task-list li input[type="checkbox"] {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./physics/calving.html" class="pagination-link" aria-label="Calving schemes">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Calving schemes</span>
+      <a href="./yelmo-variables-ymat.html" class="pagination-link" aria-label="ymat">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ymat</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./yelmo-variables-ybound.html" class="pagination-link" aria-label="ybound">
-        <span class="nav-page-text">ybound</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./yelmo-variables-ytherm.html" class="pagination-link" aria-label="ytherm">
+        <span class="nav-page-text">ytherm</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -814,4 +872,4 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/yelmo-variables-ytrc.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
