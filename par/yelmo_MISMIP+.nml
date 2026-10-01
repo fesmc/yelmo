@@ -276,7 +276,7 @@
 
 &ytherm
     method          = "enth"            ! "fixed", "robin", "temp", "enth"
-    qb_method       = 2                 ! 1: simple-stagger, 2: quadrature
+    qb_method       = 4                 ! 1: simple-stagger, 2: quadrature, 3: faces, 4: faces to quadrature nodes (3, 4: energy-consistent)
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
     advecxy_order   = 2                 ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
