@@ -612,6 +612,8 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- `make clean` also cleans elsa and tracer (like FastHydrology), so switching
+  between `openmp=0` and `openmp=1` no longer links stale sub-library objects.
 - New public `yelmo_restart_init(dom, filename, time)`: the restart branch of
   `yelmo_init_state` (restart fields, active predictor-corrector, passive-tracer
   backends from their sidecars). Coupled drivers that restart from their own

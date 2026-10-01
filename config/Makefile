@@ -260,6 +260,8 @@ clean:
 	rm -rf *.x.dSYM
 	rm -f ./git_yelmo.txt
 	$(MAKE) -C $(FASTHYDROROOT) clean
+	$(MAKE) -C $(ELSAROOT) clean
+	$(MAKE) -C $(TRACERROOT) clean
 
 
 # Experimental
