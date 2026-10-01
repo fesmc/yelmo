@@ -220,6 +220,11 @@ little. MISMIP3D and DIVA runs change more.
   calving, for one to two steps. ANT-16 200 yr: calving +7%, floating area -0.3%;
   GRL-16: floating area -1.9%; volume change <= 2e-5. Benchmarks without stress
   calving (TROUGH, CalvingMIP exp1, EISMINT) keep their ice thickness.
+- **HALFAR uses the adaptive predictor-corrector timestep** (`dt_method = 2` in
+  `par/yelmo_HALFAR.nml`). The fixed 1-yr explicit step exceeded the SIA stability
+  limit at dx = 2 km (0.71 yr at t = 0): the run was killed at ~15 yr ("velocity too
+  fast") once `dHdt_dyn_lim` was removed, and before that it finished with ~100 m rms
+  error and +30% volume. Now 12 m rms after 200 yr (dx = 2 km), converging with dx.
 - **Calving-front stress and strain at subgrid fronts** (review 2026-09-29).
   With `front_subgrid /= "none"`, `calc_ymat` built the viscosity and the calving
   stress on `f_ice` instead of the dynamics' `f_ice_dyn`/`H_ice_dyn`: partial front
