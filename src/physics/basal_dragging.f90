@@ -382,28 +382,28 @@ contains
                 ! Calculate beta from a linear law (simply set beta=c_bed/u0)
                 ! (use power-plastic function to ensure proper staggering)
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,1.0_wp,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,1.0_wp,beta_u0,boundaries,simple_stagger=.FALSE.)
                 
             case(2)
                 ! Calculate beta from the quasi-plastic power-law as defined by Bueler and van Pelt (2015)
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
                 
             case(3)
                 ! Calculate beta from regularized Coulomb law (Joughin et al., GRL, 2019)
 
-                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
             
             case(4) 
                 ! Calculate beta from the quasi-plastic power-law as defined by Bueler and van Pelt (2015)
                 ! Use simple-staggering to aa-nodes - useful for Schoof (2006) slab test.
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
             
             case(5)
                 ! Calculate beta from regularized Coulomb law (Joughin et al., GRL, 2019)
 
-                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
+                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
 
             case DEFAULT 
                 ! Not recognized 
@@ -898,7 +898,7 @@ contains
     !
     ! ================================================================================
 
-    subroutine calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,q,u_0,boundaries,simple_stagger)
+    subroutine calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,q,u_0,boundaries,simple_stagger)
         ! Calculate basal friction coefficient (beta) that
         ! enters the SSA solver as a function of basal velocity
         ! using a power-law form following Bueler and van Pelt (2015)
@@ -910,6 +910,7 @@ contains
         real(wp), intent(IN)  :: uy_b(:,:)        ! ac-nodes
         real(wp), intent(IN)  :: c_bed(:,:)       ! aa-nodes
         real(wp), intent(IN)  :: f_ice(:,:)       ! aa-nodes
+        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
         real(wp), intent(IN)  :: q
         real(wp), intent(IN)  :: u_0              ! [m/a] 
         character(len=*), intent(IN) :: boundaries 
@@ -932,6 +933,7 @@ contains
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_aa(:,:)
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
@@ -943,6 +945,11 @@ contains
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Cells where c_bed is defined (grounded ice): only these enter the
+        ! corner means of c_bed (floating and ice-free cells have c_bed = 0)
+        allocate(act_aa(nx,ny))
+        act_aa = (f_ice .eq. 1.0_wp .and. f_grnd .gt. 0.0_wp)
 
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
@@ -975,7 +982,7 @@ contains
                     
                     ! Get c_bed on nodes
                     
-                    call gq2D_to_nodes_aa(gq2D,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_aa(gq2D,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_aa)
                     !cbn(1:4) = c_bed(i,j)
 
                     call gq2D_to_nodes_acx(gq2D,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
@@ -1006,7 +1013,7 @@ contains
         
     end subroutine calc_beta_aa_power_plastic
 
-    subroutine calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,q,u_0,boundaries,simple_stagger)
+    subroutine calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,q,u_0,boundaries,simple_stagger)
         ! Calculate basal friction coefficient (beta) that
         ! enters the SSA solver as a function of basal velocity
         ! using a regularized Coulomb friction law following
@@ -1022,6 +1029,7 @@ contains
         real(wp), intent(IN)  :: uy_b(:,:)        ! ac-nodes
         real(wp), intent(IN)  :: c_bed(:,:)       ! aa-nodes
         real(wp), intent(IN)  :: f_ice(:,:)       ! aa-nodes
+        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
         real(wp), intent(IN)  :: q
         real(wp), intent(IN)  :: u_0              ! [m/a] 
         character(len=*), intent(IN) :: boundaries 
@@ -1045,6 +1053,7 @@ contains
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_aa(:,:)
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
@@ -1056,6 +1065,11 @@ contains
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Cells where c_bed is defined (grounded ice): only these enter the
+        ! corner means of c_bed (floating and ice-free cells have c_bed = 0)
+        allocate(act_aa(nx,ny))
+        act_aa = (f_ice .eq. 1.0_wp .and. f_grnd .gt. 0.0_wp)
 
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
@@ -1087,7 +1101,7 @@ contains
                 else
                     ! Get c_bed on nodes
                     
-                    call gq2D_to_nodes_aa(gq2d,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_aa(gq2d,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_aa)
                     !cbn(1:4) = c_bed(i,j) 
 
                     call gq2D_to_nodes_acx(gq2d,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
