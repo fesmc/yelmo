@@ -9,7 +9,7 @@
 
     ! Timing parameters 
     time_init    = 0.0                  ! [yr] Starting time 
-    time_end     = 5.0                  ! [yr] Ending time 
+    time_end     = 5.0                  ! [yr] Ending time (EXPF1/EXPF2: 2000, steady state after ~1000 yr)
     dtt          = 1.0                  ! [yr] Main loop timestep 
     dt2D_out     = 1.0                  ! [yr] Frequency of writing 2D output files 
 

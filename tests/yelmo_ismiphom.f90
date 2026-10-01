@@ -169,6 +169,9 @@ program yelmo_ismiphom
             yelmo1%mat%par%rf_method = 0 
             yelmo1%mat%par%rf_const  = 2.140373e-7      ! [Pa-1 a-1]
 
+            ! The driving stress, rho*g*H0*tan(alpha) = 4.7e5 Pa, must not be capped
+            yelmo1%dyn%par%taud_lim  = 1e6              ! [Pa]
+
             yelmo1%dyn%par%beta_method = -1
 
             if (trim(experiment) .eq. "EXPF1") then 
