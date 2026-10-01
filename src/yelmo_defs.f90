@@ -132,7 +132,6 @@ module yelmo_defs
         character(len=56)  :: bmb_gl_method
         integer            :: fmb_method  
         integer            :: dmb_method
-        logical            :: margin2nd
         character(len=12)  :: front_subgrid
         real(wp)           :: front_H_eff_min
         real(wp)           :: front_dHdx
@@ -222,6 +221,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)
         real(wp), allocatable :: mb_relax(:,:)
         real(wp), allocatable :: mb_resid(:,:)
+        real(wp), allocatable :: mb_clip(:,:)
         real(wp), allocatable :: smb(:,:)
         real(wp), allocatable :: bmb(:,:)
         real(wp), allocatable :: fmb(:,:)
@@ -249,6 +249,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)      ! Net mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable :: mb_relax(:,:)    ! Residual mass balance from boundary conditions, cleanup
         real(wp), allocatable :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable :: mb_clip(:,:)     ! Clip of negative ice thickness after transport
         real(wp), allocatable :: mb_err(:,:)      ! Residual error in mass balance accounting 
         real(wp), allocatable :: smb(:,:)         ! Net smb applied
         real(wp), allocatable :: bmb(:,:)         ! Net combined field of bmb_grnd and bmb_shlf 
@@ -280,6 +281,7 @@ module yelmo_defs
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
         real(wp), allocatable   :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable   :: mb_clip(:,:)     ! [m/a] Clip of negative ice thickness after transport (not in dHidt_dyn)
         real(wp), allocatable   :: mb_err(:,:)      ! Residual error in mass balance accounting 
 
         real(wp), allocatable   :: smb(:,:)         ! Actual smb applied [m/a]
@@ -502,6 +504,7 @@ module yelmo_defs
         real(wp), allocatable :: uxy(:,:,:)
         real(wp), allocatable :: uz(:,:,:)  
         real(wp), allocatable :: uz_star(:,:,:)
+        real(wp), allocatable :: uz_srf_err(:,:)    ! [m/yr] uz_star at the surface + smb (0 if consistent)
         
         real(wp), allocatable :: ux_bar(:,:) 
         real(wp), allocatable :: uy_bar(:,:)

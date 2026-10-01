@@ -161,9 +161,16 @@ end if
                     ! depending on timestepping method chosen
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_raw_n
 
-                    ! Apply rate and update ice thickness (predicted)
-                    tpo%now%H_ice = tpo%now%H_ice_n
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_pred",adjust_mb=.TRUE.)
+                    ! Apply rate and update ice thickness (predicted).
+                    ! The predictor-corrector mixing of dHdt with previous timesteps can
+                    ! give small negative ice thicknesses at the margin. apply_tendency
+                    ! clips them to zero (a mass source). The clip is booked in mb_clip,
+                    ! so that dHidt_dyn stays pure transport and the budget shows it.
+                    ! dHidt_vert holds the applied rate (dHidt_dyn + mb_clip), see below.
+                    tpo%now%H_ice      = tpo%now%H_ice_n
+                    tpo%now%dHidt_vert = tpo%now%dHidt_dyn
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_pred",adjust_mb=.TRUE.)
+                    tpo%now%mb_clip    = tpo%now%dHidt_vert - tpo%now%dHidt_dyn
 
                 case("corrector") 
 
@@ -191,10 +198,12 @@ end if
                     ! depending on timestepping method chosen 
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
-                    ! Apply rate and update ice thickness (corrected)
-                    tpo%now%H_ice = tpo%now%H_ice_n
-                    tpo%now%lsf   = tpo%now%lsf_n
-                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.)
+                    ! Apply rate and update ice thickness (corrected), clip booked in mb_clip
+                    tpo%now%H_ice      = tpo%now%H_ice_n
+                    tpo%now%lsf        = tpo%now%lsf_n
+                    tpo%now%dHidt_vert = tpo%now%dHidt_dyn
+                    call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_vert,dt,"dyn_corr",adjust_mb=.TRUE.)
+                    tpo%now%mb_clip    = tpo%now%dHidt_vert - tpo%now%dHidt_dyn
 
             end select
 
@@ -202,15 +211,8 @@ end if
             ! (area fraction of cells that received or lost ice)
             call update_ice_fraction(tpo,bnd)
 
-            ! Note: at this point, mass has only been advected (moved around). In principle,
-            ! this is fully conservative and the net Δmb=0. However, due to the predictor-corrector
-            ! mixing of dHdt with previous timesteps/iterations, some small amounts of negative
-            ! ice thickness can arise. The quantities are much smaller than other mb quantities
-            ! and localized at the margin, so it should not be problematic. They should be captured
-            ! and corrected in the apply_tendency routine below, where adjust_mb=.TRUE. ensures
-            ! the ice thickness stays >= 0. Alternatively, adjust_mb=.TRUE. can be imposed above,
-            ! but this implies that the advective dHdt fields are less precise, potentially
-            ! impacting the pc-stability.
+            ! Note: at this point, mass has only been advected (moved around), plus the
+            ! clip of negative thicknesses (mb_clip, above).
 
             select case(trim(pc_step))
 
@@ -282,7 +284,8 @@ end if
                     ! Vertical thickness change of the ice column (advection, smb, bmb;
                     ! relaxation added below). Lateral changes (fmb, dmb, calving, front
                     ! advance, removals) are not vertical motion of the column surface or base.
-                    tpo%now%dHidt_vert = tpo%now%dHidt_dyn + tpo%now%smb + tpo%now%bmb
+                    ! (dHidt_vert holds the applied dynamic rate dHidt_dyn + mb_clip)
+                    tpo%now%dHidt_vert = tpo%now%dHidt_vert + tpo%now%smb + tpo%now%bmb
 
                     ! === calving ===
                     ! Calculate and apply calving
@@ -388,6 +391,7 @@ end if
                     tpo%now%pred%mb_net     = tpo%now%mb_net 
                     tpo%now%pred%mb_relax   = tpo%now%mb_relax 
                     tpo%now%pred%mb_resid   = tpo%now%mb_resid 
+                    tpo%now%pred%mb_clip    = tpo%now%mb_clip
                     tpo%now%pred%smb        = tpo%now%smb
                     tpo%now%pred%bmb        = tpo%now%bmb
                     tpo%now%pred%fmb        = tpo%now%fmb
@@ -415,6 +419,7 @@ end if
                     tpo%now%corr%mb_net     = tpo%now%mb_net 
                     tpo%now%corr%mb_relax   = tpo%now%mb_relax 
                     tpo%now%corr%mb_resid   = tpo%now%mb_resid 
+                    tpo%now%corr%mb_clip    = tpo%now%mb_clip
                     tpo%now%corr%smb        = tpo%now%smb
                     tpo%now%corr%bmb        = tpo%now%bmb
                     tpo%now%corr%fmb        = tpo%now%fmb
@@ -458,6 +463,7 @@ end if
                         tpo%now%mb_net      = tpo%now%pred%mb_net 
                         tpo%now%mb_relax    = tpo%now%pred%mb_relax 
                         tpo%now%mb_resid    = tpo%now%pred%mb_resid 
+                        tpo%now%mb_clip     = tpo%now%pred%mb_clip
                         tpo%now%smb         = tpo%now%pred%smb 
                         tpo%now%bmb         = tpo%now%pred%bmb 
                         tpo%now%fmb         = tpo%now%pred%fmb 
@@ -483,6 +489,7 @@ end if
                         tpo%now%mb_net      = tpo%now%corr%mb_net 
                         tpo%now%mb_relax    = tpo%now%corr%mb_relax 
                         tpo%now%mb_resid    = tpo%now%corr%mb_resid 
+                        tpo%now%mb_clip     = tpo%now%corr%mb_clip
                         tpo%now%smb         = tpo%now%corr%smb 
                         tpo%now%bmb         = tpo%now%corr%bmb 
                         tpo%now%fmb         = tpo%now%corr%fmb 
@@ -516,10 +523,10 @@ end if
             tpo%now%dlsfdt = (tpo%now%lsf   - tpo%now%lsf_n) / dt
 
             ! Determine mass balance error as the residual of dHidt with respect to
-            ! all applied tendencies (dynamics, mb_net incl. relax and resid, calving).
+            ! all applied tendencies (dynamics, clip, mb_net incl. relax and resid, calving).
             ! Since every tendency passes through apply_tendency (adjust_mb=.TRUE.),
             ! this should vanish to round-off.
-            tpo%now%mb_err = tpo%now%dHidt - (tpo%now%dHidt_dyn + tpo%now%mb_net + tpo%now%cmb)
+            tpo%now%mb_err = tpo%now%dHidt - (tpo%now%dHidt_dyn + tpo%now%mb_clip + tpo%now%mb_net + tpo%now%cmb)
 
         end if
 
@@ -833,11 +840,15 @@ end if
             call apply_tendency(tpo%now%H_ice,mbal_now,dt,"advance",adjust_mb=.TRUE.)
             tpo%now%dHidt_dyn = tpo%now%dHidt_dyn + mbal_now
             call update_ice_fraction(tpo,bnd)
+
+            ! Treat fractional points that are not connected to full ice-covered points
+            ! (a donor of the advance, left just below H_eff, counts as full)
+            call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt, &
+                                                tpo%par%boundaries,H_eff=tpo%now%H_eff)
+        else
+            ! Treat fractional points that are not connected to full ice-covered points
+            call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
         end if
-
-
-        ! Treat fractional points that are not connected to full ice-covered points
-        call calc_G_remove_fractional_ice(mbal_now,tpo%now%H_ice,tpo%now%f_ice,tpo%par%H_min_tau,dt,tpo%par%boundaries)
 
         ! Apply rate and update ice thickness
         call apply_tendency(tpo%now%H_ice,mbal_now,dt,"frac",adjust_mb=.TRUE.)
@@ -880,6 +891,7 @@ end if
         integer  :: BC
         logical  :: is_front
         real(wp) :: cr_x, cr_y
+        character(len=256) :: bnd_lsf
 
         ! Make sure dt is not zero
         dt_kill = dt 
@@ -1030,16 +1042,20 @@ end if
         end do
 
         ! === LSF advection ===
-        ! Use "infinite" (Neumann-zero) boundaries for the LSF advection
-        ! regardless of the model-wide tpo%par%boundaries: the LSF is a
-        ! signed-distance field that must continue smoothly outside the
+        ! Boundaries for the LSF advection: the model-wide tpo%par%boundaries
+        ! (periodic directions wrap, as in LSFsnap and the area fraction), but
+        ! "infinite" (Neumann-zero) instead of zero (Dirichlet) borders: the LSF is
+        ! a signed-distance field that must continue smoothly outside the
         ! domain. A Dirichlet-zero boundary would create a spurious LSF=0
         ! contour one cell from the boundary that the Sussman/Osher
         ! redistance fights every step (see issue #34 follow-up). Matches
         ! Yelmo.jl, whose Oceananigans `:bounded` BC zeros only the halo,
         ! leaving edge cells free.
+        bnd_lsf = tpo%par%boundaries
+        if (trim(bnd_lsf) .eq. "zeros") bnd_lsf = "infinite"
+
         call LSFupdate(tpo%now%dlsfdt,tpo%now%lsf,tpo%now%cr_acx,tpo%now%cr_acy,dyn%now%ux_bar,dyn%now%uy_bar, &
-                       tpo%par%dx,tpo%par%dy,dt,"infinite")
+                       tpo%par%dx,tpo%par%dy,dt,bnd_lsf)
 
         ! Marine points where ice is not allowed (bnd%mask_ice = MASK_ICE_NONE, 
         ! where H_ice is held at zero) are ocean by definition: keep the LSF
@@ -1067,10 +1083,10 @@ end if
         ! level set, producing lsf ≈ ±1 at adjacent cells. Passing physical
         ! dx (e.g. 25000 m) would make the smoothed sign function
         ! ≈ ±lsf/dx ≈ 0 several cells out from the front, freezing the
-        ! front in place (see issue #34). Matches Yelmo.jl. Boundary is
-        ! "infinite" for the same reason as the LSF advection call above:
-        ! Neumann-zero is the only sensible BC for the SO redistance of a
-        ! signed-distance field.
+        ! front in place (see issue #34). Matches Yelmo.jl. Boundaries as
+        ! for the LSF advection call above (periodic wraps, otherwise
+        ! Neumann-zero, the only sensible non-periodic BC for the SO
+        ! redistance of a signed-distance field).
         select case(trim(tpo%par%lsf_method))
             case("redist")
                 if (tpo%par%lsf_redist_n_iter .le. 0) then
@@ -1080,7 +1096,7 @@ end if
                     error stop 1
                 end if
                 call LSFredistance(tpo%now%lsf,1.0_wp,1.0_wp, &
-                                   tpo%par%lsf_redist_n_iter,"infinite")
+                                   tpo%par%lsf_redist_n_iter,bnd_lsf)
             case("snap")
                 ! Handled after cmb loop below.
             case default
@@ -1259,14 +1275,14 @@ end if
         ! 2. Calculate additional topographic properties ------------------
 
         ! Calculate the surface slope and the ice thickness gradient (on staggered acx/y nodes)
-        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
-        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
+        call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
-        call calc_gradient_acx(tpo%now%dHidx,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
-        call calc_gradient_acy(tpo%now%dHidy,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acx(tpo%now%dHidx,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
+        call calc_gradient_acy(tpo%now%dHidy,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,zero_outside=.TRUE.,boundaries=tpo%par%boundaries)
         
-        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
-        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
+        call calc_gradient_acx(tpo%now%dzbdx,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
+        call calc_gradient_acy(tpo%now%dzbdy,tpo%now%z_base,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
 
         ! 3. Calculate new masks ------------------------------
 
@@ -1399,6 +1415,7 @@ end if
                 tpo%now%rates%mb_net        = 0.0
                 tpo%now%rates%mb_relax      = 0.0
                 tpo%now%rates%mb_resid      = 0.0
+                tpo%now%rates%mb_clip       = 0.0
                 tpo%now%rates%mb_err        = 0.0
                 tpo%now%rates%smb           = 0.0
                 tpo%now%rates%bmb           = 0.0
@@ -1420,6 +1437,7 @@ end if
                 tpo%now%rates%mb_net        = tpo%now%rates%mb_net      + tpo%now%mb_net*dt
                 tpo%now%rates%mb_relax      = tpo%now%rates%mb_relax    + tpo%now%mb_relax*dt
                 tpo%now%rates%mb_resid      = tpo%now%rates%mb_resid    + tpo%now%mb_resid*dt
+                tpo%now%rates%mb_clip       = tpo%now%rates%mb_clip     + tpo%now%mb_clip*dt
                 tpo%now%rates%mb_err        = tpo%now%rates%mb_err      + tpo%now%mb_err*dt
                 tpo%now%rates%smb           = tpo%now%rates%smb         + tpo%now%smb*dt
                 tpo%now%rates%bmb           = tpo%now%rates%bmb         + tpo%now%bmb*dt
@@ -1444,6 +1462,7 @@ end if
                     tpo%now%rates%mb_net        = tpo%now%rates%mb_net / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_relax      = tpo%now%rates%mb_relax / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_resid      = tpo%now%rates%mb_resid / tpo%now%rates%dt_tot
+                    tpo%now%rates%mb_clip       = tpo%now%rates%mb_clip / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_err        = tpo%now%rates%mb_err / tpo%now%rates%dt_tot
                     tpo%now%rates%smb           = tpo%now%rates%smb / tpo%now%rates%dt_tot
                     tpo%now%rates%bmb           = tpo%now%rates%bmb / tpo%now%rates%dt_tot
@@ -1471,6 +1490,7 @@ end if
                         tpo%now%mb_net      = tpo%now%rates%mb_net
                         tpo%now%mb_relax    = tpo%now%rates%mb_relax
                         tpo%now%mb_resid    = tpo%now%rates%mb_resid
+                        tpo%now%mb_clip     = tpo%now%rates%mb_clip
                         tpo%now%mb_err      = tpo%now%rates%mb_err
                         tpo%now%smb         = tpo%now%rates%smb
                         tpo%now%bmb         = tpo%now%rates%bmb
@@ -1497,7 +1517,7 @@ end if
 
             call check_mass_conservation(tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%now%dHidt, &
                         tpo%now%mb_net,tpo%now%cmb,tpo%now%dHidt_dyn,tpo%now%smb,tpo%now%bmb, &
-                        tpo%now%fmb,tpo%now%dmb,tpo%now%mb_resid,tpo%par%dx,bnd%c%sec_year,time,dt, &
+                        tpo%now%fmb,tpo%now%dmb,tpo%now%mb_resid,tpo%now%mb_clip,tpo%par%dx,bnd%c%sec_year,time,dt, &
                         units="km^3/yr",label=step)
                         
         end if 
@@ -1539,7 +1559,6 @@ end if
         call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"slope_bg_x",        par%slope_bg_x,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"slope_bg_y",        par%slope_bg_y,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
-        call nml_read(filename,group_ytopo,"margin2nd",         par%margin2nd,        init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_subgrid",     par%front_subgrid,    init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_H_eff_min",   par%front_H_eff_min,  init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"front_dHdx",        par%front_dHdx,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
@@ -1717,6 +1736,7 @@ end if
         allocate(now%rates%mb_net(nx,ny))
         allocate(now%rates%mb_relax(nx,ny))
         allocate(now%rates%mb_resid(nx,ny))
+        allocate(now%rates%mb_clip(nx,ny))
         allocate(now%rates%mb_err(nx,ny))
         allocate(now%rates%smb(nx,ny))
         allocate(now%rates%bmb(nx,ny))
@@ -1739,6 +1759,7 @@ end if
         allocate(now%mb_net(nx,ny))
         allocate(now%mb_relax(nx,ny))
         allocate(now%mb_resid(nx,ny))
+        allocate(now%mb_clip(nx,ny))
         allocate(now%mb_err(nx,ny))
         allocate(now%smb(nx,ny))
         allocate(now%bmb(nx,ny))
@@ -1824,6 +1845,7 @@ end if
         now%rates%mb_net        = 0.0
         now%rates%mb_relax      = 0.0
         now%rates%mb_resid      = 0.0
+        now%rates%mb_clip       = 0.0
         now%rates%mb_err        = 0.0
         now%rates%smb           = 0.0
         now%rates%bmb           = 0.0
@@ -1843,6 +1865,7 @@ end if
         now%mb_net      = 0.0 
         now%mb_relax    = 0.0
         now%mb_resid    = 0.0
+        now%mb_clip     = 0.0
         now%mb_err      = 0.0
         now%smb         = 0.0 
         now%bmb         = 0.0  
@@ -1933,6 +1956,7 @@ end if
         if (allocated(now%rates%mb_net))        deallocate(now%rates%mb_net)
         if (allocated(now%rates%mb_relax))      deallocate(now%rates%mb_relax)
         if (allocated(now%rates%mb_resid))      deallocate(now%rates%mb_resid)
+        if (allocated(now%rates%mb_clip))       deallocate(now%rates%mb_clip)
         if (allocated(now%rates%mb_err))        deallocate(now%rates%mb_err)
         if (allocated(now%rates%smb))           deallocate(now%rates%smb)
         if (allocated(now%rates%bmb))           deallocate(now%rates%bmb)
@@ -1953,6 +1977,7 @@ end if
         if (allocated(now%mb_net))      deallocate(now%mb_net)
         if (allocated(now%mb_relax))    deallocate(now%mb_relax)
         if (allocated(now%mb_resid))    deallocate(now%mb_resid)
+        if (allocated(now%mb_clip))     deallocate(now%mb_clip)
         if (allocated(now%mb_err))      deallocate(now%mb_err)
         if (allocated(now%smb))         deallocate(now%smb)
         if (allocated(now%bmb))         deallocate(now%bmb)
@@ -2051,6 +2076,7 @@ end if
         allocate(pc%mb_net(nx,ny))
         allocate(pc%mb_relax(nx,ny))
         allocate(pc%mb_resid(nx,ny))
+        allocate(pc%mb_clip(nx,ny))
         allocate(pc%smb(nx,ny))
         allocate(pc%bmb(nx,ny))
         allocate(pc%fmb(nx,ny))
@@ -2075,6 +2101,7 @@ end if
         pc%mb_net       = 0.0
         pc%mb_relax     = 0.0
         pc%mb_resid     = 0.0
+        pc%mb_clip      = 0.0
         pc%smb          = 0.0
         pc%bmb          = 0.0
         pc%fmb          = 0.0
@@ -2108,6 +2135,7 @@ end if
         if (allocated(pc%mb_net))       deallocate(pc%mb_net)
         if (allocated(pc%mb_relax))     deallocate(pc%mb_relax)
         if (allocated(pc%mb_resid))     deallocate(pc%mb_resid)
+        if (allocated(pc%mb_clip))      deallocate(pc%mb_clip)
         if (allocated(pc%smb))          deallocate(pc%smb)
         if (allocated(pc%bmb))          deallocate(pc%bmb)
         if (allocated(pc%fmb))          deallocate(pc%fmb)

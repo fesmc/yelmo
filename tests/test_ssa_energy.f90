@@ -21,7 +21,6 @@ program test_ssa_energy
 
     integer, parameter :: nx = 8, ny = 8
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp     ! [m]
-    real(wp), parameter :: beta_min = 0.0_wp
     ! Yelmo's working precision is single (wp = sp), so the two assemblers'
     ! operation-order differences produce ~1e-7 relative roundoff between the
     ! algebraically-identical entries. Tolerate that — anything larger is a
@@ -76,11 +75,11 @@ program test_ssa_energy
     ! ---- Assemble both matrices ----
     call linear_solver_matrix_ssa_ac_csr_2D(lgs_res,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic")
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic")
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     ! ---- Compare matrices entry-by-entry ----
     !
@@ -174,7 +173,7 @@ program test_ssa_energy
 
         call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
                     ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
-                    taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic")
+                    taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
         do j = 1, ny
         do i = 1, nx

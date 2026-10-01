@@ -99,7 +99,6 @@
     solver              = "impl-lis"
     grad_lim            = 0.5
     grad_lim_zb         = 0.5
-    margin2nd           = False
     front_subgrid       = "marine"          ! Subgrid ice fronts: "none" (binary f_ice), "floating", "marine" (floating + marine-grounded)
     front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)
     front_dHdx          = 0.0               ! [m/m] Thickness gradient assumed at a full front (front_subgrid)

@@ -248,13 +248,15 @@ contains
             ! Stagger beta 
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_bar,uy_bar, &
                         f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
-                        par%beta_method .ne. -1,par%boundaries)
+                        par%beta_method .ne. -1 .and. par%beta_gl_stag .ne. -1,par%boundaries)
             
             ! Calculate effective beta on ac-nodes from staggered beta and F2 (as in L19),
             ! so that ub = ubar/(1+beta*F2) and taub = beta*ub hold on each ac-node.
-            ! Note: beta_min applies to beta (via stagger_beta), not to beta_eff.
             call calc_beta_eff(beta_eff_acx,beta_acx,F2_acx,no_slip=par%no_slip)
             call calc_beta_eff(beta_eff_acy,beta_acy,F2_acy,no_slip=par%no_slip)
+
+            ! Friction used by the matrix (and taub): beta_min at grounded faces with beta_eff=0
+            call set_beta_min_grounded(beta_eff_acx,beta_eff_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
 
             ! Also calculate beta_eff on aa-nodes (diagnostic output only)
             call calc_beta_eff(beta_eff,beta,F2,no_slip=par%no_slip)
@@ -293,12 +295,12 @@ contains
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
                     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
                                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
                     call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
                                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
             end select
 
             ! Solve linear equation

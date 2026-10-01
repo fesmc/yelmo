@@ -32,7 +32,6 @@ program test_ssa_energy_lr_sym
 
     integer, parameter :: nx = 11, ny = 11
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp
-    real(wp), parameter :: beta_min = 0.0_wp
     real(wp), parameter :: tol_K = 1.0e-3_wp     ! abs tol on |K(n,c) - mirror|
     real(wp), parameter :: tol_b = 1.0e-3_wp     ! abs tol on |b(n) - mirror|
 
@@ -107,7 +106,7 @@ program test_ssa_energy_lr_sym
     ! the symmetry check.
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
                 ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic")
+                taul_int_acx, taul_int_acy, dx, dy,  "periodic")
     call check_lr_reflection(lgs, total_fail)
 
     ! ---------- Case B: horizontal ice strip, T<->B reflection ----------
@@ -135,7 +134,7 @@ program test_ssa_energy_lr_sym
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
                 ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic")
+                taul_int_acx, taul_int_acy, dx, dy,  "periodic")
     call check_tb_reflection(lgs, total_fail)
 
     ! ---------- Case C: square ice patch, both reflections at once ----------
@@ -173,7 +172,7 @@ program test_ssa_energy_lr_sym
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
                 ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "infinite")
+                taul_int_acx, taul_int_acy, dx, dy,  "infinite")
     call check_lr_reflection(lgs, total_fail)
     call check_tb_reflection(lgs, total_fail)
 

@@ -25,11 +25,14 @@ module mass_conservation
     public :: calc_G_front_advance
     public :: calc_G_calving_front
     public :: calc_G_lsf_front
+
+    ! [m] The front advance leaves the donor cell this much below H_eff (partial)
+    real(wp), parameter :: dH_small = 0.1_wp
     
 contains 
     
     subroutine check_mass_conservation(H_ice,f_ice,f_grnd,dHidt,mb_net,cmb,dHidt_dyn,smb,bmb,fmb,dmb, &
-                                                                mb_resid,dx,sec_year,time,dt,units,label)
+                                                                mb_resid,mb_clip,dx,sec_year,time,dt,units,label)
 
         implicit none
 
@@ -45,6 +48,7 @@ contains
         real(wp), intent(IN) :: fmb(:,:)
         real(wp), intent(IN) :: dmb(:,:)
         real(wp), intent(IN) :: mb_resid(:,:)
+        real(wp), intent(IN) :: mb_clip(:,:)            ! Clip of negative H after transport
         real(wp), intent(IN) :: dx 
         real(wp), intent(IN) :: sec_year
         real(wp), intent(IN) :: time
@@ -61,6 +65,7 @@ contains
         real(dp) :: tot_mb_net
         real(dp) :: tot_cmb
         real(dp) :: tot_dHidt_dyn
+        real(dp) :: tot_mb_clip
         real(dp) :: tot_gross
         real(dp) :: conv
         real(dp) :: resid
@@ -104,27 +109,28 @@ contains
         tot_mb_net      = sum(real(mb_net,dp))    * real(dx,dp)**2 * conv
         tot_cmb         = sum(real(cmb,dp))       * real(dx,dp)**2 * conv
         tot_dHidt_dyn   = sum(real(dHidt_dyn,dp)) * real(dx,dp)**2 * conv
+        tot_mb_clip     = sum(real(mb_clip,dp))   * real(dx,dp)**2 * conv
 
         ! Gross throughput: sum of the magnitudes of the same component fluxes
         ! per cell, so opposing fluxes do not cancel (non-zero at equilibrium)
-        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
+        tot_gross       = sum(abs(real(dHidt_dyn,dp))+abs(real(mb_clip,dp))+abs(real(mb_net,dp))+abs(real(cmb,dp))) &
                                                         * real(dx,dp)**2 * conv
 
         ! Get total of components and residual, absolute [units] and relative
         ! to the gross throughput
         ! (dHidt_dyn integrates to the net flux across the domain boundary,
         ! so it must be included for the budget to close)
-        tot_components = tot_dHidt_dyn + tot_mb_net + tot_cmb
+        tot_components = tot_dHidt_dyn + tot_mb_clip + tot_mb_net + tot_cmb
         resid          = tot_components - tot_dHidt
         resid_rel      = resid / max(tot_gross,tiny(tot_gross))
 
         flag = ""
         if (abs(resid_rel) .gt. tol_rel) flag = "FAIL"
 
-        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,3g13.4)") &
+        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,4g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
                     tot_dHidt, tot_components, resid, resid_rel, flag, " | ", &
-                    tot_dHidt_dyn, tot_mb_net, tot_cmb
+                    tot_dHidt_dyn, tot_mb_clip, tot_mb_net, tot_cmb
 
         return
 
@@ -687,8 +693,6 @@ contains
         integer  :: in(4), jn(4)
         real(wp) :: u_out(4), u_tot, dH_tot
 
-        real(wp), parameter :: dH_small = 0.1_wp       ! [m] Leaves the cell slightly below H_eff
-
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         BC = boundary_code(boundaries)
@@ -910,10 +914,13 @@ contains
 
     end subroutine calc_G_lsf_front
 
-    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries)
+    subroutine calc_G_remove_fractional_ice(mb_diff,H_ice,f_ice,tau,dt,boundaries,H_eff)
         ! Eliminate fractional ice covered points (icebergs) that have
         ! no fully ice-covered edge or diagonal neighbor, at the rate
         ! H/tau (all of it when dt >= tau). 
+        ! With H_eff (mass-balance calving with the front advance), a front
+        ! cell with H_ice >= H_eff - dH_small also counts as full: the advance
+        ! leaves the donor there, and its receiver must stay connected.
 
         implicit none 
 
@@ -923,11 +930,13 @@ contains
         real(wp), intent(IN)  :: tau                ! [yr] Removal timescale
         real(wp), intent(IN)  :: dt 
         character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN), optional :: H_eff(:,:)    ! [m] Effective thickness
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         real(wp), allocatable :: H_new(:,:) 
+        logical,  allocatable :: is_full(:,:)
         real(wp) :: f_rm 
         integer :: BC
 
@@ -938,8 +947,15 @@ contains
         BC = boundary_code(boundaries)
 
         allocate(H_new(nx,ny)) 
+        allocate(is_full(nx,ny))
 
         H_new = H_ice 
+
+        ! Cells that connect a fractional neighbour (partial cells are front cells;
+        ! factor 2 on dH_small: margin for round-off of the advance)
+        is_full = f_ice .eq. 1.0_wp
+        if (present(H_eff)) is_full = is_full .or. &
+                    (f_ice .gt. 0.0_wp .and. H_ice .ge. H_eff - 2.0_wp*dH_small)
 
         f_rm = 1.0_wp
         if (tau .gt. dt) f_rm = dt/tau
@@ -954,9 +970,8 @@ contains
             if (f_ice(i,j) .gt. 0.0 .and. f_ice(i,j) .lt. 1.0) then 
                 ! Fractional ice-covered point 
 
-                if ( count([f_ice(im1,j),f_ice(ip1,j),f_ice(i,jm1),f_ice(i,jp1), &
-                            f_ice(im1,jm1),f_ice(ip1,jm1),f_ice(im1,jp1),f_ice(ip1,jp1)] &
-                            .eq. 1.0) .eq. 0) then 
+                if ( count([is_full(im1,j),is_full(ip1,j),is_full(i,jm1),is_full(i,jp1), &
+                            is_full(im1,jm1),is_full(ip1,jm1),is_full(im1,jp1),is_full(ip1,jp1)]) .eq. 0) then 
                     ! No fully ice-covered neighbors available.
                     ! Point should be removed. 
 

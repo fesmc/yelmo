@@ -110,6 +110,8 @@ contains
         real(wp), allocatable :: visc_eff_nm1(:,:,:)
         real(wp), allocatable :: ux_b_nm1(:,:) 
         real(wp), allocatable :: uy_b_nm1(:,:)    
+        real(wp), allocatable :: beta_ssa_acx(:,:)    ! beta used by the matrix
+        real(wp), allocatable :: beta_ssa_acy(:,:)
         
         integer,  allocatable :: ssa_mask_acx_ref(:,:)
         integer,  allocatable :: ssa_mask_acy_ref(:,:)
@@ -137,6 +139,10 @@ contains
         allocate(visc_eff_nm1(nx,ny,nz_aa))
         allocate(ux_b_nm1(nx,ny))
         allocate(uy_b_nm1(nx,ny))
+        allocate(beta_ssa_acx(nx,ny))
+        allocate(beta_ssa_acy(nx,ny))
+        beta_ssa_acx = beta_acx     ! (set in each iteration below)
+        beta_ssa_acy = beta_acy
         
         allocate(ssa_mask_acx_ref(nx,ny))
         allocate(ssa_mask_acy_ref(nx,ny))
@@ -247,7 +253,13 @@ contains
             ! Stagger beta
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_b,uy_b, &
                         f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
-                        par%beta_method .ne. -1,par%boundaries)
+                        par%beta_method .ne. -1 .and. par%beta_gl_stag .ne. -1,par%boundaries)
+
+            ! Friction used by the matrix: beta_min at grounded faces with beta=0
+            ! (a copy, so that an imposed beta_acx/acy is not modified)
+            beta_ssa_acx = beta_acx
+            beta_ssa_acy = beta_acy
+            call set_beta_min_grounded(beta_ssa_acx,beta_ssa_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
 
 
             ! =========================================================================================
@@ -261,14 +273,14 @@ if (.TRUE.) then
             select case(trim(par%ssa_solver))
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
-                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_acx,beta_acy,visc_eff_int,  &
+                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
                                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
-                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_acx,beta_acy,visc_eff_int,  &
+                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
                                 ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
             end select
 
             ! Solve linear equation
@@ -350,7 +362,7 @@ end if
         end if 
 
         ! Diagnose basal stress 
-        call calc_basal_stress(taub_acx,taub_acy,beta_acx,beta_acy,ux_b,uy_b)
+        call calc_basal_stress(taub_acx,taub_acy,beta_ssa_acx,beta_ssa_acy,ux_b,uy_b)
         
         if (par%visc_method .eq. 0) then 
             ! Diagnose viscosity for visc_method=0 (not used prognostically)
