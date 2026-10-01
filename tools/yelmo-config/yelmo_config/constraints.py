@@ -51,6 +51,22 @@ class EnumConstraint:
         return bool(self.conditions)
 
 
+def _guard_holds(when_name, when_value, when_contains, gmap: dict) -> bool:
+    """Whether a `when_*` guard holds for the given config (no guard: True)."""
+    if when_name is None:
+        return True
+    from . import namelist as _nl
+    raw = gmap.get(when_name)
+    if raw is None:
+        return False
+    val = _nl.normalize(raw)
+    if when_value is not None:
+        return str(val) == when_value
+    if when_contains is not None:
+        return when_contains in str(val)
+    return True
+
+
 @dataclass
 class RangeConstraint:
     group: str
@@ -60,6 +76,13 @@ class RangeConstraint:
     min_inclusive: bool = True
     max_inclusive: bool = True
     note: str = ""
+    when_name: str | None = None
+    when_value: str | None = None       # guard holds when when_name == when_value
+    when_contains: str | None = None    # guard holds when when_name contains this substring
+
+    def guard_holds(self, gmap: dict) -> bool:
+        """Whether this range check applies for the given config."""
+        return _guard_holds(self.when_name, self.when_value, self.when_contains, gmap)
 
     def violates(self, value) -> bool:
         try:
@@ -88,18 +111,7 @@ class OrderConstraint:
 
     def guard_holds(self, gmap: dict) -> bool:
         """Whether this ordering check applies for the given config."""
-        if self.when_name is None:
-            return True
-        from . import namelist as _nl
-        raw = gmap.get(self.when_name)
-        if raw is None:
-            return False
-        val = _nl.normalize(raw)
-        if self.when_value is not None:
-            return str(val) == self.when_value
-        if self.when_contains is not None:
-            return self.when_contains in str(val)
-        return True
+        return _guard_holds(self.when_name, self.when_value, self.when_contains, gmap)
 
     def satisfied(self, lval, rval) -> bool:
         try:
@@ -298,6 +310,8 @@ def _load_toml(path: Path) -> tuple[list, list]:
             min_inclusive=r.get("min_inclusive", True),
             max_inclusive=r.get("max_inclusive", True),
             note=r.get("note", ""),
+            when_name=r.get("when_name"), when_value=r.get("when_value"),
+            when_contains=r.get("when_contains"),
         )
         for r in data.get("range", [])
     ]

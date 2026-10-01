@@ -56,6 +56,94 @@ min = 2
 min_inclusive = true
 note = "must be >= 2"
 
+[[range]]
+group = "yelmo"
+name = "pc_cfl_max"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+note = "must be in (0, 1]"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_H_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_u_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_trim"
+min = 0.0
+max = 0.5
+min_inclusive = true
+max_inclusive = false
+note = "must be in [0, 0.5)"
+
+[[range]]
+group = "ytopo"
+name = "front_H_eff_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ytopo"
+name = "front_dHdx"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ycalv"
+name = "H_min_tau"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ycalv"
+name = "tau_ice_flt"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ycalv"
+name = "tau_ice_grnd"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+# Conditional ranges: enforced only when the guard holds (as for [[order]] below).
+[[range]]
+group = "ydyn"
+name = "gamma_T"
+min = 0.0
+min_inclusive = false
+when_name = "slide_T"
+when_value = "True"
+note = "must be > 0 with slide_T = True"
+
+[[range]]
+group = "ydyn"
+name = "lambda_min"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+when_name = "slide_T"
+when_value = "True"
+note = "must be in (0, 1] with slide_T = True"
+
 # --- ordering checks: `left` `op` `right` (both in the same group) ---
 # op is one of  lt (<) | le (<=) | gt (>) | ge (>=)
 [[order]]

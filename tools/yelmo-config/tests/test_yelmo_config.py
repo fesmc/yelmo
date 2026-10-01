@@ -229,6 +229,18 @@ def test_order_guard_holds():
     assert OrderConstraint("ymat", "a", "lt", "b").guard_holds({})  # unconditional
 
 
+def test_range_guard():
+    schema = make_schema()
+    schema.constraints.ranges.append(
+        RangeConstraint("ydyn", "beta_q", min=0.0, min_inclusive=False,
+                        when_name="solver", when_value="diva", note="must be > 0"))
+    base = '&yelmo\n domain="A"\n grid_name="g"\n/\n'
+    off = check(nl.parse_string(base + '&ydyn\n solver="sia"\n beta_q=-1.0\n/\n'), schema)
+    assert off.ok                                   # guard fails -> not enforced
+    on = check(nl.parse_string(base + '&ydyn\n solver="diva"\n beta_q=-1.0\n/\n'), schema)
+    assert any(i.name == "beta_q" for i in on.errors)
+
+
 def test_enum_maybe_applies():
     from yelmo_config.constraints import EnumConstraint
     ec = EnumConstraint("ycalv", "m", ["a"], conditions=[("use_lsf", True)])

@@ -137,6 +137,8 @@ def check(user: nl.Namelist, schema: Schema, *,
         gmap = eff.get(rc.group)
         if not gmap or rc.name not in gmap:
             continue
+        if not rc.guard_holds(gmap):
+            continue
         val = nl.normalize(gmap[rc.name])
         if rc.violates(val):
             rep.issues.append(Issue(
