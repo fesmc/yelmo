@@ -233,6 +233,15 @@ module yelmo_defs
         real(wp), allocatable :: cmb_flt(:,:)
         real(wp), allocatable :: cmb_grnd(:,:)  
         real(wp), allocatable :: lsf(:,:)
+        ! Calving-rate diagnostics of the level set (stage-consistent output)
+        real(wp), allocatable :: cmb_flt_x(:,:)
+        real(wp), allocatable :: cmb_flt_y(:,:)
+        real(wp), allocatable :: cmb_grnd_x(:,:)
+        real(wp), allocatable :: cmb_grnd_y(:,:)
+        real(wp), allocatable :: cr_acx(:,:)
+        real(wp), allocatable :: cr_acy(:,:)
+        real(wp), allocatable :: calv_rate_flt(:,:)
+        real(wp), allocatable :: calv_rate_grnd(:,:)
 
     end type
 

@@ -398,6 +398,14 @@ end if
                     tpo%now%pred%cmb_flt    = tpo%now%cmb_flt 
                     tpo%now%pred%cmb_grnd   = tpo%now%cmb_grnd
                     tpo%now%pred%lsf        = tpo%now%lsf 
+                    tpo%now%pred%cmb_flt_x      = tpo%now%cmb_flt_x
+                    tpo%now%pred%cmb_flt_y      = tpo%now%cmb_flt_y
+                    tpo%now%pred%cmb_grnd_x     = tpo%now%cmb_grnd_x
+                    tpo%now%pred%cmb_grnd_y     = tpo%now%cmb_grnd_y
+                    tpo%now%pred%cr_acx         = tpo%now%cr_acx
+                    tpo%now%pred%cr_acy         = tpo%now%cr_acy
+                    tpo%now%pred%calv_rate_flt  = tpo%now%calv_rate_flt
+                    tpo%now%pred%calv_rate_grnd = tpo%now%calv_rate_grnd
                     
                 case("corrector")
                     ! Determine corrected ice thickness 
@@ -417,6 +425,14 @@ end if
                     tpo%now%corr%cmb_flt    = tpo%now%cmb_flt 
                     tpo%now%corr%cmb_grnd   = tpo%now%cmb_grnd
                     tpo%now%corr%lsf        = tpo%now%lsf
+                    tpo%now%corr%cmb_flt_x      = tpo%now%cmb_flt_x
+                    tpo%now%corr%cmb_flt_y      = tpo%now%cmb_flt_y
+                    tpo%now%corr%cmb_grnd_x     = tpo%now%cmb_grnd_x
+                    tpo%now%corr%cmb_grnd_y     = tpo%now%cmb_grnd_y
+                    tpo%now%corr%cr_acx         = tpo%now%cr_acx
+                    tpo%now%corr%cr_acy         = tpo%now%cr_acy
+                    tpo%now%corr%calv_rate_flt  = tpo%now%calv_rate_flt
+                    tpo%now%corr%calv_rate_grnd = tpo%now%calv_rate_grnd
                     
                     ! Restore main ice thickness field to original 
                     ! value at the beginning of the timestep for 
@@ -452,6 +468,14 @@ end if
                         tpo%now%cmb_flt     = tpo%now%pred%cmb_flt
                         tpo%now%cmb_grnd    = tpo%now%pred%cmb_grnd
                         tpo%now%lsf         = tpo%now%pred%lsf 
+                        tpo%now%cmb_flt_x      = tpo%now%pred%cmb_flt_x
+                        tpo%now%cmb_flt_y      = tpo%now%pred%cmb_flt_y
+                        tpo%now%cmb_grnd_x     = tpo%now%pred%cmb_grnd_x
+                        tpo%now%cmb_grnd_y     = tpo%now%pred%cmb_grnd_y
+                        tpo%now%cr_acx         = tpo%now%pred%cr_acx
+                        tpo%now%cr_acy         = tpo%now%pred%cr_acy
+                        tpo%now%calv_rate_flt  = tpo%now%pred%calv_rate_flt
+                        tpo%now%calv_rate_grnd = tpo%now%pred%calv_rate_grnd
                         
                     else
                         ! Load corrector fields in current state variables
@@ -469,6 +493,14 @@ end if
                         tpo%now%cmb_flt     = tpo%now%corr%cmb_flt
                         tpo%now%cmb_grnd    = tpo%now%corr%cmb_grnd
                         tpo%now%lsf         = tpo%now%corr%lsf
+                        tpo%now%cmb_flt_x      = tpo%now%corr%cmb_flt_x
+                        tpo%now%cmb_flt_y      = tpo%now%corr%cmb_flt_y
+                        tpo%now%cmb_grnd_x     = tpo%now%corr%cmb_grnd_x
+                        tpo%now%cmb_grnd_y     = tpo%now%corr%cmb_grnd_y
+                        tpo%now%cr_acx         = tpo%now%corr%cr_acx
+                        tpo%now%cr_acy         = tpo%now%corr%cr_acy
+                        tpo%now%calv_rate_flt  = tpo%now%corr%calv_rate_flt
+                        tpo%now%calv_rate_grnd = tpo%now%corr%calv_rate_grnd
 
                     end if
 
@@ -1141,8 +1173,9 @@ end if
         end select 
 
         ! Diagnostic: calving speed of the front [m/yr], the magnitude of the face
-        ! rates averaged to the cell centre, at front cells (ice cells with an
-        ! ice-free ocean edge neighbour), floating (f_grnd = 0) or grounded
+        ! rates the level set used (cr_acx/cr_acy, law chosen by the face f_grnd_acx/acy)
+        ! averaged to the cell centre, at front cells (ice cells with an ice-free
+        ! ocean edge neighbour), floating (f_grnd = 0) or grounded
         tpo%now%calv_rate_flt  = 0.0_wp
         tpo%now%calv_rate_grnd = 0.0_wp
 
@@ -1155,13 +1188,11 @@ end if
                 ( is_ocean(im1,j) .or. is_ocean(ip1,j) .or. is_ocean(i,jm1) .or. is_ocean(i,jp1) )
 
             if (is_front) then
+                cr_x = 0.5_wp*(tpo%now%cr_acx(im1,j)+tpo%now%cr_acx(i,j))
+                cr_y = 0.5_wp*(tpo%now%cr_acy(i,jm1)+tpo%now%cr_acy(i,j))
                 if (tpo%now%f_grnd(i,j) .eq. 0.0_wp) then
-                    cr_x = 0.5_wp*(tpo%now%cmb_flt_x(im1,j)+tpo%now%cmb_flt_x(i,j))
-                    cr_y = 0.5_wp*(tpo%now%cmb_flt_y(i,jm1)+tpo%now%cmb_flt_y(i,j))
                     tpo%now%calv_rate_flt(i,j)  = sqrt(cr_x**2 + cr_y**2)
                 else
-                    cr_x = 0.5_wp*(tpo%now%cmb_grnd_x(im1,j)+tpo%now%cmb_grnd_x(i,j))
-                    cr_y = 0.5_wp*(tpo%now%cmb_grnd_y(i,jm1)+tpo%now%cmb_grnd_y(i,j))
                     tpo%now%calv_rate_grnd(i,j) = sqrt(cr_x**2 + cr_y**2)
                 end if
             end if
@@ -2042,6 +2073,14 @@ end if
         allocate(pc%cmb_flt(nx,ny))
         allocate(pc%cmb_grnd(nx,ny))
         allocate(pc%lsf(nx,ny))
+        allocate(pc%cmb_flt_x(nx,ny))
+        allocate(pc%cmb_flt_y(nx,ny))
+        allocate(pc%cmb_grnd_x(nx,ny))
+        allocate(pc%cmb_grnd_y(nx,ny))
+        allocate(pc%cr_acx(nx,ny))
+        allocate(pc%cr_acy(nx,ny))
+        allocate(pc%calv_rate_flt(nx,ny))
+        allocate(pc%calv_rate_grnd(nx,ny))
         
         ! Initialize to zero
         pc%H_ice        = 0.0
@@ -2058,6 +2097,14 @@ end if
         pc%cmb_flt      = 0.0 
         pc%cmb_grnd     = 0.0
         pc%lsf          = 0.0            
+        pc%cmb_flt_x      = 0.0
+        pc%cmb_flt_y      = 0.0
+        pc%cmb_grnd_x     = 0.0
+        pc%cmb_grnd_y     = 0.0
+        pc%cr_acx         = 0.0
+        pc%cr_acy         = 0.0
+        pc%calv_rate_flt  = 0.0
+        pc%calv_rate_grnd = 0.0
         
         return
 
@@ -2083,6 +2130,14 @@ end if
         if (allocated(pc%cmb_flt))      deallocate(pc%cmb_flt)
         if (allocated(pc%cmb_grnd))     deallocate(pc%cmb_grnd)
         if (allocated(pc%lsf))          deallocate(pc%lsf)
+        if (allocated(pc%cmb_flt_x)) deallocate(pc%cmb_flt_x)
+        if (allocated(pc%cmb_flt_y)) deallocate(pc%cmb_flt_y)
+        if (allocated(pc%cmb_grnd_x)) deallocate(pc%cmb_grnd_x)
+        if (allocated(pc%cmb_grnd_y)) deallocate(pc%cmb_grnd_y)
+        if (allocated(pc%cr_acx)) deallocate(pc%cr_acx)
+        if (allocated(pc%cr_acy)) deallocate(pc%cr_acy)
+        if (allocated(pc%calv_rate_flt)) deallocate(pc%calv_rate_flt)
+        if (allocated(pc%calv_rate_grnd)) deallocate(pc%calv_rate_grnd)
         
         return
 
