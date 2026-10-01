@@ -186,12 +186,10 @@ module yelmo_defs
 
         ! Internal parameters 
         real(dp)           :: time 
-        real(dp)           :: time_calv
         integer            :: nx, ny
         real(wp)           :: dx, dy
         character(len=256) :: boundaries 
         
-        character(len=256) :: pc_step 
         real(wp)   :: dt_zeta, dt_beta(4)
         integer    :: pc_k 
 

@@ -35,13 +35,10 @@ module topography
     public :: calc_front_cells
     public :: calc_ice_front
 
-    public :: calc_z_srf
     public :: calc_z_srf_max
-    public :: calc_z_srf_gl_subgrid_area
     public :: calc_H_eff
     public :: calc_H_grnd
     public :: calc_H_af
-    public :: calc_f_grnd_subgrid_area_aa
     public :: calc_f_grnd_subgrid_area
     public :: calc_f_grnd_subgrid_linear
     public :: calc_f_grnd_pinning_points
@@ -195,98 +192,6 @@ contains
 
     end subroutine gen_mask_bed
 
-    subroutine find_connected_mask(mask,mask_ref,mask_now,boundaries)
-        ! Brute-force routine to find all points 
-        ! that touch or are connected with other points in a mask.
-        ! Here use to find any floating ice points that are
-        ! not connected to grounded ice or ice-free land. 
-
-        ! AJR: TO DO, this routine is not ready!!!
-
-        implicit none 
-
-        logical, intent(INOUT) :: mask(:,:)         ! Connected points of interest
-        logical, intent(IN)    :: mask_ref(:,:)     ! Points to be connected to
-        logical, intent(IN)    :: mask_now(:,:)     ! Points of interest
-        character(len=*), intent(IN) :: boundaries
-    
-        ! Local variables 
-        integer :: i, j, q, nx, ny
-        integer :: im1, ip1, jm1, jp1 
-        integer :: n_unfilled 
-        integer :: BC
-
-        logical, allocatable :: mask0(:,:) 
-
-        integer, parameter :: qmax = 1000 
-
-        nx = size(mask,1)
-        ny = size(mask,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Allocate local mask object for diagnosing points of interest
-        allocate(mask0(nx,ny))
-
-        ! Initially assume all points are unconnected
-        mask = .FALSE. 
-
-        ! Set purely land points to zero 
-        where (mask_ref .and. mask_now) mask = .TRUE. 
-
-        ! Iteratively fill in open-ocean points that are found
-        ! next to known open-ocean points
-        do q = 1, qmax 
-
-            n_unfilled = 0 
-
-            do j = 1, ny 
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                if (mask_now(i,j)) then 
-                    ! This is a point of interest
-                    ! Define any neighbor points of interest as connected
-
-                    if (mask_now(im1,j)) then 
-                        mask(im1,j) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                    if (mask_now(ip1,j)) then 
-                        mask(ip1,j) = .TRUE. 
-                        n_unfilled = n_unfilled + 1
-                    end if
-
-                    if (mask_now(i,jm1)) then 
-                        mask(i,jm1) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                    if (mask_now(i,jp1)) then 
-                        mask(i,jp1) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                end if
-                    
-            end do 
-            end do  
-
-            !write(*,*) q, n_unfilled, count(mask .eq. -1) 
-
-            ! Exit loop if no more open-ocean points are found 
-            if (n_unfilled .eq. 0) exit 
-
-        end do 
-
-        return 
-
-    end subroutine find_connected_mask
-    
     subroutine calc_ice_fraction(f_ice,H_eff,H_ice,z_bed,z_sl,rho_ice,rho_sw, &
                                     front_subgrid,H_eff_min,dHdx,dx,boundaries)
         ! Ice area fraction f_ice and effective thickness H_eff of each cell,
@@ -841,46 +746,6 @@ contains
 
     end subroutine calc_ice_front
 
-    elemental subroutine calc_z_srf(z_srf,H_ice,f_ice,H_grnd,z_bed,z_sl,rho_ice,rho_sw)
-        ! Calculate surface elevation
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: z_srf
-        real(wp), intent(IN)    :: H_ice
-        real(wp), intent(IN)    :: f_ice
-        real(wp), intent(IN)    :: H_grnd
-        real(wp), intent(IN)    :: z_bed
-        real(wp), intent(IN)    :: z_sl
-        real(wp), intent(IN)    :: rho_ice 
-        real(wp), intent(IN)    :: rho_sw
-        
-        ! Local variables 
-        real(wp) :: rho_ice_sw
-        real(wp)   :: H_eff 
-
-        rho_ice_sw = rho_ice/rho_sw ! Ratio of density of ice to seawater [--]
-        
-        ! Get effective ice thickness
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-        ! Update the surface elevation based on z_bed, H_ice and overburden ice thickness 
-        if (H_grnd .gt. 0.0) then 
-            ! Grounded ice or ice-free land
-
-            z_srf = z_bed + H_eff 
-
-        else
-            ! Floating ice or open ocean
-
-            z_srf = z_sl + (1.0-rho_ice_sw)*H_eff
-
-        end if 
-        
-        return 
-
-    end subroutine calc_z_srf
-
     elemental subroutine calc_z_srf_max(z_srf,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw)
         ! Calculate surface elevation
         ! Adapted from Pattyn (2017), Eq. 1
@@ -911,101 +776,6 @@ contains
         return 
 
     end subroutine calc_z_srf_max
-
-    subroutine calc_z_srf_gl_subgrid_area(z_srf,f_grnd,H_ice,f_ice,z_bed,z_sl,gz_nx,rho_ice,rho_sw,boundaries)
-        ! Interpolate variables at grounding line to subgrid level to 
-        ! calculate the average z_srf value for the aa-node cell
-
-        implicit none
-        
-        real(wp), intent(OUT) :: z_srf(:,:)       ! aa-nodes 
-        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: z_bed(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
-        integer,  intent(IN)  :: gz_nx            ! Number of interpolation points per side (nx*nx)
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: rho_sw
-        character(len=*), intent(IN) :: boundaries
-    
-        ! Local variables
-        integer  :: i, j, nx, ny 
-        integer  :: im1, ip1, jm1, jp1
-        real(wp) :: H_eff 
-        real(wp) :: f_grnd_neighb(4) 
-        logical  :: is_grline 
-        integer  :: BC
-
-        real(wp), allocatable :: z_srf_int(:,:) 
-        real(wp), allocatable :: H_ice_int(:,:)
-        real(wp), allocatable :: f_ice_int(:,:)  
-        real(wp), allocatable :: z_bed_int(:,:) 
-        real(wp), allocatable :: z_sl_int(:,:) 
-        
-        nx = size(z_srf,1)
-        ny = size(z_srf,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Allocate the subgrid arrays 
-        allocate(z_srf_int(gz_nx,gz_nx))
-        allocate(H_ice_int(gz_nx,gz_nx))
-        allocate(f_ice_int(gz_nx,gz_nx))
-        allocate(z_bed_int(gz_nx,gz_nx))
-        allocate(z_sl_int(gz_nx,gz_nx))
-        
-        ! ajr: assume f_ice_int=1 everywhere this is used for now. 
-        ! Needs to be fixed in the future potentially. 
-        f_ice_int = 1.0_wp 
-
-        write(*,*) "calc_z_srf_gl_subgrid_area:: routine not ready for f_ice values. Fix!"
-        stop 
-        
-        ! Calculate the surface elevation based on whole grid values,
-        ! except at the grounding line which is treated with subgrid interpolations. 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,f_grnd_neighb,is_grline,H_ice_int,z_bed_int,z_sl_int,z_srf_int)
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            f_grnd_neighb = [f_grnd(im1,j),f_grnd(ip1,j),f_grnd(i,jm1),f_grnd(i,jp1)]
-
-            if ( is_equal(f_grnd(i,j),0.0_wp) .and. count(f_grnd_neighb .gt. 0.0).gt.0) then
-                is_grline = .TRUE. 
-            else if (f_grnd(i,j) .gt. 0.0 .and. count((abs(f_grnd_neighb-0.0_wp).lt.TOL)).gt.0 ) then
-                is_grline = .TRUE. 
-            else 
-                is_grline = .FALSE. 
-            end if 
-
-            if ( is_grline .and. is_equal(f_ice(i,j),1.0_wp) ) then 
-                ! Only treat grounding line points that are fully ice-covered:  
-                ! Perform subgrid calculations 
-
-                ! Calculate subgrid values for this cell
-                call calc_subgrid_array(H_ice_int,H_ice,gz_nx,i,j,im1,ip1,jm1,jp1)
-                call calc_subgrid_array(z_bed_int,z_bed,gz_nx,i,j,im1,ip1,jm1,jp1)
-                call calc_subgrid_array(z_sl_int, z_sl, gz_nx,i,j,im1,ip1,jm1,jp1)
-                
-                ! Calculate subgrid surface elevations
-                call calc_z_srf_max(z_srf_int,H_ice_int,f_ice_int,z_bed_int,z_sl_int,rho_ice,rho_sw)
-
-                ! Calculate full grid z_srf value as the mean of subgrid values 
-                z_srf(i,j) = sum(z_srf_int) / real(gz_nx*gz_nx,wp)
-
-            end if 
-
-        end do 
-        end do
-        !$omp end parallel do
-
-        return
-        
-    end subroutine calc_z_srf_gl_subgrid_area
 
     elemental subroutine calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero)
         ! Calculate ice-thickness, scaled at margins to actual thickness
@@ -1133,65 +903,6 @@ contains
 
     end subroutine calc_H_af
 
-    subroutine calc_f_grnd_subgrid_area_aa(f_grnd,H_grnd,gz_nx,boundaries)
-        ! Use H_grnd to determined grounded area fraction of grid point.
-
-        implicit none
-        
-        real(wp), intent(OUT) :: f_grnd(:,:)        ! aa-nodes 
-        real(wp), intent(IN)  :: H_grnd(:,:)        ! aa-nodes
-        integer,  intent(IN)  :: gz_nx              ! Number of interpolation points per side (nx*nx)
-        character(len=*), intent(IN) :: boundaries
-
-        ! Local variables
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_nb(9)
-        real(wp) :: Hg_int(gz_nx,gz_nx)
-        integer  :: BC
-
-        !integer, parameter :: nx_interp = 15
-
-        nx = size(H_grnd,1)
-        ny = size(H_grnd,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! First binary estimate of f_grnd based on aa-nodes
-        f_grnd = 1.0
-        where (H_grnd .lt. 0.0) f_grnd = 0.0
-        
-        ! Find grounding line cells and determine fraction 
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
-            ! empty where the neighbor indices wrap around the domain)
-            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
-                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
-                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
-
-            if (maxval(Hg_nb) .ge. 0.0 .and. minval(Hg_nb) .lt. 0.0) then
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array(Hg_int, H_grnd,gz_nx,i,j,im1,ip1,jm1,jp1)
-                
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            end if 
-
-        end do 
-        end do 
-
-        return
-        
-    end subroutine calc_f_grnd_subgrid_area_aa
-    
     subroutine calc_f_grnd_subgrid_area(f_grnd,f_grnd_acx,f_grnd_acy,H_grnd,gz_nx,boundaries)
         ! Use H_grnd to determined grounded area fraction of grid point.
 

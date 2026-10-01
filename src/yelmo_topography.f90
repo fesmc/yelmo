@@ -162,7 +162,6 @@ end if
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_raw_n
 
                     ! Apply rate and update ice thickness (predicted)
-                    ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_pred",adjust_mb=.TRUE.)
 
@@ -193,7 +192,6 @@ end if
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
                     ! Apply rate and update ice thickness (corrected)
-                    ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
                     tpo%now%lsf   = tpo%now%lsf_n
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.)
@@ -270,7 +268,7 @@ end if
                     ! === dmb =====
 
                     call calc_mb_discharge(tpo%now%dmb_ref,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed_sd,tpo%now%dist_grline, &
-                                tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
+                                tpo%now%dist_margin,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
                                 tpo%par%dmb_tau,tpo%par%dmb_sigma_ref,tpo%par%dmb_m_d,tpo%par%dmb_m_r)
                     
                     call calc_G_mbal(tpo%now%dmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%dmb_ref,dt)
@@ -1000,8 +998,6 @@ end if
         end do
 
         ! === LSF advection ===
-        ! Store previous lsf mask. Necessary to avoid compute it two times.
-        tpo%now%lsf_n = tpo%now%lsf
         ! Use "infinite" (Neumann-zero) boundaries for the LSF advection
         ! regardless of the model-wide tpo%par%boundaries: the LSF is a
         ! signed-distance field that must continue smoothly outside the
@@ -1231,14 +1227,7 @@ end if
 
         ! 2. Calculate additional topographic properties ------------------
 
-        ! Calculate the ice thickness gradient (on staggered acx/y nodes)
-        !call calc_gradient_ac(tpo%now%dHidx,tpo%now%dHidy,tpo%now%H_ice,tpo%par%dx)
-        ! call calc_gradient_ac_ice(tpo%now%dHidx,tpo%now%dHidy,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dx, &
-        !                                         tpo%par%margin2nd,tpo%par%grad_lim,tpo%par%boundaries,zero_outside=.TRUE.)
-        
-        ! Calculate the surface slope
-        ! call calc_gradient_ac(tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%z_srf,tpo%par%dx)
-
+        ! Calculate the surface slope and the ice thickness gradient (on staggered acx/y nodes)
         call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
         call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
@@ -1660,7 +1649,6 @@ end if
         
         ! Define current time as unrealistic value
         par%time      = 1000000000   ! [a] 1 billion years in the future 
-        par%time_calv = par%time 
 
         ! Intialize timestepping parameters to Forward Euler (beta2=beta4=0: no contribution from previous timestep)
         par%dt_zeta     = 1.0 
@@ -1670,7 +1658,6 @@ end if
         par%dt_beta(4)  = 0.0 
 
         ! Set some additional values to start out right
-        par%pc_step    = "predictor"
         par%speed      = 0.0_wp 
         par%cpu_step   = 0.0d0
 
