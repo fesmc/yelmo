@@ -30,7 +30,7 @@ $(objdir)/ice_optimization.o: $(libdir)/ice_optimization.f90 $(objdir)/yelmo_def
 ## INTERNAL PHYSICS LIBRARIES ###############################
 
 $(objdir)/basal_dragging.o: $(srcdir)/physics/basal_dragging.f90 $(objdir)/yelmo_defs.o \
-							$(objdir)/yelmo_tools.o $(objdir)/topography.o
+							$(objdir)/yelmo_tools.o $(objdir)/topography.o $(objdir)/deformation.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/calving_aa.o: $(srcdir)/physics/calving/calving_aa.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o

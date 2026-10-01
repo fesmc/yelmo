@@ -793,12 +793,17 @@ end if
                 c_y = - ( (1.0-zeta_aa(k))*dzbdy(i,j) + zeta_aa(k)*dzsdy(i,j))
 
                 ! Get cross correction terms too 
-                dzbdx_acy = 0.25*(dzbdx(i,j)+dzbdx(i,jp1)+dzbdx(im1,j)+dzbdx(im1,jp1))
-                dzsdx_acy = 0.25*(dzsdx(i,j)+dzsdx(i,jp1)+dzsdx(im1,j)+dzsdx(im1,jp1))
+                ! (means over the faces with a solution only)
+                dzbdx_acy = mean4_active(dzbdx(i,j),dzbdx(i,jp1),dzbdx(im1,j),dzbdx(im1,jp1), &
+                                act_acx(i,j),act_acx(i,jp1),act_acx(im1,j),act_acx(im1,jp1))
+                dzsdx_acy = mean4_active(dzsdx(i,j),dzsdx(i,jp1),dzsdx(im1,j),dzsdx(im1,jp1), &
+                                act_acx(i,j),act_acx(i,jp1),act_acx(im1,j),act_acx(im1,jp1))
                 c_x_acy = - ( (1.0-zeta_aa(k))*dzbdx_acy + zeta_aa(k)*dzsdx_acy)
 
-                dzbdy_acx = 0.25*(dzbdy(i,j)+dzbdy(ip1,j)+dzbdy(i,jm1)+dzbdy(ip1,jm1))
-                dzsdy_acx = 0.25*(dzsdy(i,j)+dzsdy(ip1,j)+dzsdy(i,jm1)+dzsdy(ip1,jm1))
+                dzbdy_acx = mean4_active(dzbdy(i,j),dzbdy(ip1,j),dzbdy(i,jm1),dzbdy(ip1,jm1), &
+                                act_acy(i,j),act_acy(ip1,j),act_acy(i,jm1),act_acy(ip1,jm1))
+                dzsdy_acx = mean4_active(dzsdy(i,j),dzsdy(ip1,j),dzsdy(i,jm1),dzsdy(ip1,jm1), &
+                                act_acy(i,j),act_acy(ip1,j),act_acy(i,jm1),act_acy(ip1,jm1))
                 c_y_acx = - ( (1.0-zeta_aa(k))*dzbdy_acx + zeta_aa(k)*dzsdy_acx)
 
 if (.FALSE.) then
@@ -1763,6 +1768,29 @@ end if
         end if
 
     end function deriv_active
+
+    elemental function mean4_active(v1,v2,v3,v4,act1,act2,act3,act4) result(v)
+        ! Mean of four face values over the faces that carry a solution
+        ! (zero if none does)
+
+        implicit none
+
+        real(wp), intent(IN) :: v1, v2, v3, v4
+        logical,  intent(IN) :: act1, act2, act3, act4
+        real(wp) :: v
+
+        integer :: n
+
+        n = count([act1,act2,act3,act4])
+
+        if (n .gt. 0) then
+            v = ( merge(v1,0.0_wp,act1) + merge(v2,0.0_wp,act2) &
+                + merge(v3,0.0_wp,act3) + merge(v4,0.0_wp,act4) ) / real(n,wp)
+        else
+            v = 0.0_wp
+        end if
+
+    end function mean4_active
 
     subroutine calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
         ! Get simple horizontal derivatives with sigma corrections
