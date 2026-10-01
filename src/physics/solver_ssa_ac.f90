@@ -467,6 +467,9 @@ contains
 
                 beta_now = beta_acx(i,j)
                 if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0) beta_now = beta_min
+                ! Front treated as inner ssa: only the ice half of the face's
+                ! control area has drag (as in the energy assembler)
+                if (ssa_mask_acx(i,j) .eq. 4) beta_now = 0.5_wp*beta_now
 
                 if (ssa_mask_acx(i,j) .eq. 1) then
                     n_grnd_x = n_grnd_x + 1
@@ -755,6 +758,9 @@ contains
 
                 beta_now = beta_acy(i,j)
                 if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0) beta_now = beta_min
+                ! Front treated as inner ssa: only the ice half of the face's
+                ! control area has drag (as in the energy assembler)
+                if (ssa_mask_acy(i,j) .eq. 4) beta_now = 0.5_wp*beta_now
 
                 if (ssa_mask_acy(i,j) .eq. 1) then
                     n_grnd_y = n_grnd_y + 1
@@ -861,7 +867,7 @@ contains
         ! mask = 1: shelfy-stream ssa calculated 
         ! mask = 2: shelf ssa calculated 
         ! mask = 3: ssa lateral boundary condition applied
-        ! mask = 4: ssa lateral boundary, but treated as inner ssa
+        ! mask = 4: ssa lateral boundary, but treated as inner ssa (half drag)
 
         implicit none 
         
