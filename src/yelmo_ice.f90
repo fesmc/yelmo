@@ -32,7 +32,7 @@ module yelmo_ice
     implicit none 
 
     private
-    public :: yelmo_init, yelmo_init_topo, yelmo_init_state
+    public :: yelmo_init, yelmo_init_topo, yelmo_init_state, yelmo_restart_init
     public :: yelmo_update, yelmo_update_equil, yelmo_end
     public :: yelmo_print_bound, yelmo_set_time
 
@@ -1466,18 +1466,9 @@ contains
         call yhyd_init_state(dom%hyd,dom%bnd,dom%tpo,time)
 
         if (dom%par%use_restart) then
-            ! Load variables from a restart file
+            ! Load the model state from a restart file
 
-            call yelmo_restart_read(dom,trim(dom%par%restart),time)
-
-            ! And ensure pc is already active
-            dom%time%pc_active = .TRUE.
-
-            ! Initialize the passive-tracer backends from their restart sidecars.
-            ! euler's t_dep_euler was just read above; elsa reloads its layer stack;
-            ! tracer cold-starts (tracer_read not yet implemented upstream).
-            dom%trc%par%time = dble(time)
-            call ytrc_init(dom%trc,dom%grd,time,dom%tpo%now%H_ice,restart=trim(dom%par%restart))
+            call yelmo_restart_init(dom,trim(dom%par%restart),time)
 
         else
 
@@ -1557,9 +1548,34 @@ contains
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
 
-        return 
+        return
 
     end subroutine yelmo_init_state
+
+    subroutine yelmo_restart_init(dom,filename,time)
+        ! Load the model state from a restart file: the restart fields, an
+        ! active predictor-corrector, and the passive-tracer backends from
+        ! their sidecar files (euler's t_dep_euler is in the restart fields;
+        ! elsa reloads its layer stack unless ytrc.elsa_restart = False; tracer
+        ! cold-starts). Used by yelmo_init_state on a restart, and by coupled
+        ! drivers that restart from their own restart bundles.
+
+        implicit none
+
+        type(yelmo_class), intent(INOUT) :: dom
+        character(len=*),  intent(IN)    :: filename
+        real(wp),          intent(IN)    :: time
+
+        call yelmo_restart_read(dom,trim(filename),time)
+
+        dom%time%pc_active = .TRUE.
+
+        dom%trc%par%time = dble(time)
+        call ytrc_init(dom%trc,dom%grd,time,dom%tpo%now%H_ice,restart=trim(filename))
+
+        return
+
+    end subroutine yelmo_restart_init
 
     subroutine yelmo_par_load(par,filename,group,domain,grid_name)
 
