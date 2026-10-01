@@ -2,7 +2,7 @@
     symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
 
     domain       = "ISMIPHOM"
-    experiment   = "EXPC"               ! "EXPA", "EXPC"
+    experiment   = "EXPC"               ! "EXPA", "EXPC", "EXPF1" (no slip), "EXPF2" (slip ratio 1); EXPF* fix L=100 km and n, A, beta in the driver
     L            = 20.0                 ! [km] Length scale
     nx           = 42                   ! Number of grid points in one direction of square
     f_extend     = 0.5                  ! Extend domain by fraction of period on each side (default=0.0 or 0.5)

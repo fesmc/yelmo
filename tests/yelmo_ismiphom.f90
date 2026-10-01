@@ -43,7 +43,7 @@ program yelmo_ismiphom
     
     ! Define the domain, grid and experiment from parameter file
     call nml_read(path_par,"ctrl","domain",       domain)        ! ISMIPHOM
-    call nml_read(path_par,"ctrl","experiment",   experiment)    ! "fixed", "moving", "mismip", "EXPA", "EXPB", "BUELER-A"
+    call nml_read(path_par,"ctrl","experiment",   experiment)    ! "EXPA", "EXPC", "EXPF1", "EXPF2"
     call nml_read(path_par,"ctrl","L",            L)             ! [km] Length scale
     call nml_read(path_par,"ctrl","nx",           nx)            ! Number of grid points in one direction
     call nml_read(path_par,"ctrl","f_extend",     f_extend)      ! Extend domain by half a period?
@@ -56,6 +56,13 @@ program yelmo_ismiphom
     dt1D_out = dtt  ! Set 1D output to frequency of main loop timestep 
 
 
+    ! Experiment F: the domain size is part of the protocol, L = 100*H0 = 100 km
+    ! (Pattyn et al., 2008, Sect. 3.6), centred on the Gaussian bump below
+    if (is_expf(experiment)) then 
+        L        = 100.0_prec 
+        f_extend = 0.0_prec 
+    end if 
+
     ! Define grid based on length scale and number of points in each direction (square domain)
     !dx = L / (nx-1)
     dx = 0.25 * (L/10.0)
@@ -64,6 +71,9 @@ program yelmo_ismiphom
     if (f_extend .gt. 0.0) then 
         x0 = -f_extend*L
         nx = L*(1.0+2.0*f_extend) / dx
+    else if (is_expf(experiment)) then 
+        x0 = -0.5_prec*L
+        nx = nint(L / dx)
     else 
         x0 = 0.0_prec
         nx = L / dx
@@ -111,26 +121,8 @@ program yelmo_ismiphom
             
             yelmo1%tpo%par%topo_fixed   = .TRUE. 
 
-            select case(trim(yelmo1%dyn%par%solver))
-
-                case("hybrid")
-                    ! For this experiment, no basal sliding is allowed, so disable
-                    ! ssa for hybrid solver (ie, set hybrid==SIA only)
-                
-                    yelmo1%dyn%par%use_ssa  = .FALSE. 
-            
-                case("ssa")
-
-                    write(*,*) "yelmo_ismiphom:: error: solver='ssa' cannot be used &
-                    &for Experiment A, since there is no sliding, velocity would be zero."
-                    stop 
-
-                case("diva","l1l2")
-                    ! Modify solver name to specify noslip version
-
-                    yelmo1%dyn%par%solver = trim(yelmo1%dyn%par%solver)//"-noslip"
-
-            end select 
+            ! No basal sliding in this experiment
+            call set_noslip(yelmo1,experiment)
 
             ! Not used in this experiment, but set it to a constant value anyway
             yelmo1%dyn%par%beta_method  = -1 
@@ -153,12 +145,40 @@ program yelmo_ismiphom
             yelmo1%dyn%par%beta_method  = -1
             yelmo1%dyn%now%beta         = 1000.0 + 1000.0 * sin(omega*yelmo1%grd%x) * sin(omega*yelmo1%grd%y)
 
-        case("EXPF") 
+        case("EXPF1","EXPF2") 
+            ! Prognostic experiment: a slab of mean thickness H0 = 1000 m on a 3 deg slope,
+            ! over a Gaussian bed bump, relaxes to steady state with zero smb
+            ! (Pattyn et al., 2008, Sect. 3.6, Table 2). Linear rheology (n=1) with
+            ! A = 2.140373e-7 Pa-1 a-1, so that the unperturbed surface velocity is 100 m/a.
+            ! EXPF1: no slip (slip ratio c=0); EXPF2: c=1, beta = 1/(c*A*H0).
 
-            ! to do... 
+            alpha = 3.0*pi/180.0_prec       ! [rad] 
+
+            yelmo1%tpo%par%slope_bg_x = -tan(alpha)
+            yelmo1%tpo%now%z_srf = 0.0
+            yelmo1%bnd%z_bed     = yelmo1%tpo%now%z_srf - 1000.0 &
+                    + 100.0*exp(-(yelmo1%grd%x**2 + yelmo1%grd%y**2)/10e3**2)
+
+            yelmo1%tpo%now%H_ice = yelmo1%tpo%now%z_srf - yelmo1%bnd%z_bed
             
-            ! Ensure that topo_fixed is set to False here (the model will evolve) 
+            ! The model will evolve 
             yelmo1%tpo%par%topo_fixed = .FALSE. 
+
+            ! Linear rheology with a constant rate factor
+            yelmo1%mat%par%n_glen    = 1.0 
+            yelmo1%mat%par%rf_method = 0 
+            yelmo1%mat%par%rf_const  = 2.140373e-7      ! [Pa-1 a-1]
+
+            yelmo1%dyn%par%beta_method = -1
+
+            if (trim(experiment) .eq. "EXPF1") then 
+                call set_noslip(yelmo1,experiment)
+
+                ! Not used in this experiment, but set it to a constant value anyway
+                yelmo1%dyn%now%beta = 1000.0
+            else 
+                yelmo1%dyn%now%beta = 1.0 / (yelmo1%mat%par%rf_const*1000.0)
+            end if 
 
         case("EXPG")
             ! Goldberg timestepping analytical tests - TO DO 
@@ -258,6 +278,52 @@ program yelmo_ismiphom
     
 contains
     
+    function is_expf(experiment) result(is_f)
+        ! Experiment F (EXPF1 or EXPF2)
+
+        implicit none 
+
+        character(len=*), intent(IN) :: experiment 
+        logical :: is_f 
+
+        is_f = (trim(experiment) .eq. "EXPF1" .or. trim(experiment) .eq. "EXPF2")
+
+        return 
+
+    end function is_expf
+
+    subroutine set_noslip(ylmo,experiment)
+        ! Set up the velocity solver for a frozen bed (no basal sliding)
+
+        implicit none 
+
+        type(yelmo_class), intent(INOUT) :: ylmo
+        character(len=*),  intent(IN)    :: experiment 
+
+        select case(trim(ylmo%dyn%par%solver))
+
+            case("hybrid")
+                ! Disable ssa for the hybrid solver (ie, set hybrid==SIA only)
+            
+                ylmo%dyn%par%use_ssa  = .FALSE. 
+        
+            case("ssa")
+
+                write(*,*) "yelmo_ismiphom:: error: solver='ssa' cannot be used &
+                &for experiment "//trim(experiment)//", since there is no sliding, velocity would be zero."
+                stop 
+
+            case("diva")
+                ! Modify solver name to specify noslip version
+
+                ylmo%dyn%par%solver = trim(ylmo%dyn%par%solver)//"-noslip"
+
+        end select 
+
+        return 
+
+    end subroutine set_noslip
+
     subroutine write_step_2D(ylmo,filename,time)
 
         implicit none 
