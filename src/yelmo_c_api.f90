@@ -326,10 +326,15 @@ contains
       case("tpo_cmb_grnd_y");    v2D = real(ylmo%tpo%now%cmb_grnd_y,    c_double)
       case("tpo_cr_acx");        v2D = real(ylmo%tpo%now%cr_acx,        c_double)
       case("tpo_cr_acy");        v2D = real(ylmo%tpo%now%cr_acy,        c_double)
+      case("tpo_calv_rate_flt"); v2D = real(ylmo%tpo%now%calv_rate_flt, c_double)
+      case("tpo_calv_rate_grnd");v2D = real(ylmo%tpo%now%calv_rate_grnd,c_double)
       case("tpo_lsf");           v2D = real(ylmo%tpo%now%lsf,           c_double)
       case("tpo_dlsfdt");        v2D = real(ylmo%tpo%now%dlsfdt,        c_double)
       case("tpo_z_srf");         v2D = real(ylmo%tpo%now%z_srf,         c_double)
       case("tpo_dzsdt");         v2D = real(ylmo%tpo%now%dzsdt,         c_double)
+      case("tpo_dzsdt_kin");     v2D = real(ylmo%tpo%now%dzsdt_kin,     c_double)
+      case("tpo_dzbdt_kin");     v2D = real(ylmo%tpo%now%dzbdt_kin,     c_double)
+      case("tpo_dHidt_vert");    v2D = real(ylmo%tpo%now%dHidt_vert,    c_double)
       case("tpo_eps_eff");       v2D = real(ylmo%tpo%now%eps_eff,       c_double)
       case("tpo_tau_eff");       v2D = real(ylmo%tpo%now%tau_eff,       c_double)
       case("tpo_z_base");        v2D = real(ylmo%tpo%now%z_base,        c_double)
@@ -648,7 +653,6 @@ contains
       case("dyn_cb_tgt");        ylmo%dyn%now%cb_tgt        = real(v2D, wp)
       case("dyn_cb_ref");        ylmo%dyn%now%cb_ref        = real(v2D, wp)
       case("dyn_c_bed");         ylmo%dyn%now%c_bed         = real(v2D, wp)
-      case("dyn_f_slide");       ylmo%dyn%now%f_slide       = real(v2D, wp)
 
       ! -----------------------------------------------------------------------
       ! ytherm%now — 2D fields

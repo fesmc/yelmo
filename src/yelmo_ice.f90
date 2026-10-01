@@ -1235,6 +1235,11 @@ contains
 
                     bnd_restart%z_bed       = dom%bnd%z_bed
                     bnd_restart%dzbdt_corr  = 0.0 
+
+                    ! Shift the previous-call bedrock by the same correction, so the
+                    ! first dz_bed_dt after the restart keeps the restart's rate
+                    ! instead of counting this one-off correction as bedrock motion.
+                    bnd_restart%z_bed_n     = bnd_restart%z_bed_n + bnd_restart%z_bed_corr
                 else 
 
                     ! Calculate the desired rate of change based on relaxation time
@@ -1243,6 +1248,7 @@ contains
                     ! Note, now, do nothing: do not modify bnd_restart%z_bed.
                     ! So, to start with, the bedrock topography will still be fully
                     ! consistent with the simulation being loaded from the restart file. 
+                    ! (z_bed_n from the restart stays consistent with z_bed.)
                     ! Pass dzbdt_corr to isostasy routine to slow incorporate
                     ! high-resolution information after initializing all other fields. 
                 
@@ -1654,6 +1660,10 @@ contains
     end subroutine yelmo_print_bound
 
     subroutine yelmo_set_time(dom,time)
+        ! Set the clocks of all components to time (e.g. to rewind after
+        ! yelmo_update_equil), so the next step advances each by the full dt.
+        ! bnd%time_n is the time of z_bed_n/z_sl_n (see ybound_update_rates).
+        ! The elsa/tracer backends keep their own deposition clocks, untouched.
 
         implicit none 
 
@@ -1664,6 +1674,9 @@ contains
         dom%dyn%par%time      = time 
         dom%mat%par%time      = time 
         dom%thrm%par%time     = time 
+        dom%trc%par%time      = time 
+        dom%hyd%now%time      = time 
+        dom%bnd%time_n        = time 
         
         return 
 

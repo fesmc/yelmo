@@ -445,6 +445,14 @@ little. MISMIP3D and DIVA runs change more.
   maximum retreat 0.92 → 0.98 of the prescribed one; exp1: steady front 5 km further
   out, volume +1.3%. ANT-16KM, 200 yr: floating area +1%, volume within 0.02%. Runs
   without the level set are bit-identical.
+- **`yelmo_set_time` also sets the tracer and hydrology clocks and `bnd%time_n`.**
+  After `yelmo_update_equil` the first step skipped tracer advection and hydrology
+  (dt = 0) and had zero bedrock and sea-level rates.
+- **`calc_strain_rate_horizontal_2D` (DIVA/SSA viscosity):** the one-sided `dvdy`
+  had no first-order fallback on the last row (it kept the centred difference across
+  the ice-free face), and the ±2 neighbours were not BC-aware, so periodic seams used
+  first order. Changes results only at periodic seams (TROUGH, MISMIP3D) and on the
+  last rows.
 
 ### Non-default options
 
@@ -486,6 +494,11 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Diagnostics
 
+- Level-set calving diagnostics (`calv_rate_flt/grnd`, `cmb_flt_x/y`, `cmb_grnd_x/y`,
+  `cr_acx/acy`) are saved with the predictor/corrector fields, so the output shows the
+  same stage as `lsf` and `cmb` (they mixed predictor and corrector). `calv_rate_*`
+  are built from `cr_acx/cr_acy`, the face rates the level set uses (law chosen by
+  `f_grnd_acx/acy`). Model state is unchanged.
 - `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
   were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
   advection does (was the mean of the two cells).
@@ -532,6 +545,15 @@ little. MISMIP3D and DIVA runs change more.
 - C API: read-only getters for `dta%pd%uxy_s` and `dta%pd%H_grnd`, and setters for
   `hyd_N`/`hyd_W_til`. `yhyd.bkt_N_closure = -1` lets a host model own N_eff
   (set with `yelmo_set_var2D("hyd_N")`).
+- C API: getters for `tpo_dzsdt_kin`, `tpo_dzbdt_kin`, `tpo_dHidt_vert`,
+  `tpo_calv_rate_flt` and `tpo_calv_rate_grnd`. The `dyn_f_slide` setter is removed
+  (`f_slide` is recomputed in every `calc_ydyn`).
+- The restart carries the previous-call bedrock and sea level of
+  `ybound_update_rates` (`z_bed_n`, `z_sl_n`, `bnd_time_n`, `bnd_rates_init`), so a
+  continued run has the straight run's `dz_bed_dt`/`dz_sl_dt` on its first step (they
+  were zero). It is restored only when the start time equals the restart time; a
+  restart used as a state at another time, and old restarts, give zero rates as before.
+- The restart read of the 3D `enh_bnd` uses 3D start/count.
 - `hyd%now%q` is written to restarts. MISMIP3D is handled in
   `ybound_define_mask_ice`.
 - Removed dead code:
