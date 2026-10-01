@@ -4,7 +4,7 @@ module calving_ac
 
     use yelmo_defs, only : sp, dp, wp, prec, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
-    use topography, only : calc_H_eff 
+    use topography, only : calc_H_eff, calc_melt_rate_rignot16
     use thermodynamics, only : calc_T_freeze_sw
 
     implicit none 
@@ -220,7 +220,7 @@ contains
         ! m = (a h_w q^alpha + b) TF^beta [m/d]
         ! q = 86400*Q/A [m/d]
         !
-        ! a, alpha, b, beta: constants
+        ! a, alpha, b, beta: constants (see calc_melt_rate_rignot16)
         ! h_w: water depth at the terminus, z_sl - z_bed [m]
         ! Q: subglacial discharge [m3/s]
         ! A: submerged area of the terminus face, h_w*dx [m2]
@@ -254,7 +254,7 @@ contains
 
         ! local variables
         integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
-        real(wp) :: a, b, alpha, beta, m_acx, m_acy
+        real(wp) :: m_acx, m_acy
         real(wp) :: gx, gy, gxy
         real(wp), allocatable :: m_aa(:,:), h_w(:,:), TF(:,:)
         integer  :: BC
@@ -266,18 +266,14 @@ contains
         allocate(h_w(nx,ny))
         allocate(TF(nx,ny))
 
-        a     = 3.0e-4
-        b     = 0.15
-        alpha = 0.39
-        beta  = 1.18
         m_aa  = 0.0_wp
 
         ! Water depth and thermal forcing relative to the local freezing point
         h_w   = MAX(0.0_wp, z_sl - z_bed)
         TF    = MAX(0.0_wp, T_ocn - calc_T_freeze_sw(h_w,T0))
 
-        ! Discharge is a non-negative volume flux (q**alpha is NaN for q < 0)
-        m_aa  = 365.25*(a*h_w*((86400.0*MAX(0.0_wp,Qd)/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
+        ! Retreat rate [m/yr], submerged area of the terminus face h_w*dx
+        m_aa  = calc_melt_rate_rignot16(h_w,Qd,h_w*dx,TF)
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         ! Set boundary condition code

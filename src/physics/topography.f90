@@ -51,6 +51,7 @@ module topography
     public :: calc_grounding_line_zone
     public :: calc_bmb_total
     public :: calc_fmb_total
+    public :: calc_melt_rate_rignot16
     
     ! ajr: these routines are slow, do not use...
     !public :: distance_to_grline
@@ -1939,16 +1940,6 @@ end if
         logical  :: mask(4) 
         integer  :: BC
 
-        !Rignotet al. (2016) variables
-        real(wp), parameter :: rignot16_a     = 3.0e-4_wp  
-        real(wp), parameter :: rignot16_b     = 0.15_wp    
-        real(wp), parameter :: rignot16_alpha = 0.39_wp    
-        real(wp), parameter :: rignot16_beta  = 1.18_wp    
-        real(wp), parameter :: rignot16_days_yr = 365.0_wp 
-
-        
-        real(wp) :: q_sg_norm 
-        real(wp) :: tf_now       
 
         real(wp) :: rho_ice_sw 
         
@@ -2040,13 +2031,12 @@ end if
                 !$omp end parallel do
 
             case(3)
-                ! Calculate fmb using Rignot et al. (2016) parameterization:
-                ! m = lambda * (a*h*q^alpha + b) * TF^beta 
-                ! where h is the water depth in metres
-                ! q = 86400 * Q / A is the subglacial discharge (Q, m3/s)
-                ! and TF is the ocean thermal forcing (ºC)
+                ! Calculate fmb using the Rignot et al. (2016) parameterization
+                ! (see calc_melt_rate_rignot16), scaled by fmb_lambda, with
+                ! h the depth of the submerged face, A its area, Q_sg the
+                ! subglacial discharge [m3/s] and TF = tf_shlf [K]
                 
-                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,mask,n_margin,H_eff,dz,area_flt,q_sg_norm,tf_now)
+                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,mask,n_margin,H_eff,dz,area_flt)
                 do j = 1, ny 
                 do i = 1, nx 
  
@@ -2067,7 +2057,7 @@ end if
                         ! Get effective ice thickness
                         call calc_H_eff(H_eff,H_ice(i,j),f_ice(i,j))
  
-                        ! Determine depth of adjacent water (h en la formula de Rignot)
+                        ! Determine depth of adjacent water (h in Rignot et al., 2016)
                         if (H_grnd(i,j) .lt. 0.0_wp) then 
                             ! Cell is floating, calculate submerged ice thickness 
                             dz = (H_eff*rho_ice_sw)
@@ -2082,13 +2072,10 @@ end if
                         area_flt = real(n_margin,wp)*dz*dx 
 
                         if (area_flt .gt. 0.0_wp) then
-                            ! q = 86400 * Q / A  [m/dia], A = area_flt [m2], Q_sg [m3/s]
-                            q_sg_norm = 86400.0_wp * Q_sg(i,j) / area_flt
- 
-                            tf_now = max(tf_shlf(i,j), 0.0_wp)
-
-                            fmb(i,j) = - fmb_lambda * (rignot16_a*dz*(q_sg_norm**rignot16_alpha) + rignot16_b) &
-                                            * (tf_now**rignot16_beta) * (area_flt/area_tot)     
+                            ! Melt rate [m/yr] of the submerged face, A = area_flt [m2],
+                            ! scaled to the cell area
+                            fmb(i,j) = - fmb_lambda * calc_melt_rate_rignot16(dz,Q_sg(i,j),area_flt,tf_shlf(i,j)) &
+                                            * (area_flt/area_tot)
                         else
                             fmb(i,j) = 0.0_wp
                         end if 
@@ -2114,6 +2101,48 @@ end if
         return 
 
     end subroutine calc_fmb_total
+
+    elemental function calc_melt_rate_rignot16(h,Q,area,TF) result(m)
+        ! Submarine melt rate of a marine-terminating glacier front
+        ! following Rignot et al. (2016) (ISMIP7 protocol):
+        !
+        !   m = (a*h*q^alpha + b)*TF^beta [m/d],  q = 86400*Q/area [m/d]
+        !
+        ! h:  water depth at the front [m]
+        ! Q:  subglacial discharge [m3/s], a non-negative volume flux
+        !     (q**alpha is NaN for q < 0)
+        ! area: submerged area of the front face [m2]
+        ! TF: thermal forcing [K]
+        ! The rate is returned in [m/yr].
+
+        implicit none
+
+        real(wp), intent(IN) :: h
+        real(wp), intent(IN) :: Q
+        real(wp), intent(IN) :: area
+        real(wp), intent(IN) :: TF
+        real(wp) :: m
+
+        ! Local variables
+        real(wp) :: q_now
+
+        real(wp), parameter :: a       = 3.0e-4_wp
+        real(wp), parameter :: b       = 0.15_wp
+        real(wp), parameter :: alpha   = 0.39_wp
+        real(wp), parameter :: beta    = 1.18_wp
+        real(wp), parameter :: days_yr = 365.25_wp
+
+        if (area .gt. 0.0_wp) then
+            q_now = 86400.0_wp*max(Q,0.0_wp)/area
+        else
+            q_now = 0.0_wp
+        end if
+
+        m = days_yr * (a*h*q_now**alpha + b) * max(TF,0.0_wp)**beta
+
+        return
+
+    end function calc_melt_rate_rignot16
 
     subroutine calc_bmb_gl_pmpt(bmb,bmb_grnd,bmb_shlf,H_grnd,gz_Hg0,gz_Hg1,nxi,boundaries)
         ! Calculate basal mass balance, with bmb at the grounding line
