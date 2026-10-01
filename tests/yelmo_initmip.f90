@@ -34,6 +34,7 @@ program yelmo_test
 
         logical  :: with_ice_sheet 
         character(len=56) :: equil_method
+        character(len=56) :: init_temp      ! Initial temperature profile: "robin" or "robin-cold"
         
         character(len=512) :: set_nm
           
@@ -77,13 +78,12 @@ program yelmo_test
     call nml_read(path_par,"ctrl","restart_mode",   ctl%restart_mode)       ! "state": spun-up state, "continue": continuation (time_init = restart time)
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
+    call nml_read(path_par,"ctrl","init_temp",      ctl%init_temp)          ! Initial temperature profile ("robin", "robin-cold")
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
     
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
     call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref)        ! Filename holding cb_ref to load 
 
-    call nml_read(path_par,"ctrl","load_bmelt",     ctl%load_bmelt)         ! Load bmelt from file?
-    call nml_read(path_par,"ctrl","file_bmelt",     ctl%file_bmelt)         ! Filename holding bmelt field to load 
         
     ! Load climate (eg, set_pd or set_lgm)
     call nml_read(path_par,ctl%set_nm,  "init_topo_path",  ctl%init_topo_path)
@@ -104,7 +104,10 @@ program yelmo_test
     call nml_set_param(path_par, "yelmo_data", "pd_tsrf_monthly", merge("True ","False",ctl%pd_tsrf_monthly), quoted=.FALSE.)
     call nml_set_param(path_par, "yelmo_data", "pd_smb_monthly",  merge("True ","False",ctl%pd_smb_monthly),  quoted=.FALSE.)
     
-    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [yr] Constant imposed bmb_shlf value
+    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
+    call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
+    if (ctl%load_bmelt) &
+        call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
     call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
     call nml_read(path_par,ctl%set_nm,  "z_sl",            ctl%z_sl)                      ! [m] Sea level relative to present-day
 
@@ -203,8 +206,9 @@ program yelmo_test
     ! Special treatment for Antarctica
     if (trim(yelmo1%par%domain) .eq. "Antarctica") then 
         
-        ! Present-day
-        if (ctl%dT_ann .ge. 0.0) then 
+        ! Present-day: melt ice beyond the present-day extent (mass-balance
+        ! calving path only; with the level set, calving sets the fronts)
+        if (ctl%dT_ann .ge. 0.0 .and. .not. yelmo1%tpo%par%use_lsf) then 
             where(mask_noice) yelmo1%bnd%bmb_shlf = -2.0                ! [m/a]        
         end if 
 
@@ -219,8 +223,8 @@ program yelmo_test
     end if 
 
     ! Initialize state variables (dyn,therm,mat)
-    ! (initialize temps with robin method with a cold base)
-    call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
+    ! (initial temperature from the robin solution, optionally with a cold base)
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=ctl%init_temp)
 
     ! ===== basal friction optimization ======
     if (trim(ctl%equil_method) .eq. "opt") then 
