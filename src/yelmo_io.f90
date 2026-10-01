@@ -421,6 +421,10 @@ contains
         call nc_write(filename,"pc_dt",        dom%time%pc_dt,         units="yr",  dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
         call nc_write(filename,"pc_eta",       dom%time%pc_eta,        units="1/yr",dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
 
+        ! Previous-call state of ybound_update_rates (z_bed_n, z_sl_n are in the ybound table)
+        call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+        call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+
         ! == ytopo variables ===
         do q = 1, size(io%tpo)
             call yelmo_write_var_io_ytopo(filename,io%tpo(q),dom,n,ncid,irange,jrange)
@@ -864,6 +868,16 @@ contains
         call nc_read_interp(filename,"calv_mask",   bnd%calv_mask,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"H_ice_ref",   bnd%H_ice_ref,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"z_bed_ref",   bnd%z_bed_ref,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
+
+        ! Previous-call state of ybound_update_rates, so the first call after the
+        ! restart gives the same dz_bed_dt, dz_sl_dt as a straight run. Old restarts
+        ! without it: keep rates_init = .FALSE. (zero rates on the first call).
+        if (nc_exists_var(filename,"bnd_rates_init")) then
+            call nc_read(filename,"bnd_rates_init", bnd%rates_init,start=[n],count=[1],ncid=ncid)
+            call nc_read(filename,"bnd_time_n",     bnd%time_n,    start=[n],count=[1],ncid=ncid)
+            call nc_read_interp(filename,"z_bed_n", bnd%z_bed_n,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+            call nc_read_interp(filename,"z_sl_n",  bnd%z_sl_n, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
         
         ! Close the netcdf file
         call nc_close(ncid)
@@ -2128,6 +2142,12 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("tau_relax")
                 call nc_write(filename,trim(v%varname),ylmo%bnd%tau_relax(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("z_bed_n")
+                call nc_write(filename,trim(v%varname),ylmo%bnd%z_bed_n(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("z_sl_n")
+                call nc_write(filename,trim(v%varname),ylmo%bnd%z_sl_n(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case DEFAULT 
 
