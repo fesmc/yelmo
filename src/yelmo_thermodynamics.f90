@@ -35,6 +35,8 @@ contains
         integer :: i, j, k, nx, ny
         real(wp) :: dt
         real(wp), allocatable :: dTdz_b_now(:,:)
+        real(wp), allocatable :: C_cap(:,:)      ! [m/a ice equiv.] freeze-on capacity for the basal BC
+        real(wp), allocatable :: Q_wat(:,:)      ! [mW m-2] water-side basal heat (Q_diss + Q_sens)
 
         logical, parameter :: calculate_Q_strn_derivative = .FALSE.
 
@@ -152,6 +154,22 @@ contains
                     
                     end if 
 
+                    ! Freeze-on capacity and water-side basal heat for the grounded
+                    ! basal boundary condition (used only when basal_bc_method="capacity").
+                    ! hyd stores them in SI: C_frz [m/s ice equiv.], Q_diss/Q_sens [W m-2].
+                    allocate(C_cap(nx,ny), Q_wat(nx,ny))
+                    select case(trim(thrm%par%cap_source))
+                        case("hyd")
+                            C_cap = hyd%now%C_frz * bnd%c%sec_year
+                        case("water")
+                            ! Stock estimate from the water thickness: all water above
+                            ! the floor refrozen over this step, converted to ice equivalent.
+                            C_cap = (bnd%c%rho_w/bnd%c%rho_ice) * max(hyd%now%W - thrm%par%cap_W_floor, 0.0_wp) / dt
+                        case DEFAULT    ! "none"
+                            C_cap = 0.0_wp
+                    end select
+                    Q_wat = (hyd%now%Q_diss + hyd%now%Q_sens) * 1e3_wp
+
                     ! Now calculate the thermodynamics:
 
                     call calc_ytherm_enthalpy_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%bmb_grnd, &
@@ -161,7 +179,9 @@ contains
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
-                                thrm%par%boundaries)
+                                thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps)
+
+                    deallocate(C_cap, Q_wat)
 
                 case("robin")
                     ! Use Robin solution for ice temperature
@@ -264,7 +284,7 @@ contains
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                         cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral, &
-                                        boundaries)
+                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
 
@@ -316,6 +336,10 @@ contains
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
         character(len=*), intent(IN) :: boundaries      ! Boundary treatment
+        real(wp),         intent(IN) :: C_cap(:,:)      ! [m/a ice equiv.] Freeze-on capacity (basal_bc_method="capacity")
+        real(wp),         intent(IN) :: Q_wat(:,:)      ! [mW m-2] Water-side basal heat, Q_diss + Q_sens
+        character(len=*), intent(IN) :: basal_bc_method ! "wtil" or "capacity"
+        real(wp),         intent(IN) :: cap_eps         ! [m/a ice equiv.] Capacity below which the bed counts as dry
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac  
@@ -392,7 +416,8 @@ contains
                     call calc_enth_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                            basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps)
 
                 else
 
@@ -708,6 +733,11 @@ end if
                 write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'hyd', 'water' or 'none'; got ", trim(par%cap_source)
                 stop
         end select
+
+        if (trim(par%basal_bc_method) .eq. "capacity" .and. trim(par%method) .ne. "enth") then
+            write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method='capacity' requires method='enth'; got method=", trim(par%method)
+            stop
+        end if
 
         if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps

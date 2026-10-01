@@ -538,7 +538,8 @@ end if
 
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                                dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                                basal_bc_method,C_cap,Q_wat,cap_eps)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -581,11 +582,18 @@ end if
         real(wp), intent(IN)    :: sec_year  
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy definition?
+        character(len=*), intent(IN), optional :: basal_bc_method ! "wtil" (default) or "capacity"
+        real(wp), intent(IN), optional :: C_cap          ! [m/a ice equiv.] Freeze-on capacity (capacity rule)
+        real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (capacity rule)
+        real(wp), intent(IN), optional :: cap_eps        ! [m/a ice equiv.] Capacity below which the bed counts as dry
 
         ! Local variables
         integer  :: k, nz_aa, nz_ac
         integer  :: k_cts
         real(wp) :: W_til_predicted
+        logical  :: use_capacity
+        real(wp) :: C_now, Q_wat_now, eps_now
+        real(wp) :: q_up_star, net_enth_b, bmb_star
         real(wp) :: dz
         real(wp) :: omega_excess
         real(wp) :: melt_internal
@@ -694,6 +702,50 @@ end if
         else 
             ! Grounded ice 
 
+            use_capacity = .FALSE.
+            if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
+
+            if (use_capacity) then
+                ! == Capacity rule ==
+                ! Compare the freezing the base would need to stay at the pressure
+                ! melting point (bmb_star, the basal mass balance of a base held at
+                ! T_pmp, from the start-of-step profile; positive = freeze-on) with
+                ! the rate at which the water at the bed can be frozen (C_cap).
+
+                C_now     = 0.0_wp
+                Q_wat_now = 0.0_wp
+                eps_now   = 0.0_wp
+                if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
+                if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
+                if (present(cap_eps)) eps_now   = cap_eps
+                if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
+
+                ! Heat the base would lose upward if held at T_pmp [J m-2 a-1]
+                dz = H_ice * (zeta_aa(2) - zeta_aa(1))
+                q_up_star = kt(1) * (T_pmp(1) - T_ice(2)) / dz
+
+                ! Latent heat reduced by water already stored in the basal ice,
+                ! as in calc_bmb_grounded_enth
+                net_enth_b = max(enth(1) - enth_pmp(1), 0.0_wp)
+                bmb_star   = (q_up_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
+                                / (rho_ice*(L_ice - net_enth_b))             ! [m/a ice equiv.]
+
+                if (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now) then
+                    ! The base would melt, or the water can supply the freezing:
+                    ! hold the base at the pressure melting point
+                    val_base = enth_pmp(1)
+                    is_basal_flux = .FALSE.
+                else
+                    ! Not enough water: freeze all of it (freeze-on = C_now) and let
+                    ! the base cool. The interface balance then fixes the upward
+                    ! conductive flux, q_up = G + Q_b + Q_wat + rho_ice*L*C.
+                    val_base = (Q_b_now + Q_lith_now + Q_wat_now + rho_ice*L_ice*C_now) / kt(1) * cp_eff(1)
+                    is_basal_flux = .TRUE.
+                end if
+
+            else
+                ! == Legacy till-water rule ==
+
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
             W_til_predicted = W_til - (bmb_grnd*(rho_ice/rho_w))*dt 
@@ -720,6 +772,8 @@ end if
                 is_basal_flux = .FALSE. 
                 
             end if   ! melting or frozen
+
+            end if   ! capacity or legacy rule
 
         end if  ! floating or grounded 
 
