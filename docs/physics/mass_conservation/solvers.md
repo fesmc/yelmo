@@ -107,9 +107,9 @@ corresponding to its upwind neighbour — and a diagonal contribution
 when cell $(i,j)$ itself is the upwind donor. The assembled
 operator $A\,H^{n+1} = b$ therefore has at most five non-zeros per
 row (centre plus four neighbours), is stored in CSR form, and is solved
-each timestep by [LIS](http://www.ssisc.org/lis/). The default solver
-configuration is BiCG with an ILU preconditioner, configurable at
-runtime via `ytopo.adv_lis_opt`.
+each timestep by [LIS](http://www.ssisc.org/lis/) with BiCGSTAB and a
+Jacobi preconditioner (tolerance 1e-12, set in `solver_advection.f90`,
+not a parameter).
 
 Boundary rows are set per face by the `boundaries` flag: `"zero"`
 imposes $H = 0$ at the edge (Dirichlet), `"infinite"` zeroes the
@@ -129,10 +129,10 @@ the same $\Delta t$.
 
 ## Choosing between the two
 
-- `expl-upwind` is fast, simple, fully local, and the natural default
+- `expl-upwind` is fast, simple and fully local, a reasonable choice
   for high-resolution simulations where $\Delta t$ is already small for
   other reasons (e.g. fast streaming flow).
-- `impl-lis` is the right choice when the velocity field has localised
+- `impl-lis` (the default, `ytopo.solver`) is the right choice when the velocity field has localised
   fast peaks that would force `expl-upwind` into very small timesteps —
   it lets the global adaptive $\Delta t$ be set by physics elsewhere in
   the model.

@@ -3,14 +3,16 @@
 
 ## New worktree setup
 
-A fresh worktree has no `Makefile`, no `.runme_config`, and no data symlinks. Before building or running anything, set these up from inside the worktree:
+A fresh worktree has no `Makefile`, no `.runme/config.toml`, and no data symlinks. Before building or running anything, set these up from inside the worktree:
 
 ```bash
 ln -s /Users/alrobi001/models/ice_data ice_data
 ln -s /Users/alrobi001/models/fesm-utils fesm-utils
 ln -s /Users/alrobi001/models/fasthydrology FastHydrology
-runme --config                              # creates .runme_config from .runme/runme_config
-configme config yelmo -m macbook -c gfortran  # generates Makefiles (yelmo + fesm-utils + FastHydrology), auto-detects netCDF
+ln -s /Users/alrobi001/models/elsa elsa
+ln -s /Users/alrobi001/models/tracer tracer
+runme config init                           # creates .runme/config.toml from .runme/config.default.toml
+configme config yelmo -m macbook -c gfortran  # generates Makefiles (yelmo + fesm-utils + FastHydrology + elsa + tracer), auto-detects netCDF
 ```
 
 `configme` is the current build-config tool: it regenerates the Makefiles for

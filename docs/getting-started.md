@@ -113,7 +113,7 @@ configme update
 
 ## Usage
 
-After `configme install yelmo` (see [Quick start](#quick-start)) you have a configured Yelmo checkout with its `Makefile`, linked libraries and `.runme_config` already in place. The steps below cover (1) compiling the code and (2) running a simulation.
+After `configme install yelmo` (see [Quick start](#quick-start)) you have a configured Yelmo checkout with its `Makefile`, linked libraries and `.runme/config.toml` (from `runme config init`) already in place. The steps below cover (1) compiling the code and (2) running a simulation.
 
 ### 1. Compile the code
 
@@ -164,23 +164,23 @@ are carried out by `runme`:
 To run a benchmark simulation, for example, use the following command:
 
 ```bash
-runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml
 ```
 
 where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead will submit the simulation to cluster queue system instead of running in the background. The option `-e` lets you specify the executable. For some standard cases, shortcuts have been created:
 
 ```bash
 benchmarks = libyelmo/bin/yelmo_benchmarks.x
-mismip     = libyelmo/bin/yemo_mismip.x
+mismip     = libyelmo/bin/yelmo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x
 ```
 
-The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as `output/test`, where all model parameters (loaded from the file `par/yelmo_EISMINT.nml`) and model output can be found.
+The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as `output/test`, where all model parameters (loaded from the file `par/yelmo_EISMINT_moving.nml`) and model output can be found.
 
 It is also possible to modify parameters inline via the option `-p KEY=VAL [KEY=VAL ...]`. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:
 
 ```bash
-runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml -p ctrl.dx=10
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml -p ctrl.dx=10
 ```
 
 For ensembles, pass comma-separated values to `-p` (e.g. `-p ctrl.dx=10,20,40`); `runme` creates one run directory per combination under `-o`. See `runme -h` for more details, or the [runme README](https://github.com/fesmc/runme).

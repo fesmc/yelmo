@@ -94,7 +94,7 @@ If no argument is used, then a subset of useful variables is written:
             names(8)  = "beta"
             names(9)  = "visc_bar"
             names(10) = "T_prime_b"
-            names(11) = "H_w"
+            names(11) = "hyd_W_til"
             names(12) = "mb_net"
             names(13) = "smb"
             names(14) = "bmb"

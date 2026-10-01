@@ -44,14 +44,14 @@ python config.py config/pik_ifort
 
 # Install the runme command (one time, system-wide) and create a local config
 pip install git+https://github.com/fesmc/runme
-runme --config
+runme config init      # creates .runme/config.toml from .runme/config.default.toml
 
 # Compile the benchmarks program
 make clean 
 make benchmarks 
 
 # Run a test simulation of the EISMINT1-moving experiment
-runme -r -e benchmarks -o output/eismint1-moving -n par-gmd/yelmo_EISMINT-moving.nml
+runme -r -e benchmarks -o output/eismint1-moving -n par/yelmo_EISMINT_moving.nml
 
 # Compile the initmip program and run a simulation of Antarctica
 make initmip 
@@ -223,7 +223,7 @@ The following steps are carried out by `runme`:
 To run a benchmark simulation, for example, use the following command:
 
 ```
-runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml
 ```
 
 where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead will submit the simulation to cluster queue system instead of running in the background. The option `-e` lets you specify the executable. For some standard cases, shortcuts have been created:
@@ -233,12 +233,12 @@ benchmarks = libyelmo/bin/yelmo_benchmarks.x
 mismip     = libyelmo/bin/yemo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x
 ```
-The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as `output/test`, where all model parameters (loaded from the file `par/yelmo_EISMINT.nml`) and model output can be found.
+The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as `output/test`, where all model parameters (loaded from the file `par/yelmo_EISMINT_moving.nml`) and model output can be found.
 
 It is also possible to modify parameters inline via the option `-p KEY=VAL [KEY=VAL ...]`. The parameter should be specified with its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10km, use:
 
 ```
-runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT.nml -p ctrl.dx=10
+runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml -p ctrl.dx=10
 ```
 
 To run an ensemble, pass comma-separated values to `-p` (e.g. `-p ctrl.dx=10,20,40`); `runme` creates one run directory per combination under `-o`. This is built in — no `jobrun` wrapper or separate package is needed.
@@ -259,7 +259,7 @@ executable and call it with the EISMINT parameter file:
 
 ```
 make benchmarks
-runme -r -e benchmarks -o output/eismint-moving -n par-gmd/yelmo_EISMINT_moving.nml
+runme -r -e benchmarks -o output/eismint-moving -n par/yelmo_EISMINT_moving.nml
 ```
 
 ### 2. EISMINT2 EXPA
@@ -268,7 +268,7 @@ executable and call it with the EXPA parameter file:
 
 ```
 make benchmarks
-runme -r -e benchmarks -o output/eismint-expa -n par-gmd/yelmo_EISMINT_expa.nml
+runme -r -e benchmarks -o output/eismint-expa -n par/yelmo_EISMINT_expa.nml
 ```
 
 ### 3. EISMINT2 EXPF
@@ -277,7 +277,7 @@ executable and call it with the EXPF parameter file:
 
 ```
 make benchmarks
-runme -r -e benchmarks -o output/eismint-expf -n par-gmd/yelmo_EISMINT_expf.nml
+runme -r -e benchmarks -o output/eismint-expf -n par/yelmo_EISMINT_expf.nml
 ```
 
 ### 4. MISMIP RF
@@ -286,14 +286,14 @@ and call it with the MISMIP parameter file the three parameter permutations of i
 
 ```
 make mismip
-runme -r -e mismip -o output/mismip-rf-0 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0
-runme -r -e mismip -o output/mismip-rf-1 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=0
-runme -r -e mismip -o output/mismip-rf-2 -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=2
+runme -r -e mismip -o output/mismip-rf-0 -n par/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0
+runme -r -e mismip -o output/mismip-rf-1 -n par/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=0
+runme -r -e mismip -o output/mismip-rf-2 -n par/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=3 ydyn.beta_gl_scale=2
 ```
 To additionally change the resolution of the simulations change the parameter `mismip.dx`, e.g. for the default simulation with 10km resolution , call:
 
 ```
-runme -r -e mismip -o output/mismip-rf-0-10km -n par-gmd/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0 mismip.dx=10
+runme -r -e mismip -o output/mismip-rf-0-10km -n par/yelmo_MISMIP3D.nml -p ydyn.beta_gl_stag=0 ydyn.beta_gl_scale=0 mismip.dx=10
 ```
 
 ### 5. Age profile experiments

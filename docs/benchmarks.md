@@ -5,7 +5,7 @@ verification and regression testing. They span analytic and idealized cases
 (EISMINT, slab, trough) as well as community intercomparison protocols
 (MISMIP3D, initMIP). Each benchmark has a dedicated test program under
 [`tests/`](https://github.com/fesmc/yelmo/tree/main/tests) and a parameter
-file under `par-gmd/` or `par/`.
+file under `par/`.
 
 ## General workflow
 
@@ -45,7 +45,7 @@ margin handling.
 ```bash
 make clean
 make benchmarks
-runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
+runme -r -e benchmarks -n par/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
 ```
 
 ## EISMINT2-expa
@@ -58,7 +58,7 @@ designed to test the coupling between ice dynamics and internal thermodynamics
 ```bash
 make clean
 make benchmarks
-runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
+runme -r -e benchmarks -n par/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
 ```
 
 ## MISMIP3D
@@ -75,13 +75,13 @@ Standard experiment:
 ```bash
 make clean
 make mismip
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
 ```
 
 Reverse-forcing experiment:
 
 ```bash
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
 ```
 
 ### Resolution ensembles
@@ -92,15 +92,15 @@ staggering options at the grounding line:
 
 ```bash
 # Default grounding-line treatment
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid grounding-line interpolation (beta_gl_stag=3)
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid + basal-stress scaling (beta_gl_scale=2)
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
     -p ydyn.beta_gl_scale=2 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 ```
 

@@ -153,8 +153,9 @@ selects on `thrm%par%method ∈ {enth, temp, robin, robin-cold, linear, fixed}`.
   columns and calls `calc_enth_column` or `calc_temp_column`.
 - `temp` is `enth` with `enth_cr=1.0` and `omega_max=0.0` forced at par-load
   (so temperate ice has cold-ice conductivity and zero water content).
-- Default is `method="temp"` (`input/yelmo_defaults.nml`); **every** shipped par
-  file uses `temp` or `fixed`. No shipped configuration uses `enth`.
+- Default was `method="temp"` (`input/yelmo_defaults.nml`) when this plan was
+  written, and every shipped par file used `temp` or `fixed`. Since v2.3 the
+  default is `method="enth"`.
 
 The enthalpy *scaffolding* (horizontal advection of `enth`, `convert_to/from_enthalpy`,
 CTS index, omega diagnosis, per-column enth output) is present and structurally

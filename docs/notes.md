@@ -114,5 +114,5 @@ components, and so is preferred moving forward. To recover `[kyr/hr]`, simply ta
 
 The subroutine `yelmo_check_kill` is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.
 
-Note that `pc_eps` is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution. At each time step, the diagnosed model error `pc_eta` is compared with `pc_eps`. If `pc_eta >> pc_eps`, this is interpreted as instability and the model is stopped.
+Note that `pc_eps` is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution, and `pc_tol` the error above which a timestep is redone with a smaller dt. At each time step, the diagnosed model error `pc_eta` (the predictor-corrector error norm, in 1/yr) is compared with these. If the mean of the stored `pc_eta` values (the last three steps) exceeds `10*pc_tol`, this is interpreted as instability and the model is stopped. The model is also stopped if `H_ice` or the depth-averaged speed reach 1e4 m or 1e4 m/yr, or if `H_ice`, `uxy_bar` or `T_ice` are not finite.
 

@@ -71,12 +71,11 @@ inside of a program, run the model forward in time and then terminate the instan
     ! These variables can be loaded from a file, or passed from another
     ! component being simulated. Yelmo does not care about the source,
     ! it only needs all variables in the `bnd` class to be populated.
-    ! ybound: z_bed, z_sl, H_sed, H_w, smb, T_srf, bmb_shlf, T_shlf, Q_geo
+    ! ybound: z_bed, z_sl, H_sed, smb, T_srf, bmb_shlf, T_shlf, Q_geo
 
     yelmo1%bnd%z_bed    = [2D array]
     yelmo1%bnd%z_sl     = [2D array]
     yelmo1%bnd%H_sed    = [2D array]
-    yelmo1%bnd%H_w      = [2D array]
     yelmo1%bnd%smb      = [2D array]
     yelmo1%bnd%T_srf    = [2D array]
     yelmo1%bnd%bmb_shlf = [2D array]
