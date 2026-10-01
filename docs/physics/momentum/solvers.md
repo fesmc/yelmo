@@ -36,7 +36,8 @@ so the assembled linear system has dimension $2 N_\mathrm{cells}$. The
 matrix is stored in CSR format and solved with
 [LIS](http://www.ssisc.org/lis/) (Library of Iterative Solvers for
 Linear Systems); the iterative method and preconditioner are configured
-at runtime via `ydyn.ssa_lis_opt`.
+at runtime via `ydyn.ssa_lis_opt_residual` or `ydyn.ssa_lis_opt_energy`,
+depending on `ydyn.ssa_solver`.
 
 Per-row solver masks (`ssa_mask_acx`, `ssa_mask_acy`) classify each
 ac-node as one of:

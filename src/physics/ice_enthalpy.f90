@@ -35,7 +35,7 @@ contains
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
         real(wp), intent(INOUT) :: T_ice(:)       ! nz_aa [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:)       ! nz_aa [-] Ice column water content fraction
         real(wp), intent(INOUT) :: bmb_grnd       ! [m a-1] Basal mass balance (melting is negative)
@@ -549,7 +549,7 @@ end if
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
         real(wp), intent(INOUT) :: T_ice(:)       ! nz_aa [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:)       ! nz_aa [-] Ice column water content fraction
         real(wp), intent(INOUT) :: bmb_grnd       ! [m a-1] Basal mass balance (melting is negative)
@@ -558,7 +558,7 @@ end if
         real(wp), intent(IN)    :: T_pmp(:)       ! nz_aa [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:)          ! nz_aa [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:)          ! nz_aa [J a-1 m-1 K-1] Heat conductivity 
-        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [K a-1] Horizontal heat advection 
+        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
         real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J a-1 m-3] Internal strain heat production in ice
         real(wp), intent(IN)    :: Q_b            ! [J a-1 m-2] Basal frictional heat production
@@ -828,19 +828,19 @@ end if
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column temperature
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
         real(wp), intent(IN)    :: kappa(:)       ! nz_aa [] Diffusivity
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
-        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg a-1] Horizontal heat advection 
-        real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J kg a-1] Internal strain heat production in ice
-        real(wp), intent(IN)    :: val_base       ! [J kg or flux] Basal boundary condition
-        real(wp), intent(IN)    :: val_srf        ! [J kg] Surface temperature 
+        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
+        real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J kg-1 a-1] Internal strain heat production in ice
+        real(wp), intent(IN)    :: val_base       ! [J kg-1 or flux] Basal boundary condition
+        real(wp), intent(IN)    :: val_srf        ! [J kg-1] Surface enthalpy 
         real(wp), intent(IN)    :: thickness      ! [m] Ice thickness 
         real(wp), intent(IN)    :: zeta_aa(:)     ! nz_aa [--] Vertical sigma coordinates (zeta==height), layer centered aa-nodes
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: enth_ref       ! [J kg] Reference temperature to scale calculation
+        real(wp), intent(IN)    :: enth_ref       ! [J kg-1] Reference enthalpy to scale calculation
         real(wp), intent(IN)    :: dt             ! [a] Time step
         integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point)
         logical,  intent(IN)    :: is_basal_flux  ! Is basal condition flux condition (True) or Neumann (False)

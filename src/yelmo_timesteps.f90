@@ -1170,7 +1170,7 @@ end if
         call nc_write(filename, "dt_adv",dt_adv,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (CFL criterion)",ncid=ncid)
         
         call nc_write(filename,  "dt_pi", dt_pi,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (PI controller)",ncid=ncid)
-        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="m/yr",long_name="eta (maximum PC truncation error)",ncid=ncid)
+        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
         
         if (write_pc_tau_field) then 
             call nc_write(filename, "pc_tau",pc_tau,dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],units="m a**-1", &

@@ -12,6 +12,7 @@
             "opt"        : "libyelmo/bin/yelmo_opt.x",
             "trough"     : "libyelmo/bin/yelmo_trough.x",
             "ismiphom"   : "libyelmo/bin/yelmo_ismiphom.x",
+            "mask_ice"   : "libyelmo/bin/yelmo_mask_ice.x",
             "regridding" : "libyelmo/bin/yelmo_test_regridding.x"
         },
     

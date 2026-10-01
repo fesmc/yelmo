@@ -419,7 +419,7 @@ contains
         ! for restarting with the same model trajectory and should be kept.
         
         call nc_write(filename,"pc_dt",        dom%time%pc_dt,         units="yr",  dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
-        call nc_write(filename,"pc_eta",       dom%time%pc_eta,        units="m/yr",dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
+        call nc_write(filename,"pc_eta",       dom%time%pc_eta,        units="1/yr",dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
 
         ! == ytopo variables ===
         do q = 1, size(io%tpo)
@@ -2304,7 +2304,7 @@ contains
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
         call nc_write(filename,"dt_avg",ylmo%time%dt_avg,units="yr",long_name="Average timestep", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
-        call nc_write(filename,"eta_avg",ylmo%time%eta_avg,units="m a**-1",long_name="Average eta (maximum PC truncation error)", &
+        call nc_write(filename,"eta_avg",ylmo%time%eta_avg,units="a**-1",long_name="Average eta (pc error norm)", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
         call nc_write(filename,"ssa_iter_avg",ylmo%time%ssa_iter_avg,units="",long_name="Average Picard iterations for SSA convergence", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)

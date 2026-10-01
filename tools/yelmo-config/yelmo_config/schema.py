@@ -19,7 +19,7 @@ from .locate import BUNDLED_DEFAULTS, BUNDLED_ENUMS, resolve_defaults
 # canonical group name). Used to resolve user-renamed groups, e.g.
 # nml_ydyn = "ydyn_north".
 COMPONENT_KEYS = [
-    "nml_ytopo", "nml_ycalv", "nml_ydyn", "nml_ytill", "nml_ymat",
+    "nml_ytopo", "nml_ycalv", "nml_ydyn", "nml_ytill", "nml_ymat", "nml_ytrc",
     "nml_ytherm", "nml_yhyd", "nml_masks", "nml_init_topo", "nml_data",
 ]
 
