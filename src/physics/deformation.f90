@@ -1813,6 +1813,7 @@ end if
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
         integer :: im2, ip2, jm2, jp2
+        integer :: id1, id2, id3
         logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         integer :: BC
@@ -1830,7 +1831,7 @@ end if
         ! Populate strain rates over the whole domain on acx- and acy-nodes
         ! (all four terms are set at every point)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,id1,id2,id3)
         do j = 1, ny  
         do i = 1, nx
             
@@ -1846,24 +1847,23 @@ end if
 
 if (.TRUE.) then
             ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
-            ! Second-order, one-sided derivatives
+            ! Second-order, one-sided derivatives. The +-2 indices step once more
+            ! from the +-1 neighbors (BC-aware: periodic seams get the interior
+            ! stencil); at a clamped edge the step returns the +-1 index itself
+            ! (im2 == im1 etc.), and the first-order difference is used.
 
             ! dudx
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                if (f_ice(im1,j) .eq. 1.0 .and. im1 .gt. 1) then
-                    im2 = im1-1  
+                call get_neighbor_indices_bc_codes(im2,id1,id2,id3,im1,j,nx,ny,BC)
+                if (f_ice(im1,j) .eq. 1.0 .and. im2 .ne. im1) then
                     dudx(i,j) = (1.0*ux(im2,j)-4.0*ux(im1,j)+3.0*ux(i,j))/(2.0*dx)
                 else 
                     dudx(i,j) = (ux(i,j)-ux(im1,j))/dx
                 end if
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
-                if (ip1 .lt. nx) then
-                    ip2 = ip1+1
-                    if (f_ice(ip2,j) .eq. 1.0) then
-                        dudx(i,j) = -(1.0*ux(ip2,j)-4.0*ux(ip1,j)+3.0*ux(i,j))/(2.0*dx)
-                    else
-                        dudx(i,j) = (ux(ip1,j)-ux(i,j))/dx
-                    end if
+                call get_neighbor_indices_bc_codes(id1,ip2,id2,id3,ip1,j,nx,ny,BC)
+                if (ip2 .ne. ip1 .and. f_ice(ip2,j) .eq. 1.0) then
+                    dudx(i,j) = -(1.0*ux(ip2,j)-4.0*ux(ip1,j)+3.0*ux(i,j))/(2.0*dx)
                 else
                     dudx(i,j) = (ux(ip1,j)-ux(i,j))/dx
                 end if
@@ -1871,20 +1871,18 @@ if (.TRUE.) then
 
             ! dvdy
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                if (f_ice(i,jm1) .eq. 1.0 .and. jm1 .gt. 1) then 
-                    jm2 = jm1-1  
+                call get_neighbor_indices_bc_codes(id1,id2,jm2,id3,i,jm1,nx,ny,BC)
+                if (f_ice(i,jm1) .eq. 1.0 .and. jm2 .ne. jm1) then 
                     dvdy(i,j) = (1.0*uy(i,jm2)-4.0*uy(i,jm1)+3.0*uy(i,j))/(2.0*dy)
                 else
                     dvdy(i,j) = (uy(i,j)-uy(i,jm1))/dy
                 end if
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
-                if (jp1 .lt. ny) then
-                    jp2 = jp1+1
-                    if (f_ice(i,jp2) .eq. 1.0) then
-                        dvdy(i,j) = -(1.0*uy(i,jp2)-4.0*uy(i,jp1)+3.0*uy(i,j))/(2.0*dy)
-                    else
-                        dvdy(i,j) = (uy(i,jp1)-uy(i,j))/dy
-                    end if 
+                call get_neighbor_indices_bc_codes(id1,id2,id3,jp2,i,jp1,nx,ny,BC)
+                if (jp2 .ne. jp1 .and. f_ice(i,jp2) .eq. 1.0) then
+                    dvdy(i,j) = -(1.0*uy(i,jp2)-4.0*uy(i,jp1)+3.0*uy(i,j))/(2.0*dy)
+                else
+                    dvdy(i,j) = (uy(i,jp1)-uy(i,j))/dy
                 end if
             end if
 
