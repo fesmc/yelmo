@@ -697,6 +697,12 @@ little. MISMIP3D and DIVA runs change more.
   corrected in the ytherm table.
 - New docs page on numerical precision (why the symmetry check needs double
   precision for DIVA, and a plan for double-precision internals).
+- New `yelmo.mask_border` sets the ice mask on the domain border: `"auto"` (default,
+  by domain as before), `"none"` (no ice), `"fixed"` (thickness prescribed) or
+  `"dynamic"` (left as the domain mask defines it). `"none"` and `"fixed"` skip
+  periodic directions. `ybound_define_mask_ice` builds the mask in two parts (where
+  ice is allowed in the domain, then the border) and takes `mask_border` as a new
+  argument.
 
 ## v2.3.1 (2026-07-17)
 

@@ -944,7 +944,7 @@ contains
         call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name)
         
         ! Update the mask_ice mask based on domain definition
-        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries)
+        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border)
 
 
         write(*,*) "yelmo_init:: boundary initialized (loaded masks, set ref. topography)."
@@ -1490,6 +1490,7 @@ contains
         call nml_read(filename,group,"grid_path",     par%grid_path,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"phys_const",    par%phys_const,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"experiment",    par%experiment,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"mask_border",   par%mask_border,   defaults_file=def_file,defaults_group=def_yelmo)
 
         call nml_read(filename,group,"nml_ytopo",     par%nml_ytopo,     defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"nml_ycalv",     par%nml_ycalv,     defaults_file=def_file,defaults_group=def_yelmo)

@@ -1074,6 +1074,7 @@ module yelmo_defs
         character (len=512) :: grid_path
         character (len=512) :: phys_const
         character (len=256) :: experiment
+        character (len=56)  :: mask_border     ! Ice mask on the domain border: auto, none, fixed, dynamic
         
         ! nml group names
         character(len=32)   :: nml_ytopo
