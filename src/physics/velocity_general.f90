@@ -1954,6 +1954,9 @@ end if
         integer :: i, j, nx, ny, k
         real(dp) :: tmpx, tmpy
         real(dp) :: res1, res2, res3
+        real(dp) :: res1_j(size(ux,2))              ! Row sums of res1, res2, res3
+        real(dp) :: res2_j(size(ux,2))
+        real(dp) :: res3_j(size(ux,2))
         
         real(wp) :: ux_resid_max 
         real(wp) :: uy_resid_max 
@@ -1968,18 +1971,23 @@ end if
         ny = size(ux,2)
 
         ! One pass over the domain: count the points to check, sum the
-        ! squared differences and get the maximum difference per direction
+        ! squared differences and get the maximum difference per direction.
+        ! The squared differences are summed per row here and the rows are
+        ! added serially below, so the residual (and the convergence decision)
+        ! does not depend on the number of threads.
         nx_check = 0
         ny_check = 0
-        res1 = 0.0
-        res2 = 0.0
-        res3 = 0.0
         ux_resid_max = 0.0
         uy_resid_max = 0.0
 
-        !$omp parallel do collapse(2) private(i,j,tmpx,tmpy) &
-        !$omp& reduction(+:nx_check,ny_check,res1,res2,res3) reduction(max:ux_resid_max,uy_resid_max)
+        !$omp parallel do private(i,j,tmpx,tmpy,res1,res2,res3) &
+        !$omp& reduction(+:nx_check,ny_check) reduction(max:ux_resid_max,uy_resid_max)
         do j = 1, ny
+
+        res1 = 0.0
+        res2 = 0.0
+        res3 = 0.0
+
         do i = 1, nx
 
             ! x-direction contribution (acx-node, own mask)
@@ -2017,8 +2025,17 @@ end if
             end if
 
         end do
+
+        res1_j(j) = res1
+        res2_j(j) = res2
+        res3_j(j) = res3
+
         end do
         !$omp end parallel do
+
+        res1 = sum(res1_j)
+        res2 = sum(res2_j)
+        res3 = sum(res3_j)
 
         if ( (nx_check+ny_check) .gt. 0 ) then
 
