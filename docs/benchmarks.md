@@ -30,7 +30,7 @@ This is built into `runme` — no separate package or `jobrun` wrapper is needed
 The sections below cover each benchmark in the current Yelmo test suite.
 For additional variants (alternative solvers, basal-friction sweeps, OpenMP
 scaling tests, and benchmarks not yet documented here such as HALFAR,
-ISMIPHOM, MISMIP+, and CalvingMIP), see
+ISMIP-HOM A and C, MISMIP+, and CalvingMIP), see
 [`run_batch_gmd.sh`](https://github.com/fesmc/yelmo/blob/main/run_batch_gmd.sh)
 in the repository root.
 
@@ -103,6 +103,44 @@ runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-s
 runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
     -p ydyn.beta_gl_scale=2 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 ```
+
+## ISMIP-HOM Experiment F
+
+Prognostic experiment of ISMIP-HOM ([Pattyn et al., 2008](https://doi.org/10.5194/tc-2-95-2008),
+Sect. 3.6): a slab of mean thickness 1000 m on a 3° slope flows over a Gaussian
+bed bump (amplitude 100 m, width 10 km) in a periodic 100 km domain, with zero
+surface mass balance, until the free surface reaches steady state. The rheology
+is linear (n = 1, A = 2.140373e-7 Pa⁻¹ a⁻¹), so the unperturbed surface speed is
+100 m/a. `EXPF1` has no slip (slip ratio c = 0), `EXPF2` has c = 1
+(β = 1/(A H₀)). The driver `tests/yelmo_ismiphom.f90` sets the domain, n, A, β
+and the driving-stress cap; steady state is reached after about 1000 years.
+
+```bash
+make ismiphom
+runme -r -e ismiphom -n par/yelmo_ISMIPHOM.nml -o output/benchmarks/ismiphom-f1 \
+    -p ctrl.experiment=EXPF1 ctrl.time_end=2000 ctrl.dtt=10 ctrl.dt2D_out=100
+runme -r -e ismiphom -n par/yelmo_ISMIPHOM.nml -o output/benchmarks/ismiphom-f2 \
+    -p ctrl.experiment=EXPF2 ctrl.time_end=2000 ctrl.dtt=10 ctrl.dt2D_out=100
+```
+
+`tests/ismiphom_f.jl` compares the steady state along the central flowline
+(y = 0) with the seven models of the intercomparison (reference data in
+`tests/data/ISMIPHOM-F`; cma1 and oga1 are full Stokes), prints the extremes and
+the rms differences, and plots the profiles:
+
+```bash
+julia tests/ismiphom_f.jl ismiphom-f.png \
+    F1:DIVA=output/benchmarks/ismiphom-f1 F2:DIVA=output/benchmarks/ismiphom-f2
+```
+
+![ISMIP-HOM Experiment F: steady surface elevation perturbation and surface speed
+along y = 0, Yelmo (DIVA, hybrid; dx = 2.5 km) and the models of Pattyn et al.
+(2008).](img/ismiphom-f.png)
+
+Yelmo (DIVA or hybrid) stays within the spread of the published models and
+follows the full-Stokes solutions: the rms difference to cma1 is 0.4–0.6 m in
+surface elevation and 0.2–0.5 m/a in surface speed (F1: hump 40.7 m vs 41.8 m;
+F2: 35.9 m vs 35.9 m).
 
 ## slab
 
