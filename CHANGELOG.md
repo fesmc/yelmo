@@ -450,6 +450,9 @@ little. MISMIP3D and DIVA runs change more.
   `beta_eff`, basal velocity, relaxation, convergence norms, LIS vector transfer) run
   in parallel. Main loop -9% (ANT-8KM) and -18% (GRL-8KM) at 16 threads; results
   bit-identical.
+  The convergence norm is summed per row and the rows serially, so the Picard
+  residual no longer depends on the number of threads (it did by 1e-15..1e-13
+  relative, without changing a convergence decision in the tested runs).
 - elsa coupling for elsa v3.0.0 (fesmc/yelmo#10): Yelmo passes its native arrays to
   `elsa_init`/`elsa_update` (no double-precision copies of the 3D velocities every
   step), and stops at start-up if `use_elsa = True` and `ytrc.time_end` is not later
