@@ -460,7 +460,7 @@ contains
                 elig = 2
             case DEFAULT
                 write(io_unit_err,*) "calc_front_cells:: Error: front_subgrid not recognized: ", trim(front_subgrid)
-                stop "Program stopped."
+                error stop 1
         end select
 
         !$omp parallel do collapse(2) private(i,j)
@@ -1818,7 +1818,7 @@ end if
 
                 write(*,*) "calc_fmb_total:: Error: fmb_method not recognized."
                 write(*,*) "fmb_method = ", fmb_method 
-                stop 
+                error stop 1
 
         end select
 
@@ -1857,12 +1857,12 @@ end if
         if (gz_Hg0 .gt. 0.0) then 
             write(io_unit_err,*) "calc_bmb_gl_pmpt:: Error: lower limit on grounding zone must be <= 0.0."
             write(io_unit_err,*) "gz_Hg0 = ", gz_Hg0
-            stop 
+            error stop 1
         end if 
         if (gz_Hg1 .lt. 0.0) then 
             write(io_unit_err,*) "calc_bmb_gl_pmpt:: Error: upper limit on grounding zone must be >= 0.0."
             write(io_unit_err,*) "gz_Hg1 = ", gz_Hg1
-            stop 
+            error stop 1
         end if 
 
         nx = size(H_grnd,1)
@@ -2276,7 +2276,7 @@ end if
         
       else
         write(io_unit_err,*) 'determine_grounded_fractions_CISM_quads - calc_fraction_above_zero - ERROR: unknown scenario [', scen, ']!'
-        stop
+        error stop 1
       end if
       
     end if
@@ -2286,7 +2286,7 @@ end if
       write(io_unit_err,*) 'scen = ', scen
       write(io_unit_err,*) 'f = [', f_NWp, ',', f_NEp, ',', f_SWp, ',', f_SEp, ']'
       write(io_unit_err,*) 'aa = ', aa, ', bb = ', bb, ', cc = ', cc, ', dd = ', dd, ', f1 = ', f1, ',f2 = ', f2
-      stop
+      error stop 1
     end if
     
     phi = MAX( 0.0_wp, MIN( 1.0_wp, phi))
@@ -2344,7 +2344,7 @@ end if
         write(io_unit_err,*) 
         write(io_unit_err,*) 'determine_grounded_fractions_CISM_quads - rotate_quad_until_match - ERROR: couldnt find matching scenario!'
         write(io_unit_err,*) 'f_SW, f_SE, f_NE, f_NW: ', f_SW, f_SE, f_NE, f_NW
-        stop 
+        error stop 1
       end if
       
     end do

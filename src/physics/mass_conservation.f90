@@ -94,7 +94,7 @@ contains
 
                 write(io_unit_err,*) "check_mass_conservation:: Error: units not recognized."
                 write(io_unit_err,*) "units = ", trim(units)
-                stop
+                error stop 1
 
         end select
 

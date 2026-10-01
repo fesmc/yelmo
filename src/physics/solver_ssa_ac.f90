@@ -892,7 +892,7 @@ contains
             case DEFAULT
                 write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
                 write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
-                stop 
+                error stop 1
         end select
 
         ! Initially no active ssa points, all velocities set to zero

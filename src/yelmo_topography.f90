@@ -340,7 +340,7 @@ end if
 
                                 write(*,*) "calc_ytopo:: Error: topo_rel_field not recognized."
                                 write(*,*) "topo_rel_field = ", trim(tpo%par%topo_rel_field)
-                                stop 
+                                error stop 1
 
                         end select
 
@@ -429,7 +429,7 @@ end if
                         write(*,*) "calc_ytopo_pc:: Error: &
                         & For step='advance', the argument use_H_pred&
                         & must be provided."
-                        stop 
+                        error stop 1
                     end if 
 
                     ! Determine which ice thickness to use going forward
@@ -708,7 +708,7 @@ end if
 
                 write(*,*) "calc_ytopo:: Error: floating calving method not recognized."
                 write(*,*) "calv_flt_method = ", trim(tpo%par%calv_flt_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -762,7 +762,7 @@ end if
 
                 write(*,*) "calc_ytopo:: Error: grounded calving method not recognized."
                 write(*,*) "calv_grnd_method = ", trim(tpo%par%calv_grnd_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -908,7 +908,7 @@ end if
     
                 write(*,*) "calc_ytopo:: Error: floating calving method not recognized."
                 write(*,*) "calv_flt_method = ", trim(tpo%par%calv_flt_method)
-                stop
+                error stop 1
     
         end select
     
@@ -946,7 +946,7 @@ end if
                 ! MICI should be a marine terminating calving law (only for grounding-line points?)
                 write(*,*) "calc_ytopo:: Error: grounded calving method not recognized."
                 write(*,*) "calv_grnd_method = ", trim(tpo%par%calv_grnd_method)
-                stop
+                error stop 1
     
         end select
         
@@ -1045,7 +1045,7 @@ end if
                     write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
                         &lsf_method = 'redist' requires lsf_redist_n_iter > 0; &
                         &got lsf_redist_n_iter = ", tpo%par%lsf_redist_n_iter
-                    stop
+                    error stop 1
                 end if
                 call LSFredistance(tpo%now%lsf,1.0_wp,1.0_wp, &
                                    tpo%par%lsf_redist_n_iter,"infinite")
@@ -1055,7 +1055,7 @@ end if
                 write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
                     &unknown lsf_method = '"//trim(tpo%par%lsf_method)//"'. &
                     &Expected 'snap' or 'redist'."
-                stop
+                error stop 1
         end select
 
         ! === Calving ===
@@ -1457,7 +1457,7 @@ end if
 
                 write(io_unit_err,*) "calc_ytopo_rates:: Error: step name not recognized."
                 write(io_unit_err,*) "step = ", trim(step)
-                stop 
+                error stop 1
 
         end select
 
@@ -1599,40 +1599,40 @@ end if
             ! so smaller positive intervals are not representable (and nint(dt_lsf*100)=0).
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.dt_lsf must be <= 0 (disabled) &
                                  &or >= 0.01 yr; got ", par%dt_lsf
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%front_H_eff_min .lt. 0.0_wp .or. par%front_dHdx .lt. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: front_H_eff_min and front_dHdx must be >= 0; got ", &
                                  par%front_H_eff_min, par%front_dHdx
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%grad_lim .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%grad_lim_zb .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim_zb must be > 0; got ", par%grad_lim_zb
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%H_min_tau .lt. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.H_min_tau must be >= 0; got ", par%H_min_tau
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%tau_ice_flt .le. 0.0_wp .or. par%tau_ice_grnd .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.tau_ice_flt and tau_ice_grnd must be > 0; got ", &
                                  par%tau_ice_flt, par%tau_ice_grnd
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%sd_min .ge. par%sd_max) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.sd_min must be < ycalv.sd_max; got ", &
                                  par%sd_min, par%sd_max
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%zb_deep_0 .lt. par%zb_deep_1) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.zb_deep_0 must be >= ycalv.zb_deep_1 &
                                  &(both negative; transition starts at zb_deep_0); got ", &
                                  par%zb_deep_0, par%zb_deep_1
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! === Set internal parameters ====

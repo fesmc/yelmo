@@ -241,7 +241,7 @@ contains
             write(io_unit_err,*) "yelmo_write_var:: Error: variable not yet supported."
             write(io_unit_err,*) "variable = ", trim(varname)
             write(io_unit_err,*) "filename = ", trim(filename)
-            stop   
+            error stop 1
         end if
 
         return
@@ -718,7 +718,7 @@ contains
             case default
                 write(*,*) "yelmo_restart_load_map:: Error: unknown restart_interp_gen '" &
                             //trim(restart_interp_gen)//"'. Expected 'cdo' or 'coords'."
-                stop
+                error stop 1
 
         end select
 
@@ -1389,7 +1389,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytopo:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1637,7 +1637,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydyn:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1795,7 +1795,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ymat:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1860,7 +1860,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytrc:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -1955,7 +1955,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytherm:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2032,7 +2032,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_yhyd:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -2129,7 +2129,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ybound:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2221,7 +2221,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydata:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 

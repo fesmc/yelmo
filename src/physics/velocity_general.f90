@@ -1842,7 +1842,7 @@ end if
         ! Consistency check 
         if (size(corr,1) .ne. 2*nx*ny) then 
             write(*,*) "calc_convergence_angle:: Error: corr(N) must have N=2*nx*ny."
-            stop 
+            error stop 1
         end if 
 
         k = 0
@@ -2114,7 +2114,7 @@ if (.TRUE.) then
                                     int(ux*0.0_wp),int(ux*0.0_wp),ux-ux_prev,uy-uy_prev,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp, &
                                     ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux_prev,uy_prev,time=real(iter,wp))
 
-            stop 
+            error stop 1
 
         end if 
 end if 

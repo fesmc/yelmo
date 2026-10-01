@@ -117,7 +117,7 @@ contains
 
                 write(*,*) "calc_advec2D:: Error: solver not recognized."
                 write(*,*) "solver = ", trim(solver)
-                stop 
+                error stop 1
 
         end select 
         

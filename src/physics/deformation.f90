@@ -70,7 +70,7 @@ contains
             write(*,*) "modify_enhancement_factor_bnd:: Error: umax cannot equal umin:"
             write(*,*) "umin = ", umin 
             write(*,*) "umax = ", umax 
-            stop 
+            error stop 1
         end if 
             
         do j = 1, ny 

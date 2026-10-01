@@ -92,7 +92,7 @@ contains
         if (n_sd .le. 0) then 
             write(io_unit_err,*) "calc_cb_ref:: Error: ytill.n_sd must be > 0."
             write(io_unit_err,*) "ytill.n_sd = ", n_sd 
-            stop 
+            error stop 1
         end if 
 
         allocate(cb_ref_samples(n_sd))
@@ -192,7 +192,7 @@ contains
                 write(io_unit_err,*) "calc_cb_ref:: Error: scaling method of cb_ref with &
                     &elevation not recognized."
                 write(io_unit_err,*) "ydyn.till_scale_zb = ", scale_zb 
-                stop 
+                error stop 1
                 
         end select 
         
@@ -264,7 +264,7 @@ contains
                 write(io_unit_err,*) "Error: calc_cb_ref:: Error: scaling method of cb_ref with &
                     &sediment not recognized."
                 write(io_unit_err,*) "ytill.scale_sed = ", scale_sed
-                stop
+                error stop 1
 
         end select
         
@@ -405,7 +405,7 @@ contains
 
                 write(*,*) "calc_beta:: Error: beta_method not recognized."
                 write(*,*) "beta_method = ", beta_method
-                stop 
+                error stop 1
 
         end select 
 
@@ -448,7 +448,7 @@ contains
 
                 write(*,*) "calc_beta:: Error: beta_gl_scale not recognized."
                 write(*,*) "beta_gl_scale = ", beta_gl_scale
-                stop 
+                error stop 1
 
         end select 
 
@@ -585,7 +585,7 @@ contains
 
                     write(*,*) "stagger_beta:: Error: beta_gl_stag not recognized."
                     write(*,*) "beta_gl_stag = ", beta_gl_stag
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -976,7 +976,7 @@ contains
         if (f_gl .lt. 0.0 .or. f_gl .gt. 1.0) then 
             write(*,*) "scale_beta_gl_fraction:: Error: f_gl must be between 0 and 1."
             write(*,*) "f_gl = ", f_gl
-            stop 
+            error stop 1
         end if 
        
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
@@ -1025,7 +1025,7 @@ contains
         if (H_grnd_lim .le. 0.0) then 
             write(*,*) "scale_beta_aa_Hgrnd:: Error: H_grnd_lim must be positive."
             write(*,*) "H_grnd_lim = ", H_grnd_lim
-            stop 
+            error stop 1
         end if 
          
         !$omp parallel do collapse(2) private(i,j,f_scale)
@@ -1630,7 +1630,7 @@ contains
 
         if (f_np .lt. 0.0 .or. f_np .gt. 1.0) then 
             write(*,*) "calc_l14_scalar:: f_np out of bounds: f_np = ", f_np 
-            stop 
+            error stop 1
         end if 
 
         return 

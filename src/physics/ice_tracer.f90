@@ -115,7 +115,7 @@ contains
 
                         write(*,*) "calc_tracer_3D:: Error: solver choice must be [expl,impl]."
                         write(*,*) "solver = ", trim(solver)
-                        stop 
+                        error stop 1
 
                 end select 
 
@@ -524,7 +524,7 @@ contains
                     zout = H_ice*zeta_aa(k-1)-dz
                     if (zout .lt. z2) then 
                         write(*,*) "calc_advec_vertical_column_upwind2:: Error: upwind2 interp step doesnt work for this spacing."
-                        stop 
+                        error stop 1
                     end if 
                     Q2   = interp_linear_pt([z2,z1],[Q(k-2),Q(k-1)],zout)
 
@@ -950,7 +950,7 @@ contains
             write(*,*) "xout = ",xout
             write(*,*) "x0   = ",x(1)
             write(*,*) "x1   = ",x(2)
-            stop
+            error stop 1
         end if
 
         alph = (xout - x(1)) / (x(2) - x(1))

@@ -523,7 +523,7 @@ end if
         call report_symmetry(trim(domain)//"-"//trim(experiment),sym_met,1.0e-3_wp,sym_pass)
         if (.not. sym_pass) then
             write(*,*) "yelmo_benchmarks:: symmetry regression check FAILED."
-            stop 1
+            error stop 1
         end if
     end if
 

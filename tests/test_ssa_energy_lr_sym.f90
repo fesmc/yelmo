@@ -183,7 +183,7 @@ program test_ssa_energy_lr_sym
         write(*,*) " ALL CASES PASS: K and b are reflection-symmetric"
     else
         write(*,'(a,i0,a)') "  FAIL across ", total_fail, " case(s)"
-        stop 1
+        error stop 1
     end if
 
 contains

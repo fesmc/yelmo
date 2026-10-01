@@ -166,7 +166,7 @@ program test_ssa_energy_sym
         write(*,*) " ALL CASES PASS: K is symmetric in every tested config"
     else
         write(*,'(a,i0,a)') "  FAIL across ", total_fail, " case(s)"
-        stop 1
+        error stop 1
     end if
 
 contains

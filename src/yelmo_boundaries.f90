@@ -69,7 +69,7 @@ contains
             case DEFAULT
                 write(*,*) "ybound_define_physical_constants:: Error: yelmo.phys_const not recognized."
                 write(*,*) "yelmo.phys_const = ", trim(phys_const)
-                stop
+                error stop 1
         end select
 
         ! Obtain the shared physical constants
@@ -274,7 +274,7 @@ contains
                     write(io_unit_err,*) "ybound_define_mask_ice:: Error: domain='Eurasia' requires a regions &
                                          &field with Eurasia codes (1.2 <= regions <= 1.29), but none were found."
                     write(io_unit_err,*) "range(regions): ", minval(bnd%regions), maxval(bnd%regions)
-                    stop
+                    error stop 1
                 end if
 
                 where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = MASK_ICE_NONE

@@ -52,7 +52,7 @@ contains
 
                 write(*,*) "mismip3D_topo_init:: Error: experiment not recognized."
                 write(*,*) "experiment = ", trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 
@@ -122,7 +122,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "Experiment not recognized: "//trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 

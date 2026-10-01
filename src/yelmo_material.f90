@@ -117,7 +117,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "calc_ymat:: Error: enhancement method not recognized: "//trim(mat%par%enh_method)
-                stop 
+                error stop 1
 
         end select 
 
@@ -211,7 +211,7 @@ contains
                     &is prescribed (ydyn.visc_method=0) and ymat.n_glen=1.0."
                     write(*,*) "ydyn.visc_method = ", dyn%par%visc_method 
                     write(*,*) "ymat.n_glen      = ", mat%par%n_glen 
-                    stop 
+                    error stop 1
                 end if 
 
                 ! ATT = (2.0*visc_eff)^(-1) 
@@ -224,7 +224,7 @@ contains
 
                 write(*,*) "calc_ymat:: Error: rf_method not recognized."
                 write(*,*) "rf_method = ", mat%par%rf_method
-                stop 
+                error stop 1
 
         end select 
 
@@ -305,14 +305,14 @@ contains
 
         if (par%n_glen .le. 0.0_wp) then
             write(io_unit_err,*) "ymat_par_load:: error: n_glen must be > 0; got ", par%n_glen
-            stop "Program stopped."
+            error stop 1
         end if
         ! The '*-tracer' enh methods use enh_umin/enh_umax as the velocity transition range
         ! for the enh_bnd tracer mask (see calc_ymat), so enforce the ordering there.
         if (index(trim(par%enh_method),"-tracer") > 0 .and. par%enh_umin .ge. par%enh_umax) then
             write(io_unit_err,*) "ymat_par_load:: error: enh_umin must be < enh_umax for &
                                  &'*-tracer' enh_method; got ", par%enh_umin, par%enh_umax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! Set internal parameters

@@ -189,7 +189,7 @@ contains
                 if (depth .gt. 8) then
                     write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                         &free-slip chain does not end at a free unknown, row ", n
-                    stop "Program stopped."
+                    error stop 1
                 end if
             end do
             droot(n) = m
@@ -647,7 +647,7 @@ contains
             if (nb .gt. NNZ_ROW_MAX) then
                 write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                     &more than NNZ_ROW_MAX entries in a row."
-                stop "Program stopped."
+                error stop 1
             end if
             cols(nb) = c
             vals(nb) = v

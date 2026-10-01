@@ -231,7 +231,7 @@ contains
         character(len=*), intent(IN) :: name
         if (val .lt. MASK_ICE_NONE .or. val .gt. MASK_ICE_DYNAMIC) then
             write(*,*) "yelmo_mask_ice:: Error: "//trim(name)//" must be 0, 1, or 2. Got: ", val
-            stop
+            error stop 1
         end if
     end subroutine check_mask_bnd
 

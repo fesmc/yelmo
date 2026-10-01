@@ -206,7 +206,7 @@ contains
                     write(*,*) "calc_ydyn:: Error: ydyn solver not recognized." 
                     write(*,*) "solver should be one of: ['fixed','hybrid','diva']"
                     write(*,*) "solver = ", trim(dyn%par%solver) 
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -254,7 +254,7 @@ contains
             case DEFAULT
                 write(io_unit_err,*) "Error: calc_ydyn:: vertical velocity integration method not recognized."
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method
-                stop
+                error stop 1
         end select
         ! ===== Finish calculating velocity Jacobian (uz-dependent terms) ================
 
@@ -592,7 +592,7 @@ contains
         if (dyn%par%neff_nxi .lt. 0) then
             write(*,*) "calc_ydyn_neff:: Error: neff_nxi must be >= 0."
             write(*,*) "neff_nxi = ", dyn%par%neff_nxi
-            stop
+            error stop 1
         end if
 
         ! N on the current dynamics geometry
@@ -732,17 +732,17 @@ contains
                                                         .or. par%lambda_min .gt. 1.0_wp)) then
             write(io_unit_err,*) "ydyn_par_load:: error: ydyn.slide_T requires gamma_T > 0 and 0 < lambda_min <= 1; got ", &
                                  par%gamma_T, par%lambda_min
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%till_z0 .ge. par%till_z1) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &
                                  par%till_z0, par%till_z1
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%till_cf_min .gt. par%till_cf_ref) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be <= ytill.cf_ref; got ", &
                                  par%till_cf_min, par%till_cf_ref
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! === Set internal parameters ======

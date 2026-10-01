@@ -1224,7 +1224,7 @@ contains
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  value      = '", trim(value), "'"
             write(io_unit_err,*) "  allowed    = ", trim(allowed)
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1249,7 +1249,7 @@ contains
             write(io_unit_err,*) "yelmo_check_file:: Error: file not found."
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  path       = '", trim(path), "'"
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1344,7 +1344,7 @@ contains
         if (narg .ne. 1) then 
             write(*,*) "yelmo_load_command_line_args:: Error: The following &
             &argument must be provided: path_par"
-            stop 
+            error stop 1
         end if 
 
         call get_command_argument(1,path_par)
@@ -1400,7 +1400,7 @@ contains
 
             if (.not. present(time0)) then  
                 write(*,*) "yelmo_cpu_time:: Error: time0 argument is missing, but necessary."
-                stop
+                error stop 1
             end if 
             
             ! Calculate the difference between current time and time0 in [s]
@@ -1411,7 +1411,7 @@ contains
                 write(*,*) "yelmo_cpu_time:: Error: dtime cannot equal zero - check precision of timing variables, &
                             &which should be real(kind=8) to maintain precision."
                 write(*,*) "clock", time, time0, dtime  
-                stop  
+                error stop 1
             end if 
 
         end if 
@@ -1487,7 +1487,7 @@ contains
                 case DEFAULT 
                     write(*,*) "yelmo_calc_running_stats:: Error: stat not found."
                     write(*,*) "stat = ", trim(stat) 
-                    stop 
+                    error stop 1
 
             end select 
                    

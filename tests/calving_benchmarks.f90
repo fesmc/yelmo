@@ -52,7 +52,7 @@ contains
 
                 write(*,*) "calvmip_init:: Error: domain not recognized."
                 write(*,*) "domain = ", trim(domain)
-                stop 
+                error stop 1
 
         end select
 

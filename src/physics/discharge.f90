@@ -99,7 +99,7 @@ contains
             case DEFAULT
 
                 write(*,*) "calc_mb_discharge:: Error: dmb_method not recognized: ", method
-                stop
+                error stop 1
 
         end select
 

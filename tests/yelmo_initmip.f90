@@ -396,7 +396,7 @@ program yelmo_test
 
                     write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not yet defined."
                     write(io_unit_err,*) "Best solution for now: set opt_tf=False."
-                    stop
+                    error stop 1
 
                 end if 
 
@@ -467,7 +467,7 @@ contains
 
                 if (.not. use_restart) then
                     write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires a restart file (yelmo.restart)."
-                    stop "Program stopped."
+                    error stop 1
                 end if
 
                 nt = nc_size(restart,"time")
@@ -479,13 +479,13 @@ contains
                                          &to equal the time of the restart file."
                     write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
                     write(io_unit_err,*) "restart = ", trim(restart)
-                    stop "Program stopped."
+                    error stop 1
                 end if
 
             case DEFAULT
                 write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.restart_mode must be 'state' or 'continue'; got ", &
                                      trim(restart_mode)
-                stop "Program stopped."
+                error stop 1
 
         end select
 
@@ -745,7 +745,10 @@ end if
         if (present(quoted)) quote_val = quoted
 
         open(newunit=unit, file=trim(filename), status='old', action='read', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot open file'
+        if (io /= 0) then
+            write(io_unit_err,*) "nml_set_param ERROR: cannot open file ", trim(filename)
+            error stop 1
+        end if
 
         n_lines = 0
         do
@@ -786,7 +789,10 @@ end if
         end if
 
         open(newunit=unit, file=trim(filename), status='replace', action='write', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot write file'
+        if (io /= 0) then
+            write(io_unit_err,*) "nml_set_param ERROR: cannot write file ", trim(filename)
+            error stop 1
+        end if
         do i = 1, n_lines
             write(unit, '(A)') trim(lines(i))
         end do

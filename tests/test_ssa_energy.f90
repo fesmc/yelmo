@@ -209,7 +209,7 @@ program test_ssa_energy
         write(*,*) " PASS"
     else
         write(*,*) " FAIL"
-        stop 1
+        error stop 1
     end if
 
 contains

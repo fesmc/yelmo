@@ -230,7 +230,7 @@ contains
 
                     write(*,*) "calc_velocity_ssa:: Error: visc_method not recognized."
                     write(*,*) "visc_method = ", par%visc_method 
-                    stop 
+                    error stop 1
 
             end select
             

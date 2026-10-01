@@ -193,7 +193,7 @@ contains
                 case DEFAULT 
 
                     write(*,*) "ytherm:: Error: thermodynamics option not recognized: method = ", trim(thrm%par%method)
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -541,7 +541,7 @@ end if
             js = jmid - (j-jmid)
         else
             write(error_unit,*) "check_symmetry_2D:: Error: argument 'dir' must be 'x' or 'y'."
-            stop
+            error stop 1
         end if
 
         write(*,"(a4,a12,2f15.3,g18.6)") "sym: ", trim(varnm), var(i,j), var(is,js), abs(var(is,js)-var(i,j))
@@ -706,22 +706,22 @@ end if
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_cfl .le. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_nmax .lt. 1) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! In case of method=="temp", prescribe some parameters
