@@ -592,6 +592,7 @@ end if
         integer  :: k_cts
         real(wp) :: W_til_predicted
         logical  :: use_capacity
+        logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
         real(wp) :: C_now, Q_wat_now, eps_now
         real(wp) :: q_up_star, net_enth_b, bmb_star
         real(wp) :: dz
@@ -682,6 +683,22 @@ end if
             val_srf = min(T_srf,T0) * cp_ref
         end if
 
+        ! === Capacity-rule inputs (basal_bc_method="capacity") ===
+        ! Set before the basal BC so that the grounded basal mass balance below
+        ! uses them in every cell with grounded ice, including partially grounded ones.
+        use_capacity = .FALSE.
+        if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
+        cap_flux  = .FALSE.
+        C_now     = 0.0_wp
+        Q_wat_now = 0.0_wp
+        eps_now   = 0.0_wp
+        if (use_capacity) then
+            if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
+            if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
+            if (present(cap_eps)) eps_now   = cap_eps
+            if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
+        end if
+
         ! === Basal boundary condition =====================
 
         if (f_grnd .lt. 1.0) then
@@ -702,23 +719,12 @@ end if
         else 
             ! Grounded ice 
 
-            use_capacity = .FALSE.
-            if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
-
             if (use_capacity) then
                 ! == Capacity rule ==
                 ! Compare the freezing the base would need to stay at the pressure
                 ! melting point (bmb_star, the basal mass balance of a base held at
                 ! T_pmp, from the start-of-step profile; positive = freeze-on) with
                 ! the rate at which the water at the bed can be frozen (C_cap).
-
-                C_now     = 0.0_wp
-                Q_wat_now = 0.0_wp
-                eps_now   = 0.0_wp
-                if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
-                if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
-                if (present(cap_eps)) eps_now   = cap_eps
-                if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
 
                 ! Heat the base would lose upward if held at T_pmp [J m-2 a-1]
                 dz = H_ice * (zeta_aa(2) - zeta_aa(1))
@@ -741,6 +747,7 @@ end if
                     ! conductive flux, q_up = G + Q_b + Q_wat + rho_ice*L*C.
                     val_base = (Q_b_now + Q_lith_now + Q_wat_now + rho_ice*L_ice*C_now) / kt(1) * cp_eff(1)
                     is_basal_flux = .TRUE.
+                    cap_flux      = .TRUE.
                 end if
 
             else
@@ -853,9 +860,19 @@ end if
 
         ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
         ! Q_b_now/Q_lith_now/Q_ice_b_now are in [J a-1 m-2]; Q_ice_b_now is positive up.
+        ! With the capacity rule, the water-side heat Q_wat_now (zero otherwise)
+        ! is part of the interface balance, and freeze-on is limited by C_now.
         if (f_grnd .gt. 0.0_wp) then
-            call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
-                                            Q_ice_b_now,Q_b_now,Q_lith_now,rho_ice,L_ice)
+            if (cap_flux) then
+                ! Flux branch: all available water was frozen, by construction
+                bmb_grnd = C_now
+            else
+                call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
+                                            Q_ice_b_now,Q_b_now+Q_wat_now,Q_lith_now,rho_ice,L_ice)
+                ! Safety clamp: never freeze more water than the bed holds. Can
+                ! bind when the start-of-step bmb_grnd* underestimated the freezing.
+                if (use_capacity .and. bmb_grnd .gt. C_now) bmb_grnd = C_now
+            end if
         else
             bmb_grnd = 0.0_wp
         end if
