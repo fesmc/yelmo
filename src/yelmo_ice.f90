@@ -1660,6 +1660,10 @@ contains
     end subroutine yelmo_print_bound
 
     subroutine yelmo_set_time(dom,time)
+        ! Set the clocks of all components to time (e.g. to rewind after
+        ! yelmo_update_equil), so the next step advances each by the full dt.
+        ! bnd%time_n is the time of z_bed_n/z_sl_n (see ybound_update_rates).
+        ! The elsa/tracer backends keep their own deposition clocks, untouched.
 
         implicit none 
 
@@ -1670,6 +1674,9 @@ contains
         dom%dyn%par%time      = time 
         dom%mat%par%time      = time 
         dom%thrm%par%time     = time 
+        dom%trc%par%time      = time 
+        dom%hyd%now%time      = time 
+        dom%bnd%time_n        = time 
         
         return 
 
