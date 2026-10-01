@@ -435,6 +435,11 @@ little. MISMIP3D and DIVA runs change more.
     `calc_T_freeze_sw`) and the true water depth.
   - Negative subglacial discharge is clipped to 0 instead of giving NaN.
   - Eigencalving is zero unless both eigenvalues are positive.
+- **Frontal melt (`fmb_method = 3`, Rignot et al. 2016):** the rate was in m/day but
+  used as m/yr (365× too small), and negative subglacial discharge gave NaN. Now
+  converted to m/yr and clipped, through one function (`calc_melt_rate_rignot16`)
+  shared with the ISMIP7 retreat (which changes only at round-off: its constants
+  were single precision).
 - **LSF:**
   - The level set is advected by its own advective-form upwind solver
     (∂φ/∂t + w·∇φ = 0, subcycled for CFL), independent of `ytopo.solver`. Before,
