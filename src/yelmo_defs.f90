@@ -132,7 +132,6 @@ module yelmo_defs
         character(len=56)  :: bmb_gl_method
         integer            :: fmb_method  
         integer            :: dmb_method
-        integer            :: surf_gl_method 
         logical            :: margin2nd
         character(len=12)  :: front_subgrid
         real(wp)           :: front_H_eff_min
@@ -439,7 +438,6 @@ module yelmo_defs
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc
-        real(wp)   :: ssa_beta_max          ! Maximum value of beta for which ssa should be calculated
         real(wp)   :: ssa_vel_max
         integer    :: ssa_iter_max 
         real(wp)   :: ssa_iter_rel 

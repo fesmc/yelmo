@@ -696,7 +696,6 @@ contains
 
         ! Apply default for ssa_solver if not set in namelist
         if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "energy"
-        call nml_read(filename,group_ydyn,"ssa_beta_max",       par%ssa_beta_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)

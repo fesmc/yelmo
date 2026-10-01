@@ -205,6 +205,9 @@ little. MISMIP3D and DIVA runs change more.
 - **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
   `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
   `hydro_init`.
+- **`ytopo.surf_gl_method` and `ydyn.ssa_beta_max` removed.** Both were read but
+  never used (the surface is always `calc_z_srf_max`). Remove them from external
+  par files (`nml_validate` stops).
 
 ### Answer-changing fixes
 
