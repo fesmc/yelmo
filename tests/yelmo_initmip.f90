@@ -17,7 +17,7 @@ program yelmo_test
     implicit none 
 
     type(tstep_class)   :: ts
-    type(timeout_class) :: t1D, t2D, t2Dsm
+    type(timeout_class) :: t1D, t2D, t2Dsm, trst
 
     type(yelmo_class)   :: yelmo1 
     
@@ -28,12 +28,9 @@ program yelmo_test
 
     type ctrl_params
         character(len=56) :: run_step
-        character(len=56) :: tstep_method
-        real(wp) :: tstep_const
-        real(wp) :: time_init
-        real(wp) :: time_end
         real(wp) :: time_equil      ! Only for spinup
         real(wp) :: dtt
+        character(len=56) :: restart_mode   ! "state" or "continue"
 
         logical  :: with_ice_sheet 
         character(len=56) :: equil_method
@@ -62,8 +59,6 @@ program yelmo_test
     type(ctrl_params)    :: ctl
     type(ice_opt_params) :: opt
 
-    real(wp) :: dtt_now
-
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime
 
     ! Code for testing restarts
@@ -78,13 +73,13 @@ program yelmo_test
     ! Determine the parameter file from the command line 
     call yelmo_load_command_line_args(path_par)
 
-    ! Timing and other parameters 
-    call nml_read(path_par,"ctrl","tstep_method",   ctl%tstep_method)       ! Calendar choice ("const" or "rel")
-    call nml_read(path_par,"ctrl","tstep_const",    ctl%tstep_const)        ! Assumed time bp for const method
-    call nml_read(path_par,"ctrl","time_init",      ctl%time_init)          ! [yr] Starting time
-    call nml_read(path_par,"ctrl","time_end",       ctl%time_end)           ! [yr] Ending time
+    ! === Initialize timestepping ===
+    ! ctrl: tstep_method, tstep_const, time_init, time_end, dtt [yr] (main loop time step)
+    call tstep_init(ts,path_par,"ctrl",ctl%dtt)
+
+    ! Other parameters 
     call nml_read(path_par,"ctrl","time_equil",     ctl%time_equil)         ! [yr] Years to equilibrate first
-    call nml_read(path_par,"ctrl","dtt",            ctl%dtt)                ! [yr] Main loop time step 
+    call nml_read(path_par,"ctrl","restart_mode",   ctl%restart_mode)       ! "state": spun-up state, "continue": continuation (time_init = restart time)
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
@@ -118,10 +113,11 @@ program yelmo_test
     call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
     call nml_read(path_par,ctl%set_nm,  "z_sl",            ctl%z_sl)                      ! [m] Sea level relative to present-day
 
-    ! Get output times
-    call timeout_init(t1D,  path_par,"t1D",  "small",  ctl%time_init,ctl%time_end)
-    call timeout_init(t2Dsm,path_par,"t2Dsm","medium", ctl%time_init,ctl%time_end)
-    call timeout_init(t2D,  path_par,"t2D",  "heavy",  ctl%time_init,ctl%time_end)
+    ! Get output and restart times (a restart is always written at time_end)
+    call timeout_init(t1D,  path_par,"t1D",  "small",  ts%time_init,ts%time_end)
+    call timeout_init(t2Dsm,path_par,"t2Dsm","medium", ts%time_init,ts%time_end)
+    call timeout_init(t2D,  path_par,"t2D",  "heavy",  ts%time_init,ts%time_end)
+    call timeout_init(trst, path_par,"trst", "restart",ts%time_init,ts%time_end)
     
     if (trim(ctl%equil_method) .eq. "opt") then 
         ! Load optimization parameters 
@@ -138,11 +134,6 @@ program yelmo_test
     t2D%filename   = "yelmo.nc"
     file_restart   = "yelmo_restart.nc"
 
-    ! === Initialize timestepping ===
-    
-    call tstep_init(ts,ctl%time_init,ctl%time_end,method=ctl%tstep_method,units="year", &
-                                            time_ref=1950.0_wp,const_rel=ctl%tstep_const)
-
     write(*,*)
     write(*,*) "timestepping:   ",  trim(ts%method)
     if (trim(ts%method) .eq. "const") then 
@@ -157,6 +148,9 @@ program yelmo_test
 
     ! Initialize data objects and load initial topography
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=ts%time)
+
+    ! Restart mode: a continuation must start at the restart file's time
+    call check_restart_mode(ctl%restart_mode,yelmo1%par%use_restart,yelmo1%par%restart,ts%time_init)
 
     ! Ensure optimization fields are allocated
     allocate(opt%cf_min(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
@@ -329,30 +323,38 @@ program yelmo_test
     ! end if 
 
     ! ==== Begin main time loop =====
+    ! Output and restarts are written at the top of the loop for the current
+    ! time (time_init on the first pass, time_end on the last), then the time
+    ! is advanced and the model updated.
 
-    dtt_now = ctl%dtt
     call tstep_print_header(ts)
 
-    do while (.not. ts%is_finished)
+    do
+
+        ! == MODEL OUTPUT =======================================================
+
+        if (timeout_check(t1D,ts%time)) then 
+            call yelmo_regions_write(yelmo1,ts%time)
+        end if 
+
+        if (timeout_check(t2Dsm,ts%time)) then 
+            call yelmo_write_step(yelmo1,t2Dsm%filename,ts%time,compare_pd=.TRUE.)
+        end if
+
+        if (timeout_check(t2D,ts%time)) then
+            call write_step_2D(yelmo1,t2D%filename,time=ts%time)
+        end if
+
+        if (timeout_check(trst,ts%time) .or. ts%is_finished) then
+            call yelmo_restart_write(yelmo1,file_restart,ts%time)
+        end if
+
+        if (ts%is_finished) exit
 
         ! == Update timestep ===
 
-        call tstep_update(ts,dtt_now)
+        call tstep_update(ts,ctl%dtt)
         call tstep_print(ts)
-        
-!         ! Update temperature and smb as needed in time (ISMIP6)
-!         if (ts%time .ge. -10e6 .and. ts%time .lt. -10e3) then 
-!             ! Glacial period, impose cold climate 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf - 10.0 
-
-!         else if (ts%time .ge. -10e3 .and. ts%time .lt. -6e3) then
-!             ! Holocene optimum 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf + 1.0 
-
-!         else  ! time .ge. -6e3
-!             ! Entering Holocene, impose present-day temperatures 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf
-!         end if 
         
         ! Spin-up procedure - only relevant for time_elapsed <= time_equil
         select case(trim(ctl%equil_method))
@@ -425,39 +427,14 @@ program yelmo_test
 
         ! == UPDATE YELMO =======================================================
 
-
         if (ctl%with_ice_sheet) call yelmo_update(yelmo1,ts%time)
 
-
-        ! == MODEL OUTPUT =======================================================
-
-        ! if (mod(nint(ts%time*100),nint(ctl%dt1D_out*100))==0) then 
-        !     call yelmo_write_reg_step(yelmo1,t1D%filename,time=ts%time) 
-        ! end if 
-
-        if (timeout_check(t1D,ts%time)) then 
-            call yelmo_regions_write(yelmo1,ts%time)
-        end if 
-
-        if (timeout_check(t2Dsm,ts%time)) then 
-            call yelmo_write_step(yelmo1,t2Dsm%filename,ts%time,compare_pd=.TRUE.)
-        end if
-
-        if (timeout_check(t2D,ts%time)) then
-            call write_step_2D(yelmo1,t2D%filename,time=ts%time)
-        end if
-        
         if (mod(ts%time,10.0)==0 .and. (.not. yelmo_log)) then
             write(*,"(a,f14.4)") "yelmo:: time = ", ts%time
         end if 
         
     end do 
     ! == Finished time loop == 
-
-    ! Write a final restart file 
-    if (.not. test_restart) then 
-        call yelmo_restart_write(yelmo1,file_restart,ts%time)
-    end if 
 
     ! Finalize program
     call yelmo_end(yelmo1,time=ts%time)
@@ -466,9 +443,60 @@ program yelmo_test
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
 
     write(*,"(a,f12.3,a)") "Time  = ",cpu_dtime/60.0 ," min"
-    write(*,"(a,f12.1,a)") "Speed = ",(1e-3*(ctl%time_end-ctl%time_init))/(cpu_dtime/3600.0), " kiloyears / hr"
+    write(*,"(a,f12.1,a)") "Speed = ",(1e-3*(ts%time_end-ts%time_init))/(cpu_dtime/3600.0), " kiloyears / hr"
 
 contains
+
+    subroutine check_restart_mode(restart_mode,use_restart,restart,time_init)
+        ! "state": the restart file provides a (spun-up) state and the run starts at
+        ! time_init, whatever time the file holds. "continue": the run continues the
+        ! simulation of the restart file, so time_init must equal the file's time.
+
+        implicit none
+
+        character(len=*), intent(IN) :: restart_mode
+        logical,          intent(IN) :: use_restart
+        character(len=*), intent(IN) :: restart
+        real(wp),         intent(IN) :: time_init
+
+        ! Local variables
+        integer  :: nt
+        real(wp), allocatable :: time_rst(:)
+
+        select case(trim(restart_mode))
+
+            case("state")
+                ! Nothing to check
+
+            case("continue")
+
+                if (.not. use_restart) then
+                    write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires a restart file (yelmo.restart)."
+                    stop "Program stopped."
+                end if
+
+                nt = nc_size(restart,"time")
+                allocate(time_rst(nt))
+                call nc_read(restart,"time",time_rst)
+
+                if (abs(time_rst(nt)-time_init) .gt. 1e-3_wp) then
+                    write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires ctrl.time_init &
+                                         &to equal the time of the restart file."
+                    write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
+                    write(io_unit_err,*) "restart = ", trim(restart)
+                    stop "Program stopped."
+                end if
+
+            case DEFAULT
+                write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.restart_mode must be 'state' or 'continue'; got ", &
+                                     trim(restart_mode)
+                stop "Program stopped."
+
+        end select
+
+        return
+
+    end subroutine check_restart_mode
 
     subroutine test_restart_step()
 

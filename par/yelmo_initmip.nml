@@ -5,6 +5,7 @@
     time_init       = 0.0               ! [yr] Starting time 
     time_end        = 1e3               ! [yr] Ending time
     time_equil      = 0e3               ! [yr] Equilibration time 
+    restart_mode    = "state"           ! "state": start at time_init from a (spun-up) restart state; "continue": continue the restart's simulation (time_init must equal the restart time)
     dtt             = 10.0              ! [yr] Main loop timestep 
 
     with_ice_sheet  = True              ! Active ice-sheet component? 
@@ -62,6 +63,13 @@
 &t1D
     method          = "const"           ! "const", "file", "times"
     dt              = 1.0
+    file            = "none"
+    times           = 0
+/
+
+&trst
+    method          = "none"            ! "none", "const", "file", "times" (a restart is always written at time_end)
+    dt              = 1000.0
     file            = "none"
     times           = 0
 /
