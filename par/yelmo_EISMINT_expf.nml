@@ -3,9 +3,6 @@
     domain       = "EISMINT"             ! "EISMINT"
     experiment   = "EXPF"                ! "fixed", "moving", "mismip", "EXPA", "EXPB", "EXPF","BUELER-A", "BUELER-B", "HALFAR", "HALFAR-MED"
     dx           = 25.0                  ! [km] Grid resolution (EISMINT1 = 50km, EISMINT2 = 25km)
-    topo_fixed   = False                 ! Calculate the topography, or use Heiko's topo file.  
-    dyn_fixed    = False                 ! Fix dynamics after first calculation? 
-    topo_fixed_file = "/Users/robinson/models/EURICE/yelmo/tests/heiko_imau-ice_help_fields_eismint_M_200kyr.nc"
 
     ! Timing parameters 
     time_init    = 0.0                  ! [yr] Starting time 
@@ -27,7 +24,7 @@
     grid_name       = "EISMINT"
     grid_path       = "none"
     phys_const      = "EISMINT"
-    experiment      = "EISMINT"         ! "None", "EISMINT", "MISMIP3D", "BUELER"  to apply special boundary conditions   
+    experiment      = "EISMINT"         ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "infinite"; "MASK_ICE"
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"
@@ -56,8 +53,8 @@
     pc_use_H_pred   = False             ! Use predicted H_ice instead of corrected H_ice 
     pc_filter_vel   = False             ! Use mean vel. solution of current and previous timestep
     pc_n_redo       = 10                ! How many times can the same iteration be repeated (when high error exists)
-    pc_tol          = 2.0               ! [m/a] Tolerance threshold to redo timestep
-    pc_eps          = 1e-3              ! Predictor-corrector tolerance 
+    pc_tol          = 2.0               ! [1/a] Redo the timestep when pc_eta > pc_tol; pc_eta = RMS of tau/(1 m + 0.01 H) over the pc mask without the pc_eta_trim largest, tau = pc truncation error [m/a]
+    pc_eps          = 1e-3              ! [1/a] Target pc_eta of the adaptive timestep (dt_method=2), must be <= pc_tol
     pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
     pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
     pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
@@ -99,7 +96,7 @@
     dmb_m_r             = 1.0               ! [-]   Discharge resolution scaling exponent
 
     ! === frontal mass melt ===
-    fmb_method          = 0                 ! 0: prescribe boundary field fmb_shlf; 1: calculate proportional fmb~bmb_shlf; 3: Rignot et al. (2016) with tf_shlf and Qd.
+    fmb_method          = 0                 ! 0: prescribe boundary field fmb_shlf; 1: proportional fmb~bmb_shlf; 2: fmb_shlf scaled by the submerged front area; 3: Rignot et al. (2016) with tf_shlf and Qd.
     fmb_scale           = 1.0               ! Scaling of fmb ~ scale*bmb, scale=10 suggested by Pollard and DeConto (2016)
     fmb_lambda          = 1.0               ! fmb_method=3: scaling of the Rignot et al. (2016) frontal melt (ISMIP7 protocol)
 /
@@ -123,7 +120,7 @@
     
     ! === stress/strain rates ===
     calv_tau            = 1.0               ! [a] Characteristic calving time
-    calv_thin           = 30.0              ! [m/yr] Calving rate to apply to very thin ice
+    calv_thin           = 30.0              ! [m/yr] Calving rate to apply to very thin ice (use_lsf=False with vm-l19/eigen, front_subgrid="none" only)
     k2                  = 3.2e9             ! [m yr] eigen calving scaling factor (Albrecht et al, 2021 recommend 1e17 m s == 3.2e9 m yr)
     w2                  = 0.0               ! Weighting coefficient of 2nd principal strain/stress
     kt_ref              = 0.0025            ! [m yr-1 Pa-1] vm-l19 calving scaling parameter
@@ -134,7 +131,7 @@
     ! === threshold method ===
     Hc_ref_flt          = 200.0             ! [m] Calving limit in ice thickness - floating (thinner ice calves)
     Hc_ref_grnd         = 200.0             ! [m] Calving limit in ice thickness - marine-terminating (thinner ice calves)
-    Hc_ref_thin         = 50.0              ! [m] Reference ice thickness for thin ice calving
+    Hc_ref_thin         = 50.0              ! [m] Reference ice thickness for thin ice calving (use_lsf=False with vm-l19/eigen, front_subgrid="none" only)
     Hc_deep             = 500.0             ! [m] Calving limit in ice thickness (thinner ice calves)
     zb_deep_0           = -1000.0           ! [m] Bedrock elevation to begin transition to deep ocean
     zb_deep_1           = -1500.0           ! [m] Bedrock elevation to end transition to deep ocean
@@ -144,16 +141,16 @@
 &ydyn
     solver              = "sia"           ! "fixed", "sia", "ssa", "hybrid", "diva", "diva-noslip"
     uz_method           = 3               ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian
-    visc_method         = 1               ! 0: constant visc=visc_const, 1: dynamic viscosity
+    visc_method         = 1               ! 0: constant visc=visc_const, 1: dynamic viscosity (quadrature points), 2: dynamic viscosity (aa-nodes)
     visc_const          = 1e7             ! [Pa a] Constant value for viscosity (if visc_method=0)
-    beta_method         = 3               ! 0: constant beta; 1: linear (beta=cb/u0); 2: psuedo-plastic-power; 3: Regularized Coulomb
+    beta_method         = 3               ! -1: imposed externally; 0: constant beta; 1: linear (beta=cb/u0); 2: pseudo-plastic power; 3: regularized Coulomb; 4, 5: as 2, 3 with c_bed and u_b at the cell centre (no quadrature)
     beta_const          = 1e3             ! [Pa a m−1] Constant value of basal friction coefficient to be used
     beta_q              = 0.2             ! Dragging law exponent 
     beta_u0             = 100.0           ! [m/a] Regularization term for regularized Coulomb law (beta_method=3)
-    beta_gl_scale       = 0               !  0: beta*beta_gl_f, 1: H_grnd linear scaling, 2: Zstar scaling 
-    beta_gl_stag        = 1               !  0: simple staggering, 1: Upstream beta at gl, 2: downstream, 3: f_grnd_ac scaling 
+    beta_gl_scale       = 0               ! 0: beta*beta_gl_f, 1: H_grnd linear scaling, 2: Zstar scaling, 3: beta*f_grnd on aa-nodes (with simple staggering)
+    beta_gl_stag        = 1               ! -1: beta_acx/acy imposed externally; 0: simple staggering, 1: upstream beta at gl, 2: downstream, 3: f_grnd_ac scaling, 4: weighted by the grounded share of the velocity across the face (Gladstone et al., 2010, B2)
     beta_gl_f           = 1.0             ! [-] Scaling of beta at the grounding line (for beta_gl_scale=0)
-    taud_gl_method      = 0               !  0: binary, no subgrid, 1: Two-sided gradient
+    taud_gl_method      = 0               ! 0: binary, no subgrid; 1: f_grnd-weighted surface slope and floating virtual slope; 2: one-sided differences (Feldmann et al., 2014); 3: linear interpolation (Gladstone et al., 2010)
     H_grnd_lim          = 500.0           ! [m] For beta_gl_scale=1, reduce beta linearly between H_grnd=0 and H_grnd_lim 
     beta_min            = 0.0             ! [Pa a m-1] Minimum value of beta allowed for grounded ice (for stability)
     eps_0               = 1e-6            ! [1/a] Regularization term for effective viscosity - minimum strain rate

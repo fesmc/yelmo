@@ -58,7 +58,7 @@
     grid_name       = "MASK_ICE"
     grid_path       = "none"
     phys_const      = "Earth"
-    experiment      = "MASK_ICE"        ! Routes to boundaries="mask"
+    experiment      = "MASK_ICE"        ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "infinite"; "MASK_ICE"
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"

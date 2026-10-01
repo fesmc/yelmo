@@ -225,16 +225,16 @@ contains
 
             end if
 
-            ! Skip a zero-length step on an already-active trajectory. The driver
-            ! re-runs the step at the restart time on its first loop iteration
-            ! (tstep_update leaves time == time_init when ts%n == 0), giving
-            ! dt_now == 0 with the full model state already restored. Re-running the
-            ! predictor/corrector, velocity solve and pc-error machinery at dt == 0
-            ! would perturb that state (pc_dt/pc_eta history, pc_tau, re-solved
-            ! velocities) and break bit-for-bit restart continuity. A cold start's
-            ! equivalent t == 0 zero-step has pc_active == .FALSE. and still runs,
-            ! so non-restart behaviour is unchanged. The post-loop rate finalization
-            ! is already guarded by dt_max_0 > 0, so state is fully maintained here.
+            ! Skip a zero-length step on an already-active trajectory. dt_now == 0
+            ! when yelmo_update is called at the current model time, e.g. by a
+            ! host model at its restart time or twice at the same time (the in-repo
+            ! drivers no longer do this: fesm-utils tstep_update advances on every
+            ! call). Re-running the predictor/corrector, velocity solve and pc-error
+            ! machinery at dt == 0 would perturb the restored state (pc_dt/pc_eta
+            ! history, pc_tau, re-solved velocities) and break restart continuity,
+            ! so such a call leaves the state unchanged. A call at dt == 0 before the
+            ! pc is active (pc_active == .FALSE., e.g. right after a cold start) still
+            ! runs. The post-loop rate finalization is guarded by dt_max_0 > 0.
             if (dt_now .eq. 0.0_wp .and. dom%time%pc_active) exit
 
             do iter_redo=1, dom%par%pc_n_redo
