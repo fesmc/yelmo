@@ -2,7 +2,7 @@ module velocity_general
     ! This module contains general routines that are used by several solvers. 
     
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
-                            A_FRONT_MIN
+                            A_FRONT_MIN, is_equal
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
                             integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -28,6 +28,7 @@ module velocity_general
     public :: calc_ice_flux
     public :: calc_grounding_line_flux
     public :: calc_vel_ratio
+    public :: calc_visc_eff_int
 
     public :: picard_calc_error 
     public :: picard_calc_error_angle 
@@ -2176,6 +2177,54 @@ end if
         return 
 
     end subroutine picard_relax_visc
+
+    subroutine calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
+        ! Vertically integrated effective viscosity (SSA and DIVA):
+        ! visc_eff_int = H_ice * mean(visc_eff) over zeta in full ice cells,
+        ! visc_min elsewhere. Only the vertical integration is shared; the 3D
+        ! viscosity itself (with or without the vertical shear contribution)
+        ! comes from the solver's own calc_visc_eff_3D_* routines.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: visc_eff_int(:,:)
+        real(wp), intent(IN)  :: visc_eff(:,:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: zeta_aa(:)
+
+        ! Local variables 
+        integer  :: i, j, nx, ny
+        real(wp) :: visc_eff_mean 
+
+        real(wp), parameter :: visc_min = 1e5_wp
+
+        nx = size(visc_eff_int,1)
+        ny = size(visc_eff_int,2)
+
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,visc_eff_mean)
+        do j = 1, ny 
+        do i = 1, nx
+
+            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+                ! Calculate the vertically averaged viscosity for this point
+                visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
+
+                visc_eff_int(i,j) = visc_eff_mean*H_ice(i,j) 
+            else
+                visc_eff_int(i,j) = visc_min 
+            end if 
+
+            ! Avoid very low viscosity values, e.g. when ice thickness is < 1m
+            if (visc_eff_int(i,j) .lt. visc_min) visc_eff_int(i,j) = visc_min 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_visc_eff_int
 
 
 
