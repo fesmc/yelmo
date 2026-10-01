@@ -34,6 +34,7 @@ program yelmo_test
 
         logical  :: with_ice_sheet 
         character(len=56) :: equil_method
+        character(len=56) :: init_temp      ! Initial temperature profile: "robin" or "robin-cold"
         
         character(len=512) :: set_nm
           
@@ -77,6 +78,7 @@ program yelmo_test
     call nml_read(path_par,"ctrl","restart_mode",   ctl%restart_mode)       ! "state": spun-up state, "continue": continuation (time_init = restart time)
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
+    call nml_read(path_par,"ctrl","init_temp",      ctl%init_temp)          ! Initial temperature profile ("robin", "robin-cold")
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
     
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
@@ -203,8 +205,9 @@ program yelmo_test
     ! Special treatment for Antarctica
     if (trim(yelmo1%par%domain) .eq. "Antarctica") then 
         
-        ! Present-day
-        if (ctl%dT_ann .ge. 0.0) then 
+        ! Present-day: melt ice beyond the present-day extent (mass-balance
+        ! calving path only; with the level set, calving sets the fronts)
+        if (ctl%dT_ann .ge. 0.0 .and. .not. yelmo1%tpo%par%use_lsf) then 
             where(mask_noice) yelmo1%bnd%bmb_shlf = -2.0                ! [m/a]        
         end if 
 
@@ -219,8 +222,8 @@ program yelmo_test
     end if 
 
     ! Initialize state variables (dyn,therm,mat)
-    ! (initialize temps with robin method with a cold base)
-    call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
+    ! (initial temperature from the robin solution, optionally with a cold base)
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=ctl%init_temp)
 
     ! ===== basal friction optimization ======
     if (trim(ctl%equil_method) .eq. "opt") then 

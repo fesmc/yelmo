@@ -12,6 +12,7 @@
 
     with_ice_sheet  = True              ! Active ice-sheet component? 
     equil_method    = "opt"             ! "none", "relax", "opt"
+    init_temp       = "robin-cold"      ! Initial temperature profile: "robin" or "robin-cold" (cold base)
 
     set_nm          = "set_grl_pd"     ! "set_grl_pd", "set_ant_pd" or "set_ant_lgm"
     
