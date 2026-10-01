@@ -1,9 +1,9 @@
 module ice_enthalpy 
     ! Module contains the ice temperature and basal mass balance (grounded) solution
 
-    use yelmo_defs, only : wp, pi  
+    use yelmo_defs, only : wp
     use solver_tridiagonal, only : solve_tridiag 
-    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, calc_advec_vertical_column, &
+    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, &
                                convert_to_enthalpy, convert_from_enthalpy_column, cp_ref, cp_a, cp_b, &
                                convert_to_enthalpy_ice, convert_from_enthalpy_ice, enth_int_from_temp
 
@@ -16,8 +16,6 @@ module ice_enthalpy
     public :: calc_temp_bedrock_column
     public :: calc_enth_column
     public :: calc_dzeta_terms
-    public :: calc_zeta_twolayers
-    public :: calc_zeta_combined
     public :: get_cts_index
 
 contains 
@@ -255,7 +253,7 @@ contains
 
     subroutine calc_temp_bedrock_column(temp,Q_rock,rhoc,kt,Q_ice_b,Q_geo,T_srf,H_rock, &
                                                 zeta_aa,zeta_ac,dzeta_a,dzeta_b,sec_year,dt)
-        ! Thermodynamics solver for a given column of ice 
+        ! Thermodynamics solver for a given column of bedrock 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
@@ -1254,142 +1252,6 @@ end if
 
     end subroutine calc_wtd_harmonic_mean
 
-    subroutine calc_zeta_twolayers(zeta_pt,zeta_pc,zeta_scale,zeta_exp)
-        ! Calculate the vertical layer-edge axis (vertical ac-nodes)
-        ! and the vertical cell-center axis (vertical aa-nodes),
-        ! including an extra zero-thickness aa-node at the base and surface
-
-        ! This is built in two-steps, first for the basal temperate layer
-        ! and second for the overlying cold layer. The height of the border
-        ! is the CTS height, which will be defined for each column. The temperate layer is populated with an 
-        ! evenly-spaced (linear) axis up to upper boundary, while the cold layer follows the 
-        ! parameter options zeta_scale and zeta_exp. 
-
-        implicit none 
-
-        real(wp),   intent(INOUT) :: zeta_pt(:)
-        real(wp),   intent(INOUT) :: zeta_pc(:) 
-        character(*), intent(IN)  :: zeta_scale 
-        real(wp),   intent(IN)    :: zeta_exp 
-
-        ! Local variables
-        integer :: k, nz_pt, nz_pc 
-
-        integer :: nz_ac 
-        real(wp), allocatable :: zeta_ac(:) 
-
-        nz_pt  = size(zeta_pt)
-        nz_pc  = size(zeta_pc) 
-
-        ! ===== Temperate layer ===================================
-
-        nz_ac = nz_pt - 1
-        allocate(zeta_ac(nz_ac))
-
-        ! Linear scale for cell boundaries
-        do k = 1, nz_ac
-            zeta_ac(k) = 0.0 + 1.0*(k-1)/real(nz_ac-1)
-        end do 
-
-        ! Get zeta_aa (between zeta_ac values, as well as at the base and surface)
-        zeta_pt(1) = 0.0 
-        do k = 2, nz_pt-1
-            zeta_pt(k) = 0.5 * (zeta_ac(k-1)+zeta_ac(k))
-        end do 
-        zeta_pt(nz_pt) = 1.0 
-
-        ! ===== Cold layer ========================================
-
-        nz_ac = nz_pc - 1
-        deallocate(zeta_ac)
-        allocate(zeta_ac(nz_ac))
-
-        ! Linear scale for cell boundaries
-        do k = 1, nz_ac
-            zeta_ac(k) = 0.0 + 1.0*(k-1)/real(nz_ac-1)
-        end do 
-
-        ! Scale zeta to produce different resolution through column if desired
-        ! zeta_scale = ["linear","exp","wave"]
-        select case(trim(zeta_scale))
-            
-            case("exp")
-                ! Increase resolution at the base 
-                zeta_ac = zeta_ac**(zeta_exp) 
-
-            case("tanh")
-                ! Increase resolution at base and surface 
-
-                zeta_ac = tanh(1.0*pi*(zeta_ac-0.5))
-                zeta_ac = zeta_ac - minval(zeta_ac)
-                zeta_ac = zeta_ac / maxval(zeta_ac)
-
-            case DEFAULT
-            ! Do nothing, scale should be linear as defined above
-        
-        end select  
-        
-        ! Get zeta_aa (between zeta_ac values, as well as at the base and surface)
-        zeta_pc(1) = 0.0 
-        do k = 2, nz_pc-1
-            zeta_pc(k) = 0.5 * (zeta_ac(k-1)+zeta_ac(k))
-        end do 
-        zeta_pc(nz_pc) = 1.0 
-
-        return 
-
-    end subroutine calc_zeta_twolayers
-    
-    subroutine calc_zeta_combined(zeta_aa,zeta_ac,zeta_pt,zeta_pc,H_cts,H_ice)
-        ! Take two-layer axis and combine into one axis based on relative CTS height
-        ! f_cts = H_cts / H_ice 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: zeta_aa(:) 
-        real(wp), intent(INOUT) :: zeta_ac(:) 
-        real(wp), intent(IN)    :: zeta_pt(:) 
-        real(wp), intent(IN)    :: zeta_pc(:) 
-        real(wp), intent(IN)    :: H_cts 
-        real(wp), intent(IN)    :: H_ice 
-
-        ! Local variables 
-        integer  :: k 
-        integer  :: nzt, nztc, nzc, nz_aa, nz_ac  
-        real(wp) :: f_cts
-
-        nz_aa = size(zeta_aa,1)
-        nz_ac = size(zeta_ac,1)  ! == nz_aa-1
-        nzt   = size(zeta_pt,1)
-        nzc   = size(zeta_pc,1) 
-
-        if (nzt+(nzc-1)  .ne. nz_aa) then 
-            write(*,*) "calc_zeta_combined:: Error: Two-layer axis length does not match combined axis length."
-            write(*,*) "nzt, nzc-1, nz_aa: ", nzt, nzc-1, nz_aa 
-            stop 
-        end if 
-
-        ! Get f_cts 
-        if (H_ice .gt. 0.0) then 
-            f_cts = max(H_cts / H_ice,0.01)
-        else 
-            f_cts = 0.01 
-        end if 
-
-        zeta_aa(1:nzt) = zeta_pt(1:nzt)*f_cts
-        zeta_aa(nzt+1:nzt+nzc) = f_cts + zeta_pc(2:nzc)*(1.0-f_cts)
-
-        ! Get zeta_ac again (boundaries between zeta_aa values, as well as at the base and surface)
-        zeta_ac(1) = 0.0_wp 
-        do k = 2, nz_ac-1
-            zeta_ac(k) = 0.5_wp * (zeta_aa(k)+zeta_aa(k+1))
-        end do 
-        zeta_ac(nz_ac) = 1.0_wp 
-
-        return 
-
-    end subroutine calc_zeta_combined
-
     function get_cts_index(enth,enth_pmp) result(k_cts)
 
         implicit none 
@@ -1415,30 +1277,6 @@ end if
         return 
 
     end function get_cts_index
-
-    function interp_linear_point(x0,x1,y0,y1,xout) result(yout)
-        ! Interpolates for the y value at the desired x value, 
-        ! given x and y values around the desired point.
-        ! Solution outside of range x0 < x < x1 bounded by y0 < y < y1 
-
-        implicit none
-
-        real(wp), intent(IN)  :: x0,x1,y0,y1, xout
-        real(wp) :: yout
-        real(wp) :: alph
-
-        if (xout .le. x0) then 
-            yout = y0 
-        else if (xout .ge. x1) then 
-            yout = y1 
-        else 
-            alph = (xout - x0) / (x1 - x0)
-            yout = y0 + alph*(y1 - y0)
-        end if 
-
-        return
-
-    end function interp_linear_point
 
 end module ice_enthalpy
 

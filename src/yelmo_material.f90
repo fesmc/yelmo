@@ -236,7 +236,7 @@ contains
         ! f_ice_solv), where the strain rate was computed (the predicted geometry, not
         ! the start-of-step geometry restored in tpo): partial front cells get their
         ! own viscosity, and so do cells that filled during the step
-        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,dyn%now%H_ice_solv,dyn%now%f_ice_solv, &
+        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,dyn%now%f_ice_solv, &
                                                             mat%par%n_glen,mat%par%visc_min,dyn%par%eps_0)
 
         ! Calculate visc_bar and visc_int (vertically integrated visc) as diagnostic quantities
@@ -250,7 +250,6 @@ contains
         ! ajr: for now, only calculate the 2D stress tensor directly. This is 
         ! currently only used for calving, and so only horizontal stresses are
         ! needed (ie, assume constant vertical profile for horizontal velocity)
-        !call calc_stress_tensor(mat%now%strs,mat%now%strs2D,mat%now%visc,mat%now%strn,mat%par%zeta_aa) 
         call calc_stress_tensor_2D(mat%now%strs2D,mat%now%visc_bar,mat%now%strn2D)
 
         return

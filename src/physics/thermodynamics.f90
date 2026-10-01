@@ -46,7 +46,6 @@ module thermodynamics
 
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
-    public :: calc_advec_vertical_column
     public :: calc_advec_horizontal_3D
     public :: calc_advec_horizontal_column
     public :: calc_strain_heating
@@ -169,49 +168,7 @@ contains
 
     end subroutine calc_bmb_grounded_enth
 
-    subroutine calc_advec_vertical_column(advecz,Q,uz,H_ice,zeta_aa)
-        ! Calculate vertical advection term advecz, which enters
-        ! advection equation as
-        ! Q_new = Q - dt*advecz = Q - dt*u*dQ/dx
-        ! 1st order upwind scheme 
-
-        implicit none 
-
-        real(wp), intent(OUT)   :: advecz(:)      ! nz_aa: bottom, cell centers, top 
-        real(wp), intent(INOUT) :: Q(:)           ! nz_aa: bottom, cell centers, top 
-        real(wp), intent(IN)    :: uz(:)          ! nz_ac: cell boundaries
-        real(wp), intent(IN)    :: H_ice          ! Ice thickness 
-        real(wp), intent(IN)    :: zeta_aa(:)    ! nz_aa, cell centers
-        
-        ! Local variables
-        integer :: k, nz_aa   
-        real(wp) :: u_aa, dx  
-
-        nz_aa = size(zeta_aa,1)
-
-        advecz = 0.0 
-
-        ! Loop over internal cell centers and perform upwind advection 
-        do k = 2, nz_aa-1 
-            
-            u_aa = 0.5_wp*(uz(k-1)+uz(k))
-            
-            if (u_aa < 0.0) then 
-                ! Upwind negative
-                dx = H_ice*(zeta_aa(k+1)-zeta_aa(k))
-                advecz(k) = uz(k)*(Q(k+1)-Q(k))/dx   
-            else
-                ! Upwind positive
-                dx = H_ice*(zeta_aa(k)-zeta_aa(k-1))
-                advecz(k) = uz(k-1)*(Q(k)-Q(k-1))/dx
-            end if 
-        end do 
-
-        return 
-
-    end subroutine calc_advec_vertical_column
-
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
+    subroutine calc_advec_horizontal_column(advecxy,var_ice,ux,uy,dx,advecxy_order,i,j,BC)
         ! Horizontal advection u.grad(var), computed in conservative flux form with a
         ! van Leer MUSCL reconstruction and recast to the advective (non-conservative)
         ! form actually solved by the column equation:
@@ -229,8 +186,6 @@ contains
 
         real(wp), intent(OUT) :: advecxy(:)       ! nz_aa
         real(wp), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny
-        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny
         real(wp), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz_aa
         real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa
         real(wp), intent(IN)  :: dx
@@ -332,7 +287,7 @@ contains
 
     end function muscl_face
 
-    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
+    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,ux,uy,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
         ! Explicit horizontal advection u.grad(var), returned as the source term consumed
         ! by the implicit vertical enthalpy/temperature solve.
         !
@@ -357,10 +312,8 @@ contains
         real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa
         real(wp), intent(IN)    :: var(:,:,:)         ! nx,ny,nz_aa  Enth, T, age, etc...
         real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny
-        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny
         real(wp), intent(IN)    :: ux(:,:,:)          ! nx,ny,nz_aa
         real(wp), intent(IN)    :: uy(:,:,:)          ! nx,ny,nz_aa
-        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa
         real(wp), intent(IN)    :: dx
         real(wp), intent(IN)    :: dt                 ! [a] thermodynamics time step
         integer,  intent(IN)    :: advecxy_order      ! 1=upwind, 2=flux-limited 2nd-order upwind
@@ -404,7 +357,7 @@ contains
             !$omp parallel do collapse(2) private(i,j)
             do j = 1, ny
             do i = 1, nx
-                call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
+                call calc_advec_horizontal_column(advecxy(i,j,:),var,ux,uy,dx,advecxy_order,i,j,BC)
             end do
             end do
             !$omp end parallel do
@@ -428,7 +381,7 @@ contains
                 !$omp parallel do collapse(2) private(i,j)
                 do j = 1, ny
                 do i = 1, nx
-                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,BC)
+                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,ux,uy,dx,advecxy_order,i,j,BC)
                 end do
                 end do
                 !$omp end parallel do

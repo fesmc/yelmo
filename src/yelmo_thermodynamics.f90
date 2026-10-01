@@ -139,15 +139,15 @@ contains
                     if (trim(thrm%par%method) .eq. "enth") then 
 
                         ! Calculate the explicit horizontal advection term using enthalpy from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
 
                     else
 
                         ! Calculate the explicit horizontal advection term using temperature from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
                     
                     end if 
@@ -160,7 +160,7 @@ contains
                                 tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
+                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
                                 thrm%par%boundaries)
 
                 case("robin")
@@ -263,7 +263,7 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral, &
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
                                         boundaries)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
@@ -274,7 +274,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J m-3] Ice enthalpy
+        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J kg-1] Ice enthalpy
         real(wp), intent(INOUT) :: T_ice(:,:,:)   ! [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:,:,:)   ! [--] Ice water content
         real(wp), intent(INOUT) :: bmb_grnd(:,:)  ! [m a-1] Basal mass balance (melting is negative)
@@ -283,7 +283,7 @@ contains
         real(wp), intent(INOUT) :: T_pmp(:,:,:)   ! [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:,:,:)      ! [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:,:,:)      ! [J a-1 m-1 K-1] Heat conductivity 
-        real(wp), intent(IN)    :: advecxy(:,:,:) ! [m a-1] Horizontal x-velocity 
+        real(wp), intent(IN)    :: advecxy(:,:,:) ! Horizontal advection term u.grad(enth) or u.grad(T)
         real(wp), intent(IN)    :: ux(:,:,:)      ! [m a-1] Horizontal x-velocity 
         real(wp), intent(IN)    :: uy(:,:,:)      ! [m a-1] Horizontal y-velocity 
         real(wp), intent(IN)    :: uz(:,:,:)      ! [m a-1] Vertical velocity 
@@ -311,7 +311,6 @@ contains
         real(wp), intent(IN)    :: T0
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
-        real(wp), intent(IN)    :: dx             ! [a] Horizontal grid step 
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
@@ -563,7 +562,7 @@ end if
                                                 H_ice,H_grnd,Q_ice_b,Q_geo,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                                 rho_ice,rho_sw,T0,sec_year,dt)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
-        ! which are solved independently by calling calc_enth_column
+        ! which are solved independently by calling calc_temp_bedrock_column
 
         ! Note zeta=height, k=1 base, k=nz surface 
         
