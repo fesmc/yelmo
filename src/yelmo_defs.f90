@@ -705,6 +705,7 @@ module yelmo_defs
         logical           :: use_euler          ! In-tree Eulerian age tracer (ice_tracer solver)
         logical           :: use_tracer         ! Lagrangian particle backend (tracer library)
         logical           :: use_elsa           ! Lagrangian layer backend (elsa library)
+        logical           :: elsa_restart       ! On a restart, restore elsa's layers (False: start them fresh)
         character(len=56) :: t_dep_source       ! "euler"|"tracer"|"elsa": fills authoritative t_dep
 
         ! elsa layer-stack sizing: elsa allocates its isochrone stack once at init

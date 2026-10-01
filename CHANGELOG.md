@@ -530,6 +530,9 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Non-default options
 
+- New `ytrc.elsa_restart` (default `True`): `False` starts elsa's layers fresh also
+  on a restart, e.g. for a transient run on another clock than the spin-up it
+  restarts from. The other backends restart as before.
 - **Imposed `beta_acx/acy` (`beta_gl_stag = -1`)** is no longer raised to `beta_min`
   or overwritten at the domain borders.
 

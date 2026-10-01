@@ -436,7 +436,9 @@ contains
         if (.not. is_restart) trc%now%t_dep_euler = real(time,wp)
 
         ! Layer backend (elsa): allocate the layer stack (sized by par%time_end on
-        ! a cold start, or read from the sidecar on a restart).
+        ! a cold start, or read from the sidecar on a restart). With
+        ! elsa_restart = False, elsa starts fresh also on a restart (e.g. a
+        ! transient run on another clock than the spin-up it restarts from).
         if (trc%par%use_elsa) then
 
             ! elsa sizes its layer stack up to time_end: it must be later than the
@@ -448,7 +450,7 @@ contains
                 error stop 1
             end if
 
-            if (is_restart) then
+            if (is_restart .and. trc%par%elsa_restart) then
                 elsa_rst = ytrc_restart_filename(restart,"elsa")
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
                                time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
@@ -595,6 +597,7 @@ contains
         call nml_read(filename,group,"use_euler",         par%use_euler,         init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"use_tracer",        par%use_tracer,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"use_elsa",          par%use_elsa,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"elsa_restart",      par%elsa_restart,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"t_dep_source",      par%t_dep_source,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"time_end",          par%time_end,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"calc_age",          par%calc_age,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
