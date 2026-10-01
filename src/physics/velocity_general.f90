@@ -495,12 +495,11 @@ end if
         ! First calculate horizontal strain rates at each layer for later use,
         ! with no correction factor for sigma-transformation.
         ! Note: we only need dudx and dvdy, but routine also calculate cross terms, which will not be used.
+        ! Serial loop over k: calc_strain_rate_horizontal_2D opens its own parallel regions.
 
-        !$omp parallel do private(k,dudy,dvdx)
         do k = 1, nz_aa
             call calc_strain_rate_horizontal_2D(dudx(:,:,k),dudy,dvdx,dvdy(:,:,k),ux(:,:,k),uy(:,:,k),f_ice,dx,dy,boundaries)
         end do
-        !$omp end parallel do
 
         ! Next, calculate vertical velocity at each point through the column
 
