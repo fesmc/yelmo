@@ -142,7 +142,7 @@ contains
 
             mask = mask_bed_grline
 
-        else if ( is_equal(f_ice,0.0_wp) ) then 
+        else if ( f_ice .eq. 0.0_wp ) then 
             ! Ice-free points 
 
             if (f_grnd .gt. 0.0) then
@@ -714,7 +714,7 @@ contains
             f_neighb = [f_ice(im1,j),f_ice(ip1,j),f_ice(i,jm1),f_ice(i,jp1)]
             n = count(f_neighb .lt. 1.0)
 
-            if ( is_equal(f_ice(i,j),1.0_wp) .and. n .gt. 0) then 
+            if ( f_ice(i,j) .eq. 1.0_wp .and. n .gt. 0) then 
                 ! This point is an ice front. 
 
                 if (f_grnd(i,j) .gt. 0.0 .and. (z_sl(i,j) .le. z_bed(i,j)) ) then 

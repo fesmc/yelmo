@@ -1,6 +1,6 @@
 module velocity_diva
 
-    use yelmo_defs, only  : sp, dp, prec, wp, pi, TOL, TOL_UNDERFLOW, is_equal
+    use yelmo_defs, only  : sp, dp, prec, wp, pi, TOL, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
                     integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
 
@@ -423,7 +423,7 @@ end if
         !$omp parallel do collapse(2) private(i,j)
         do j = 1, ny 
         do i = 1, nx 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
                 F1(i,j,:) = integrate_trapezoid1D_1D((H_ice(i,j)/visc_eff(i,j,:))*(1.0_wp-zeta_aa),zeta_aa)
             end if
         end do
@@ -612,7 +612,7 @@ end if
         do j = 1, ny  
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
 
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -726,7 +726,7 @@ end if
         do j = 1, ny
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
 
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -799,10 +799,10 @@ end if
         do j = 1, ny 
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then 
+            if ( f_ice(i,j) .eq. 1.0_wp ) then 
                 ! Viscosity should be nonzero here, perform integration 
 
-                H_eff = H_ice(i,j) / f_ice(i,j) 
+                H_eff = H_ice(i,j)
                 F_int(i,j) = integrate_trapezoid1D_pt( (H_eff/visc(i,j,:) )*(1.0_wp-zeta_aa)**n,zeta_aa)
 
             else 
@@ -1011,12 +1011,12 @@ end if
         real(wp), intent(IN) :: f1
         real(wp) :: var_mid 
 
-        if (is_equal(f0,1.0_wp) .and. f1 .lt. 1.0_wp) then 
+        if (f0 .eq. 1.0_wp .and. f1 .lt. 1.0_wp) then 
             ! At the margin 
 
             var_mid = var0 
 
-        else if (f0 .lt. 1.0_wp .and. is_equal(f1,1.0_wp)) then 
+        else if (f0 .lt. 1.0_wp .and. f1 .eq. 1.0_wp) then 
             ! At the margin 
 
             var_mid = var1 
