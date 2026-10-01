@@ -721,7 +721,7 @@ end if
                 if (perr /= 0) THEN
                   write(io_unit_err,*) '    PETSc routine "', routine_name, '" returned error flag ', perr
                   call MPI_ABORT( MPI_COMM_WORLD, cerr, ierr)
-                  stop
+                  error stop 1
                 end if
 
                 return 

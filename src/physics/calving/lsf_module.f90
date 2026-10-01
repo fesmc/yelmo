@@ -20,7 +20,6 @@ module lsf_module
 
     use yelmo_defs,        only : sp, dp, wp, prec, TOL, TOL_UNDERFLOW, MISSING_VALUE, io_unit_err
     use yelmo_tools,       only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
-    use topography,        only : calc_H_eff
     use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none

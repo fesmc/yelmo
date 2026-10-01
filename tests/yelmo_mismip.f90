@@ -129,7 +129,7 @@ program yelmo_mismip
     else 
 
         write(*,*) "experiment not recognized: ", trim(experiment)
-        stop 
+        error stop 1
 
     end if 
     
@@ -144,7 +144,7 @@ program yelmo_mismip
     if (abs(ny*dx-(ymax-ymin)) .gt. 1e-6*(ymax-ymin)) then
         write(*,*) "yelmo_mismip:: Error: the domain width (ymax-ymin) must be a multiple of dx."
         write(*,*) "ymax-ymin, dx = ", ymax-ymin, dx
-        stop
+        error stop 1
     end if
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1, &
                             y0=-real(ny/2,prec)*dx,dy=dx,ny=ny)

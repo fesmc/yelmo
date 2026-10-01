@@ -18,7 +18,7 @@ program test_enthalpy
     !
     ! Output: output/test_enthalpy_<experiment>_<solver>.nc
 
-    use yelmo_defs,     only : wp, prec, ybound_const_class
+    use yelmo_defs,     only : wp, prec, ybound_const_class, io_unit_err
     use ncio
     use yelmo_grid,     only : calc_zeta
     use thermodynamics, only : convert_to_enthalpy, convert_to_enthalpy_ice, calc_T_pmp, cp_ref, &
@@ -94,7 +94,7 @@ program test_enthalpy
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
             write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b, thin-margin, robin-column"
-            stop 1
+            error stop 1
     end select
 
 contains
@@ -193,7 +193,8 @@ contains
                     col%Q_strn(k) = 2.0_wp*A_glen*tau_gam**4*(col%H_ice-z)**4 * c%sec_year
                 end do
             case DEFAULT
-                stop "setup_experiment:: unknown experiment"
+                write(io_unit_err,*) "setup_experiment:: unknown experiment"
+                error stop 1
         end select
 
         ! Pressure melting point profile
@@ -317,7 +318,8 @@ contains
                             col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                 case DEFAULT
-                    write(*,*) "run_experiment:: unknown solver: ", trim(solver); stop 1
+                    write(*,*) "run_experiment:: unknown solver: ", trim(solver)
+                    error stop 1
             end select
 
             ! Basal water: accumulate freely with no drainage or cap, following

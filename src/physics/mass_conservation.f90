@@ -7,7 +7,7 @@ module mass_conservation
 
     use solver_advection, only : calc_advec2D  
     use velocity_general, only : set_inactive_margins 
-    use topography, only : calc_ice_fraction, calc_front_cells, calc_front_H_ref
+    use topography, only : calc_front_cells, calc_front_H_ref
 
     implicit none 
 
@@ -16,9 +16,7 @@ module mass_conservation
     public :: check_mass_conservation
     public :: apply_tendency
     public :: calc_G_advec_simple
-    public :: calc_G_advec
     public :: calc_G_mbal
-    public :: calc_G_calv
     public :: calc_G_boundaries
     public :: set_tau_relax
     public :: calc_G_relaxation
@@ -27,7 +25,6 @@ module mass_conservation
     public :: calc_G_front_advance
     public :: calc_G_calving_front
     public :: calc_G_lsf_front
-    public :: remove_icebergs
     
 contains 
     
@@ -97,7 +94,7 @@ contains
 
                 write(io_unit_err,*) "check_mass_conservation:: Error: units not recognized."
                 write(io_unit_err,*) "units = ", trim(units)
-                stop
+                error stop 1
 
         end select
 
@@ -243,172 +240,6 @@ contains
 
     end subroutine calc_G_advec_simple
 
-    subroutine calc_G_advec(G_adv,dHdt_n,H_ice_n,H_ice_pred,H_ice,f_ice,ux,uy, &
-                        mask_pred_new,mask_corr_new,solver,mask_ice,boundaries, &
-                        dx,dt,beta,pc_step,F)
-        ! Interface subroutine to update ice thickness through application
-        ! of advection, vertical mass balance terms and calving 
-
-        implicit none 
-
-        real(wp),         intent(OUT)   :: G_adv(:,:)           ! [m/yr] Tendency due to advection
-        real(wp),         intent(INOUT) :: dHdt_n(:,:)          ! [m/a] Advective rate of ice thickness change from previous=>current timestep 
-        real(wp),         intent(INOUT) :: H_ice_n(:,:)         ! [m]   Ice thickness from previous=>current timestep 
-        real(wp),         intent(IN)    :: H_ice_pred(:,:)      ! [m]   Ice thickness from predicted timestep 
-        real(wp),         intent(IN)    :: H_ice(:,:)           ! [m]   Ice thickness 
-        real(wp),         intent(IN)    :: f_ice(:,:)           ! [--]  Ice area fraction 
-        real(wp),         intent(IN)    :: ux(:,:)              ! [m/a] Depth-averaged velocity, x-direction (ac-nodes)
-        real(wp),         intent(IN)    :: uy(:,:)              ! [m/a] Depth-averaged velocity, y-direction (ac-nodes)
-        integer,          intent(IN)    :: mask_pred_new(:,:)   
-        integer,          intent(IN)    :: mask_corr_new(:,:)  
-        integer,          intent(IN)    :: mask_ice(:,:)        ! Advection mask  
-        character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
-        character(len=*), intent(IN)    :: boundaries
-        real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
-        real(wp),         intent(IN)    :: dt                   ! [a]   Timestep 
-        real(wp),         intent(IN)    :: beta(4)              ! Timestep weighting parameters
-        character(len=*), intent(IN)    :: pc_step              ! Current predictor-corrector step ('predictor' or 'corrector')
-        real(wp),         intent(IN), optional :: F(:,:) 
-        
-        ! Local variables 
-        integer :: i, j, nx, ny
-        integer :: im1, ip1, jm1, jp1  
-        real(wp), allocatable :: F_now(:,:) 
-        real(wp), allocatable :: dHdt_advec(:,:) 
-        real(wp), allocatable :: ux_tmp(:,:) 
-        real(wp), allocatable :: uy_tmp(:,:) 
-
-        real(wp), parameter :: dHdt_advec_lim = 10.0_wp     ! [m/a] Hard limit on advection rate
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
-
-        allocate(F_now(nx,ny))
-        allocate(ux_tmp(nx,ny))
-        allocate(uy_tmp(nx,ny))
-        allocate(dHdt_advec(nx,ny))
-
-        dHdt_advec = 0.0_wp 
-
-        F_now = 0.0_wp 
-        if (present(F)) F_now = F 
-
-        ! Set local velocity fields with no margin treatment intially
-        ux_tmp = ux
-        uy_tmp = uy
-        
-        ! ===================================================================================
-        ! Resolve the dynamic part (ice advection) using multistep method
-
-        select case(trim(pc_step))
-        
-            case("predictor") 
-                
-                ! Fill velocity field for new cells 
-                call fill_vel_new_cells(ux_tmp,uy_tmp,mask_corr_new,boundaries)
-
-                ! Ensure that no velocity is defined for outer boundaries of partially-filled margin points
-                call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries)
-
-                ! Store ice thickness from time=n
-                H_ice_n   = H_ice 
-
-                ! Store advective rate of change from saved from previous timestep (now represents time=n-1)
-                dHdt_advec = dHdt_n 
-
-                ! Determine current advective rate of change (time=n)
-                call calc_advec2D(dHdt_n,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries)
-
-                ! Calculate rate of change using weighted advective rates of change 
-                dHdt_advec = beta(1)*dHdt_n + beta(2)*dHdt_advec 
-                
-                ! Calculate predicted ice thickness (time=n+1,pred)
-                !H_ice = H_ice_n + dt*dHdt_advec 
-
-            case("corrector") ! corrector 
-
-                ! Fill velocity field for new cells 
-                call fill_vel_new_cells(ux_tmp,uy_tmp,mask_pred_new,boundaries)
-
-                ! Ensure that no velocity is defined for outer boundaries of partially-filled margin points
-                call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries)
-
-                ! Determine advective rate of change based on predicted H,ux/y fields (time=n+1,pred)
-                call calc_advec2D(dHdt_advec,H_ice_pred,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries)
-
-                ! Calculate rate of change using weighted advective rates of change 
-                dHdt_advec = beta(3)*dHdt_advec + beta(4)*dHdt_n 
-                
-                ! Calculate corrected ice thickness (time=n+1)
-                !H_ice = H_ice_n + dt*dHdt_advec 
-
-                ! Finally, update dHdt_n with correct term to use as n-1 on next iteration
-                dHdt_n = dHdt_advec 
-
-        end select
-        
-        ! Store advective tendency 
-        G_adv = dHdt_advec 
-
-        return 
-
-    end subroutine calc_G_advec
-
-    subroutine fill_vel_new_cells(ux,uy,mask,boundaries)
-
-        implicit none
-
-        real(wp), intent(INOUT) :: ux(:,:) 
-        real(wp), intent(INOUT) :: uy(:,:) 
-        integer,  intent(IN)    :: mask(:,:) 
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        integer :: im1, ip1, jm1, jp1 
-        integer :: BC
-
-        nx = size(mask,1)
-        ny = size(mask,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        do j = 1, ny
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            if (mask(i,j) .eq. 2) then 
-                ! This site just filled with ice, so 
-                ! velocity may not be defined on borders
-                ! Check borders and fill in empty velocities
-
-                ! x-direction
-                if (ux(i,j) .eq. 0.0_wp .and. ux(im1,j) .ne. 0.0_wp) then 
-                    ux(i,j) = ux(im1,j) 
-                else if (ux(i,j) .ne. 0.0_wp .and. ux(im1,j) .eq. 0.0_wp) then
-                    ux(im1,j) = ux(i,j)
-                end if 
-
-                ! y-direction
-                if (uy(i,j) .eq. 0.0_wp .and. uy(i,jm1) .ne. 0.0_wp) then 
-                    uy(i,j) = uy(i,jm1) 
-                else if (uy(i,j) .ne. 0.0_wp .and. uy(i,jm1) .eq. 0.0_wp) then
-                    uy(i,jm1) = uy(i,j)
-                end if 
-                
-            end if 
-
-        end do 
-        end do
-
-
-        return
-
-    end subroutine fill_vel_new_cells
-
     subroutine calc_G_mbal(G_mb,H_ice,f_grnd,mbal,dt,f_ice)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving 
@@ -451,92 +282,6 @@ contains
         return 
 
     end subroutine calc_G_mbal
-
-    subroutine calc_G_calv(G_calv,H_ice,calv_flt,calv_grnd,dt,calv_flt_method,boundaries)
-        ! Interface subroutine to update ice thickness through application
-        ! of advection, vertical mass balance terms and calving 
-
-        implicit none 
-
-        real(wp), intent(OUT)   :: G_calv(:,:)          ! [m/yr] Actual calving rate applied to real ice points
-        real(wp), intent(IN)    :: H_ice(:,:)           ! [m]   Ice thickness 
-        real(wp), intent(IN)    :: calv_flt(:,:)        ! [m/a] Potential calving rate (floating)
-        real(wp), intent(IN)    :: calv_grnd(:,:)       ! [m/a] Potential calving rate (grounded)
-        real(wp), intent(IN)    :: dt                   ! [a]   Timestep   
-        character(len=*), intent(IN) :: calv_flt_method
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer :: i, j, nx, ny 
-        integer :: im1, ip1, jm1, jp1 
-        logical :: is_margin
-        logical :: kill_floating
-        real(wp) :: calv_flt_now 
-        real(wp) :: calv_grnd_now 
-        integer :: BC
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Determine whether a kill method is being applied
-        kill_floating = .FALSE. 
-        if (trim(calv_flt_method) .eq. "kill" .or. &
-            trim(calv_flt_method) .eq. "kill-pos") then 
-
-            kill_floating = .TRUE. 
-
-        end if 
-
-        ! ===== CALVING ======
-
-        ! Combine grounded and floating calving into one field for output.
-        ! It has already been scaled by area of ice in cell (f_ice).
-
-        ! Note 1: Only allow calving at the current margin 
-        ! If ice has retreated before applying calving, then H_ice is 
-        ! zero and so G_calv will also be zero. But if ice has advanced,
-        ! then calving should also go to zero. 
-
-        ! Note 2: for floating ice, allow calving everywhere if kill_floating is active.
-
-        G_calv = 0.0_wp 
-        
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            is_margin = H_ice(i,j) .gt. 0.0 .and. &
-                count([H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)].eq.0.0) .gt. 0
-
-            if (is_margin .or. kill_floating) then
-                calv_flt_now = calv_flt(i,j)
-            else
-                calv_flt_now = 0.0_wp
-            end if 
-
-            if (is_margin) then
-                calv_grnd_now = calv_grnd(i,j) 
-            else
-                calv_grnd_now = 0.0_wp
-            end if
-
-            ! Calculate calving rate tendency (negative == mass loss)
-            G_calv(i,j) = -(calv_flt_now + calv_grnd_now)
-            
-            ! Limit calving rate to available ice
-            if (H_ice(i,j)+dt*G_calv(i,j) .lt. 0.0) G_calv(i,j) = -H_ice(i,j)/dt
-            
-        end do 
-        end do
-
-        return 
-
-    end subroutine calc_G_calv
 
     subroutine calc_G_boundaries(mb_resid,H_ice,H_eff,mask_cf,f_grnd,uxy_b,mask_ice,boundaries, &
                                                             H_ice_ref,H_min_flt,H_min_grnd,tau,dt)
@@ -1236,16 +981,6 @@ contains
         return
 
     end subroutine calc_G_remove_fractional_ice
-
-    subroutine remove_icebergs(H_ice)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: H_ice(:,:) 
-
-        return
-
-    end subroutine remove_icebergs
 
 
 end module mass_conservation

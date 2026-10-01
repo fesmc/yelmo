@@ -118,6 +118,26 @@
   },
   {
     "group": "yelmo",
+    "name": "experiment",
+    "allowed": [
+      "None",
+      "EISMINT",
+      "MISMIP3D",
+      "MISMIP+",
+      "TROUGH-F17",
+      "SLAB",
+      "ISMIPHOM",
+      "slab",
+      "periodic",
+      "periodic-xy",
+      "periodic-x",
+      "infinite",
+      "MASK_ICE"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
     "name": "pc_controller",
     "allowed": [
       "PI42",
@@ -185,6 +205,15 @@
       "FE",
       "AB",
       "SAM"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "enth_cp_method",
+    "allowed": [
+      "const",
+      "integral"
     ],
     "conditions": []
   },

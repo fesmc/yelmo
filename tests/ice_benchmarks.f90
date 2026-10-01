@@ -418,7 +418,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "Experiment not recognized: "//trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 
@@ -577,7 +577,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "Experiment not recognized: "//trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 

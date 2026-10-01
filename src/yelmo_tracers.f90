@@ -114,7 +114,7 @@ contains
                 trc%now%t_dep = trc%now%t_dep_elsa
             case DEFAULT
                 write(io_unit_err,*) "calc_ytrc:: Error: t_dep_source not recognized: "//trim(trc%par%t_dep_source)
-                stop "Program stopped."
+                error stop 1
         end select
 
         ! Diagnose isochrone depths from the authoritative deposition-time field
@@ -445,7 +445,7 @@ contains
                 write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires ytrc.time_end later than the &
                                      &start time (the default 0.0 is present day)."
                 write(io_unit_err,*) "time, ytrc.time_end = ", time, trc%par%time_end
-                stop "Program stopped."
+                error stop 1
             end if
 
             if (is_restart) then
@@ -465,7 +465,7 @@ contains
             if (abs(trc%elsa%par%grid_factor - 1.0_wp) .gt. 1e-6_wp) then
                 write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires grid_factor=1 in the elsa &
                                      &namelist (for the t_dep_elsa diagnostic); got ", trc%elsa%par%grid_factor
-                stop "Program stopped."
+                error stop 1
             end if
 
         end if

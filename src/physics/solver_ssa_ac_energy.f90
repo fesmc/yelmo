@@ -63,8 +63,8 @@ module solver_ssa_ac_energy
 contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
         ! Same argument list so the two assemblers are interchangeable from the
         ! Picard loop. Assembles K (symmetric) and b such that K * [u; v] = b.
@@ -79,7 +79,6 @@ contains
         real(wp), intent(IN) :: N_aa(:,:)               ! [Pa yr m] vertically integrated viscosity (aa-nodes)
         integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] ssa solver action mask (acx-nodes)
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
-        integer,  intent(IN) :: mask_frnt(:,:)          ! [--] ice-front mask
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] driving stress (acx-nodes)
@@ -89,7 +88,6 @@ contains
         real(wp), intent(IN) :: dx, dy
         real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] minimum allowed basal friction
         character(len=*), intent(IN) :: boundaries
-        character(len=*), intent(IN) :: lateral_bc
 
         ! Local variables
         integer  :: nx, ny, nmax
@@ -162,7 +160,7 @@ contains
 
         ! Stagger depth-integrated viscosity to ab-nodes
         allocate(N_ab(nx,ny))
-        call stagger_visc_aa_ab(N_ab,N_aa,H_ice,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,boundaries)
 
         ! ================================================================
         ! 1. Classify the unknowns and resolve tied chains to free roots
@@ -191,7 +189,7 @@ contains
                 if (depth .gt. 8) then
                     write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                         &free-slip chain does not end at a free unknown, row ", n
-                    stop "Program stopped."
+                    error stop 1
                 end if
             end do
             droot(n) = m
@@ -649,7 +647,7 @@ contains
             if (nb .gt. NNZ_ROW_MAX) then
                 write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                     &more than NNZ_ROW_MAX entries in a row."
-                stop "Program stopped."
+                error stop 1
             end if
             cols(nb) = c
             vals(nb) = v

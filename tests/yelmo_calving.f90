@@ -109,7 +109,7 @@ program yelmo_calving
             ctl%x1     = 800.0
         case DEFAULT
             write(*,*) "ctl.exp = ",trim(ctl%domain), " not recognized."
-            stop
+            error stop 1
     end select
 
     ! Get grid size

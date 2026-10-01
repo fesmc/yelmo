@@ -210,7 +210,7 @@ contains
 
             case DEFAULT
                 write(*,*) "yelmo_init_grid_fromname:: error: grid name not recognized: "//trim(grid_name)
-                stop
+                error stop 1
 
         end select
 
@@ -289,7 +289,7 @@ contains
                 write(*,*) "yelmo_init_grid_fromopt:: Error: units of input grid parameters &
                             &must be one of: 'kilometers', 'km', 'meters', 'm'."
                 write(*,*) "units: ", trim(units)
-                stop
+                error stop 1
         end select
 
         dxd = dx*conv

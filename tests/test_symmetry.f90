@@ -36,7 +36,7 @@ program test_symmetry
     narg = command_argument_count()
     if (narg < 1) then
         write(*,*) "Usage: test_symmetry.x <file.nc> [varname] [axis=all|lr|tb|rot]"
-        stop 1
+        error stop 1
     end if
 
     call get_command_argument(1, filename)
@@ -61,7 +61,7 @@ program test_symmetry
     if (.not. nc_exists_var(trim(filename), trim(varname))) then
         write(*,*) "test_symmetry:: Error: variable not found in file: "//trim(varname)
         write(*,*) "  file: "//trim(filename)
-        stop 1
+        error stop 1
     end if
 
     ! Determine variable dimensions (assumed order: x, y, [time])
@@ -98,14 +98,14 @@ program test_symmetry
             all_pass = (met%linf_rot < tol)
         case default
             write(*,*) "test_symmetry:: Error: unknown axis '"//trim(axis)//"' (use all|lr|tb|rot)"
-            stop 1
+            error stop 1
     end select
 
     call report_symmetry("offline: "//trim(varname)//" ["//trim(axis)//"] (last slice)", met, tol, all_pass)
 
     if (.not. all_pass) then
         write(*,*) "test_symmetry:: symmetry regression check FAILED."
-        stop 1
+        error stop 1
     end if
 
 end program test_symmetry

@@ -276,7 +276,7 @@ program yelmo_trough
         case DEFAULT 
 
             write(*,*) "yelmo_trough:: Error: domain not recognized: "//trim(domain)
-            stop 
+            error stop 1
 
     end select 
 
@@ -381,7 +381,7 @@ contains
         if (abs(n*dx-l) .gt. 1e-6_wp*l) then
             write(*,*) "yelmo_trough:: Error: "//name//" must be a multiple of dx in a periodic direction."
             write(*,*) name//", dx = ", l, dx
-            stop
+            error stop 1
         end if
 
         return

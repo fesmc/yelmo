@@ -142,7 +142,7 @@ program yelmo_test
             ! Le clec’h et al. (2019) - needs revising 
 
             write(*,*) "This method is outdated and needs checking, mainly the parameter loading."
-            stop 
+            error stop 1
 
             ! Not used:
             ! ! Ratio method 
@@ -226,7 +226,7 @@ program yelmo_test
             if (.not. yelmo1%par%use_restart) then 
                 write(*,*) "yelmo_opt:: Error: cb_ref_init_method='restart' can only be used &
                 &in conjunction with a restart file being loaded."
-                stop 
+                error stop 1
             end if 
 
         case DEFAULT  ! "none"
@@ -311,7 +311,7 @@ program yelmo_test
             ! from the public ice_optimization API. Use opt_method="L21" (optimize_cb_ref).
             write(*,*) "yelmo_opt:: Error: opt_method='P12' has been retired."
             write(*,*) "Use opt_method='L21' (optimize_cb_ref, Lipscomb et al. 2021)."
-            stop
+            error stop 1
 
         case("L21") 
             ! Lipscomb et al. (2021)
@@ -369,7 +369,7 @@ program yelmo_test
             ! public ice_optimization API. Use opt_method="L21" (optimize_cb_ref).
             write(*,*) "yelmo_opt:: Error: opt_method='L19' has been retired."
             write(*,*) "Use opt_method='L21' (optimize_cb_ref, Lipscomb et al. 2021)."
-            stop
+            error stop 1
 
     end select 
 

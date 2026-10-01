@@ -241,7 +241,7 @@ contains
             write(io_unit_err,*) "yelmo_write_var:: Error: variable not yet supported."
             write(io_unit_err,*) "variable = ", trim(varname)
             write(io_unit_err,*) "filename = ", trim(filename)
-            stop   
+            error stop 1
         end if
 
         return
@@ -405,7 +405,7 @@ contains
         end if 
 
         ! == Predictor-corrector (pc) variables ===
-        ! (these will not be read in by yelmo_restart_read, but can be useful to output for diagnostics)
+        ! (read back by yelmo_restart_read)
 
         call nc_write(filename,"pc_tau",       dom%time%pc_tau(i1:i2,j1:j2),        units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_masked",dom%time%pc_tau_masked(i1:i2,j1:j2), units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
@@ -718,7 +718,7 @@ contains
             case default
                 write(*,*) "yelmo_restart_load_map:: Error: unknown restart_interp_gen '" &
                             //trim(restart_interp_gen)//"'. Expected 'cdo' or 'coords'."
-                stop
+                error stop 1
 
         end select
 
@@ -761,7 +761,7 @@ contains
         n = 1 
 
         ! == time variables ===
-        ! ajr: testing reading these variables too to improve restart file performance
+        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart)
         call nc_read(filename,"pc_dt",       tme%pc_dt, start=[1,n],count=[3,1],ncid=ncid)
         call nc_read(filename,"pc_eta",      tme%pc_eta,start=[1,n],count=[3,1],ncid=ncid)
         
@@ -1376,9 +1376,6 @@ contains
             case("lsf")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%lsf(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("dlsfdt")
-                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dlsfdt(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("cmb_flt_x")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%cmb_flt_x(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -1392,7 +1389,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytopo:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1640,7 +1637,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydyn:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1798,7 +1795,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ymat:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1863,7 +1860,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytrc:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -1958,7 +1955,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytherm:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2035,7 +2032,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_yhyd:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -2126,16 +2123,13 @@ contains
             case("mask_ice")
                 call nc_write(filename,trim(v%varname),ylmo%bnd%mask_ice(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("tau_relax")
-                call nc_write(filename,trim(v%varname),ylmo%bnd%tau_relax(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case DEFAULT 
 
                 write(io_unit_err,*) 
                 write(io_unit_err,*) "yelmo_write_var_io_ybound:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2227,7 +2221,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydata:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 

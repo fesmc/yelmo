@@ -207,7 +207,7 @@ contains
             case DEFAULT
 
                 write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
-                stop
+                error stop 1
 
         end select
 
@@ -248,7 +248,7 @@ contains
             case DEFAULT
 
                 write(io_unit_err,*) "get_periodic_directions:: Error: boundary code not recognized: ", BC
-                stop
+                error stop 1
 
         end select
 
@@ -273,7 +273,7 @@ contains
             case("mask");       code = BND_INFINITE
             case default
                 write(io_unit_err,*) "boundary_code:: Error: Boundary string not recognized: "//trim(boundaries)
-                stop
+                error stop 1
         end select
 
         return
@@ -775,7 +775,7 @@ end if
 
                 write(io_unit_err,*) "set_boundaries_2D_aa:: error: boundary method not recognized."
                 write(io_unit_err,*) "boundaries = ", trim(boundaries)
-                stop 
+                error stop 1
 
         end select 
 
@@ -965,7 +965,7 @@ end if
             write(io_unit_err,*) "smooth_gauss_2D:: Error: f_sigma must be >= 1."
             write(io_unit_err,*) "f_sigma: ", f_sigma 
             write(io_unit_err,*) "dx:      ", dx 
-            stop 
+            error stop 1
         end if 
 
         ! Get smoothing radius as standard devation of Gaussian function
@@ -1385,7 +1385,7 @@ end if
             write ( *, '(a)' ) ' '
             write ( *, '(a)' ) 'SIMPNE - Fatal error!'
             write ( *, '(a)' ) '  NTAB <= 2.'
-            stop 1
+            error stop 1
         end if
      
         n = 1

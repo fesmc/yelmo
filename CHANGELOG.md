@@ -230,6 +230,15 @@ little. MISMIP3D and DIVA runs change more.
 - **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
   `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
   `hydro_init`.
+- **`ytopo.surf_gl_method` and `ydyn.ssa_beta_max` removed.** Both were read but
+  never used (the surface is always `calc_z_srf_max`). Remove them from external
+  par files (`nml_validate` stops).
+- **`yelmo.experiment` and `ytherm.enth_cp_method` are validated.** An unknown
+  value now stops the run. Before, a typo silently gave `"zeros"` boundaries
+  (`experiment`) or the constant heat capacity (`enth_cp_method`). Valid
+  experiments: `None`, `EISMINT`, `MISMIP3D`, `MISMIP+`, `TROUGH-F17`, `SLAB`,
+  `ISMIPHOM`, `slab`, `periodic`, `periodic-xy`, `periodic-x`, `infinite`,
+  `MASK_ICE`.
 
 ### Answer-changing fixes
 
@@ -492,6 +501,15 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- All fatal error paths in `src/` and the `tests/` drivers end with `error stop 1`
+  (was `stop`, exit status 0), so a failed run is reported as FAILED by SLURM,
+  including the restart writers when an io table lists an unknown variable.
+- The SSA/DIVA Picard loop stops (`error stop 1`) when the velocity on a solved
+  face or the residual is not finite, reporting the iteration and the first bad
+  face and writing `ssa_check.nc`. It replaces the unreachable "strange case" test
+  (change > 9999 m/yr).
+- The `RALSTON` predictor-corrector branches are removed (`yelmo.pc_method`
+  already accepted only `FE-SBE`, `AB-SAM` and `HEUN`).
 - ISMIP-HOM Experiment F (`yelmo_ismiphom`, `ctrl.experiment = "EXPF1"` no slip,
   `"EXPF2"` slip ratio 1; Pattyn et al., 2008): a 1000 m slab on a 3° slope over a
   Gaussian bed bump relaxes to steady state with zero SMB, n = 1 and

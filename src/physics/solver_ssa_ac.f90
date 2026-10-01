@@ -69,8 +69,8 @@ contains
     end subroutine linear_solver_save_velocity
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for the SSA momentum balance equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -86,7 +86,6 @@ contains
         real(wp), intent(IN) :: N_aa(:,:)               ! [Pa yr m] Vertically integrated viscosity (aa-nodes)
         integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] Mask to determine ssa solver actions (acx-nodes)
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] Mask to determine ssa solver actions (acy-nodes)
-        integer,  intent(IN) :: mask_frnt(:,:)          ! [--] Ice-front mask 
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  Ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] Driving stress (acx nodes)
@@ -97,7 +96,6 @@ contains
         real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] Minimum allowed basal friction for grounded ice
 
         character(len=*), intent(IN) :: boundaries 
-        character(len=*), intent(IN) :: lateral_bc
 
         ! Local variables
         integer  :: nx, ny
@@ -214,7 +212,7 @@ contains
 
         ! Calculate the staggered depth-integrated viscosity 
         ! at the grid-cell corners (ab-nodes). 
-        call stagger_visc_aa_ab(N_ab,N_aa,H_ice,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,boundaries)
         
 
         !-------- Assembly of the system of linear equations
@@ -852,27 +850,9 @@ contains
 
     end subroutine linear_solver_matrix_ssa_ac_csr_2D
 
-    subroutine check_base_slope(is_steep,zb0,zb1,dx,lim)
 
-        logical,  intent(OUT) :: is_steep
-        real(wp), intent(IN) :: zb0         ! [m]
-        real(wp), intent(IN) :: zb1         ! [m]
-        real(wp), intent(IN) :: dx          ! [m]
-        real(wp), intent(IN) :: lim         ! [dx/dx] = [unitless]
-
-        if ( abs(zb1-zb0) / dx .gt. lim ) then 
-            is_steep = .TRUE. 
-        else 
-            is_steep = .FALSE. 
-        end if 
-
-        return
-
-    end subroutine check_base_slope
-
-
-    subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice, &
-                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc,boundaries)
+    subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,f_ice, &
+                                        f_grnd,use_ssa,lateral_bc,boundaries)
         ! Define where ssa calculations should be performed
         ! Note: could be binary, but perhaps also distinguish 
         ! grounding line/zone to use this mask for later gl flux corrections
@@ -883,24 +863,13 @@ contains
         ! mask = 3: ssa lateral boundary condition applied
         ! mask = 4: ssa lateral boundary, but treated as inner ssa
 
-        ! Note: the parameter gradbase_max is used to check slope of ice base. 
-        ! If at a given point, it is greater than this limit, the ssa solver
-        ! will be disabled in this direction. gradbase_max=0.1 is a relatively
-        ! high value, but is reached for points next to deep troughs in Antarctica,
-        ! and next to some fjords in Greenland. Steeper slopes are present
-        ! in higher-resolution topographies typically.
-        
         implicit none 
         
         integer,  intent(OUT) :: ssa_mask_acx(:,:) 
         integer,  intent(OUT) :: ssa_mask_acy(:,:)
         integer,  intent(IN)  :: mask_frnt(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: f_grnd(:,:)
-        real(wp), intent(IN)  :: z_base(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
-        real(wp), intent(IN)  :: dx 
         logical,  intent(IN)  :: use_ssa       ! SSA is actually active now? 
         character(len=*), intent(IN) :: lateral_bc 
         character(len=*), intent(IN) :: boundaries 
@@ -909,14 +878,10 @@ contains
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
         integer  :: BC
-        real(wp) :: H_acx, H_acy
-        logical  :: is_steep 
-        logical  :: is_convergent 
-        
         integer  :: mask_lat
 
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
@@ -927,7 +892,7 @@ contains
             case DEFAULT
                 write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
                 write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
-                stop 
+                error stop 1
         end select
 
         ! Initially no active ssa points, all velocities set to zero
@@ -1049,13 +1014,12 @@ contains
     
 ! === INTERNAL ROUTINES ==== 
 
-    subroutine stagger_visc_aa_ab(visc_ab,visc,H_ice,f_ice,boundaries)
+    subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,boundaries)
 
         implicit none 
 
         real(wp), intent(OUT) :: visc_ab(:,:) 
         real(wp), intent(IN)  :: visc(:,:) 
-        real(wp), intent(IN)  :: H_ice(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
         character(len=*), intent(IN) :: boundaries 
 

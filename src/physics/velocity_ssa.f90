@@ -4,14 +4,14 @@ module velocity_ssa
 
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, pi
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, & 
-                    integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
+                    integrate_trapezoid1D_1D, minmax
 
     use deformation, only : calc_strain_rate_horizontal_2D, calc_active_faces
     use basal_dragging
     use solver_ssa_ac
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
     use solver_linear
-    use velocity_general, only : set_inactive_margins, &
+    use velocity_general, only : set_inactive_margins, calc_visc_eff_int, &
                         picard_calc_error, picard_calc_error_angle, &
                         picard_relax_vel, picard_relax_visc, &
                         picard_calc_convergence_l1rel_matrix, picard_calc_convergence_l2
@@ -25,7 +25,6 @@ module velocity_ssa
 
         character(len=56)  :: ssa_solver        ! "residual" | "energy"
         character(len=256) :: ssa_lis_opt
-        character(len=256) :: ssa_lateral_bc
         character(len=256) :: boundaries
         integer  :: visc_method
         real(wp) :: visc_const
@@ -60,7 +59,7 @@ contains
     subroutine calc_velocity_ssa(ux_b,uy_b,taub_acx,taub_acy,visc_eff,visc_eff_int,ssa_mask_acx,ssa_mask_acy, &
                                   ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
                                   taul_int_acx,taul_int_acy,H_ice, &
-                                  f_ice,H_grnd,f_grnd,f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
+                                  f_ice,H_grnd,f_grnd,f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
         ! following the SSA solution
 
@@ -94,7 +93,6 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)        ! [-]
         real(wp), intent(IN)    :: f_grnd_acx(:,:)    ! [-]
         real(wp), intent(IN)    :: f_grnd_acy(:,:)    ! [-]
-        integer,  intent(IN)    :: mask_frnt(:,:)     ! [-]
         real(wp), intent(IN)    :: ATT(:,:,:)         ! [yr^-1 Pa^-n_glen]
         real(wp), intent(IN)    :: zeta_aa(:)         ! [-]
         real(wp), intent(IN)    :: z_sl(:,:)          ! [m]
@@ -129,7 +127,6 @@ contains
         logical, parameter :: write_ssa_diagnostics      = .FALSE. 
         logical, parameter :: write_ssa_diagnostics_stop = .FALSE.   ! Stop simulation after completing iterations?
 
-        type(linear_solver_class) :: lgs_prev 
         type(linear_solver_class) :: lgs_now
         
         nx    = size(ux_b,1)
@@ -167,9 +164,8 @@ contains
         end if 
 
 
-        ! Initialize linear solver variables for current and previous iteration
+        ! Initialize linear solver variables
         call linear_solver_init(lgs_now,nx,ny,nvar=2,n_terms=9)
-        lgs_prev = lgs_now 
 
         ssa_lin_iter = 0
         ssa_lin_fail = 0
@@ -234,7 +230,7 @@ contains
 
                     write(*,*) "calc_velocity_ssa:: Error: visc_method not recognized."
                     write(*,*) "visc_method = ", par%visc_method 
-                    stop 
+                    error stop 1
 
             end select
             
@@ -266,13 +262,13 @@ if (.TRUE.) then
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
                     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_acx,beta_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy,  &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
                     call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_acx,beta_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy,  &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries)
             end select
 
             ! Solve linear equation
@@ -595,51 +591,6 @@ end if
 
     end subroutine calc_visc_eff_3D_aa
     
-    subroutine calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: visc_eff_int(:,:)
-        real(wp), intent(IN)  :: visc_eff(:,:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: zeta_aa(:)
-
-        ! Local variables 
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1  
-        real(wp) :: H_now
-        real(wp) :: visc_eff_mean 
-        real(wp) :: wt 
-
-        real(wp), parameter :: visc_min = 1e5_wp
-
-        nx = size(visc_eff_int,1)
-        ny = size(visc_eff_int,2)
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Calculate the vertically averaged viscosity for this point
-            visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
-            
-            if (f_ice(i,j) .eq. 1.0) then 
-                visc_eff_int(i,j) = visc_eff_mean*H_ice(i,j) 
-            else
-                !visc_eff_int(i,j) = visc_eff_mean 
-                visc_eff_int(i,j) = 0.0_wp
-            end if 
-
-            ! Avoid very low viscosity values, e.g. when ice thickness is < 1m
-            if (visc_eff_int(i,j) .lt. visc_min) visc_eff_int(i,j) = visc_min 
-
-        end do 
-        end do 
-
-        return
-
-    end subroutine calc_visc_eff_int
-
     subroutine calc_basal_stress(taub_acx,taub_acy,beta_acx,beta_acy,ux_b,uy_b)
         ! Calculate the basal stress resulting from sliding (friction times velocity)
         ! Note: calculated on ac-nodes.

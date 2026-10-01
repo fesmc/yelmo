@@ -162,7 +162,6 @@ end if
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(1)*dHidt_now + tpo%par%dt_beta(2)*tpo%now%dHidt_dyn_raw_n
 
                     ! Apply rate and update ice thickness (predicted)
-                    ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_pred",adjust_mb=.TRUE.)
 
@@ -193,7 +192,6 @@ end if
                     tpo%now%dHidt_dyn = tpo%par%dt_beta(3)*dHidt_now + tpo%par%dt_beta(4)*tpo%now%dHidt_dyn_raw
                     
                     ! Apply rate and update ice thickness (corrected)
-                    ! Limit dynamic rate of change for stability (typically < 100 m/yr)
                     tpo%now%H_ice = tpo%now%H_ice_n
                     tpo%now%lsf   = tpo%now%lsf_n
                     call apply_tendency(tpo%now%H_ice,tpo%now%dHidt_dyn,dt,"dyn_corr",adjust_mb=.TRUE.)
@@ -270,7 +268,7 @@ end if
                     ! === dmb =====
 
                     call calc_mb_discharge(tpo%now%dmb_ref,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed_sd,tpo%now%dist_grline, &
-                                tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
+                                tpo%now%dist_margin,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
                                 tpo%par%dmb_tau,tpo%par%dmb_sigma_ref,tpo%par%dmb_m_d,tpo%par%dmb_m_r)
                     
                     call calc_G_mbal(tpo%now%dmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%dmb_ref,dt)
@@ -342,7 +340,7 @@ end if
 
                                 write(*,*) "calc_ytopo:: Error: topo_rel_field not recognized."
                                 write(*,*) "topo_rel_field = ", trim(tpo%par%topo_rel_field)
-                                stop 
+                                error stop 1
 
                         end select
 
@@ -431,7 +429,7 @@ end if
                         write(*,*) "calc_ytopo_pc:: Error: &
                         & For step='advance', the argument use_H_pred&
                         & must be provided."
-                        stop 
+                        error stop 1
                     end if 
 
                     ! Determine which ice thickness to use going forward
@@ -710,7 +708,7 @@ end if
 
                 write(*,*) "calc_ytopo:: Error: floating calving method not recognized."
                 write(*,*) "calv_flt_method = ", trim(tpo%par%calv_flt_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -764,7 +762,7 @@ end if
 
                 write(*,*) "calc_ytopo:: Error: grounded calving method not recognized."
                 write(*,*) "calv_grnd_method = ", trim(tpo%par%calv_grnd_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -910,7 +908,7 @@ end if
     
                 write(*,*) "calc_ytopo:: Error: floating calving method not recognized."
                 write(*,*) "calv_flt_method = ", trim(tpo%par%calv_flt_method)
-                stop
+                error stop 1
     
         end select
     
@@ -948,7 +946,7 @@ end if
                 ! MICI should be a marine terminating calving law (only for grounding-line points?)
                 write(*,*) "calc_ytopo:: Error: grounded calving method not recognized."
                 write(*,*) "calv_grnd_method = ", trim(tpo%par%calv_grnd_method)
-                stop
+                error stop 1
     
         end select
         
@@ -1000,8 +998,6 @@ end if
         end do
 
         ! === LSF advection ===
-        ! Store previous lsf mask. Necessary to avoid compute it two times.
-        tpo%now%lsf_n = tpo%now%lsf
         ! Use "infinite" (Neumann-zero) boundaries for the LSF advection
         ! regardless of the model-wide tpo%par%boundaries: the LSF is a
         ! signed-distance field that must continue smoothly outside the
@@ -1049,7 +1045,7 @@ end if
                     write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
                         &lsf_method = 'redist' requires lsf_redist_n_iter > 0; &
                         &got lsf_redist_n_iter = ", tpo%par%lsf_redist_n_iter
-                    stop
+                    error stop 1
                 end if
                 call LSFredistance(tpo%now%lsf,1.0_wp,1.0_wp, &
                                    tpo%par%lsf_redist_n_iter,"infinite")
@@ -1059,7 +1055,7 @@ end if
                 write(io_unit_err,*) "calc_ytopo_calving_lsf:: Error: &
                     &unknown lsf_method = '"//trim(tpo%par%lsf_method)//"'. &
                     &Expected 'snap' or 'redist'."
-                stop
+                error stop 1
         end select
 
         ! === Calving ===
@@ -1231,14 +1227,7 @@ end if
 
         ! 2. Calculate additional topographic properties ------------------
 
-        ! Calculate the ice thickness gradient (on staggered acx/y nodes)
-        !call calc_gradient_ac(tpo%now%dHidx,tpo%now%dHidy,tpo%now%H_ice,tpo%par%dx)
-        ! call calc_gradient_ac_ice(tpo%now%dHidx,tpo%now%dHidy,tpo%now%H_ice,tpo%now%f_ice,tpo%par%dx, &
-        !                                         tpo%par%margin2nd,tpo%par%grad_lim,tpo%par%boundaries,zero_outside=.TRUE.)
-        
-        ! Calculate the surface slope
-        ! call calc_gradient_ac(tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%z_srf,tpo%par%dx)
-
+        ! Calculate the surface slope and the ice thickness gradient (on staggered acx/y nodes)
         call calc_gradient_acx(tpo%now%dzsdx,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dx,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_x)
         call calc_gradient_acy(tpo%now%dzsdy,tpo%now%z_srf,tpo%now%f_ice_dyn,tpo%par%dy,tpo%par%grad_lim,tpo%par%margin2nd,zero_outside=.FALSE.,boundaries=tpo%par%boundaries,slope_bg=tpo%par%slope_bg_y)
         
@@ -1468,7 +1457,7 @@ end if
 
                 write(io_unit_err,*) "calc_ytopo_rates:: Error: step name not recognized."
                 write(io_unit_err,*) "step = ", trim(step)
-                stop 
+                error stop 1
 
         end select
 
@@ -1515,7 +1504,6 @@ end if
 
         ! Store parameter values in output object
         call nml_read(filename,group_ytopo,"solver",            par%solver,           init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
-        call nml_read(filename,group_ytopo,"surf_gl_method",    par%surf_gl_method,   init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"grad_lim",          par%grad_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"grad_lim_zb",       par%grad_lim_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
         call nml_read(filename,group_ytopo,"slope_bg_x",        par%slope_bg_x,       init=init_pars,defaults_file=def_file,defaults_group=def_ytopo)
@@ -1611,40 +1599,40 @@ end if
             ! so smaller positive intervals are not representable (and nint(dt_lsf*100)=0).
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.dt_lsf must be <= 0 (disabled) &
                                  &or >= 0.01 yr; got ", par%dt_lsf
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%front_H_eff_min .lt. 0.0_wp .or. par%front_dHdx .lt. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: front_H_eff_min and front_dHdx must be >= 0; got ", &
                                  par%front_H_eff_min, par%front_dHdx
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%grad_lim .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim must be > 0; got ", par%grad_lim
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%grad_lim_zb .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: grad_lim_zb must be > 0; got ", par%grad_lim_zb
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%H_min_tau .lt. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.H_min_tau must be >= 0; got ", par%H_min_tau
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%tau_ice_flt .le. 0.0_wp .or. par%tau_ice_grnd .le. 0.0_wp) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.tau_ice_flt and tau_ice_grnd must be > 0; got ", &
                                  par%tau_ice_flt, par%tau_ice_grnd
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%sd_min .ge. par%sd_max) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.sd_min must be < ycalv.sd_max; got ", &
                                  par%sd_min, par%sd_max
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%zb_deep_0 .lt. par%zb_deep_1) then
             write(io_unit_err,*) "ytopo_par_load:: error: ycalv.zb_deep_0 must be >= ycalv.zb_deep_1 &
                                  &(both negative; transition starts at zb_deep_0); got ", &
                                  par%zb_deep_0, par%zb_deep_1
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! === Set internal parameters ====
@@ -1660,7 +1648,6 @@ end if
         
         ! Define current time as unrealistic value
         par%time      = 1000000000   ! [a] 1 billion years in the future 
-        par%time_calv = par%time 
 
         ! Intialize timestepping parameters to Forward Euler (beta2=beta4=0: no contribution from previous timestep)
         par%dt_zeta     = 1.0 
@@ -1670,7 +1657,6 @@ end if
         par%dt_beta(4)  = 0.0 
 
         ! Set some additional values to start out right
-        par%pc_step    = "predictor"
         par%speed      = 0.0_wp 
         par%cpu_step   = 0.0d0
 

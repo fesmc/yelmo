@@ -143,15 +143,15 @@ contains
                     if (trim(thrm%par%method) .eq. "enth") then 
 
                         ! Calculate the explicit horizontal advection term using enthalpy from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
 
                     else
 
                         ! Calculate the explicit horizontal advection term using temperature from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
                     
                     end if 
@@ -164,7 +164,7 @@ contains
                                 tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
+                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
                                 thrm%par%boundaries)
 
                 case("robin")
@@ -197,7 +197,7 @@ contains
                 case DEFAULT 
 
                     write(*,*) "ytherm:: Error: thermodynamics option not recognized: method = ", trim(thrm%par%method)
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -267,7 +267,7 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral, &
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
                                         boundaries)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column
@@ -315,7 +315,6 @@ contains
         real(wp), intent(IN)    :: T0
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
-        real(wp), intent(IN)    :: dx             ! [a] Horizontal grid step 
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
@@ -546,7 +545,7 @@ end if
             js = jmid - (j-jmid)
         else
             write(error_unit,*) "check_symmetry_2D:: Error: argument 'dir' must be 'x' or 'y'."
-            stop
+            error stop 1
         end if
 
         write(*,"(a4,a12,2f15.3,g18.6)") "sym: ", trim(varnm), var(i,j), var(is,js), abs(var(is,js)-var(i,j))
@@ -567,7 +566,7 @@ end if
                                                 H_ice,H_grnd,Q_ice_b,Q_geo,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                                 rho_ice,rho_sw,T0,sec_year,dt)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
-        ! which are solved independently by calling calc_enth_column
+        ! which are solved independently by calling calc_temp_bedrock_column
 
         ! Note zeta=height, k=1 base, k=nz surface 
         
@@ -708,10 +707,11 @@ end if
         call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
+        call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%qb_method .lt. 1 .or. par%qb_method .gt. 3) then
@@ -721,17 +721,17 @@ end if
 
         if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_cfl .le. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_nmax .lt. 1) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! In case of method=="temp", prescribe some parameters
