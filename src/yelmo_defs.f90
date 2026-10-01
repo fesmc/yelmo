@@ -133,7 +133,6 @@ module yelmo_defs
         integer            :: fmb_method  
         integer            :: dmb_method
         integer            :: surf_gl_method 
-        logical            :: margin2nd
         character(len=12)  :: front_subgrid
         real(wp)           :: front_H_eff_min
         real(wp)           :: front_dHdx
