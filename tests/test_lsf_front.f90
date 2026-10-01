@@ -11,9 +11,12 @@ program test_lsf_front
     !      no interior neighbour, so the thickness is unchanged
     !   5. outflow from a partial cell into an ice-free cell: closed without
     !      a prescribed front, open where a_front >= A_FRONT_MIN
+    !   6. marine-grounded front cell on a deeper bed, entirely behind the
+    !      level set (a_lsf = 1): full; without the level set, partial from
+    !      the neighbour reference
 
     use yelmo_defs,        only : wp, A_FRONT_MIN
-    use topography,        only : calc_lsf_area_fraction
+    use topography,        only : calc_lsf_area_fraction, calc_ice_fraction
     use mass_conservation, only : calc_G_lsf_front
     use velocity_general,  only : set_inactive_margins
 
@@ -38,6 +41,7 @@ program test_lsf_front
     call test_cliff()
     call test_tongue_trim()
     call test_gate()
+    call test_behind_front()
 
     write(*,*)
     if (n_fail .eq. 0) then
@@ -162,5 +166,30 @@ contains
         call set_inactive_margins(ux,uy,f_ice,"infinite",a_front)
         call check("5 partial->free, a_front<min: closed",ux(2,2) .eq. 0.0_wp,ux(2,2),0.0_wp)
     end subroutine test_gate
+
+    subroutine test_behind_front()
+        ! Grounded ice in i <= 6, front cell 6 on a 400 m deeper bed, level-set
+        ! front in the ice-free cell 7
+        integer,  parameter :: nx = 12, ny = 4
+        real(wp) :: H(nx,ny), lsf(nx,ny), a(nx,ny), z_bed(nx,ny), z_sl(nx,ny)
+        real(wp) :: f_ice(nx,ny), H_eff(nx,ny)
+
+        z_bed = -300.0_wp
+        z_bed(6,:) = -700.0_wp
+        z_sl  = 0.0_wp
+        H     = 0.0_wp
+        H(1:5,:) = 1000.0_wp
+        H(6,:)   = 800.0_wp
+        lsf   = 1.0_wp
+        lsf(1:7,:) = -1.0_wp
+        call calc_lsf_area_fraction(a,lsf,"infinite")
+
+        call calc_ice_fraction(f_ice,H_eff,H,z_bed,z_sl,rho_ice,rho_sw,"marine",H_eff_min,dHdx,dx,"infinite",a)
+        call check("6 behind level set: a_lsf",a(6,2) .eq. 1.0_wp,a(6,2),1.0_wp)
+        call check("6 behind level set: full",f_ice(6,2) .eq. 1.0_wp,f_ice(6,2),1.0_wp)
+
+        call calc_ice_fraction(f_ice,H_eff,H,z_bed,z_sl,rho_ice,rho_sw,"marine",H_eff_min,dHdx,dx,"infinite")
+        call check("6 no level set: partial",f_ice(6,2) .lt. 1.0_wp,f_ice(6,2),1.0_wp)
+    end subroutine test_behind_front
 
 end program test_lsf_front

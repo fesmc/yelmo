@@ -209,6 +209,9 @@ contains
         ! neighbours (calc_front_H_ref); for "marine" the
         ! effective surface is also at most dz_srf_max above the actual
         ! surface. Front cells without an interior neighbour keep H_eff = H_ice.
+        ! With the level set, front cells entirely behind the front (a_lsf = 1)
+        ! take no reference either: the level set sets their area fraction,
+        ! so they are full (H_eff = H_ice, above H_eff_min).
         ! H_eff >= H_eff_min in all eligible cells, and <= flotation in
         ! floating front cells ("floating"). f_ice = min(H_ice/H_eff,1) in front
         ! cells, 1 in other ice cells, 0 elsewhere.
@@ -237,6 +240,7 @@ contains
         logical, allocatable  :: mask_cf(:,:)           ! Front cells (eligible, ocean edge neighbour)
         logical, allocatable  :: mask_ocn(:,:)          ! Ice-free ocean cells
         logical, allocatable  :: has_ref(:,:)           ! Front cells with an interior neighbour
+        logical, allocatable  :: mask_ref(:,:)          ! Front cells that take a reference
         real(wp), allocatable :: H_ref(:,:)             ! [m] Reference thickness of front cells
         real(wp), allocatable :: H_flot(:,:)            ! [m] Flotation thickness
 
@@ -272,10 +276,15 @@ contains
         allocate(mask_ocn(nx,ny))
         allocate(has_ref(nx,ny))
         allocate(H_ref(nx,ny))
+        allocate(mask_ref(nx,ny))
 
         call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
 
-        call calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_cf, &
+        ! Front cells entirely behind the level-set front take no reference
+        mask_ref = mask_cf
+        if (present(a_lsf)) mask_ref = mask_cf .and. a_lsf .lt. 1.0_wp
+
+        call calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_ref, &
                               mask_elig .and. .not. mask_cf,front_subgrid,dHdx,dx,boundaries)
 
         !$omp parallel do collapse(2) private(i,j,z_srf_eff,z_srf_max)

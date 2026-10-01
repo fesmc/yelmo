@@ -197,6 +197,12 @@ negative-thickness problem CISM hit with edge masks does not arise here.
   advection.
 - `a_eff = H/H_eff` after this step, so `f_ice`, the momentum balance and the
   mass balance are the same as in the mass-balance path.
+- Front cells entirely behind the level set (`a_lsf` = 1) take no neighbour
+  reference: `H_eff = max(H, H_eff_min)`, so they are full and pass their ice
+  on. With `H_ref`, grounded marine cells 160–300 m below the neighbour's
+  surface stayed partial (`f` ≈ 0.94 from the `z_srf`+25 m limit) with a
+  closed ocean face, which blocked 50 (ANT-16) and 3.8 (GRL-16) km³/yr of
+  outflow (review 2026-10-01, `H_ref`).
 - As CISM: eligible cells with `a_lsf` < 0.1 (`A_FRONT_MIN`) are emptied, in
   place of the centre rule (lsf > 0), which stays for cells that are not
   eligible; eligible cells touching the ocean at a corner are trimmed too; one
