@@ -208,6 +208,18 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Front geometry and calving stress at subgrid fronts** (review 2026-10-01).
+  Full front cells holding more ice than their reference `H_eff` keep their own
+  column in the dynamics (`H_ice_dyn = max(H_eff, H_ice)`; 15 such cells in GRL-16,
+  43 in ANT-16, up to 550 m of excess). The material viscosity, and so the calving
+  stress, is masked with the geometry of the last velocity solution (new restart
+  fields `H_ice_solv`, `f_ice_solv`; older restarts fall back to `H_ice_dyn`,
+  `f_ice_dyn`) instead of the start-of-step geometry, and cells that received ice
+  since that solution take their neighbours' principal stresses before `vm-m16`
+  and `vm-l19`. Before, newly filled front cells had zero stress, so no stress
+  calving, for one to two steps. ANT-16 200 yr: calving +7%, floating area -0.3%;
+  GRL-16: floating area -1.9%; volume change <= 2e-5. Benchmarks without stress
+  calving (TROUGH, CalvingMIP exp1, EISMINT) keep their ice thickness.
 - **Calving-front stress and strain at subgrid fronts** (review 2026-09-29).
   With `front_subgrid /= "none"`, `calc_ymat` built the viscosity and the calving
   stress on `f_ice` instead of the dynamics' `f_ice_dyn`/`H_ice_dyn`: partial front
