@@ -244,7 +244,7 @@ contains
      
 
             ! Calculate beta (at the ice base)
-            call calc_beta(beta,c_bed,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
+            call calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
                                 par%beta_const,par%beta_q,par%beta_u0,par%beta_gl_scale,par%beta_gl_f, &
                                 par%H_grnd_lim,par%beta_min,par%rho_ice,par%rho_sw,par%boundaries)
 
@@ -252,13 +252,6 @@ contains
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_b,uy_b, &
                         f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
                         par%beta_method .ne. -1,par%boundaries)
-
-            ! Reduce sliding where the base is below the pressure melting point (beta/f_slide).
-            ! An imposed beta (beta_method=-1 on aa-nodes, beta_gl_stag=-1 on ac-nodes) is not
-            ! modified: it would also be divided again in every iteration.
-            if (par%beta_method .ne. -1 .and. par%beta_gl_stag .ne. -1) then
-                call scale_beta_slide(beta_acx,beta_acy,beta,f_slide,f_ice,par%boundaries)
-            end if
 
 
             ! =========================================================================================

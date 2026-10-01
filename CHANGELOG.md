@@ -208,6 +208,22 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Sub-temperate sliding and basal drag at grounding lines and margins**
+  (review 2026-10-01; needs fesm-utils dev >= 842b22a, `act` in
+  `gq2D_to_nodes_aa`). β is divided by `f_slide` on aa-nodes in `calc_beta`,
+  before staggering, like any other spatial variation of friction
+  (`scale_beta_slide` is removed). Grounding-line faces of frozen grounded cells
+  get the grounded β/`f_slide` (before, `f_slide` was averaged with the floating
+  side's 1, so at most twice the drag), and interior frozen/temperate faces take the
+  mean of β/`f_slide` instead of β over the mean of `f_slide`. The friction laws
+  with quadrature (`beta_method` 1, 2, 3) map `c_bed` to the quadrature points with
+  corner means over grounded ice only; before, the zero `c_bed` of floating and
+  ice-free neighbours reduced β by 12–44 % at grounding-line and margin cells.
+  MISMIP3D with `beta_method = 2` now has its grounding line at 520.2 km, as with
+  `beta_method = 4` (was one cell short, 499.7 km). ANT-16 200 yr: grounding-line
+  flux -13 %, floating area -1.6 %, calving -4.5 %; GRL-16 floating area -4.2 %;
+  CalvingMIP exp1 volume +3.6 %. Calibrated `cb_ref` fields should be
+  re-optimised.
 - **Front geometry and calving stress at subgrid fronts** (review 2026-10-01).
   Full front cells holding more ice than their reference `H_eff` keep their own
   column in the dynamics (`H_ice_dyn = max(H_eff, H_ice)`; 15 such cells in GRL-16,
