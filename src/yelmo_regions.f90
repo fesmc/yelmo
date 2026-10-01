@@ -300,12 +300,12 @@ contains
             reg%uxy_bar    = sum(dyn%now%uxy_bar,mask=mask_tot)/npts_tot      ! [m/yr]
             reg%uxy_s      = sum(dyn%now%uxy_s,mask=mask_tot)/npts_tot        ! [m/yr]
             reg%uxy_b      = sum(dyn%now%uxy_b,mask=mask_tot)/npts_tot        ! [m/yr]
-            
             ! Boundary variables
-            reg%z_bed      = sum(bnd%z_bed,mask=mask_tot)/npts_tot
-            reg%smb        = sum(bnd%smb,mask=mask_tot)/npts_tot
-            reg%T_srf      = sum(bnd%T_srf,mask=mask_tot)/npts_tot
-            reg%bmb        = sum(tpo%now%bmb,mask=mask_tot)/npts_tot
+            reg%z_bed      = sum(bnd%z_bed,mask=mask_tot)/npts_tot                   ! [m/yr]
+            reg%smb        = sum(bnd%smb,mask=mask_tot)                              ! [m/yr]
+            reg%T_srf      = sum(bnd%T_srf,mask=mask_tot)/npts_tot                   ! [m/yr]
+            reg%bmb        = sum(tpo%now%bmb,mask=mask_tot)                          ! [m/yr]
+            reg%fmb        = sum(tpo%now%fmb,mask=mask_tot)                          ! [m/yr]
             
         else 
 
@@ -548,11 +548,13 @@ contains
 
         call nc_write(filename,"z_bed",reg%z_bed,units="m",long_name="Mean bedrock elevation", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"smb",reg%smb,units="m/a",long_name="Mean surface mass balance", &
+        call nc_write(filename,"smb",reg%smb,units="m/a",long_name="Total surface mass balance", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"T_srf",reg%T_srf,units="K",long_name="Mean surface temperature", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"bmb",reg%bmb,units="m/a",long_name="Mean total basal mass balance", &
+        call nc_write(filename,"bmb",reg%bmb,units="m/a",long_name="Total basal mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"fmb",reg%fmb,units="m/a",long_name="Total total frontal mass balance", &
                       dim1="time",start=[n],ncid=ncid)
         
 
