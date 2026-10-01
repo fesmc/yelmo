@@ -9,7 +9,7 @@ module yelmo_ice
     use yelmo_grid, only : yelmo_init_grid, calc_zeta
     use yelmo_timesteps, only : ytime_init, set_pc_beta_coefficients, set_adaptive_timestep, set_adaptive_timestep_pc,   &
                                 set_pc_mask, calc_pc_eta, calc_pc_tau_fe_sbe,calc_pc_tau_ab_sam, calc_pc_tau_heun,  &
-                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write
+                                yelmo_timestep_write_init, yelmo_timestep_write
     use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients, is_finite
     use yelmo_io 
 
@@ -57,7 +57,7 @@ contains
         real(wp), parameter :: time_tol = 1e-5
 
         real(8)  :: cpu_time0, cpu_time1 
-        real(wp) :: model_time0, model_time1 
+        real(wp) :: model_time0 
         real(wp) :: speed  
 
         real(wp) :: H_mean, T_mean 
@@ -66,7 +66,6 @@ contains
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
         integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
-        real(wp) :: ab_zeta 
         logical, allocatable :: pc_mask(:,:) 
 
         character(len=1012) :: kill_txt
@@ -338,10 +337,6 @@ contains
                             ! HEUN truncation error (same as FE-SBE)
                             call calc_pc_tau_heun(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now)
 
-                        case("RALSTON")
-
-                            call calc_pc_tau_fe_sbe(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now)
-
                     end select 
 
                 else 
@@ -354,7 +349,7 @@ contains
                                 dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
                                 dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries, &
                                 dom%tpo%par%front_subgrid,dom%tpo%par%front_H_eff_min,dom%tpo%par%front_dHdx,dom%tpo%par%dx)
-                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,trim=dom%par%pc_eta_trim)
+                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,frac_trim=dom%par%pc_eta_trim)
 
                 ! Save masked pc_tau for output too 
                 dom%time%pc_tau_masked = dom%time%pc_tau 
@@ -617,7 +612,7 @@ contains
         type(ydyn_param_class)  :: dyn_par_ref
         type(ytherm_param_class):: thrm_par_ref
         real(wp) :: time_now  
-        integer  :: n, nstep 
+        integer  :: n 
         
         ! Only run equilibration if time_tot > 0 
 
