@@ -330,6 +330,10 @@
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
     enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
+    basal_bc_method = "wtil"            ! Grounded basal BC: "wtil" (till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity C)
+    cap_source      = "hyd"             ! [capacity] C from: "hyd" (hydrology model), "water" (from water thickness), "none" (C=0)
+    cap_W_floor     = 0.0               ! [m] [capacity, "water"] floor subtracted from the water thickness
+    cap_eps         = 1e-4              ! [m/a ice equiv.] [capacity] C below this counts as a dry bed
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock), "active", or "fixed"

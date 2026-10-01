@@ -781,6 +781,12 @@ module yelmo_defs
         character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
         logical             :: enth_integral    ! derived: enth_cp_method == "integral"
 
+        ! Grounded basal boundary condition
+        character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
+        character(len=56)   :: cap_source       ! "hyd" (hyd%now%C_frz), "water" (fallback from the water thickness) or "none" (C=0)
+        real(wp)            :: cap_W_floor      ! [m] floor subtracted from the water thickness in the "water" fallback
+        real(wp)            :: cap_eps          ! [m/a ice equiv.] capacity below which the bed counts as dry
+
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
         ! component as par%bucket%till_rate and par%W_til_max.
 

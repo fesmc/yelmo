@@ -687,6 +687,33 @@ end if
         call nml_read(filename,group,"H_ice_thin",     par%H_ice_thin,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"enth_cp_method",  par%enth_cp_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         par%enth_integral = (trim(par%enth_cp_method) .eq. "integral")
+
+        call nml_read(filename,group,"basal_bc_method",par%basal_bc_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_source",     par%cap_source,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_W_floor",    par%cap_W_floor,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"cap_eps",        par%cap_eps,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+
+        select case(trim(par%basal_bc_method))
+            case("wtil","capacity")
+                ! ok
+            case DEFAULT
+                write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method must be 'wtil' or 'capacity'; got ", trim(par%basal_bc_method)
+                stop
+        end select
+
+        select case(trim(par%cap_source))
+            case("hyd","water","none")
+                ! ok
+            case DEFAULT
+                write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'hyd', 'water' or 'none'; got ", trim(par%cap_source)
+                stop
+        end select
+
+        if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
+            write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps
+            stop
+        end if
+
         ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate
         ! and par%W_til_max in fasthydrology). They are no longer read here.
 
