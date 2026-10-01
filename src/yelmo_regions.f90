@@ -321,6 +321,11 @@ contains
         reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_reg)            ! [m^3/yr]
         reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_reg)           ! [m^3/yr]
 
+        ! Applied surface, basal and frontal mass balance
+        reg%smb_tot    = sum(tpo%now%smb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%bmb_tot    = sum(tpo%now%bmb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%fmb_tot    = sum(tpo%now%fmb*area,mask=mask_reg)                ! [m^3/yr]
+
         ! ===== Total ice variables =====
 
         if (npts_tot .gt. 0) then 
@@ -570,6 +575,13 @@ contains
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"dmb",reg%dmb,units="m^3/yr",long_name="Discharge mass balance rate", &
+                      dim1="time",start=[n],ncid=ncid)
+
+        call nc_write(filename,"smb_tot",reg%smb_tot,units="m^3/yr",long_name="Total applied surface mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"bmb_tot",reg%bmb_tot,units="m^3/yr",long_name="Total applied basal mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"fmb_tot",reg%fmb_tot,units="m^3/yr",long_name="Total applied frontal mass balance", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"V_sl",reg%V_sl*1e-6,units="1e6 km^3",long_name="Ice volume above flotation", &

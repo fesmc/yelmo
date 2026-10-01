@@ -197,6 +197,19 @@ negative-thickness problem CISM hit with edge masks does not arise here.
   advection.
 - `a_eff = H/H_eff` after this step, so `f_ice`, the momentum balance and the
   mass balance are the same as in the mass-balance path.
+- Front cells entirely behind the level set (`a_lsf` = 1) take no neighbour
+  reference: `H_eff = max(H, H_eff_min)`, so they are full and pass their ice
+  on. With `H_ref`, grounded marine cells 160–300 m below the neighbour's
+  surface stayed partial (`f` ≈ 0.94 from the `z_srf`+25 m limit) with a
+  closed ocean face, which blocked 50 (ANT-16) and 3.8 (GRL-16) km³/yr of
+  outflow (review 2026-10-01, `H_ref`).
+- Cut cells (`a_lsf` < 1) keep the `z_srf`+25 m limit of `H_eff`, so
+  grounded ones have `f` ≈ H/(H+25 m) rather than `a_lsf`. Under `"marine"`
+  it is the only bound on `H_eff` of a floating cell next to grounded ice:
+  without it, such cells took up to 200× their flotation thickness, front
+  speeds reached the SSA cap and calving rose 5× (ANT-16) and 16× (GRL-16)
+  (validation 2026-10-01). It is not applied to the trim either, which would
+  compound to H = 25 m·a/(1−a).
 - As CISM: eligible cells with `a_lsf` < 0.1 (`A_FRONT_MIN`) are emptied, in
   place of the centre rule (lsf > 0), which stays for cells that are not
   eligible; eligible cells touching the ocean at a corner are trimmed too; one
