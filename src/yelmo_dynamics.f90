@@ -221,10 +221,12 @@ contains
         where (abs(dyn%now%uy_bar) .lt. TOL_UNDERFLOW) dyn%now%uy_bar = 0.0_wp 
         
         ! ===== Geometry of the ice column for the sigma-coordinate transform ===================
-        ! (surface and base gradients without the cliff at faces to ice-free cells)
+        ! (surface and base gradients without the cliff at faces to ice-free ocean)
 
-        call calc_gradient_column_ac(dzsdx_c,dzsdy_c,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%f_ice_dyn,dyn%par%boundaries)
-        call calc_gradient_column_ac(dzbdx_c,dzbdy_c,tpo%now%dzbdx,tpo%now%dzbdy,tpo%now%f_ice_dyn,dyn%par%boundaries)
+        call calc_gradient_column_ac(dzsdx_c,dzsdy_c,tpo%now%dzsdx,tpo%now%dzsdy,tpo%now%f_ice_dyn, &
+                                        bnd%z_bed .lt. bnd%z_sl,dyn%par%boundaries)
+        call calc_gradient_column_ac(dzbdx_c,dzbdy_c,tpo%now%dzbdx,tpo%now%dzbdy,tpo%now%f_ice_dyn, &
+                                        bnd%z_bed .lt. bnd%z_sl,dyn%par%boundaries)
 
         ! ===== Calculate the velocity Jacobian ===============================================
         ! (note uses uz from previous iteration)

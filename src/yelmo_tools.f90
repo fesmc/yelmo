@@ -576,14 +576,15 @@ end if
 
     end subroutine calc_gradient_acy
 
-    subroutine calc_gradient_column_ac(dvdx_c,dvdy_c,dvdx,dvdy,f_ice,boundaries)
+    subroutine calc_gradient_column_ac(dvdx_c,dvdy_c,dvdx,dvdy,f_ice,mask_ocn,boundaries)
         ! Gradient of the ice-column geometry (surface or base elevation) on
         ! ac-nodes, for the sigma-coordinate transform. A face between an
-        ! ice-covered and an ice-free cell holds the jump to the ice-free cell
-        ! (a cliff, eg the calving front), not a slope of the column: there the
+        ! ice-covered cell and ice-free ocean holds the jump to sea level (a
+        ! cliff, the calving front), not a slope of the column: there the
         ! gradient of the adjacent face on the ice side is used, if that face
-        ! lies between two ice-covered cells (otherwise zero). Faces without
-        ! ice on either side are zero.
+        ! lies between two ice-covered cells (otherwise zero). Faces to ice-free
+        ! land keep their gradient (the margin slope). Faces without ice on
+        ! either side are zero.
 
         implicit none 
 
@@ -592,6 +593,7 @@ end if
         real(wp), intent(IN)  :: dvdx(:,:)          ! acx-nodes
         real(wp), intent(IN)  :: dvdy(:,:)          ! acy-nodes
         real(wp), intent(IN)  :: f_ice(:,:)         ! aa-nodes, ice-covered where f_ice == 1
+        logical,  intent(IN)  :: mask_ocn(:,:)      ! aa-nodes, bed below sea level
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
@@ -619,6 +621,10 @@ end if
             dvdx_c(i,j) = 0.0_wp
             if (ice_0 .and. ice_1) then 
                 dvdx_c(i,j) = dvdx(i,j)
+            else if ( (ice_0 .and. .not. mask_ocn(ip1,j)) .or. &
+                      (ice_1 .and. .not. mask_ocn(i,j)) ) then 
+                ! Margin to ice-free land
+                dvdx_c(i,j) = dvdx(i,j)
             else if (ice_0) then 
                 ! Ice on the left: face between (im1,j) and (i,j)
                 if (im1 .ne. i) then 
@@ -638,6 +644,10 @@ end if
 
             dvdy_c(i,j) = 0.0_wp
             if (ice_0 .and. ice_1) then 
+                dvdy_c(i,j) = dvdy(i,j)
+            else if ( (ice_0 .and. .not. mask_ocn(i,jp1)) .or. &
+                      (ice_1 .and. .not. mask_ocn(i,j)) ) then 
+                ! Margin to ice-free land
                 dvdy_c(i,j) = dvdy(i,j)
             else if (ice_0) then 
                 ! Ice below: face between (i,jm1) and (i,j)
