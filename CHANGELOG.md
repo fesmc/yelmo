@@ -227,6 +227,9 @@ little. MISMIP3D and DIVA runs change more.
   `tstep_update` advancing on every call (78a9f91), ncio a7df7c5, and the `act`
   argument of the gaussian-quadrature node routines (`gq*_to_nodes_acx/acy` and
   `gq2D/gq3D_to_nodes_aa`, 842b22a).
+- **`ytopo.margin2nd` removed.** Taken at the face, the one-sided quadratic reduces
+  to the plain difference, which is what ran (the option was off in all par files).
+  Delete the key from external par files (`nml_validate` stops).
 - **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
   `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
   `hydro_init`.
@@ -423,7 +426,19 @@ little. MISMIP3D and DIVA runs change more.
   out, volume +1.3%. ANT-16KM, 200 yr: floating area +1%, volume within 0.02%. Runs
   without the level set are bit-identical.
 
+- **Level set in periodic domains:** the advection and redistance of the level set
+  wrap in periodic directions, as the snap and the area fraction do; "infinite"
+  replaces only zero borders. Changes only runs with ice at a periodic seam (none of
+  the shipped benchmarks).
+- **Iceberg rule after the front advance** (mass-balance calving, subgrid fronts): a
+  front cell left by the advance at `H_eff` − 0.1 m counts as full, so the cell it
+  fed at a convex corner is no longer removed as an iceberg. TROUGH, MISMIP3D and
+  MASK_ICE are bit-identical.
+
 ### Non-default options
+
+- **Imposed `beta_acx/acy` (`beta_gl_stag = -1`)** is no longer raised to `beta_min`
+  or overwritten at the domain borders.
 
 - **Frontal melt `ytopo.fmb_method = 3`** (Rignot et al., 2016, ISMIP7 protocol)
   with the new boundary field `bnd%tf_shlf` (thermal forcing) and the subglacial
@@ -457,8 +472,6 @@ little. MISMIP3D and DIVA runs change more.
     2010). The MISMIP3D RF hysteresis gap goes from 464 to 365 km.
 - **K24 hydrology:** the latent heat is taken from Yelmo's `L_ice`.
 - **Discharge:** `dmb_method = 1` no longer scales `dist_grline` by dx a second time.
-- **`ytopo.margin2nd`:** the one-sided margin gradient was twice too large and
-  failed the EISMINT symmetry check. It now passes (Linf/Hmax 2e-6).
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
 - **Basal frictional heating:** new `ytherm.qb_method = 3` ("faces") forms
   `taub_acx*ux_b` on acx nodes and `taub_acy*uy_b` on acy nodes and averages the two
@@ -469,6 +482,17 @@ little. MISMIP3D and DIVA runs change more.
   `qb_method` other than 1, 2 or 3 (before, `Q_b` was silently left unchanged).
 
 ### Diagnostics
+
+- New `mb_clip` (ytopo): the clip of negative thickness after transport. It was
+  booked in `dHidt_dyn`, which is now pure transport; `mb_err` and the
+  `log_mb_check` line include it. ANT-16/GRL-16: 0.16/0.13 km3/yr, 0.2%/2% of calving.
+- New `uz_srf_err` (ydyn): `uz_star` at the surface + smb on fully ice-covered cells
+  (0 if the kinematic rates and uz agree). ANT-16: median |.| 0.03 (grounded) and
+  0.08 m/yr (floating), 95th percentile 0.7 and 1.1 m/yr; GRL-16: 0.08 and 0.9,
+  1.6 and 4.6 m/yr.
+- `taub` uses the friction of the SSA matrix: `beta_min` at grounded faces with zero
+  β (`beta_eff` for DIVA) is set once before the solve, not inside the assemblers,
+  where `taub` stayed 0. Results are bit-identical.
 
 - `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
   were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
