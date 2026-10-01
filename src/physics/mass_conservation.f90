@@ -127,7 +127,7 @@ contains
         flag = ""
         if (abs(resid_rel) .gt. tol_rel) flag = "FAIL"
 
-        write(*,"(a8,a,2f9.3,a3,4g14.4,1x,a4,a3,4g13.4)") &
+        write(*,"(a8,a,f13.3,f9.3,a3,4g14.4,1x,a4,a3,4g13.4)") &
                     trim(label), " mbcheck ["//trim(units)//"]: ", time, dt, " | ", &
                     tot_dHidt, tot_components, resid, resid_rel, flag, " | ", &
                     tot_dHidt_dyn, tot_mb_clip, tot_mb_net, tot_cmb
@@ -136,7 +136,7 @@ contains
 
     end subroutine check_mass_conservation
 
-    subroutine apply_tendency(H_ice,mb_dot,dt,label,adjust_mb)
+    subroutine apply_tendency(H_ice,mb_dot,dt,label,adjust_mb,mb_clip)
 
         implicit none
 
@@ -145,12 +145,16 @@ contains
         real(wp), intent(IN)    :: dt 
         character(len=*),  intent(IN) :: label 
         logical,  intent(IN), optional :: adjust_mb
+        real(wp), intent(OUT), optional :: mb_clip(:,:)  ! [m/yr] Rate added by the clip of negative (and tiny) thickness, 0 elsewhere
         
         ! Local variables
         integer :: i, j, nx, ny
         real(wp) :: H_prev
+        real(wp) :: H_new
         real(wp) :: dHdt 
         logical  :: allow_adjust_mb
+
+        if (present(mb_clip)) mb_clip = 0.0_wp
 
         if (dt .gt. 0.0) then 
             ! Only apply this routine if dt > 0!
@@ -168,13 +172,19 @@ contains
                 H_prev = H_ice(i,j) 
 
                 ! Now update ice thickness with tendency for this timestep 
-                H_ice(i,j) = H_prev + dt*mb_dot(i,j)
+                H_new      = H_prev + dt*mb_dot(i,j)
+                H_ice(i,j) = H_new
 
                 ! Limit ice thickness to zero 
                 if (H_ice(i,j) .lt. 0.0) H_ice(i,j) = 0.0 
 
                 ! Ensure tiny numeric ice thicknesses are removed
                 if (abs(H_ice(i,j)) .lt. TOL) H_ice(i,j) = 0.0
+
+                ! Rate added by the clip (exactly zero where nothing was clipped)
+                if (present(mb_clip)) then
+                    if (H_ice(i,j) .ne. H_new) mb_clip(i,j) = (H_ice(i,j) - H_new) / dt
+                end if
                 
                 ! Calculate actual current rate of change
                 dHdt = (H_ice(i,j) - H_prev) / dt 
