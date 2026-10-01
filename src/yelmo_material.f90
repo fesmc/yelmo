@@ -232,14 +232,16 @@ contains
         ! Note: this viscosity which is used for material and thermodynamic properties may be
         ! different than the visocity calculated locally in the dynamics module
         
-        ! On the active ice geometry of the dynamics (H_ice_dyn, f_ice_dyn), where the
-        ! strain rate is computed: partial front cells get their own viscosity
-        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
+        ! On the active ice geometry of the last velocity solution (dyn%now%H_ice_solv,
+        ! f_ice_solv), where the strain rate was computed (the predicted geometry, not
+        ! the start-of-step geometry restored in tpo): partial front cells get their
+        ! own viscosity, and so do cells that filled during the step
+        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,dyn%now%H_ice_solv,dyn%now%f_ice_solv, &
                                                             mat%par%n_glen,mat%par%visc_min,dyn%par%eps_0)
 
         ! Calculate visc_bar and visc_int (vertically integrated visc) as diagnostic quantities
         mat%now%visc_bar = calc_vertical_integrated_2D(mat%now%visc,mat%par%zeta_aa)
-        call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
+        call calc_visc_int(mat%now%visc_int,mat%now%visc,dyn%now%H_ice_solv,dyn%now%f_ice_solv, &
                                                     mat%par%zeta_aa,dyn%par%boundaries)
 
         ! 3. Calculate the deviatoric stress tensor and 2D average
