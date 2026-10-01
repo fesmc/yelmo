@@ -677,7 +677,8 @@ contains
 
     end subroutine yelmo_update_equil
     
-    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst)
+    subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst, &
+                          regions,basins,mask_ice,topo_pd,topo_init)
         ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
@@ -700,6 +701,18 @@ contains
         ! standalone drivers and the C API rely on. A coupled driver passes its
         ! own record so that every component works from one set of constants.
         type(phys_const_class), intent(IN), optional :: cnst
+
+        ! Boundary fields supplied by a coupled driver that owns the domain
+        ! definition. Each one, when present, replaces the matching file read
+        ! (regions, basins: yelmo_masks; topo_pd: yelmo_data pd_topo_*;
+        ! topo_init: yelmo_init_topo init_topo_*); the processing that follows
+        ! is the same. mask_ice is where ice is allowed in the domain;
+        ! yelmo.mask_border is applied on top of it. All on the Yelmo grid.
+        real(wp), intent(IN), optional :: regions(:,:)
+        real(wp), intent(IN), optional :: basins(:,:)
+        integer,  intent(IN), optional :: mask_ice(:,:)
+        type(ytopo_input_class), intent(IN), optional :: topo_pd
+        type(ytopo_input_class), intent(IN), optional :: topo_init
 
         ! Local variables
         integer :: n_threads 
@@ -786,6 +799,13 @@ contains
                        &or set grid_def=['name','file'])"
             error stop 1
         end if 
+
+        ! Check that the supplied boundary fields are on the Yelmo grid
+        if (present(regions))   call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"regions",shape(regions))
+        if (present(basins))    call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"basins",shape(basins))
+        if (present(mask_ice))  call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"mask_ice",shape(mask_ice))
+        if (present(topo_pd))   call check_topo_input(dom%grd%G%nx,dom%grd%G%ny,"topo_pd",topo_pd,need_z_srf=.TRUE.)
+        if (present(topo_init)) call check_topo_input(dom%grd%G%nx,dom%grd%G%ny,"topo_init",topo_init,need_z_srf=.FALSE.)
 
         ! Calculate zeta_aa and zeta_ac 
         call calc_zeta(dom%par%zeta_aa,dom%par%zeta_ac,dom%par%nz_ac,dom%par%nz_aa, &
@@ -941,10 +961,12 @@ contains
         call ybound_alloc(dom%bnd,dom%grd%G%nx,dom%grd%G%ny)
 
         ! Load region/basin masks
-        call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name)
+        call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name, &
+                               basins=basins,regions=regions)
         
         ! Update the mask_ice mask based on domain definition
-        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border)
+        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border, &
+                                    mask_ice=mask_ice)
 
 
         write(*,*) "yelmo_init:: boundary initialized (loaded masks, set ref. topography)."
@@ -975,7 +997,8 @@ contains
         call ydata_alloc(dom%dta%pd,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%dta%par%pd_age_n_iso)
 
         ! Load data objects   
-        call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries,group=dom%par%nml_init_topo)
+        call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries,group=dom%par%nml_init_topo, &
+                        topo_pd=topo_pd)
 
         ! Set H_ice_ref and z_bed_ref to present-day ice thickness by default 
         dom%bnd%H_ice_ref = dom%dta%pd%H_ice 
@@ -986,7 +1009,7 @@ contains
         ! == topography ==
 
         ! Determine how to manage initial topography (H_ice,z_bed)
-        call yelmo_init_topo(dom,filename,dom%par%nml_init_topo,time,load_topo)
+        call yelmo_init_topo(dom,filename,dom%par%nml_init_topo,time,load_topo,topo_init=topo_init)
 
         write(*,*) "yelmo_init:: topo intialized (loaded data if desired)."
         
@@ -1006,7 +1029,7 @@ contains
 
     end subroutine yelmo_init
 
-    subroutine yelmo_init_topo(dom,filename,group,time,load_topo)
+    subroutine yelmo_init_topo(dom,filename,group,time,load_topo,topo_init)
         ! This subroutine is the first step to intializing 
         ! the state variables. It initializes only the topography
         ! to facilitate calculation of boundary variables (eg, T_srf),
@@ -1021,6 +1044,7 @@ contains
         character(len=*),  intent(IN)    :: group       ! Usually "yelmo_init_topo"
         real(wp),          intent(IN)    :: time 
         logical, optional, intent(IN)    :: load_topo 
+        type(ytopo_input_class), optional, intent(IN) :: topo_init  ! Supplied by the driver (replaces init_topo_path)
 
         ! Local variables 
         logical :: init_topo_load 
@@ -1085,26 +1109,44 @@ contains
         ! Override parameter choice if command-line argument present 
         if (present(load_topo)) init_topo_load = load_topo 
 
+        ! Topography supplied by the driver is always used
+        if (present(topo_init)) init_topo_load = .TRUE.
+
         if (init_topo_load) then
-            ! =========================================
-            ! Load topography data from netcdf file
 
-            call yelmo_check_file("yelmo_init_topo","init_topo_path",init_topo_path)
+            if (present(topo_init)) then
 
-            call nc_read(init_topo_path,init_topo_names(1), H_ice, missing_value=mv)
-            call nc_read(init_topo_path,init_topo_names(2), z_bed, missing_value=mv) 
+                H_ice = topo_init%H_ice
+                z_bed = topo_init%z_bed
 
-            has_sd = (trim(init_topo_names(3)) .ne. ""     .and. &
-                      trim(init_topo_names(3)) .ne. "none" .and. &
-                      trim(init_topo_names(3)) .ne. "None")
-            if (has_sd) call nc_read(init_topo_path,init_topo_names(3),z_bed_sd,missing_value=mv)
+                has_sd = allocated(topo_init%z_bed_sd)
+                if (has_sd) z_bed_sd = topo_init%z_bed_sd
 
-            ! If desired and available, read surface elevation field
-            ! too, in order to correct for englacial lakes.
-            has_srf = (trim(init_topo_names(4)) .ne. ""     .and. &
-                       trim(init_topo_names(4)) .ne. "none" .and. &
-                       trim(init_topo_names(4)) .ne. "None")
-            if (has_srf) call nc_read(init_topo_path,init_topo_names(4),z_srf,missing_value=mv)
+                has_srf = allocated(topo_init%z_srf)
+                if (has_srf) z_srf = topo_init%z_srf
+
+            else
+                ! =========================================
+                ! Load topography data from netcdf file
+
+                call yelmo_check_file("yelmo_init_topo","init_topo_path",init_topo_path)
+
+                call nc_read(init_topo_path,init_topo_names(1), H_ice, missing_value=mv)
+                call nc_read(init_topo_path,init_topo_names(2), z_bed, missing_value=mv)
+
+                has_sd = (trim(init_topo_names(3)) .ne. ""     .and. &
+                          trim(init_topo_names(3)) .ne. "none" .and. &
+                          trim(init_topo_names(3)) .ne. "None")
+                if (has_sd) call nc_read(init_topo_path,init_topo_names(3),z_bed_sd,missing_value=mv)
+
+                ! If desired and available, read surface elevation field
+                ! too, in order to correct for englacial lakes.
+                has_srf = (trim(init_topo_names(4)) .ne. ""     .and. &
+                           trim(init_topo_names(4)) .ne. "none" .and. &
+                           trim(init_topo_names(4)) .ne. "None")
+                if (has_srf) call nc_read(init_topo_path,init_topo_names(4),z_srf,missing_value=mv)
+
+            end if
 
             ! Fill the gaps of the dataset (e.g. outside its coverage)
             call ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
@@ -1113,6 +1155,7 @@ contains
             if (has_sd) z_bed = z_bed + z_bed_f_sd*z_bed_sd
 
             if (has_srf) then
+                ! Correct for englacial lakes
 
                 ! Note: this routine uses z_sl, that is likely still set to zero
                 ! here. This routine is mainly for fixing present-day datasets,
@@ -1321,6 +1364,54 @@ contains
         return 
 
     end subroutine yelmo_init_topo
+
+    subroutine check_input_shape(nx,ny,name,shp)
+        ! Stop unless a field supplied to yelmo_init is on the Yelmo grid.
+
+        implicit none
+
+        integer,          intent(IN) :: nx, ny
+        character(len=*), intent(IN) :: name
+        integer,          intent(IN) :: shp(2)
+
+        if (shp(1) .ne. nx .or. shp(2) .ne. ny) then
+            write(io_unit_err,*) "yelmo_init:: Error: "//trim(name)//" is not on the Yelmo grid."
+            write(io_unit_err,*) "shape("//trim(name)//") = ", shp, ", grid: ", nx, ny
+            error stop 1
+        end if
+
+        return
+
+    end subroutine check_input_shape
+
+    subroutine check_topo_input(nx,ny,name,topo,need_z_srf)
+        ! Stop unless topography supplied to yelmo_init has the required
+        ! fields, all on the Yelmo grid.
+
+        implicit none
+
+        integer,                 intent(IN) :: nx, ny
+        character(len=*),        intent(IN) :: name
+        type(ytopo_input_class), intent(IN) :: topo
+        logical,                 intent(IN) :: need_z_srf
+
+        if (.not. allocated(topo%H_ice) .or. .not. allocated(topo%z_bed)) then
+            write(io_unit_err,*) "yelmo_init:: Error: "//trim(name)//" needs H_ice and z_bed."
+            error stop 1
+        end if
+        if (need_z_srf .and. .not. allocated(topo%z_srf)) then
+            write(io_unit_err,*) "yelmo_init:: Error: "//trim(name)//" needs z_srf."
+            error stop 1
+        end if
+
+        call check_input_shape(nx,ny,trim(name)//"%H_ice",shape(topo%H_ice))
+        call check_input_shape(nx,ny,trim(name)//"%z_bed",shape(topo%z_bed))
+        if (allocated(topo%z_bed_sd)) call check_input_shape(nx,ny,trim(name)//"%z_bed_sd",shape(topo%z_bed_sd))
+        if (allocated(topo%z_srf))    call check_input_shape(nx,ny,trim(name)//"%z_srf",shape(topo%z_srf))
+
+        return
+
+    end subroutine check_topo_input
 
     subroutine yelmo_update_z_bed_restart_rate(dom,time)
         

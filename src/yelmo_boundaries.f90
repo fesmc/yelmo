@@ -134,14 +134,17 @@ contains
 
     end subroutine ybound_define_physical_constants
     
-    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name)
+    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,basins,regions)
         ! Load masks for managing regions and basins, etc. 
+        ! basins and regions supplied by the driver replace the file reads.
 
         implicit none 
 
         type(ybound_class), intent(INOUT) :: bnd 
         character(len=*), intent(IN)      :: nml_path, nml_group
         character(len=*), intent(IN)      :: domain, grid_name 
+        real(wp), intent(IN), optional    :: basins(:,:)
+        real(wp), intent(IN), optional    :: regions(:,:)
 
         ! Local variables
         logical            :: load_var
@@ -165,7 +168,11 @@ contains
 
         call nml_read(nml_path,nml_group,"basins_load",load_var,defaults_file=def_file,defaults_group=def_masks)
 
-        if (load_var) then
+        if (present(basins)) then
+
+            bnd%basins = basins
+
+        else if (load_var) then
 
             call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
@@ -206,7 +213,11 @@ contains
 
         call nml_read(nml_path,nml_group,"regions_load",load_var,defaults_file=def_file,defaults_group=def_masks)
 
-        if (load_var) then
+        if (present(regions)) then
+
+            bnd%regions = regions
+
+        else if (load_var) then
 
             call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
             call yelmo_parse_path(filename,domain,grid_name)
@@ -230,11 +241,12 @@ contains
 
     end subroutine ybound_load_masks
 
-    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border)
+    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border,mask_ice)
         ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
         ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
         ! The mask is built in two parts: where ice is allowed in the domain
-        ! (from the regions), then the treatment of the domain border.
+        ! (from the regions, or supplied by the driver), then the treatment
+        ! of the domain border.
 
         implicit none
 
@@ -242,11 +254,28 @@ contains
         character(len=*),   intent(IN)    :: domain
         character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
         character(len=*),   intent(IN)    :: mask_border    ! yelmo.mask_border
+        integer, intent(IN), optional     :: mask_ice(:,:)  ! Where ice is allowed in the domain
 
         ! Also set calv_mask false everywhere (no imposed calving front)
         bnd%calv_mask   = .FALSE.
 
-        call define_mask_ice_domain(bnd%mask_ice,bnd%regions,domain)
+        if (present(mask_ice)) then
+
+            if (any(mask_ice .ne. MASK_ICE_NONE .and. mask_ice .ne. MASK_ICE_FIXED &
+                                                .and. mask_ice .ne. MASK_ICE_DYNAMIC)) then
+                write(io_unit_err,*) "ybound_define_mask_ice:: Error: mask_ice values must be &
+                                     &MASK_ICE_NONE, MASK_ICE_FIXED or MASK_ICE_DYNAMIC."
+                write(io_unit_err,*) "range(mask_ice): ", minval(mask_ice), maxval(mask_ice)
+                error stop 1
+            end if
+
+            bnd%mask_ice = mask_ice
+
+        else
+
+            call define_mask_ice_domain(bnd%mask_ice,bnd%regions,domain)
+
+        end if
 
         call define_mask_ice_border(bnd%mask_ice,domain,boundaries,mask_border)
 

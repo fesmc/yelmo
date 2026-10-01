@@ -706,6 +706,14 @@ little. MISMIP3D and DIVA runs change more.
 - `yelmo_init_grid(grd, grid0)` builds the Yelmo grid from a coords `grid_class`
   defined elsewhere (e.g. a coupler's grid description), with the axes converted to
   meters. Use it before `yelmo_init(..., grid_def="none")`.
+- `yelmo_init` takes boundary fields from a coupled driver that owns the domain
+  definition: optional `regions`, `basins`, `mask_ice` (where ice is allowed;
+  `mask_border` is applied on top) and `topo_pd`, `topo_init` (new
+  `ytopo_input_class`: `H_ice`, `z_bed`, optional `z_bed_sd`, `z_srf`). Each one
+  replaces the matching file read; the processing that follows (`z_bed_f_sd`,
+  englacial lakes, smoothing, `grad_lim_zb`, `init_topo_state`, references) is the
+  same. Without them `yelmo_init` is unchanged. A file path (e.g.
+  `yelmo_data.pd_topo_path`) is only checked when its file is read.
 
 ## v2.3.1 (2026-07-17)
 
