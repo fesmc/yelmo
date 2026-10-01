@@ -612,6 +612,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- New public `yelmo_restart_init(dom, filename, time)`: the restart branch of
+  `yelmo_init_state` (restart fields, active predictor-corrector, passive-tracer
+  backends from their sidecars). Coupled drivers that restart from their own
+  bundles call it, so elsa and tracer are initialized after a restart too.
 - All fatal error paths in `src/` and the `tests/` drivers end with `error stop 1`
   (was `stop`, exit status 0), so a failed run is reported as FAILED by SLURM,
   including the restart writers when an io table lists an unknown variable.
