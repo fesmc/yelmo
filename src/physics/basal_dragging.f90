@@ -15,6 +15,7 @@ module basal_dragging
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use topography, only : calc_H_eff 
+    use deformation, only : calc_active_faces
 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
@@ -996,6 +997,7 @@ contains
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
@@ -1007,6 +1009,11 @@ contains
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
@@ -1042,8 +1049,8 @@ contains
                     call gq2D_to_nodes_aa(gq2D,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
                     !cbn(1:4) = c_bed(i,j)
 
-                    call gq2D_to_nodes_acx(gq2D,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2D,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2D,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2D,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 end if 
                 
@@ -1109,6 +1116,7 @@ contains
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
@@ -1120,6 +1128,11 @@ contains
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
@@ -1154,8 +1167,8 @@ contains
                     call gq2D_to_nodes_aa(gq2d,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
                     !cbn(1:4) = c_bed(i,j) 
 
-                    call gq2D_to_nodes_acx(gq2d,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2d,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 end if 
                 

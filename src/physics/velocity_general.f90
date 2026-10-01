@@ -11,7 +11,7 @@ module velocity_general
                                     gq3D_to_nodes_acx, gq3D_to_nodes_acy
 
     use solver_linear, only : linear_solver_status_str
-    use deformation, only : calc_strain_rate_horizontal_2D
+    use deformation, only : calc_strain_rate_horizontal_2D, calc_active_faces
 
     use solver_ssa_ac, only : ssa_diagnostics_write_init, ssa_diagnostics_write_step
 
@@ -123,6 +123,8 @@ contains
         logical, allocatable :: is_ice(:,:)
         
 
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
+
         type(gq2D_class) :: gq2D, gq2D_global
         type(gq3D_class) :: gq3D, gq3D_global
         real(wp) :: dz0, dz1
@@ -156,6 +158,11 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
         ! Next, calculate vertical velocity at each point through the column
 
         !$omp parallel &
@@ -185,24 +192,24 @@ contains
                 H_inv = 1.0/H_now 
 
                 ! Get the centered ice-base gradient
-                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzbdx_aa = sum(dzbdxn*gq2d%wt)/gq2d%wt_tot
 
-                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzbdy_aa = sum(dzbdyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Get the centered surface gradient
-                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzsdx_aa = sum(dzsdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzsdy_aa = sum(dzsdyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Get the aa-node centered horizontal velocity at the base
-                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Determine grid vertical velocity at the base due to sigma-coordinates 
@@ -237,10 +244,10 @@ contains
 if (.not. use_gq3D) then
     ! 2D QUADRATURE
 
-                    call gq2D_to_nodes_acx(gq2d,dudxn,jvel%dxx(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,dudxn,jvel%dxx(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     dudx_aa = sum(dudxn*gq2d%wt)/gq2d%wt_tot
 
-                    call gq2D_to_nodes_acy(gq2d,dvdyn,jvel%dyy(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,dvdyn,jvel%dyy(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     dvdy_aa = sum(dvdyn*gq2d%wt)/gq2d%wt_tot
 
 else 
@@ -257,10 +264,10 @@ else
                         dz0 = H_ice(i,j)*(zeta_aa(2) - zeta_aa(1))
                     end if
 
-                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     dudx_aa = sum(dudxn8*gq3D%wt)/gq3D%wt_tot
 
-                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     dvdy_aa = sum(dvdyn8*gq3D%wt)/gq3D%wt_tot
 
 end if 
@@ -304,13 +311,13 @@ end if
                         kdn = k-1 
                     end if
                     
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     uxn = 0.5_wp*(uxn_up+uxn_dn)
                     ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                     
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     uyn = 0.5_wp*(uyn_up+uyn_dn)
                     uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                     
@@ -447,6 +454,8 @@ end if
         real(wp), allocatable :: dvdx(:,:)
         
         
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
+
         type(gq2D_class) :: gq2D, gq2D_global
         
         integer  :: BC
@@ -477,6 +486,11 @@ end if
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
         ! First calculate horizontal strain rates at each layer for later use,
         ! with no correction factor for sigma-transformation.
@@ -514,24 +528,24 @@ end if
                 H_inv = 1.0/H_now 
 
                 ! Get the centered ice-base gradient
-                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzbdx_aa = sum(dzbdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzbdy_aa = sum(dzbdyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Get the centered surface gradient
-                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzsdx_aa = sum(dzsdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzsdy_aa = sum(dzsdyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Get the aa-node centered horizontal velocity at the base
-                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Determine grid vertical velocity at the base due to sigma-coordinates 
@@ -584,21 +598,21 @@ end if
                         kdn = k-2
                     end if
 
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     dudzn = (uxn_up - uxn_dn) / (zeta_aa(kup)-zeta_aa(kdn))
                     dudz_aa = sum(dudzn*gq2d%wt)/gq2d%wt_tot
 
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     dvdzn = (uyn_up - uyn_dn) / (zeta_aa(kup)-zeta_aa(kdn))
                     dvdz_aa = sum(dvdzn*gq2d%wt)/gq2d%wt_tot
 
                     ! Calculate sigma-corrected derivatives
-                    call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     dudx_aa = sum(dudxn*gq2d%wt)/gq2d%wt_tot  +  c_x*dudz_aa 
 
-                    call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     dvdy_aa = sum(dvdyn*gq2d%wt)/gq2d%wt_tot  +  c_y*dvdz_aa 
 
                     ! Calculate vertical velocity of this layer
@@ -641,13 +655,13 @@ end if
                         kdn = k-1 
                     end if
                     
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     uxn = 0.5_wp*(uxn_up+uxn_dn)
                     ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                     
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     uyn = 0.5_wp*(uyn_up+uyn_dn)
                     uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                     
