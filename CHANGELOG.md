@@ -467,6 +467,10 @@ little. MISMIP3D and DIVA runs change more.
 - All fatal error paths in `src/` and the `tests/` drivers end with `error stop 1`
   (was `stop`, exit status 0), so a failed run is reported as FAILED by SLURM,
   including the restart writers when an io table lists an unknown variable.
+- The SSA/DIVA Picard loop stops (`error stop 1`) when the velocity on a solved
+  face or the residual is not finite, reporting the iteration and the first bad
+  face and writing `ssa_check.nc`. It replaces the unreachable "strange case" test
+  (change > 9999 m/yr).
 - The `RALSTON` predictor-corrector branches are removed (`yelmo.pc_method`
   already accepted only `FE-SBE`, `AB-SAM` and `HEUN`).
 - ISMIP-HOM Experiment F (`yelmo_ismiphom`, `ctrl.experiment = "EXPF1"` no slip,

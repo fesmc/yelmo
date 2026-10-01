@@ -4,7 +4,7 @@ module velocity_general
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
                             A_FRONT_MIN, is_equal
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
-                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
+                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax, is_finite
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
                                     gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
@@ -2096,13 +2096,33 @@ end if
         end if 
 
 
-if (.TRUE.) then
-        if (ux_resid_max .ge. 9999.0_wp .or. uy_resid_max .ge. 9999.0_wp) then 
-            ! Strange case is occurring. Poor convergence with high error, investigate
+        ! Stop if the solution is not finite: NaN/Inf on a solved face, or in the residual
+        ! (a NaN velocity is not counted in the norm above, since abs(NaN) > vel_tol is false)
+        if ( (.not. is_finite(resid)) .or. any(mask_acx .and. .not. is_finite(ux)) &
+                                      .or. any(mask_acy .and. .not. is_finite(uy)) ) then
 
-            write(io_unit_err,*) "ssa: Error: strange case occurring."
+            write(io_unit_err,*) "ssa: Error: velocity solution is not finite."
             write(io_unit_err,"(a,a2,i4,g12.4,a3,2i8,2g12.4)") &
             "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max 
+            write(io_unit_err,*) "Picard iteration: ", iter
+
+            ! Report the first non-finite face in each direction
+            acx_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acx(i,j) .and. .not. is_finite(ux(i,j))) then 
+                    write(io_unit_err,*) "ux (acx-node) not finite at i, j = ", i, j, ": ", ux(i,j)
+                    exit acx_bad
+                end if 
+            end do 
+            end do acx_bad
+            acy_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acy(i,j) .and. .not. is_finite(uy(i,j))) then 
+                    write(io_unit_err,*) "uy (acy-node) not finite at i, j = ", i, j, ": ", uy(i,j)
+                    exit acy_bad
+                end if 
+            end do 
+            end do acy_bad
 
             write(io_unit_err,*) "Writing diagnostic file: ssa_check.nc."
 
@@ -2117,7 +2137,6 @@ if (.TRUE.) then
             error stop 1
 
         end if 
-end if 
         
         return 
 
