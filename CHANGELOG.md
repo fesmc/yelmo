@@ -458,6 +458,8 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- The `RALSTON` predictor-corrector branches are removed (`yelmo.pc_method`
+  already accepted only `FE-SBE`, `AB-SAM` and `HEUN`).
 - ISMIP-HOM Experiment F (`yelmo_ismiphom`, `ctrl.experiment = "EXPF1"` no slip,
   `"EXPF2"` slip ratio 1; Pattyn et al., 2008): a 1000 m slab on a 3° slope over a
   Gaussian bed bump relaxes to steady state with zero SMB, n = 1 and
