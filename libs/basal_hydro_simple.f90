@@ -109,7 +109,7 @@ contains
 
                     write(*,*) "hydro_update:: error: method must be in one of [0,1]."
                     write(*,*) "method = ", hyd%par%method 
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -190,7 +190,7 @@ contains
 
                 write(*,*) "hydro_init_state:: error: initialization method must be one of [0,1]."
                 write(*,*) "init_method = ", hyd%par%init_method 
-                stop
+                error stop 1
 
         end select
 

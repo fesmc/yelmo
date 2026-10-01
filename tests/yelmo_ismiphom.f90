@@ -203,7 +203,7 @@ program yelmo_ismiphom
 
             write(*,*) "ismiphom:: Error: experiment not recognized for topography definition."
             write(*,*) "experiment = ", trim(experiment)
-            stop 
+            error stop 1
 
     end select 
 
@@ -314,7 +314,7 @@ contains
 
                 write(*,*) "yelmo_ismiphom:: error: solver='ssa' cannot be used &
                 &for experiment "//trim(experiment)//", since there is no sliding, velocity would be zero."
-                stop 
+                error stop 1
 
             case("diva")
                 ! Modify solver name to specify noslip version

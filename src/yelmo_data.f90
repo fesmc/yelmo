@@ -7,6 +7,7 @@ module yelmo_data
     use yelmo_tools, only : adjust_topography_gradients
     use topography 
     use lsf_module
+    use interp2D, only : fill_nearest
     
     implicit none
     
@@ -14,6 +15,7 @@ module yelmo_data
     public :: ydata_alloc, ydata_dealloc
     public :: ydata_par_load, ydata_load 
     public :: ydata_compare
+    public :: ydata_fill_topo_gaps
 
 contains
 
@@ -180,6 +182,7 @@ contains
         ! Local variables 
         character(len=1028) :: filename 
         character(len=56)   :: nms(4) 
+        logical             :: has_sd
         real(wp)            :: z_bed_f_sd
         real(wp), allocatable :: z_bed_sd(:,:) 
         real(wp), allocatable :: tmp(:,:,:) 
@@ -213,12 +216,20 @@ contains
             call nc_read(filename,nms(2), dta%pd%z_bed, missing_value=mv) 
             
             ! If available read in bedrock standard deviation field
-            if (trim(nms(3)) .ne. ""     .and. &
-                trim(nms(3)) .ne. "none" .and. &
-                trim(nms(3)) .ne. "None") then 
+            has_sd = (trim(nms(3)) .ne. ""     .and. &
+                      trim(nms(3)) .ne. "none" .and. &
+                      trim(nms(3)) .ne. "None")
 
-                ! Read in z_bed_sd
-                call nc_read(filename,nms(3),z_bed_sd)
+            z_bed_sd = 0.0_wp
+            if (has_sd) call nc_read(filename,nms(3),z_bed_sd, missing_value=mv)
+
+            call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
+
+            ! Fill the gaps of the dataset (e.g. outside its coverage)
+            call ydata_fill_topo_gaps(dta%pd%H_ice,dta%pd%z_bed,dta%pd%z_srf,z_bed_sd, &
+                                      bnd%c%rho_ice,bnd%c%rho_sw)
+
+            if (has_sd) then
 
                 ! Determine scaling factor from yelmo_init_topo parameter choice
                 ! Note: reading from "yelmo_init_topo" section is not optimal,
@@ -238,11 +249,8 @@ contains
                 ! No scaling loaded or applied
 
                 z_bed_f_sd = 0.0_wp
-                z_bed_sd   = 0.0_wp 
 
             end if 
-            
-            call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
             
             ! Remove englacial lakes for better comparison with model
             ! Assume sea level is present day level of 0.
@@ -399,6 +407,52 @@ contains
         return 
 
     end subroutine ydata_load
+
+    subroutine ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,rho_ice,rho_sw)
+        ! Fill the gaps (missing values) of a topography dataset, e.g. outside
+        ! the coverage of its source: no ice, the bed from the nearest valid
+        ! cell, the surface from the bed and the ice thickness (sea level 0),
+        ! and no bed roughness.
+
+        implicit none
+
+        real(wp), intent(INOUT) :: H_ice(:,:)
+        real(wp), intent(INOUT) :: z_bed(:,:)
+        real(wp), intent(INOUT) :: z_srf(:,:)
+        real(wp), intent(INOUT) :: z_bed_sd(:,:)
+        real(wp), intent(IN)    :: rho_ice
+        real(wp), intent(IN)    :: rho_sw
+
+        ! Local variables
+        integer :: n_bed, n_ice, n_srf, n_sd
+
+        n_bed = count(z_bed    .eq. mv)
+        n_ice = count(H_ice    .eq. mv)
+        n_srf = count(z_srf    .eq. mv)
+        n_sd  = count(z_bed_sd .eq. mv)
+        if (n_bed + n_ice + n_srf + n_sd .eq. 0) return
+
+        where (H_ice .eq. mv) H_ice = 0.0_wp
+
+        if (n_bed .gt. 0) then
+            if (n_bed .lt. size(z_bed)) call fill_nearest(z_bed,mv)
+            if (any(z_bed .eq. mv)) then
+                write(io_unit_err,*) "ydata_fill_topo_gaps:: Error: missing bedrock elevations could not be filled."
+                write(io_unit_err,*) "missing: ", count(z_bed .eq. mv), " of ", size(z_bed)
+                error stop 1
+            end if
+        end if
+
+        where (z_srf .eq. mv) z_srf = max(z_bed + H_ice, (1.0_wp - rho_ice/rho_sw)*H_ice)
+
+        where (z_bed_sd .eq. mv) z_bed_sd = 0.0_wp
+
+        write(*,*) "ydata_fill_topo_gaps:: filled missing values: z_bed ", n_bed, ", H_ice ", n_ice, &
+                   ", z_srf ", n_srf, ", z_bed_sd ", n_sd, " of ", size(z_bed)
+
+        return
+
+    end subroutine ydata_fill_topo_gaps
 
     subroutine ydata_par_load(par,filename,group,domain,grid_name,init)
 

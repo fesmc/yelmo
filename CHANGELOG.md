@@ -7,18 +7,41 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ytherm.qb_method` renumbered**: 1 = faces, 2 = faces to quadrature nodes
+  (default), 3 = simple stagger (was 1), 4 = quadrature (was 2). A par file with
+  `qb_method = 1` or `2` now selects an energy-consistent method; set 3 or 4 to keep
+  the former one (see Answer-changing fixes).
 - **Level-set calving is the default** (`ycalv.use_lsf = True`, `calv_flt_method` and
-  `calv_grnd_method = "vm-m16"`) in the defaults and in `par/yelmo_initmip.nml`, as
-  in `par/yelmo_Antarctica.nml`. The mass-balance path (`vm-l19` for floating ice,
-  no grounded calving) left thick grounded marine cliffs whose front faces ran at
-  `ssa_vel_max` and set the timestep. 1 kyr on 16 threads: ANT-8KM 27.5 → 16.7 min,
-  GRL-16KM 1.1 → 0.4 min. Benchmarks with a protocol calving law (`kill-pos` in
-  MISMIP3D, MISMIP+ and TROUGH) keep the mass-balance path; all other shipped par
-  files already set `use_lsf = True`.
+  `calv_grnd_method = "vm-m16"`) in the defaults and in `par/yelmo_initmip.nml`.
+  The mass-balance path (`vm-l19` for floating ice, no grounded calving) left thick
+  grounded marine cliffs whose front faces ran at `ssa_vel_max` and set the
+  timestep. 1 kyr on 16 threads: ANT-8KM 27.5 → 16.7 min, GRL-16KM 1.1 → 0.4 min.
+  Benchmarks with a protocol calving law (`kill-pos` in MISMIP3D, MISMIP+ and
+  TROUGH) and MASK_ICE keep the mass-balance path; all other shipped par files
+  already set `use_lsf = True`.
+- **`par/yelmo_Antarctica.nml` removed.** No in-repo driver could run it (its
+  `&ctrl` is the yelmox layout). Antarctica runs use `par/yelmo_initmip.nml` with
+  `ctrl.set_nm = "set_ant_pd"` or `"set_ant_lgm"`, `yelmo.domain = "Antarctica"`
+  and `yelmo.grid_name = "ANT-32KM"` (or 16/8 km).
 - **`ycalv.tau_ice_grnd = 1 MPa`** (was 250 kPa, equal to `tau_ice_flt`): the
   ice strength of `vm-m16` at grounded marine fronts, in line with the ~1 MPa yield
   strength of grounded cliffs (Bassis and Walker, 2012) and common `vm-m16` practice.
   `tau_ice_flt` stays 250 kPa. Not calibrated.
+- **`ytherm.cp_rock` replaced by `ytherm.rhoc_rock`** (2.0e6 J m-3 K-1), the
+  volumetric heat capacity of the bedrock, equal to the former ρ_rock·cp_rock;
+  `rho_rock` left `input/yelmo_phys_const.nml`. The `enth_rock` output and restart
+  field are removed. Results are bit-identical. Replace `cp_rock` in external par
+  files (`nml_validate` stops).
+- **`&Earth sec_year` = 31556926 s** (365.2422 d, the CF/UDUNITS year; was
+  31536000 s) in `input/yelmo_phys_const.nml`, as in the other groups except
+  MISMIP3D. Changes every real-domain run (per-year/per-second conversions, e.g.
+  `kt` in J a-1 m-1 K-1, the hydrology). yelmox and climber-x-input track this file.
+- **Physical constants come from fesm-utils `phys_constants`.** `yelmo_init` takes an
+  optional constants record from a coupled host; standalone runs read
+  `input/yelmo_phys_const.nml` as before. The file's groups changed: `rho_a` is now
+  `rho_asth`, and `cp_ice`, `cp_w`, `cp_ocn` and `area_seasurf` are added. Copies of
+  this file (yelmox, climber-x-input) must follow. The prognostic path is
+  bit-identical.
 - **`opt.use_yelmo_cf_min` and `opt.opt_cf_min` removed** (`libs/ice_optimization`).
   They were read but never used: the `cf_ref` floor of the optimisation is
   `ytill.cf_min`. Remove them from `&opt` in par files.
@@ -31,7 +54,7 @@ little. MISMIP3D and DIVA runs change more.
   beds still slid (0.2–1 m/a in ANT-32km initmip, 10–100 m/a with low `cf_ref`).
   Now β is divided by `f_slide = max(lambda_min, exp(T_prime_b/gamma_T))` after
   the friction law, for any `beta_method` (new output `f_slide`). On in the
-  defaults, Antarctica and initmip (`gamma_T=1`, `lambda_min=1e-6`), off in the
+  defaults and initmip (`gamma_T=1`, `lambda_min=1e-6`), off in the
   benchmarks. Replace the old keys in external par files (`nml_validate` stops).
   Benchmarks equal the old `scale_T=0`; where `scale_T=1` stiffened a cold bed
   they change (MISMIP3D Stnd: H up to 7.7 m; TROUGH: < 1 cm).
@@ -41,14 +64,15 @@ little. MISMIP3D and DIVA runs change more.
   FastHydrology's standalone drivers). The keys stay in `yelmo_defaults.nml`, so no
   par file needs editing; a value set there is simply not the source of truth.
 
-- **`ydyn.pc_corr_vel` removed** (it was unused). `nml_validate` stops on unknown
+- **`yelmo.pc_corr_vel` removed** (it was unused). `nml_validate` stops on unknown
   parameters, so delete it from external par files.
 - **`ydyn.ssa_lat_bc = "floating"` now means floating fronts only.** The producer
   and consumer of the ice-front mask disagreed on its codes, so `"floating"` acted as
   `"marine"` (floating and grounded marine fronts). The codes are now shared
-  (`MASK_FRNT_*` in `yelmo_defs`). The default and all shipped par files use
-  `"marine"`, which keeps previous results. External par files that set `"floating"`
-  change behaviour at grounded marine fronts: switch to `"marine"` to keep it.
+  (`MASK_FRNT_*` in `yelmo_defs`). The default and all shipped par files except
+  MASK_ICE (`"all"`) use `"marine"`, which keeps previous results. External par
+  files that set `"floating"` change behaviour at grounded marine fronts: switch to
+  `"marine"` to keep it.
 - **Benchmark physical constants follow the published protocols**
   (`input/yelmo_phys_const.nml`). EISMINT uses ρ_ice = 910. MISMIP3D uses g = 9.8,
   ρ_sw = 1000 and a 365-day year. There are new `MISMIPplus`, `ISMIPHOM` and
@@ -63,8 +87,8 @@ little. MISMIP3D and DIVA runs change more.
   placeholder `dt_diff` output) and `ydyn.cb_sia` (it was read, but its code block
   was empty). Delete them from external par files.
 - **`ytopo.margin_flt_subgrid` is replaced by `ytopo.front_subgrid`** ("none",
-  "floating" or "marine"; default "none" = the previous `False`), with
-  `front_H_eff_min` (50 m) and `front_dHdx` (0). Front cells get an effective
+  "floating" or "marine"; "none" = the previous `False`; default now "marine",
+  see above), with `front_H_eff_min` (50 m) and `front_dHdx` (0). Front cells get an effective
   thickness `H_eff` from their thickest interior neighbour, following the CISM
   subgrid calving front, and `f_ice = H/H_eff`; `tpo%now%H_eff` is now filled.
   Replace `margin_flt_subgrid` in external par files.
@@ -95,15 +119,16 @@ little. MISMIP3D and DIVA runs change more.
 - **Subgrid fronts with the level set** (step 7, `use_lsf` with
   `front_subgrid /= "none"`). Front-cell thickness follows the level set: cells
   with less than 10% of their area behind the front are emptied, and front cells
-  (also those touching the ocean at a corner) hold at most `a_lsf`·`H_eff`
-  (CISM subgrid calving mask), repeated up to 3 times. `f_ice = H/H_eff` as in
+  (also those touching the ocean at a corner) hold at most `a_lsf`·`H_ref`
+  (CISM subgrid calving mask; `H_ref` from the interior neighbours, one pass, see
+  "Level-set subgrid fronts" below). `f_ice = H/H_eff` as in
   the mass-balance path. `ytopo.f_ice_method` is removed (it had no effect with
   `"none"`); `calc_ice_fraction_lsf` becomes `calc_lsf_area_fraction`.
 - **`ydyn.ssa_lat_bc = "slab"` and `"slab-ext"` are removed** (and
   `extend_floating_slab`). They were only set in the ISMIP-HOM and SLAB-S06
   pars, whose periodic domains are fully ice-covered, so they had no effect;
   those pars now use "marine".
-- **New parameters:**
+- **New, removed and changed parameters:**
   - `yelmo.log_mb_check` (default false) prints a global mass-budget check every
     step. It replaces the hard-coded `check_mb`.
   - `ytopo.slope_bg_x` and `ytopo.slope_bg_y` (default 0) add a uniform background
@@ -163,8 +188,8 @@ little. MISMIP3D and DIVA runs change more.
     acted every step for 1 kyr, at fast marine fronts and grounding lines, not
     only at the start; without it the runs are as stable, with the same steps
     and SSA iterations (ANT-16 200 yr: +11e3 km3 ice, more calving).
-  - `ycalv.tau_ice` is split into `tau_ice_flt` and `tau_ice_grnd` (both
-    250 kPa): the `vm-m16` ice strength for floating and marine-grounded fronts
+  - `ycalv.tau_ice` is split into `tau_ice_flt` (250 kPa) and `tau_ice_grnd`
+    (now 1 MPa, see above): the `vm-m16` ice strength for floating and marine-grounded fronts
     (Morlighem et al., 2016 use separate values).
   - `ycalv.H_min_flt` default and initmip value 10 m (was 75 m). With
     `H_min_tau = 10` yr, ANT-16KM initmip at 1 ka: +23e3 km3 ice, +1.2% floating
@@ -202,15 +227,79 @@ little. MISMIP3D and DIVA runs change more.
   `yelmo.nc`, `yelmo1D.nc` → `yelmo_ts.nc`, regional `yelmo1D_<name>.nc` →
   `yelmo_ts_<name>.nc`, and initmip `yelmo2Dsm.nc` → `yelmo_sm.nc`. This applies
   to all test drivers, the default region file names, and the analysis scripts.
+- **Requires fesm-utils dev ≥ `842b22a`**: `phys_constants` (db17be3),
+  `tstep_update` advancing on every call (78a9f91), ncio a7df7c5, and the `act`
+  argument of the gaussian-quadrature node routines (`gq*_to_nodes_acx/acy` and
+  `gq2D/gq3D_to_nodes_aa`, 842b22a).
+- **`ytopo.margin2nd` removed.** Taken at the face, the one-sided quadratic reduces
+  to the plain difference, which is what ran (the option was off in all par files).
+  Delete the key from external par files (`nml_validate` stops).
 - **Requires FastHydrology dev ≥ `905a81d`**. It adds `hydro_calc_N`,
   `hydro_init_state` taking `H_ice`, and optional `periodic_x`/`periodic_y` in
   `hydro_init`.
+- **`ytopo.surf_gl_method` and `ydyn.ssa_beta_max` removed.** Both were read but
+  never used (the surface is always `calc_z_srf_max`). Remove them from external
+  par files (`nml_validate` stops).
+- **`yelmo.experiment` and `ytherm.enth_cp_method` are validated.** An unknown
+  value now stops the run. Before, a typo silently gave `"zeros"` boundaries
+  (`experiment`) or the constant heat capacity (`enth_cp_method`). Valid
+  experiments: `None`, `EISMINT`, `MISMIP3D`, `MISMIP+`, `TROUGH-F17`, `SLAB`,
+  `ISMIPHOM`, `slab`, `periodic`, `periodic-xy`, `periodic-x`, `infinite`,
+  `MASK_ICE`.
 
 ### Answer-changing fixes
 
+- **Gaps in the topography files are filled** (`yelmo_init_topo`, `ydata_load`):
+  where a dataset has missing values (e.g. outside its coverage, as in the ISMIP7
+  obs files), there is no ice, the bed comes from the nearest valid cell (fesm-utils
+  `fill_nearest`), the surface from the bed and the ice thickness (sea level 0), and
+  `z_bed_sd` is 0. Before, the bed was -9999 there, and `grad_lim_zb` pulled the
+  valid bed down from those cliffs up to 85 cells into the domain (ISMIP7 GRL-8KM:
+  21,000 cells, by up to 7 km); the initial `z_srf` and `z_bed_sd` read the raw fill
+  values. New `ydata_fill_topo_gaps`. Files without gaps are unchanged.
+- **Basal frictional heating: `ytherm.qb_method = 2` by default.** New options 1
+  ("faces", PR #11) and 2 ("faces to quadrature nodes") form the friction work
+  `|taub_acx*ux_b|` and `|taub_acy*uy_b|` on the C-grid faces, where both factors live.
+  1 averages the two faces of each cell to the aa-node; 2 brings both terms to the
+  quadrature points and sums them there (a 1-2-1 smoothing of 1 across each face). The
+  heat of a face next to a cell that is not fully ice covered (`Q_b = 0`) goes to the
+  fully covered cells, so the domain total is the work done by basal friction in the
+  momentum balance (GRL-16: 1.0000 with 2, 0.995 with 1). The former options 1 (simple
+  stagger) and 2 (quadrature) are now 3 and 4; they multiply the magnitudes of
+  separately interpolated vectors and do not (4: −10.5 % GRL-16; ISMIP7 spin-ups
+  −1.8 % GrIS 8 km, +6.8 % AIS 16 km). GRL-16, 1 kyr from a spun-up state, friction
+  fixed: grounded basal melt +12 % with 2 (+10 % with 1) vs 4; temperate area and
+  volume change at the noise level. `ytherm_par_load` stops on a `qb_method` other
+  than 1-4 (before, an unknown value left `Q_b` unchanged).
+- **Thermodynamics on the dynamic column** (review MAT-3). The enthalpy solve,
+  `T_pmp`, `T_shlf`, the SIA strain heating, the Robin/linear profiles and the
+  bedrock shelf temperature use `H_ice_dyn` (the column of `uz_star`) instead of
+  `H_ice/f_ice` or `H_ice`. `f_ice == 1` still decides where the column is solved.
+  Changes front and `H_eff`-floor cells (1511 in ANT-16, 353 in GRL-16): basal T′ at
+  ocean fronts +0.01 K (ANT) and +0.05 K (GRL); TROUGH max|ΔH| 0.1 m; CalvingMIP,
+  MISMIP3D and EISMINT keep their ice thickness. ANT/GRL-16 300 yr changes are at
+  the noise level of a 1e-4 perturbation of `enh_shear`.
+- **One front classification for the level-set trim and `f_ice`** (review TPO-4).
+  `calc_front_cells` with the level-set area fraction makes eligible cells cut by
+  the front (`a_lsf` < 1) that touch the ocean only at a corner front cells, in both
+  `calc_G_lsf_front` and `calc_ice_fraction`. These cells are now partial (`f_ice` ≈
+  `a_lsf`, `H_ice_dyn = H_ref`) instead of thin full cells. 187 such cells in ANT-16,
+  37 in GRL-16, 60 in CalvingMIP exp1 (10 ka). ANT-16 300 yr: floating area −0.3 %,
+  calving +6.5 %; GRL-16: floating area +17 %, calving +21 %; CalvingMIP exp1:
+  area −0.17 %, equivalent front radius 753.5 → 752.9 km. Level-set runs only.
+- **Exact `f_ice == 1` test for full ice cover** (review OMP-6) in the DIVA
+  viscosity, `calc_F_integral`, `calc_visc_eff_int`, the SSA masks and assemblers,
+  `calc_ice_front` and `gen_mask_bed` (was `is_equal`, tolerance 1e-5). No cell
+  with 1−1e-5 < `f_ice` < 1 occurred; all validation runs are bit-identical.
+- **Half drag at mask-4 front faces** (review DYN-7). Front faces treated as inner
+  SSA (grounded fronts, faces to ice-free land) get ½β like mask-3 faces, in the
+  residual and the energy assembler. GRL-16 300 yr (~650 such faces): volume
+  −4.5e-4, floating area +5.6 %, grounding-line flux −4.7 %; ANT-16: floating area
+  +0.14 %, grounding-line flux +2.2 %; CalvingMIP exp1 at 1 ka (advancing grounded
+  margin): volume −0.2 %; no change at 10 ka, EISMINT (SIA) unchanged.
+
 - **Sub-temperate sliding and basal drag at grounding lines and margins**
-  (review 2026-10-01; needs fesm-utils dev >= 842b22a, `act` in
-  `gq2D_to_nodes_aa`). β is divided by `f_slide` on aa-nodes in `calc_beta`,
+  (review 2026-10-01). β is divided by `f_slide` on aa-nodes in `calc_beta`,
   before staggering, like any other spatial variation of friction
   (`scale_beta_slide` is removed). Grounding-line faces of frozen grounded cells
   get the grounded β/`f_slide` (before, `f_slide` was averaged with the floating
@@ -260,8 +349,7 @@ little. MISMIP3D and DIVA runs change more.
   are removed. Calving +10%, volume change <= 0.02% (200 yr).
 - **Front strain rates no longer use the zero velocity of ocean faces.** Cross
   derivatives (`dxy`/`dyx`) and the quadrature corner means of the strain-rate
-  tensor and the DIVA/SSA viscosity only use velocity faces next to ice (needs
-  fesm-utils with the `act` argument of `gq*_to_nodes_acx/acy`). A translating
+  tensor and the DIVA/SSA viscosity only use velocity faces next to ice. A translating
   slab now has zero strain at straight and 45-degree fronts (was up to 3V/(16dx),
   `make front_strain`). Benchmarks change by <= 0.6%.
 - **Vertical velocity from the kinematic rates of the ice column; no uz clamps.**
@@ -351,11 +439,12 @@ little. MISMIP3D and DIVA runs change more.
   `pc_eps = 0.01`): the flickering cells stay ice-free and the run takes 1226
   instead of 1433 steps; the remaining error is dominated by one fast marine
   outlet front. Benchmarks are unchanged.
-- **Partially ice-covered cells** get the 2D strain rates and `visc_bar` of their
-  fully ice-covered neighbours (they were zero). Before, `calc_eps_eff` and
-  `calc_tau_eff` patched this separately, and the `vm-m16` calving law saw zero
-  stress, so partial front cells never calved. This changes von Mises and eigen
-  calving runs (Antarctica 32 km, 1 ka, `vm-l19`: shelf volume −0.6%).
+- **Partially ice-covered cells** carry their own 2D strain rates and `visc_bar`
+  (they were zero), as part of the active ice geometry (see "Calving-front stress
+  and strain at subgrid fronts" above; a first version copied them from fully
+  ice-covered neighbours). Before, `calc_eps_eff` and `calc_tau_eff` patched this
+  separately, and the `vm-m16` calving law saw zero stress, so partial front cells
+  never calved.
 - **Hydrology coupling:** K24 now receives `uxy_b` and `A_glen` in SI units.
   FastHydrology's ρ_ice, ρ_w, ρ_sw and g now come from Yelmo's domain constants.
 - **Eulerian tracer advection** read values already updated earlier in the same
@@ -398,9 +487,35 @@ little. MISMIP3D and DIVA runs change more.
   maximum retreat 0.92 → 0.98 of the prescribed one; exp1: steady front 5 km further
   out, volume +1.3%. ANT-16KM, 200 yr: floating area +1%, volume within 0.02%. Runs
   without the level set are bit-identical.
+- **`yelmo_set_time` also sets the tracer and hydrology clocks and `bnd%time_n`.**
+  After `yelmo_update_equil` the first step skipped tracer advection and hydrology
+  (dt = 0) and had zero bedrock and sea-level rates.
+- **`calc_strain_rate_horizontal_2D` (DIVA/SSA viscosity):** the one-sided `dvdy`
+  had no first-order fallback on the last row (it kept the centred difference across
+  the ice-free face), and the ±2 neighbours were not BC-aware, so periodic seams used
+  first order. Changes results only at periodic seams (TROUGH, MISMIP3D) and on the
+  last rows.
+
+- **Level set in periodic domains:** the advection and redistance of the level set
+  wrap in periodic directions, as the snap and the area fraction do; "infinite"
+  replaces only zero borders. Changes only runs with ice at a periodic seam (none of
+  the shipped benchmarks).
+- **Iceberg rule after the front advance** (mass-balance calving, subgrid fronts): a
+  front cell left by the advance at `H_eff` − 0.1 m counts as full, so the cell it
+  fed at a convex corner is no longer removed as an iceberg. TROUGH, MISMIP3D and
+  MASK_ICE are bit-identical.
 
 ### Non-default options
 
+- **Imposed `beta_acx/acy` (`beta_gl_stag = -1`)** is no longer raised to `beta_min`
+  or overwritten at the domain borders.
+
+- **Frontal melt `ytopo.fmb_method = 3`** (Rignot et al., 2016, ISMIP7 protocol)
+  with the new boundary field `bnd%tf_shlf` (thermal forcing) and the subglacial
+  discharge `bnd%Qd`, scaled by the new `ytopo.fmb_lambda` (default 1). The rate
+  (m/yr, negative discharge clipped to 0) comes from `calc_melt_rate_rignot16`,
+  shared with the ISMIP7 retreat (which changes only at round-off: its constants
+  were single precision).
 - **Calving:**
   - The ISMIP7 retreat now acts along the front normal (−∇lsf), so a stagnant
     front also retreats.
@@ -427,11 +542,25 @@ little. MISMIP3D and DIVA runs change more.
     2010). The MISMIP3D RF hysteresis gap goes from 464 to 365 km.
 - **K24 hydrology:** the latent heat is taken from Yelmo's `L_ice`.
 - **Discharge:** `dmb_method = 1` no longer scales `dist_grline` by dx a second time.
-- **`ytopo.margin2nd`:** the one-sided margin gradient was twice too large and
-  failed the EISMINT symmetry check. It now passes (Linf/Hmax 2e-6).
 - **OpenMP:** fixed races on `cb_ref_now`, `is_margin` and `bmb_int`.
 
 ### Diagnostics
+
+- Level-set calving diagnostics (`calv_rate_flt/grnd`, `cmb_flt_x/y`, `cmb_grnd_x/y`,
+  `cr_acx/acy`) are saved with the predictor/corrector fields, so the output shows the
+  same stage as `lsf` and `cmb` (they mixed predictor and corrector). `calv_rate_*`
+  are built from `cr_acx/cr_acy`, the face rates the level set uses (law chosen by
+  `f_grnd_acx/acy`). Model state is unchanged.
+- New `mb_clip` (ytopo): the clip of negative thickness after transport. It was
+  booked in `dHidt_dyn`, which is now pure transport; `mb_err` and the
+  `log_mb_check` line include it. ANT-16/GRL-16: 0.16/0.13 km3/yr, 0.2%/2% of calving.
+- New `uz_srf_err` (ydyn): `uz_star` at the surface + smb on fully ice-covered cells
+  (0 if the kinematic rates and uz agree). ANT-16: median |.| 0.03 (grounded) and
+  0.08 m/yr (floating), 95th percentile 0.7 and 1.1 m/yr; GRL-16: 0.08 and 0.9,
+  1.6 and 4.6 m/yr.
+- `taub` uses the friction of the SSA matrix: `beta_min` at grounded faces with zero
+  β (`beta_eff` for DIVA) is set once before the solve, not inside the assemblers,
+  where `taub` stayed 0. Results are bit-identical.
 
 - `qq_gl_acx/acy` now hold the ice flux across the grounding line [m3/a]; they
   were allocated but never set. `qq_acx/acy` use the upwind thickness, as the
@@ -455,6 +584,15 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- All fatal error paths in `src/` and the `tests/` drivers end with `error stop 1`
+  (was `stop`, exit status 0), so a failed run is reported as FAILED by SLURM,
+  including the restart writers when an io table lists an unknown variable.
+- The SSA/DIVA Picard loop stops (`error stop 1`) when the velocity on a solved
+  face or the residual is not finite, reporting the iteration and the first bad
+  face and writing `ssa_check.nc`. It replaces the unreachable "strange case" test
+  (change > 9999 m/yr).
+- The `RALSTON` predictor-corrector branches are removed (`yelmo.pc_method`
+  already accepted only `FE-SBE`, `AB-SAM` and `HEUN`).
 - ISMIP-HOM Experiment F (`yelmo_ismiphom`, `ctrl.experiment = "EXPF1"` no slip,
   `"EXPF2"` slip ratio 1; Pattyn et al., 2008): a 1000 m slab on a 3° slope over a
   Gaussian bed bump relaxes to steady state with zero SMB, n = 1 and
@@ -468,7 +606,17 @@ little. MISMIP3D and DIVA runs change more.
   placed on 8 cores with 2 SMT threads each; ANT-8KM 200 yr: 20.5 -> 15.8 min,
   results identical. Jobs are charged for the full cores.
 - C API: read-only getters for `dta%pd%uxy_s` and `dta%pd%H_grnd`, and setters for
-  `hyd_N`/`hyd_W_til`. `yhyd.is_external` lets a host model own N_eff.
+  `hyd_N`/`hyd_W_til`. `yhyd.bkt_N_closure = -1` lets a host model own N_eff
+  (set with `yelmo_set_var2D("hyd_N")`).
+- C API: getters for `tpo_dzsdt_kin`, `tpo_dzbdt_kin`, `tpo_dHidt_vert`,
+  `tpo_calv_rate_flt` and `tpo_calv_rate_grnd`. The `dyn_f_slide` setter is removed
+  (`f_slide` is recomputed in every `calc_ydyn`).
+- The restart carries the previous-call bedrock and sea level of
+  `ybound_update_rates` (`z_bed_n`, `z_sl_n`, `bnd_time_n`, `bnd_rates_init`), so a
+  continued run has the straight run's `dz_bed_dt`/`dz_sl_dt` on its first step (they
+  were zero). It is restored only when the start time equals the restart time; a
+  restart used as a state at another time, and old restarts, give zero rates as before.
+- The restart read of the 3D `enh_bnd` uses 3D start/count.
 - `hyd%now%q` is written to restarts. MISMIP3D is handled in
   `ybound_define_mask_ice`.
 - Removed dead code:
@@ -519,7 +667,7 @@ little. MISMIP3D and DIVA runs change more.
   The front speeds are new fields `calv_rate_flt` and `calv_rate_grnd` [m/yr], set at
   front cells (ice with an ice-free ocean edge neighbour) on the level-set path.
 - **Driver time loops** use fesm-utils `tstep_update`, which now advances on every
-  call (requires fesm-utils with that change). The first loop pass was a zero-length
+  call. The first loop pass was a zero-length
   step at `time_init`: it re-ran the model update at dt = 0, wrote `time_init` twice
   in some outputs, and in `yelmo_initmip` applied one extra `optimize_cb_ref` update
   at every start and restart. `yelmo_initmip` now writes output and restarts at the
@@ -535,6 +683,16 @@ little. MISMIP3D and DIVA runs change more.
   step (predictor + corrector + advance); it was always zero.
 - `yelmo_trough` and `yelmo_mismip` keep the restart ice thickness
   (`restart_H_ice=True`); the analytic initial thickness overwrote it.
+- **Restart interpolation without cdo:** `restart_interp_gen` (compile-time, `yelmo_io.f90`)
+  is now `"coords"`: a restart on another grid builds the conservative weights in-package
+  (cached in `maps/`), so no cdo and no pre-generated SCRIP map are needed.
+- `make regridding` writes `yelmo_test_regridding.x` (it overwrote `yelmo_ismiphom.x`);
+  `make usage` lists all targets; runme alias `mask_ice`.
+- The docs variable tables are copied from `input/yelmo-variables-*.md` when the site is
+  rendered (Quarto pre-render), so they cannot drift from the code; new ytrc page.
+- Output metadata: `pc_eta`/`eta_avg` are the pc error norm in 1/yr (was labelled m/yr,
+  "maximum"); units of `enth` (J kg-1), `Q_strn`, `kt`, `Q_rock` (mW m-2) and `advecxy`
+  corrected in the ytherm table.
 - New docs page on numerical precision (why the symmetry check needs double
   precision for DIVA, and a plan for double-precision internals).
 
@@ -628,8 +786,9 @@ against an older fesm-utils will fail to compile. fesm-utils folded its standalo
   changed from `mps=(map_scrip_class)` to `map=(map_class)`.
 
 `yelmo_io` was migrated to the unified `map_class` / `map_read` path (restart interpolation).
-A new `restart_interp_gen` switch selects how the conservative restart map is built:
-`"cdo"` (load a pre-generated SCRIP map; default, unchanged behaviour) or `"coords"`
+A new compile-time `restart_interp_gen` switch (module parameter in `yelmo_io.f90`) selects
+how the conservative restart map is built: `"cdo"` (load a pre-generated SCRIP map; default
+in this release, unchanged behaviour) or `"coords"`
 (generate the weights in-package via the coords library, no cdo dependency and no map file).
 The domain grid now uses the fesm-utils/coords `grid_class` directly.
 `FastHydrology` is now built as its own dependency (its compile rule moved into yelmo);

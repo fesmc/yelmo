@@ -61,11 +61,6 @@ program yelmo_test
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime
 
-    ! Code for testing restarts
-    logical, parameter  :: test_restart = .FALSE. 
-    real(wp), parameter :: time_r       = 50.0_wp 
-    type(yelmo_class)   :: yelmo_r
-    character(len=256)  :: file1D_r, file2D_r, file_restart_r
     
     ! Start timing 
     call yelmo_cpu_time(cpu_start_time)
@@ -401,7 +396,7 @@ program yelmo_test
 
                     write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not yet defined."
                     write(io_unit_err,*) "Best solution for now: set opt_tf=False."
-                    stop
+                    error stop 1
 
                 end if 
 
@@ -472,7 +467,7 @@ contains
 
                 if (.not. use_restart) then
                     write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires a restart file (yelmo.restart)."
-                    stop "Program stopped."
+                    error stop 1
                 end if
 
                 nt = nc_size(restart,"time")
@@ -484,98 +479,19 @@ contains
                                          &to equal the time of the restart file."
                     write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
                     write(io_unit_err,*) "restart = ", trim(restart)
-                    stop "Program stopped."
+                    error stop 1
                 end if
 
             case DEFAULT
                 write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.restart_mode must be 'state' or 'continue'; got ", &
                                      trim(restart_mode)
-                stop "Program stopped."
+                error stop 1
 
         end select
 
         return
 
     end subroutine check_restart_mode
-
-    subroutine test_restart_step()
-
-        implicit none
-
-        ! ajr: This was in the time loop. The idea is to write a restart file, then
-        ! load it and run yelmo, and see if the results match. Storing it here, to have
-        ! code out of the way. But ideally we can write this inside of routine like this
-        ! to avoid polluting the time loop. 
-
-        ! if (test_restart) then 
-
-        !     if (ts%time .eq. time_r+dtt_now) then 
-
-        !         file1D_r       = "yelmo_ts_r.nc"
-        !         file2D_r       = "yelmo_r.nc"
-        !         file_restart_r = "yelmo_restart_r.nc"
-
-        !         ctl%dt2D_out = dtt_now
-        !         ctl%dt1D_out = dtt_now
-
-        !         ! Initialize data objects and load initial topography
-        !         call yelmo_init(yelmo_r,filename=path_par,grid_def="file",time=time_r)
-
-        !         yelmo_r%par%restart     = "yelmo_restart.nc"
-        !         yelmo_r%par%use_restart = .TRUE. 
-        !         yelmo_r%bnd = yelmo1%bnd
-
-        !         ! Initialize state variables (dyn,therm,mat)
-        !         ! (initialize temps with robin method with a cold base)
-        !         call yelmo_init_topo(yelmo_r,"ytopo",path_par,time_r)
-        !         call yelmo_init_state(yelmo_r,time=time_r,thrm_method="robin-cold")
-
-        !         ! Write restart file to compare with expected 
-        !         call yelmo_restart_write(yelmo_r,file_restart_r,time_r)
-
-        !         ! 2D file 
-        !         call yelmo_write_init(yelmo_r,file2D_r,time_init=time_r,units="years")  
-                
-        !         ! 1D file 
-        !         call yelmo_write_reg_init(yelmo_r,file1D_r,time_init=time_r,units="years",mask=(yelmo_r%bnd%mask_ice /= MASK_ICE_NONE))
-                
-        !         call write_step_2D(yelmo_r,file2D_r,time=time_r)
-        !         call yelmo_write_reg_step(yelmo_r,file1D_r,time=time_r)  
-        !     end if 
-
-        !     if (ts%time .gt. time_r) then
-        !         ! Update restarted model
-        !         call yelmo_update(yelmo_r,ts%time)
-        !     end if 
-
-        ! end if 
-
-        ! -------
-        ! Note: code below comes after updating yelmo...
-
-        ! if (test_restart) then 
-
-        !     if (ts%time .eq. time_r) then
-        !         ! Write restart file to load from
-        !         call yelmo_restart_write(yelmo1,file_restart,ts%time)
-        !     end if 
-
-        !     if (ts%time .gt. time_r) then
-        !         ! Write restarted output files 
-        !         if (mod(nint(ts%time*100),nint(ctl%dt2D_out*100))==0) then
-        !             call write_step_2D(yelmo_r,file2D_r,time=ts%time)
-        !         end if 
-
-        !         if (mod(nint(ts%time*100),nint(ctl%dt1D_out*100))==0) then 
-        !             call yelmo_write_reg_step(yelmo_r,file1D_r,time=ts%time)  
-        !         end if
-        !     end if 
-
-        ! end if 
-
-        return
-
-    end subroutine test_restart_step
 
     subroutine write_step_2D(ylmo,filename,time)
 
@@ -829,7 +745,10 @@ end if
         if (present(quoted)) quote_val = quoted
 
         open(newunit=unit, file=trim(filename), status='old', action='read', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot open file'
+        if (io /= 0) then
+            write(io_unit_err,*) "nml_set_param ERROR: cannot open file ", trim(filename)
+            error stop 1
+        end if
 
         n_lines = 0
         do
@@ -870,7 +789,10 @@ end if
         end if
 
         open(newunit=unit, file=trim(filename), status='replace', action='write', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot write file'
+        if (io /= 0) then
+            write(io_unit_err,*) "nml_set_param ERROR: cannot write file ", trim(filename)
+            error stop 1
+        end if
         do i = 1, n_lines
             write(unit, '(A)') trim(lines(i))
         end do

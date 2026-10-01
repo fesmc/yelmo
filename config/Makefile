@@ -132,7 +132,7 @@ ismiphom : yelmo-static
 		@echo " "
 
 regridding : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_ismiphom.x tests/yelmo_test_regridding.f90 \
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_test_regridding.x tests/yelmo_test_regridding.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 		@echo " "
 		@echo "    yelmo_test_regridding.x is ready."
@@ -227,12 +227,31 @@ usage:
 	@echo ""
 	@echo "    * USAGE * "
 	@echo ""
-	@echo " make initmip    : compiles yelmo_initmip.x, for running yelmo on a given domain defined in param file."
-	@echo " make benchmarks : compiles yelmo_benchmarks.x, for running various EISMINT domain experiments.""
-	@echo " make mismip     : compiles yelmo_mismip.x, for running various MISMIP domain experiments.""
-	@echo " make opt        : compiles yelmo_opt.x, for running various MISMIP domain experiments.""
-	@echo " make trough     : compiles yelmo_trough.x, for running trough domain experiments.""
-	@echo " make clean      : cleans object files"
+	@echo " Drivers (libyelmo/bin/, runme alias in brackets):"
+	@echo " make initmip     : yelmo_initmip.x     [initmip]    realistic domains (initMIP, spin-up with optimisation)"
+	@echo " make benchmarks  : yelmo_benchmarks.x  [benchmarks] EISMINT, HALFAR, BUELER"
+	@echo " make mismip      : yelmo_mismip.x      [mismip]     MISMIP3D"
+	@echo " make trough      : yelmo_trough.x      [trough]     TROUGH-F17, MISMIP+, SLAB-S06"
+	@echo " make calving     : yelmo_calving.x     [calving]    CalvingMIP"
+	@echo " make ismiphom    : yelmo_ismiphom.x    [ismiphom]   ISMIP-HOM"
+	@echo " make mask_ice    : yelmo_mask_ice.x    [mask_ice]   MASK_ICE test"
+	@echo " make opt         : yelmo_opt.x         [opt]        basal friction optimisation"
+	@echo " make regridding  : yelmo_test_regridding.x [regridding] placeholder (empty program)"
+	@echo ""
+	@echo " Tests:"
+	@echo " make symmetry          : test_symmetry.x (args: <file.nc> [varname] [axis]) symmetry check of an output file"
+	@echo " make icetemp           : test_icetemp.x"
+	@echo " make enthalpy          : test_enthalpy.x"
+	@echo " make variables         : test_variables.x"
+	@echo " make ssa_energy        : test_ssa_energy.x"
+	@echo " make ssa_energy_sym    : test_ssa_energy_sym.x"
+	@echo " make ssa_energy_lr_sym : test_ssa_energy_lr_sym.x"
+	@echo " make front_strain      : test_front_strain.x"
+	@echo " make lsf_front         : test_lsf_front.x"
+	@echo " make check_sim         : check_sim.x"
+	@echo ""
+	@echo " Libraries: yelmo-static, yelmo-shared, yelmo-c"
+	@echo " make clean       : removes executables and object files"
 	@echo ""
 
 clean:

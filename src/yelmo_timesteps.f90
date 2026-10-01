@@ -91,26 +91,12 @@ contains
                     beta(3) = 0.5_wp 
                     beta(4) = 0.5_wp 
                 
-                case("RALSTON")
-                    
-                    write(io_unit_err,*) "This method does not work yet - the truncation error is incorrect."
-                    stop 
-
-                    ! Order of the method 
-                    pc_k = 2 
-
-                    beta(1) = 2.0_wp / 3.0_wp
-                    beta(2) = 0.0_wp 
-                    
-                    beta(3) = 0.25_wp 
-                    beta(4) = 0.75_wp 
-                
                 case DEFAULT 
 
                     write(io_unit_err,*) "set_pc_beta_coefficients:: &
                         &Error: two-step pc_method does not match available options [FE-SBE, AB-SAM, HEUN]."
                     write(io_unit_err,*) "pc_method = ", trim(pc_method)
-                    stop 
+                    error stop 1
 
             end select 
             
@@ -151,7 +137,7 @@ contains
                     write(io_unit_err,*) "set_pc_beta_coefficients:: &
                         &Error: one-step dt_method does not match available options [FE, AB, SAM]."
                     write(io_unit_err,*) "thrm:: dt_method = ", trim(pc_method)
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -289,14 +275,14 @@ end if
 
     end subroutine set_pc_mask
 
-    function calc_pc_eta(tau,H_ice,mask,trim) result(eta)
+    function calc_pc_eta(tau,H_ice,mask,frac_trim) result(eta)
 
         implicit none 
 
         real(wp), intent(IN) :: tau(:,:) 
         real(wp), intent(IN) :: H_ice(:,:)  ! Ice thickness (ice-sheet specific) 
         logical,  intent(IN) :: mask(:,:)   ! General mask
-        real(wp), intent(IN) :: trim        ! [--] Fraction of points with the largest errors left out
+        real(wp), intent(IN) :: frac_trim   ! [--] Fraction of points with the largest errors left out
         real(wp) :: eta 
 
         ! Local variables
@@ -342,7 +328,7 @@ else
 
             ! Leave out the n_trim largest errors, so that a few points
             ! (eg, a flickering thin cell) cannot set the timestep alone
-            n_trim = min(int(trim*real(npts,wp)),npts-1)
+            n_trim = min(int(frac_trim*real(npts,wp)),npts-1)
             do k = 1, n_trim
                 e2(maxloc(e2,dim=1)) = -1.0_wp
             end do
@@ -552,7 +538,7 @@ end if
 
                 write(*,*) "set_adaptive_timestep_pc:: Error: controller not recognized."
                 write(*,*) "controller = ", trim(controller) 
-                stop 
+                error stop 1
 
         end select 
 
@@ -823,33 +809,6 @@ end if
 
     end subroutine limit_adaptive_timestep
 
-    subroutine set_to_nearest_timestep(dt)
-        ! ajr: limit timestep to specific list of values (for neatness)
-        ! note: routine not used or tested yet! 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: dt 
-
-        ! Local variables 
-        integer  :: i  
-
-        integer, parameter :: n = 22 
-        real(wp), parameter :: dt_set(n) = &
-        [100.0,50.0,20.0,10.0,5.0,2.0,1.0,0.5,0.2,0.1,0.05,0.02, &
-         0.01,0.005,0.002,0.001,0.0005,0.0002,0.0001,0.00005,0.00002,0.00001]
-
-        do i = 1, n 
-            if (dt_set(i) .le. dt) then 
-                dt = dt_set(i)
-                exit 
-            end if
-        end do 
-
-        return
-
-    end subroutine set_to_nearest_timestep
-
     function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max,boundaries) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
@@ -937,87 +896,6 @@ end if
 
     end function calc_adv2D_timestep1
 
-    elemental function calc_adv2D_timestep(ux,uy,dx,dy,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux
-        real(wp), intent(IN) :: uy
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: cfl_max             ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt 
-
-        dt = cfl_max * 1.0 / max(abs(ux)/dx + abs(uy)/dy,1e-5)
-
-        return 
-
-    end function calc_adv2D_timestep
-    
-    subroutine calc_adv2D_velocity(ux,uy,dx,dy,dt,cfl_max)
-        ! Calculate maximum velocity given a known time step
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-        ! dt = cfl_max * dx/u 
-
-        implicit none 
-        
-        real(wp), intent(INOUT) :: ux(:,:)
-        real(wp), intent(INOUT) :: uy(:,:)
-        real(wp), intent(IN)    :: dx, dy
-        real(wp), intent(IN)    :: dt 
-        real(wp), intent(IN)    :: cfl_max       ! Maximum Courant number, default cfl_max=1.0
-        
-        ! Local variables 
-        integer    :: i, j, q, nx, ny 
-        real(wp) :: uxy, dt_now 
-        real(wp) :: X, X_max 
-        real(wp) :: f_scale 
-
-        nx = size(ux,1)
-        ny = size(ux,2)
-
-        X_max = cfl_max / dt 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            X = max(abs(ux(i,j))/dx + abs(uy(i,j))/dy,1e-5)
-
-            if (X .gt. X_max) then 
-                ! Reduce velocity of this point to below limit
-
-                dt_now = cfl_max / X
-
-                f_scale = X_max / X     ! Should be less than 1.0! 
-
-                ux(i,j) = ux(i,j)*f_scale 
-                uy(i,j) = uy(i,j)*f_scale 
-                
-            end if 
-
-        end do 
-        end do  
-
-
-        return 
-
-    end subroutine calc_adv2D_velocity
-    
     subroutine check_checkerboard(is_unstable,var,lim,boundaries)
 
         implicit none 
@@ -1170,7 +1048,7 @@ end if
         call nc_write(filename, "dt_adv",dt_adv,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (CFL criterion)",ncid=ncid)
         
         call nc_write(filename,  "dt_pi", dt_pi,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (PI controller)",ncid=ncid)
-        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="m/yr",long_name="eta (maximum PC truncation error)",ncid=ncid)
+        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
         
         if (write_pc_tau_field) then 
             call nc_write(filename, "pc_tau",pc_tau,dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],units="m a**-1", &

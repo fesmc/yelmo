@@ -47,7 +47,7 @@ This is controlled by the user option `ytill.is_angle`. If `ytill.is_angle=True`
 
 With the variables formulated as above, it is possible to consider `cb_ref` as a tunable field that can be adjusted to improve model performance on a given domain. This can be achieved, for example, by performing optimization via the `ice_optimization` module, which adjusts `cb_ref` as a function of the mismatch of the simulated ice thickness with a target field. Also, `cb_ref` can either be optimized as a scalar field itself, or as an angle that is input to ${\rm tan}(c_{\rm b,ref})$ above.
 
-Another possibility is to tune `cb_ref` as a function of other model or boundary variables. The most common approach is to tune it as as function of the bedrock elevation relative to present-day sea level (e.g., Winkelmann et al., 2011). In Yelmo, this is controlled by the parameter choices in the `ytill` section, and in particular the parameter `ytill.scale=['none','lin','exp']`. When `ytill.scale='none'`, no scaling function is applied and then `cb_ref=ytill.cf_ref` everywhere. When `ytill.scale='lin'`, a linear scaling is applied so that `cb_ref` goes from `ytill.cf_min` to `ytill.cb_ref` for bedrock elevations between `ytill.z0` and `ytill.z1` (saturating otherwise). Finally, if `ytill.scale='exp'`, an exponential decay function is applied, such that `cb_ref=ytill.cf_ref` for `z_bed >= ytill.z1`, and decays following a curve that reaches ~30% of its value at `z_bed=ytill.z0`. Finally, all values are limited to a minimum value of `ytill.cf_min`.
+Another possibility is to tune `cb_ref` as a function of other model or boundary variables. The most common approach is to tune it as as function of the bedrock elevation relative to present-day sea level (e.g., Winkelmann et al., 2011). In Yelmo, this is controlled by the parameter choices in the `ytill` section, and in particular the parameter `ytill.scale_zb` (0: none, 1: linear, 2: exponential). When `ytill.scale_zb=0`, no scaling function is applied and then `cb_ref=ytill.cf_ref` everywhere. When `ytill.scale_zb=1`, a linear scaling is applied so that `cb_ref` goes from `ytill.cf_min` to `ytill.cf_ref` for bedrock elevations between `ytill.z0` and `ytill.z1` (saturating otherwise). Finally, if `ytill.scale_zb=2`, an exponential decay function is applied, such that `cb_ref=ytill.cf_ref` for `z_bed >= ytill.z1`, and decays following a curve that reaches ~30% of its value at `z_bed=ytill.z0`. Finally, all values are limited to a minimum value of `ytill.cf_min`.
 
 ### Sub-temperate sliding
 
@@ -63,22 +63,24 @@ $$
 where $T'_b \le 0$ is the basal homologous temperature, $\gamma_T$ is
 `ydyn.gamma_T` [K] and $\lambda_{\rm min}$ is `ydyn.lambda_min` (e.g., Fowler, 1986;
 Hindmarsh and Le Meur, 2001). $f_{\rm slide}=1$ where the base is temperate
-or not grounded. It is applied after the friction law and grounding-line
-treatment, independent of `beta_method`. $f_{\rm slide}$ (output as `f_slide`) is
-staggered to the velocity nodes instead of $\beta$, so sliding is averaged
-across a frozen/temperate transition. For DIVA, $\beta \to \infty$ tends to the
+or not grounded. $\beta$ is divided by $f_{\rm slide}$ (output as `f_slide`) at
+the cell centres, after the friction law and before the grounding-line scaling
+and the staggering to the velocity nodes, for any `beta_method` except an
+imposed $\beta$ (`beta_method=-1`). The velocity nodes across a frozen/temperate
+transition get the mean of $\beta/f_{\rm slide}$. For DIVA, $\beta \to \infty$ tends to the
 no-slip limit $\beta_{\rm eff}=1/F_2$, so small $\lambda_{\rm min}$ is safe.
 
 ## Effective pressure
 
-Effective pressure (`N_eff`, $N_{\rm eff}$) in Yelmo is currently only used in the basal friction formulation as shown above. It provides a mechanism to alter the basal friction as a function of the state of the ice sheet, which is separate from $c_{\rm b,ref}$ (`cb_ref`), which represents the properties of the bed beneath the ice sheet. The calculation of `N_eff` can be done with several methods:
+Effective pressure (`N_eff`, $N_{\rm eff}$) in Yelmo is currently only used in the basal friction formulation as shown above. It provides a mechanism to alter the basal friction as a function of the state of the ice sheet, which is separate from $c_{\rm b,ref}$ (`cb_ref`), which represents the properties of the bed beneath the ice sheet. `N_eff` comes from the basal hydrology (FastHydrology, group `&yhyd`). With the till bucket (`yhyd.method_til=1`, no transport), the closure is chosen with `yhyd.bkt_N_closure`:
 
 ```bash
-yneff.method = [-1,0,1,2,3]
--1: Set N_eff external to Yelmo, do not modify it internally.
- 0: Impose a constant value, N_eff = yneff.const
+yhyd.bkt_N_closure = [-1,0,1,2,3]
+-1: Set N externally (host model, via yelmo_set_var2D("hyd_N")), not modified internally.
+ 0: Impose a constant value, N_eff = yhyd.const_N
  1: Impose the overburden pressure, N_eff = rho_ice*g*H_ice
- 2: Calculate N_eff following the Leguy formulation
- 3: Calculate N_eff as till pressure following Bueler and van Pelt (2015). 
- 4: Calculate N_eff as a 'two-valued' function scaled by f_pmp using yneff.delta.
- ```
+ 2: Marine closure following Leguy et al. (2014), exponent yhyd.marine_p
+ 3: Till pressure following Bueler and van Pelt (2015), parameters yhyd.till_*
+```
+
+The former `&yneff` group (`yneff.method`) was retired in v2.1.

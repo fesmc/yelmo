@@ -88,7 +88,7 @@ program test_front_strain
         write(*,*) " PASS"
     else
         write(*,'(a,i0,a)') "  FAIL (", n_fail, " cases)"
-        stop 1
+        error stop 1
     end if
 
 contains

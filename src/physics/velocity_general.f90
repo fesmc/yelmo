@@ -4,7 +4,7 @@ module velocity_general
     use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
                             A_FRONT_MIN
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
-                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
+                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax, is_finite
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
                                     gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
@@ -28,6 +28,7 @@ module velocity_general
     public :: calc_ice_flux
     public :: calc_grounding_line_flux
     public :: calc_vel_ratio
+    public :: calc_visc_eff_int
 
     public :: picard_calc_error 
     public :: picard_calc_error_angle 
@@ -495,12 +496,11 @@ end if
         ! First calculate horizontal strain rates at each layer for later use,
         ! with no correction factor for sigma-transformation.
         ! Note: we only need dudx and dvdy, but routine also calculate cross terms, which will not be used.
+        ! Serial loop over k: calc_strain_rate_horizontal_2D opens its own parallel regions.
 
-        !$omp parallel do private(k,dudy,dvdx)
         do k = 1, nz_aa
             call calc_strain_rate_horizontal_2D(dudx(:,:,k),dudy,dvdx,dvdy(:,:,k),ux(:,:,k),uy(:,:,k),f_ice,dx,dy,boundaries)
         end do
-        !$omp end parallel do
 
         ! Next, calculate vertical velocity at each point through the column
 
@@ -1120,7 +1120,7 @@ end if
     end subroutine calc_driving_stress
 
     subroutine calc_driving_stress_gl(taud_acx,taud_acy,H_ice,z_srf,z_bed,z_sl,H_grnd, &
-                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method,beta_gl_stag)
+                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method)
         ! taud = rho_ice*g*H_ice
         ! Calculate driving stress on staggered grid points, with 
         ! special treatment of the grounding line 
@@ -1145,7 +1145,6 @@ end if
         real(wp), intent(IN)  :: rho_sw 
         real(wp), intent(IN)  :: g 
         integer,    intent(IN)  :: method        ! Which driving stress calculation to use
-        integer,    intent(IN)  :: beta_gl_stag  ! Method of grounding line staggering of beta 
 
         ! Local variables 
         integer :: i, j, nx, ny
@@ -1842,7 +1841,7 @@ end if
         ! Consistency check 
         if (size(corr,1) .ne. 2*nx*ny) then 
             write(*,*) "calc_convergence_angle:: Error: corr(N) must have N=2*nx*ny."
-            stop 
+            error stop 1
         end if 
 
         k = 0
@@ -2096,13 +2095,33 @@ end if
         end if 
 
 
-if (.TRUE.) then
-        if (ux_resid_max .ge. 9999.0_wp .or. uy_resid_max .ge. 9999.0_wp) then 
-            ! Strange case is occurring. Poor convergence with high error, investigate
+        ! Stop if the solution is not finite: NaN/Inf on a solved face, or in the residual
+        ! (a NaN velocity is not counted in the norm above, since abs(NaN) > vel_tol is false)
+        if ( (.not. is_finite(resid)) .or. any(mask_acx .and. .not. is_finite(ux)) &
+                                      .or. any(mask_acy .and. .not. is_finite(uy)) ) then
 
-            write(io_unit_err,*) "ssa: Error: strange case occurring."
+            write(io_unit_err,*) "ssa: Error: velocity solution is not finite."
             write(io_unit_err,"(a,a2,i4,g12.4,a3,2i8,2g12.4)") &
             "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max 
+            write(io_unit_err,*) "Picard iteration: ", iter
+
+            ! Report the first non-finite face in each direction
+            acx_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acx(i,j) .and. .not. is_finite(ux(i,j))) then 
+                    write(io_unit_err,*) "ux (acx-node) not finite at i, j = ", i, j, ": ", ux(i,j)
+                    exit acx_bad
+                end if 
+            end do 
+            end do acx_bad
+            acy_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acy(i,j) .and. .not. is_finite(uy(i,j))) then 
+                    write(io_unit_err,*) "uy (acy-node) not finite at i, j = ", i, j, ": ", uy(i,j)
+                    exit acy_bad
+                end if 
+            end do 
+            end do acy_bad
 
             write(io_unit_err,*) "Writing diagnostic file: ssa_check.nc."
 
@@ -2114,10 +2133,9 @@ if (.TRUE.) then
                                     int(ux*0.0_wp),int(ux*0.0_wp),ux-ux_prev,uy-uy_prev,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp, &
                                     ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux_prev,uy_prev,time=real(iter,wp))
 
-            stop 
+            error stop 1
 
         end if 
-end if 
         
         return 
 
@@ -2177,6 +2195,54 @@ end if
         return 
 
     end subroutine picard_relax_visc
+
+    subroutine calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
+        ! Vertically integrated effective viscosity (SSA and DIVA):
+        ! visc_eff_int = H_ice * mean(visc_eff) over zeta in full ice cells,
+        ! visc_min elsewhere. Only the vertical integration is shared; the 3D
+        ! viscosity itself (with or without the vertical shear contribution)
+        ! comes from the solver's own calc_visc_eff_3D_* routines.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: visc_eff_int(:,:)
+        real(wp), intent(IN)  :: visc_eff(:,:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: zeta_aa(:)
+
+        ! Local variables 
+        integer  :: i, j, nx, ny
+        real(wp) :: visc_eff_mean 
+
+        real(wp), parameter :: visc_min = 1e5_wp
+
+        nx = size(visc_eff_int,1)
+        ny = size(visc_eff_int,2)
+
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,visc_eff_mean)
+        do j = 1, ny 
+        do i = 1, nx
+
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
+                ! Calculate the vertically averaged viscosity for this point
+                visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
+
+                visc_eff_int(i,j) = visc_eff_mean*H_ice(i,j) 
+            else
+                visc_eff_int(i,j) = visc_min 
+            end if 
+
+            ! Avoid very low viscosity values, e.g. when ice thickness is < 1m
+            if (visc_eff_int(i,j) .lt. visc_min) visc_eff_int(i,j) = visc_min 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_visc_eff_int
 
 
 

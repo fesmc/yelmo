@@ -4,7 +4,7 @@ module calving_ac
 
     use yelmo_defs, only : sp, dp, wp, prec, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
-    use topography, only : calc_H_eff 
+    use topography, only : calc_melt_rate_rignot16
     use thermodynamics, only : calc_T_freeze_sw
 
     implicit none 
@@ -20,7 +20,6 @@ module calving_ac
     ! === CalvMIP calving rates ===
     public :: calvmip_exp1
     public :: calvmip_exp2
-    public :: calvmip_exp5_ac
     public :: calvmip_exp5_aa
 
 contains 
@@ -220,7 +219,7 @@ contains
         ! m = (a h_w q^alpha + b) TF^beta [m/d]
         ! q = 86400*Q/A [m/d]
         !
-        ! a, alpha, b, beta: constants
+        ! a, alpha, b, beta: constants (see calc_melt_rate_rignot16)
         ! h_w: water depth at the terminus, z_sl - z_bed [m]
         ! Q: subglacial discharge [m3/s]
         ! A: submerged area of the terminus face, h_w*dx [m2]
@@ -254,7 +253,7 @@ contains
 
         ! local variables
         integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
-        real(wp) :: a, b, alpha, beta, m_acx, m_acy
+        real(wp) :: m_acx, m_acy
         real(wp) :: gx, gy, gxy
         real(wp), allocatable :: m_aa(:,:), h_w(:,:), TF(:,:)
         integer  :: BC
@@ -266,18 +265,14 @@ contains
         allocate(h_w(nx,ny))
         allocate(TF(nx,ny))
 
-        a     = 3.0e-4
-        b     = 0.15
-        alpha = 0.39
-        beta  = 1.18
         m_aa  = 0.0_wp
 
         ! Water depth and thermal forcing relative to the local freezing point
         h_w   = MAX(0.0_wp, z_sl - z_bed)
         TF    = MAX(0.0_wp, T_ocn - calc_T_freeze_sw(h_w,T0))
 
-        ! Discharge is a non-negative volume flux (q**alpha is NaN for q < 0)
-        m_aa  = 365.25*(a*h_w*((86400.0*MAX(0.0_wp,Qd)/(h_w*dx+1e-8))**alpha)+b)*(TF**beta) ! is in m/yr
+        ! Retreat rate [m/yr], submerged area of the terminus face h_w*dx
+        m_aa  = calc_melt_rate_rignot16(h_w,Qd,h_w*dx,TF)
         where(f_ice .eq. 0.0) m_aa = 0.0_wp
 
         ! Set boundary condition code
@@ -490,70 +485,6 @@ contains
         return
     
     end subroutine calvmip_exp2
-
-    subroutine calvmip_exp5_ac(cr_acx,cr_acy,u_acx,v_acy,H_ice,H_ice_c,f_ice,boundaries)
-        ! Threshold calving rate flux based on CalvingMIP experiment 5.
-        ! Valid for floating and grounded ice.
-            
-        implicit none
-            
-        real(wp), intent(OUT) :: cr_acx(:,:), cr_acy(:,:)
-        real(wp), intent(IN)  :: u_acx(:,:),  v_acy(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: H_ice_c
-        real(wp), intent(IN)  :: f_ice(:,:)                ! Ocean mask. Extrapolate values into that mask.
-        character(len=*), intent(IN)  :: boundaries             ! Boundary conditions to impose
-                
-        ! local variables
-        integer  :: i, j, ip1, im1, jp1, jm1, nx, ny
-        real(wp) :: wv_acx, wv_acy, H_acx, H_acy
-        integer  :: BC
-
-        nx = size(u_acx,1)
-        ny = size(u_acx,2)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        do j = 1, ny
-        do i = 1, nx
-
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! Stagger ice thickness into ac-nodes
-            if(f_ice(i,j) .gt. 0.0_wp) then
-                H_acx = 0.5*(H_ice(i,j)+H_ice(ip1,j))
-                H_acy = 0.5*(H_ice(i,j)+H_ice(i,jp1))
-                
-                ! Special case for border
-                ! x-axis  
-                if((f_ice(ip1,j) .eq. 0.0_wp) .or. (f_ice(im1,j) .eq. 0.0_wp)) then
-                    H_acx = H_ice(i,j)
-                end if
-
-                ! y-axis
-                if((f_ice(i,jp1) .eq. 0.0_wp) .or. (f_ice(i,jm1) .eq. 0.0_wp)) then
-                    H_acy = H_ice(i,j)
-                end if
-
-            else
-                ! Ocean points
-                H_acx = 0.0_wp
-                H_acy = 0.0_wp
-            end if
-
-            ! Compute calving-rates on ac-nodes
-            wv_acx      = MAX(0.0_wp,1.0_wp+(H_ice_c-H_acx)/H_ice_c)
-            cr_acx(i,j) = -u_acx(i,j)*wv_acx
-            wv_acy      = MAX(0.0_wp,1.0_wp+(H_ice_c-H_acy)/H_ice_c)
-            cr_acy(i,j) = -v_acy(i,j)*wv_acy
-
-        end do
-        end do
-    
-        return
-    
-    end subroutine calvmip_exp5_ac
 
     subroutine calvmip_exp5_aa(cr_acx,cr_acy,u_acx,v_acy,H_ice,H_ice_c,f_ice,boundaries)
         ! Experiment 5 of CalvMIP

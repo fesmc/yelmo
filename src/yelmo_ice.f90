@@ -9,7 +9,7 @@ module yelmo_ice
     use yelmo_grid, only : yelmo_init_grid, calc_zeta
     use yelmo_timesteps, only : ytime_init, set_pc_beta_coefficients, set_adaptive_timestep, set_adaptive_timestep_pc,   &
                                 set_pc_mask, calc_pc_eta, calc_pc_tau_fe_sbe,calc_pc_tau_ab_sam, calc_pc_tau_heun,  &
-                                limit_adaptive_timestep, yelmo_timestep_write_init, yelmo_timestep_write
+                                yelmo_timestep_write_init, yelmo_timestep_write
     use yelmo_tools, only : smooth_gauss_2D, adjust_topography_gradients, is_finite
     use yelmo_io 
 
@@ -57,7 +57,7 @@ contains
         real(wp), parameter :: time_tol = 1e-5
 
         real(8)  :: cpu_time0, cpu_time1 
-        real(wp) :: model_time0, model_time1 
+        real(wp) :: model_time0 
         real(wp) :: speed  
 
         real(wp) :: H_mean, T_mean 
@@ -66,7 +66,6 @@ contains
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
         integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
-        real(wp) :: ab_zeta 
         logical, allocatable :: pc_mask(:,:) 
 
         character(len=1012) :: kill_txt
@@ -84,7 +83,7 @@ contains
             write(io_unit_err,*) 
             write(io_unit_err,*) "yelmo_update:: Error: Yelmo object does not appear to be initialized/allocated."
             write(io_unit_err,*) "is_allocated(dom%tpo%now%H_ice) = ", allocated(dom%tpo%now%H_ice)
-            stop 
+            error stop 1
         end if 
 
         ! Assume ratio zeta=dt_n/dt_nm1=1.0 to start
@@ -204,7 +203,7 @@ contains
 
                     write(io_unit_err,*) "yelmo_update:: Error: dt_method not recognized."
                     write(io_unit_err,*) "dt_method = ", dom%par%dt_method 
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -225,16 +224,16 @@ contains
 
             end if
 
-            ! Skip a zero-length step on an already-active trajectory. The driver
-            ! re-runs the step at the restart time on its first loop iteration
-            ! (tstep_update leaves time == time_init when ts%n == 0), giving
-            ! dt_now == 0 with the full model state already restored. Re-running the
-            ! predictor/corrector, velocity solve and pc-error machinery at dt == 0
-            ! would perturb that state (pc_dt/pc_eta history, pc_tau, re-solved
-            ! velocities) and break bit-for-bit restart continuity. A cold start's
-            ! equivalent t == 0 zero-step has pc_active == .FALSE. and still runs,
-            ! so non-restart behaviour is unchanged. The post-loop rate finalization
-            ! is already guarded by dt_max_0 > 0, so state is fully maintained here.
+            ! Skip a zero-length step on an already-active trajectory. dt_now == 0
+            ! when yelmo_update is called at the current model time, e.g. by a
+            ! host model at its restart time or twice at the same time (the in-repo
+            ! drivers no longer do this: fesm-utils tstep_update advances on every
+            ! call). Re-running the predictor/corrector, velocity solve and pc-error
+            ! machinery at dt == 0 would perturb the restored state (pc_dt/pc_eta
+            ! history, pc_tau, re-solved velocities) and break restart continuity,
+            ! so such a call leaves the state unchanged. A call at dt == 0 before the
+            ! pc is active (pc_active == .FALSE., e.g. right after a cold start) still
+            ! runs. The post-loop rate finalization is guarded by dt_max_0 > 0.
             if (dt_now .eq. 0.0_wp .and. dom%time%pc_active) exit
 
             do iter_redo=1, dom%par%pc_n_redo
@@ -293,7 +292,6 @@ contains
 
                 ! Step 1: Perform predictor step for topography
                 ! Get predicted new ice thickness and store it for later use
-                ! call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,dom%tpo%par%topo_fixed)
                 call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor", &
                                                                                         filter_vel=dom%par%pc_filter_vel)
 
@@ -339,10 +337,6 @@ contains
                             ! HEUN truncation error (same as FE-SBE)
                             call calc_pc_tau_heun(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now)
 
-                        case("RALSTON")
-
-                            call calc_pc_tau_fe_sbe(dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dt_now)
-
                     end select 
 
                 else 
@@ -355,7 +349,7 @@ contains
                                 dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
                                 dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries, &
                                 dom%tpo%par%front_subgrid,dom%tpo%par%front_H_eff_min,dom%tpo%par%front_dHdx,dom%tpo%par%dx)
-                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,trim=dom%par%pc_eta_trim)
+                eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,frac_trim=dom%par%pc_eta_trim)
 
                 ! Save masked pc_tau for output too 
                 dom%time%pc_tau_masked = dom%time%pc_tau 
@@ -569,7 +563,7 @@ contains
                                             max_dt_used, min_dt_used, n_dtmin
             
 
-            ! write(*,*) "time2: ", time, time_now, dom%tpo%par%time, dom%tpo%par%time_calv, &
+            ! write(*,*) "time2: ", time, time_now, dom%tpo%par%time, &
             !                                     dom%thrm%par%time, dom%mat%par%time, dom%dyn%par%time
 
         end if 
@@ -618,7 +612,7 @@ contains
         type(ydyn_param_class)  :: dyn_par_ref
         type(ytherm_param_class):: thrm_par_ref
         real(wp) :: time_now  
-        integer  :: n, nstep 
+        integer  :: n 
         
         ! Only run equilibration if time_tot > 0 
 
@@ -781,7 +775,7 @@ contains
             case DEFAULT 
 
                 write(io_unit_err,*) "yelmo_init:: Error: parameter grid_def not recognized: "//trim(grid_def)
-                stop 
+                error stop 1
 
         end select 
 
@@ -790,7 +784,7 @@ contains
             write(io_unit_err,*) "yelmo_init:: Error: ygrid has not been properly defined yet."
             write(io_unit_err,*) "(Either use yelmo_init_grid externally with desired grid parameters &
                        &or set grid_def=['name','file'])"
-            stop 
+            error stop 1
         end if 
 
         ! Calculate zeta_aa and zeta_ac 
@@ -885,7 +879,7 @@ contains
                     &must be 'impl-lis' for stability. The 'expl' solver has not yet been designed to &
                     &handle ice advected at the border point nx-1, and thus oscillations can be produced. &
                     &Please set 'solver=impl-lis'."
-                    stop 
+                    error stop 1
                 end if 
             
             case("TROUGH-F17")
@@ -1036,6 +1030,7 @@ contains
         real(wp)            :: z_bed_f_sd 
         real(wp)            :: smooth_H_ice
         real(wp)            :: smooth_z_bed
+        logical             :: has_sd, has_srf
 
         real(wp), allocatable :: H_ice(:,:) 
         real(wp), allocatable :: z_bed(:,:) 
@@ -1099,26 +1094,25 @@ contains
             call nc_read(init_topo_path,init_topo_names(1), H_ice, missing_value=mv)
             call nc_read(init_topo_path,init_topo_names(2), z_bed, missing_value=mv) 
 
-            if (trim(init_topo_names(3)) .ne. ""     .and. &
-                trim(init_topo_names(3)) .ne. "none" .and. &
-                trim(init_topo_names(3)) .ne. "None") then 
-
-                call nc_read(init_topo_path,init_topo_names(3),z_bed_sd)
-
-                ! Apply scaling to adjust z_bed depending on standard deviation
-                z_bed = z_bed + z_bed_f_sd*z_bed_sd 
-
-            else
-                z_bed_sd = 0.0_wp 
-            end if 
+            has_sd = (trim(init_topo_names(3)) .ne. ""     .and. &
+                      trim(init_topo_names(3)) .ne. "none" .and. &
+                      trim(init_topo_names(3)) .ne. "None")
+            if (has_sd) call nc_read(init_topo_path,init_topo_names(3),z_bed_sd,missing_value=mv)
 
             ! If desired and available, read surface elevation field
             ! too, in order to correct for englacial lakes.
-            if (trim(init_topo_names(4)) .ne. ""     .and. &
-                trim(init_topo_names(4)) .ne. "none" .and. &
-                trim(init_topo_names(4)) .ne. "None") then 
+            has_srf = (trim(init_topo_names(4)) .ne. ""     .and. &
+                       trim(init_topo_names(4)) .ne. "none" .and. &
+                       trim(init_topo_names(4)) .ne. "None")
+            if (has_srf) call nc_read(init_topo_path,init_topo_names(4),z_srf,missing_value=mv)
 
-                call nc_read(init_topo_path,init_topo_names(4),z_srf)
+            ! Fill the gaps of the dataset (e.g. outside its coverage)
+            call ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
+
+            ! Apply scaling to adjust z_bed depending on standard deviation
+            if (has_sd) z_bed = z_bed + z_bed_f_sd*z_bed_sd
+
+            if (has_srf) then
 
                 ! Note: this routine uses z_sl, that is likely still set to zero
                 ! here. This routine is mainly for fixing present-day datasets,
@@ -1168,7 +1162,7 @@ contains
 
                     write(io_unit_err,*) "yelmo_init_topo:: Error: init_topo_state choice not recognized."
                     write(io_unit_err,*) "init_topo_state = ", init_topo_state 
-                    stop 
+                    error stop 1
 
             end select
 
@@ -1241,6 +1235,11 @@ contains
 
                     bnd_restart%z_bed       = dom%bnd%z_bed
                     bnd_restart%dzbdt_corr  = 0.0 
+
+                    ! Shift the previous-call bedrock by the same correction, so the
+                    ! first dz_bed_dt after the restart keeps the restart's rate
+                    ! instead of counting this one-off correction as bedrock motion.
+                    bnd_restart%z_bed_n     = bnd_restart%z_bed_n + bnd_restart%z_bed_corr
                 else 
 
                     ! Calculate the desired rate of change based on relaxation time
@@ -1249,6 +1248,7 @@ contains
                     ! Note, now, do nothing: do not modify bnd_restart%z_bed.
                     ! So, to start with, the bedrock topography will still be fully
                     ! consistent with the simulation being loaded from the restart file. 
+                    ! (z_bed_n from the restart stays consistent with z_bed.)
                     ! Pass dzbdt_corr to isostasy routine to slow incorporate
                     ! high-resolution information after initializing all other fields. 
                 
@@ -1297,7 +1297,6 @@ contains
         ! Note: thermodynamic state has not been loaded yet, so mask_bed produced here
         ! will not contain regions of temperate ice. masks should be updated again
         ! after loaded remaining fields.
-        !call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.)
         call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
@@ -1397,7 +1396,7 @@ contains
                 write(io_unit_err,*) "yelmo_init_state:: Error: temperature initialization must be &
                            &'linear', 'robin' or 'robin-cold' in order to properly prescribe &
                            &initial temperatures."
-                stop 
+                error stop 1
             end if
             
             ! Store original model choices locally 
@@ -1409,7 +1408,6 @@ contains
             dom%thrm%par%rock_method = "equil" 
 
             ! Run topo and masks to make sure all fields are synchronized (masks, etc)
-            !call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.)
             call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Calculate initial thermodynamic information
@@ -1463,7 +1461,6 @@ contains
         end if 
 
         ! Re-run topo again to make sure all fields are synchronized (masks, etc)
-        !call calc_ytopo_rk4(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.)
         call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
@@ -1550,7 +1547,7 @@ contains
             write(io_unit_err,*) "  or pass it as an argument to yelmo_init."
             write(io_unit_err,*) "  Currently: domain    = '", trim(par%domain),    "'"
             write(io_unit_err,*) "             grid_name = '", trim(par%grid_name), "'"
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! Parse filenames with grid information
@@ -1561,7 +1558,7 @@ contains
         if (par%dt_min .eq. 0.0) then 
             write(*,*) "yelmo_par_load:: dt_min must be greater than zero."
             write(*,*) "dt_min = ", par%dt_min 
-            stop 
+            error stop 1
         end if 
 
         ! Set restart flag based on 'restart' parameter 
@@ -1577,35 +1574,38 @@ contains
             write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must be less than pc_tol."
             write(io_unit_err,*) trim(filename), " : ", trim(group)
             write(io_unit_err,*) "pc_eps, pc_tol: ", par%pc_eps, par%pc_tol
-            stop
+            error stop 1
         end if
 
         ! Enum-string validation
         call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh")
         call yelmo_check_enum(group,"pc_method",     par%pc_method,     "FE-SBE|AB-SAM|HEUN")
         call yelmo_check_enum(group,"pc_controller", par%pc_controller, "PI42|H312b|H312PID|H321PID|PID1")
+        ! experiment: the values handled in yelmo_init (boundary treatment); "None" gives "zeros"
+        call yelmo_check_enum(group,"experiment",    par%experiment,    &
+                "None|EISMINT|MISMIP3D|MISMIP+|TROUGH-F17|SLAB|ISMIPHOM|slab|periodic|periodic-xy|periodic-x|infinite|MASK_ICE")
 
         ! Range checks
         if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: cfl_max must be in (0,1]; got ", par%cfl_max
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%pc_cfl_max .le. 0.0_wp .or. par%pc_cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_cfl_max must be in (0,1]; got ", par%pc_cfl_max
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%pc_eta_H_min .lt. 0.0_wp .or. par%pc_eta_u_min .lt. 0.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_eta_H_min and pc_eta_u_min must be >= 0; got ", &
                                                                 par%pc_eta_H_min, par%pc_eta_u_min
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%pc_eta_trim .lt. 0.0_wp .or. par%pc_eta_trim .ge. 0.5_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_eta_trim must be in [0,0.5); got ", par%pc_eta_trim
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%nz_aa .lt. 2) then
             write(io_unit_err,*) "yelmo_par_load:: error: nz_aa must be >= 2; got ", par%nz_aa
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1660,6 +1660,10 @@ contains
     end subroutine yelmo_print_bound
 
     subroutine yelmo_set_time(dom,time)
+        ! Set the clocks of all components to time (e.g. to rewind after
+        ! yelmo_update_equil), so the next step advances each by the full dt.
+        ! bnd%time_n is the time of z_bed_n/z_sl_n (see ybound_update_rates).
+        ! The elsa/tracer backends keep their own deposition clocks, untouched.
 
         implicit none 
 
@@ -1670,6 +1674,9 @@ contains
         dom%dyn%par%time      = time 
         dom%mat%par%time      = time 
         dom%thrm%par%time     = time 
+        dom%trc%par%time      = time 
+        dom%hyd%now%time      = time 
+        dom%bnd%time_n        = time 
         
         return 
 

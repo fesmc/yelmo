@@ -21,7 +21,6 @@ program test_ssa_energy
 
     integer, parameter :: nx = 8, ny = 8
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp     ! [m]
-    real(wp), parameter :: beta_min = 0.0_wp
     ! Yelmo's working precision is single (wp = sp), so the two assemblers'
     ! operation-order differences produce ~1e-7 relative roundoff between the
     ! algebraically-identical entries. Tolerate that — anything larger is a
@@ -34,7 +33,6 @@ program test_ssa_energy
     real(wp) :: beta_acx(nx,ny), beta_acy(nx,ny)
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
-    integer  :: mask_frnt(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
@@ -69,7 +67,6 @@ program test_ssa_energy
         uy(i,j)           = 5.0_wp  + 0.3_wp*real(j,wp)
         taul_int_acx(i,j) = 0.0_wp                ! no calving front in periodic test
         taul_int_acy(i,j) = 0.0_wp
-        mask_frnt(i,j)    = 0
         ssa_mask_acx(i,j) = 1                     ! interior SSA solve everywhere
         ssa_mask_acy(i,j) = 1
     end do
@@ -77,12 +74,12 @@ program test_ssa_energy
 
     ! ---- Assemble both matrices ----
     call linear_solver_matrix_ssa_ac_csr_2D(lgs_res,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     ! ---- Compare matrices entry-by-entry ----
     !
@@ -175,8 +172,8 @@ program test_ssa_energy
         end if
 
         call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
-                    ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                    taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                    ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                    taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
         do j = 1, ny
         do i = 1, nx
@@ -211,7 +208,7 @@ program test_ssa_energy
         write(*,*) " PASS"
     else
         write(*,*) " FAIL"
-        stop 1
+        error stop 1
     end if
 
 contains

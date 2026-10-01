@@ -9,7 +9,7 @@ module yelmo_dynamics
                             boundary_code, get_neighbor_indices_bc_codes, calc_gradient_column_ac
 
     use deformation, only : calc_jacobian_vel_3D_uxyterms, calc_jacobian_vel_3D_uzterms, &
-                            calc_strain_rate_tensor_jac, calc_strain_rate_tensor_jac_quad3D
+                            calc_strain_rate_tensor_jac_quad3D
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
     use fast_hydrology, only : hydro_calc_N
@@ -20,12 +20,8 @@ module yelmo_dynamics
 
     use velocity_ssa
     use solver_ssa_ac 
-    ! use velocity_ssa_aa
-    ! use solver_ssa_aa
 
     use velocity_diva
-    ! use velocity_diva_ab 
-    ! use solver_ssa_ab
 
     use basal_dragging  
 
@@ -117,7 +113,7 @@ contains
             call calc_driving_stress_gl(dyn%now%taud_acx,dyn%now%taud_acy, &
                         tpo%now%H_ice_dyn,tpo%now%z_srf,bnd%z_bed,bnd%z_sl,tpo%now%H_grnd, &
                         tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,dyn%par%dx, &
-                        bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g,dyn%par%taud_gl_method,beta_gl_stag=1)
+                        bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%g,dyn%par%taud_gl_method)
 
         end if 
 
@@ -210,7 +206,7 @@ contains
                     write(*,*) "calc_ydyn:: Error: ydyn solver not recognized." 
                     write(*,*) "solver should be one of: ['fixed','hybrid','diva']"
                     write(*,*) "solver = ", trim(dyn%par%solver) 
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -258,8 +254,18 @@ contains
             case DEFAULT
                 write(io_unit_err,*) "Error: calc_ydyn:: vertical velocity integration method not recognized."
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method
-                stop
+                error stop 1
         end select
+
+        ! Diagnostic: surface sigma-velocity mismatch. Kinematically uz_star = -smb at the
+        ! surface; a non-zero value comes from the different velocity fields and
+        ! discretisations of the thickness rate (dzsdt_kin) and of uz. Fully ice-covered cells only.
+        where (tpo%now%f_ice_dyn .eq. 1.0_wp)
+            dyn%now%uz_srf_err = dyn%now%uz_star(:,:,nz_ac) + tpo%now%smb
+        elsewhere
+            dyn%now%uz_srf_err = 0.0_wp
+        end where
+
         ! ===== Finish calculating velocity Jacobian (uz-dependent terms) ================
 
         call calc_jacobian_vel_3D_uzterms(dyn%now%jvel, dyn%now%ux, dyn%now%uy, dyn%now%uz, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, &
@@ -269,8 +275,6 @@ contains
         ! ===== Strain rate tensor ===========================
         ! (using the Jacobian)
 
-        ! call calc_strain_rate_tensor_jac(dyn%now%strn, dyn%now%strn2D, dyn%now%jvel, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, tpo%now%f_grnd,  &
-        !                                    dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, mat%par%de_max, dyn%par%boundaries)
         call calc_strain_rate_tensor_jac_quad3D(dyn%now%strn, dyn%now%strn2D, dyn%now%jvel, tpo%now%H_ice_dyn, tpo%now%f_ice_dyn, tpo%now%f_grnd,  &
                                            dyn%par%zeta_aa, dyn%par%zeta_ac, dyn%par%dx, dyn%par%dy, mat%par%de_max, dyn%par%boundaries)
         
@@ -383,9 +387,9 @@ contains
 
         ! 2. Calculate SSA solution =====
 
-        ! Define grid points with ssa active (uses beta from previous timestep)
-        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
-                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+        ! Define grid points with ssa active
+        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%f_ice_dyn, &
+                    tpo%now%f_grnd,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
         if (use_ssa .and. dyn%par%use_ssa .and. &
@@ -401,7 +405,6 @@ contains
                     ssa_par%ssa_lis_opt = dyn%par%ssa_lis_opt_residual
             end select
             ssa_par%boundaries     = dyn%par%boundaries
-            ssa_par%ssa_lateral_bc = dyn%par%ssa_lat_bc  
             ssa_par%visc_method    = dyn%par%visc_method 
             ssa_par%visc_const     = dyn%par%visc_const 
             ssa_par%beta_method    = dyn%par%beta_method 
@@ -430,14 +433,7 @@ contains
                                       dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy, &
                                       dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                       tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
-                                      tpo%now%mask_frnt, &
                                       mat%now%ATT,dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,ssa_par)
-            ! call calc_velocity_ssa_aa(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
-            !                           dyn%now%visc_eff,dyn%now%visc_eff_int,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy, &
-            !                           dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%beta, &
-            !                           dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%taud_acx,dyn%now%taud_acy, &
-            !                           tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
-            !                           mat%now%ATT,dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,ssa_par)
 
         else 
             ! Set all SSA terms to zero 
@@ -509,9 +505,9 @@ contains
         ! ===== Calculate 3D horizontal velocity solution via DIVA algorithm ===================
 
 
-        ! Define grid points with ssa active (uses beta from previous timestep)
-        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
-                    tpo%now%f_grnd,tpo%now%z_base,bnd%z_sl,dyn%par%dx,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+        ! Define grid points with ssa active
+        call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%f_ice_dyn, &
+                    tpo%now%f_grnd,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
         ! ajr: add these two statements for testing 2D flow (no flow in y-direction)
@@ -529,7 +525,6 @@ contains
                 diva_par%ssa_lis_opt = dyn%par%ssa_lis_opt_residual
         end select
         diva_par%boundaries     = dyn%par%boundaries
-        diva_par%ssa_lateral_bc = dyn%par%ssa_lat_bc 
         diva_par%no_slip        = no_slip 
         diva_par%visc_method    = dyn%par%visc_method 
         diva_par%visc_const     = dyn%par%visc_const 
@@ -562,7 +557,7 @@ contains
                                 dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%c_bed, &
                                 dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                 tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,   &
-                                tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%mask_frnt,mat%now%ATT, &
+                                tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,mat%now%ATT, &
                                 dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,diva_par)
 
         ! Integrate from 3D shear velocity field to get depth-averaged field
@@ -607,7 +602,7 @@ contains
         if (dyn%par%neff_nxi .lt. 0) then
             write(*,*) "calc_ydyn_neff:: Error: neff_nxi must be >= 0."
             write(*,*) "neff_nxi = ", dyn%par%neff_nxi
-            stop
+            error stop 1
         end if
 
         ! N on the current dynamics geometry
@@ -711,7 +706,6 @@ contains
 
         ! Apply default for ssa_solver if not set in namelist
         if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "energy"
-        call nml_read(filename,group_ydyn,"ssa_beta_max",       par%ssa_beta_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -732,8 +726,8 @@ contains
         call nml_read(filename,group_ytill,"cf_min",            par%till_cf_min,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"cf_ref",            par%till_cf_ref,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
 
-        ! Effective pressure: N_eff is taken from hyd%now%N (computed by
-        ! the fasthydrology N-closure in &fhyd). The only remaining dyn-
+        ! Effective pressure: N_eff is evaluated by the fasthydrology
+        ! N-closure (hydro_calc_N in calc_ydyn_neff). The only remaining dyn-
         ! side knob is subgrid interpolation of N onto Gaussian-quadrature /
         ! subgrid sample points; lives under &ydyn as neff_nxi.
         call nml_read(filename,group_ydyn,"neff_nxi",           par%neff_nxi,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -748,17 +742,17 @@ contains
                                                         .or. par%lambda_min .gt. 1.0_wp)) then
             write(io_unit_err,*) "ydyn_par_load:: error: ydyn.slide_T requires gamma_T > 0 and 0 < lambda_min <= 1; got ", &
                                  par%gamma_T, par%lambda_min
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%till_z0 .ge. par%till_z1) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.z0 must be < ytill.z1; got ", &
                                  par%till_z0, par%till_z1
-            stop "Program stopped."
+            error stop 1
         end if
         if (par%till_cf_min .gt. par%till_cf_ref) then
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be <= ytill.cf_ref; got ", &
                                  par%till_cf_min, par%till_cf_ref
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! === Set internal parameters ======
@@ -829,6 +823,7 @@ contains
         allocate(now%ux_b(nx,ny)) 
         allocate(now%uy_b(nx,ny))
         allocate(now%uz_b(nx,ny))
+        allocate(now%uz_srf_err(nx,ny))
         allocate(now%uxy_b(nx,ny))
 
         allocate(now%ux_s(nx,ny)) 
@@ -939,6 +934,7 @@ contains
         now%ux_b              = 0.0 
         now%uy_b              = 0.0
         now%uz_b              = 0.0
+        now%uz_srf_err        = 0.0
         now%uxy_b             = 0.0
 
         now%ux_s              = 0.0 
@@ -1057,6 +1053,7 @@ contains
         if (allocated(now%ux_b))            deallocate(now%ux_b) 
         if (allocated(now%uy_b))            deallocate(now%uy_b)
         if (allocated(now%uz_b))            deallocate(now%uz_b)
+        if (allocated(now%uz_srf_err))      deallocate(now%uz_srf_err)
         if (allocated(now%uxy_b))           deallocate(now%uxy_b)
         
         if (allocated(now%ux_s))            deallocate(now%ux_s) 
@@ -1304,101 +1301,3 @@ contains
     end subroutine write_step_2D_ssa
     
 end module yelmo_dynamics
-
-
-
-
-
-! if (.FALSE.) then
-! ! Testing exotic mixing solutions for treating the grounding line  
-!             ! Set dyn1 equal to previous solution 
-!             dyn1 = dyn 
-
-!             ! Determine ssa mask for points near grounding line
-!             dyn1%now%ssa_mask_acx = -1.0 
-!             dyn1%now%ssa_mask_acy = -1.0  
-             
-!             do j = 1, ny 
-!             do i = 1, nx-1 
-
-!                 is_grz_mid = tpo%now%is_grz(i,j) .or. tpo%now%is_grz(i+1,j)
-!                 if (dyn%now%ssa_mask_acx(i,j) .gt. 0.0 .and. is_grz_mid) then 
-!                     dyn1%now%ssa_mask_acx(i,j) = 1.0 
-!                 end if 
-
-!             end do 
-!             end do 
-
-!             do j = 1, ny-1 
-!             do i = 1, nx 
-
-!                 is_grz_mid = tpo%now%is_grz(i,j) .or. tpo%now%is_grz(i,j+1)
-!                 if (dyn%now%ssa_mask_acy(i,j) .gt. 0.0 .and. is_grz_mid) then 
-!                     dyn1%now%ssa_mask_acy(i,j) = 1.0 
-!                 end if 
-
-!             end do 
-!             end do 
-            
-!             ! Now populate dyn2 
-!             dyn2 = dyn1 
-
-!             ! Modify dyn1 parameters concerning beta 
-!             dyn1%par%taud_gl_method = 1 
-!             dyn1%par%beta_gl_sep    = 0     ! No subgrid grounding line treatment 
-!             dyn1%par%beta_gl_scale  = 0     ! No special scaling at gl 
-!             dyn1%par%beta_gl_stag   = 1     ! Upstream scaling 
-
-!             ! Calculate driving stress 
-!             call calc_driving_stress(dyn1%now%taud_acx,dyn1%now%taud_acy,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed,bnd%z_sl, &
-!                      tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,dyn1%par%dx,dyn1%par%taud_lim, &
-!                      method=dyn1%par%taud_gl_method,beta_gl_stag=dyn1%par%beta_gl_stag)
-
-!             call calc_ydyn_ssa(dyn1,tpo,thrm,mat,bnd)
-
-!             ! Set dyn2 equal to previous solution 
-!             !dyn2 = dyn 
-
-!             ! Modify dyn1 parameters concerning beta 
-!             dyn2%par%taud_gl_method = 1 
-!             dyn2%par%beta_gl_sep    = 0     ! No subgrid grounding line treatment 
-!             dyn2%par%beta_gl_scale  = 0     ! No special scaling at gl 
-!             dyn2%par%beta_gl_stag   = 2     ! Downstream scaling 
-            
-!             ! Calculate driving stress 
-!             call calc_driving_stress(dyn2%now%taud_acx,dyn2%now%taud_acy,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed,bnd%z_sl, &
-!                      tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,dyn2%par%dx,dyn1%par%taud_lim, &
-!                      method=dyn2%par%taud_gl_method,beta_gl_stag=dyn2%par%beta_gl_stag)
-
-!             call calc_ydyn_ssa(dyn2,tpo,thrm,mat,bnd)
-            
-!             ! Get weighted-average of the two solutions 
-
-!             !dyn%now%taud_acx = tpo%now%f_grnd_acx*dyn1%now%taud_acx + (1.0-tpo%now%f_grnd_acx)*dyn2%now%taud_acx
-!             !dyn%now%taud_acy = tpo%now%f_grnd_acy*dyn1%now%taud_acy + (1.0-tpo%now%f_grnd_acy)*dyn2%now%taud_acy
-            
-!             do j = 1, ny 
-!             do i = 1, nx 
-!                 if (tpo%now%f_grnd_acx(i,j) .gt. 0.0 .and. tpo%now%f_grnd_acx(i,j) .lt. 1.0) then 
-!                     dyn%now%ux_b(i,j) = tpo%now%f_grnd_acx(i,j)*dyn1%now%ux_b(i,j) &
-!                                         + (1.0-tpo%now%f_grnd_acx(i,j))*dyn2%now%ux_b(i,j)
-!                     dyn%now%ux_b(i,j) = dyn1%now%ux_b(i,j)
-!                     dyn%now%ssa_mask_acx(i,j) = -1.0 
-!                 end if 
-
-!             end do 
-!             end do 
-
-!             do j = 1, ny 
-!             do i = 1, nx 
-!                 if (tpo%now%f_grnd_acy(i,j) .gt. 0.0 .and. tpo%now%f_grnd_acy(i,j) .lt. 1.0) then 
-!                     dyn%now%uy_b(i,j) = tpo%now%f_grnd_acy(i,j)*dyn1%now%uy_b(i,j) &
-!                                         + (1.0-tpo%now%f_grnd_acy(i,j))*dyn2%now%uy_b(i,j)
-!                     dyn%now%uy_b(i,j) = dyn1%now%uy_b(i,j)
-!                     dyn%now%ssa_mask_acy(i,j) = -1.0 
-!                 end if 
-
-!             end do 
-!             end do 
-! end if 
-

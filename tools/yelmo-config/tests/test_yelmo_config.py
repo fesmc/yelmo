@@ -229,6 +229,36 @@ def test_order_guard_holds():
     assert OrderConstraint("ymat", "a", "lt", "b").guard_holds({})  # unconditional
 
 
+def test_range_guard():
+    schema = make_schema()
+    schema.constraints.ranges.append(
+        RangeConstraint("ydyn", "beta_q", min=0.0, min_inclusive=False,
+                        when_name="solver", when_value="diva", note="must be > 0"))
+    base = '&yelmo\n domain="A"\n grid_name="g"\n/\n'
+    off = check(nl.parse_string(base + '&ydyn\n solver="sia"\n beta_q=-1.0\n/\n'), schema)
+    assert off.ok                                   # guard fails -> not enforced
+    on = check(nl.parse_string(base + '&ydyn\n solver="diva"\n beta_q=-1.0\n/\n'), schema)
+    assert any(i.name == "beta_q" for i in on.errors)
+
+
+def test_range_any_of():
+    from yelmo_config.constraints import Interval
+    rc = RangeConstraint("ycalv", "dt_lsf", any_of=[Interval(max=0.0), Interval(min=0.01)])
+    assert not rc.violates("-1")
+    assert not rc.violates("0.0")
+    assert rc.violates("0.005")
+    assert not rc.violates("0.01")
+    assert not rc.violates("10.0")
+    # single interval unchanged
+    assert RangeConstraint("yelmo", "cfl_max", min=0.0, max=1.0, min_inclusive=False).violates("0.0")
+
+
+def test_bundled_constraints_dt_lsf():
+    from yelmo_config.constraints import load_constraints
+    rcs = [r for r in load_constraints({}).ranges if r.name == "dt_lsf"]
+    assert len(rcs) == 1 and rcs[0].violates("0.005") and not rcs[0].violates("-1")
+
+
 def test_enum_maybe_applies():
     from yelmo_config.constraints import EnumConstraint
     ec = EnumConstraint("ycalv", "m", ["a"], conditions=[("use_lsf", True)])

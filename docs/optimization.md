@@ -10,8 +10,15 @@ To compile: `make opt`
 To run:
 
 ```bash
-runme -rs -e opt -o output/test -n par/yelmo_Antarctica_opt.nml
+runme -rs -e opt -o output/test -n <par file>
 ```
+
+No parameter file for `yelmo_opt.x` is included in `par/`: it needs `&ctrl`
+(`opt_method`, `cb_ref_init_method`, `sigma_err`, `sigma_vel`, `cf_min`, `cf_max`,
+`bmb_shlf_const`, `dT_ann`, `z_sl`) and `&opt_P12` or `&opt_L21` in addition to the
+Yelmo groups. The maintained route for basal friction optimization is
+`yelmo_initmip.x` with `ctrl.equil_method = "opt"` and the `&opt` group of
+`par/yelmo_initmip.nml` (see [Benchmarks](benchmarks.md)).
 
 The program consists of the following steps:
 

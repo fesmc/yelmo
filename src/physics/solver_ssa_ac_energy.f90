@@ -6,8 +6,11 @@ module solver_ssa_ac_energy
     !
     !     E = sum_cells   N_aa (2 u_x^2 + 2 v_y^2 + 2 u_x v_y) dx dy      ! membrane
     !       + sum_corners 1/2 N_ab (u_y + v_x)^2 dx dy                   ! shear
-    !       + sum_faces   1/2 beta u^2 dx dy                             ! basal drag
+    !       + sum_faces   1/2 w beta u^2 dx dy                           ! basal drag
     !       - sum_faces   f u                                            ! driving / front work
+    !
+    ! with w = 1 at inner faces and w = 1/2 at front faces (ssa_mask = 3, 4),
+    ! where only the ice half of the face's control area has drag.
     !
     ! with (N, beta) frozen per Picard iteration, so E is quadratic in (u, v)
     ! and K is symmetric; CG can be used in place of BiCGStab.
@@ -20,7 +23,7 @@ module solver_ssa_ac_energy
     ! local Hessian over its four velocities, and each velocity is mapped to
     ! a matrix unknown before scattering:
     !
-    !   - free:      its own row (inner and front faces, ssa_mask = 1, 3, 4)
+    !   - free:      its own row (inner and front faces, ssa_mask = 1, 2, 3, 4)
     !   - Dirichlet: ssa_mask = 0 (u = 0), -1 (u prescribed) and no-slip
     !                domain edges; the column is lifted to the RHS
     !   - tied:      free-slip domain edges (u_edge = u_inner, as in the
@@ -31,19 +34,21 @@ module solver_ssa_ac_energy
     !                edge velocity, or zero (no-slip)
     !
     ! Because every term enters through a local Hessian and a linear map,
-    ! K is symmetric for any mask and boundary type. At inner faces the
-    ! result equals the residual formulation:
+    ! K is symmetric for any mask and boundary type. At inner faces
+    ! (ssa_mask = 1, 2, and 4 with half drag) the result equals the residual
+    ! formulation:
     !
     !     K_inner = - A_residual_inner * dx * dy,   b_inner = - taud_inner * dx * dy
     !
-    ! At a calving front (ssa_mask = 3) the RHS is the boundary work
-    ! +-taul_int*dy only: the front-face driving stress (taken across the
-    ! ice front) is the same front force.
+    ! At a calving front (ssa_mask = 3) the face has half drag and the RHS is
+    ! the boundary work +-taul_int*dy only: the front-face driving stress
+    ! (taken across the ice front) is the same front force. Here the residual
+    ! formulation instead imposes the stress condition as the row.
     !
     ! Each matrix row gathers its terms from the elements around its
     ! unknown(s), so rows are independent and assembled in parallel.
 
-    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal
+    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW
     use solver_linear
     use solver_ssa_ac, only : stagger_visc_aa_ab
 
@@ -63,8 +68,8 @@ module solver_ssa_ac_energy
 contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
         ! Same argument list so the two assemblers are interchangeable from the
         ! Picard loop. Assembles K (symmetric) and b such that K * [u; v] = b.
@@ -79,7 +84,6 @@ contains
         real(wp), intent(IN) :: N_aa(:,:)               ! [Pa yr m] vertically integrated viscosity (aa-nodes)
         integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] ssa solver action mask (acx-nodes)
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
-        integer,  intent(IN) :: mask_frnt(:,:)          ! [--] ice-front mask
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] driving stress (acx-nodes)
@@ -87,9 +91,7 @@ contains
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] vertically integrated lateral stress (acx-nodes)
         real(wp), intent(IN) :: taul_int_acy(:,:)       ! [Pa m] vertically integrated lateral stress (acy-nodes)
         real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] minimum allowed basal friction
         character(len=*), intent(IN) :: boundaries
-        character(len=*), intent(IN) :: lateral_bc
 
         ! Local variables
         integer  :: nx, ny, nmax
@@ -162,7 +164,7 @@ contains
 
         ! Stagger depth-integrated viscosity to ab-nodes
         allocate(N_ab(nx,ny))
-        call stagger_visc_aa_ab(N_ab,N_aa,H_ice,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,boundaries)
 
         ! ================================================================
         ! 1. Classify the unknowns and resolve tied chains to free roots
@@ -191,7 +193,7 @@ contains
                 if (depth .gt. 8) then
                     write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                         &free-slip chain does not end at a free unknown, row ", n
-                    stop "Program stopped."
+                    error stop 1
                 end if
             end do
             droot(n) = m
@@ -493,16 +495,19 @@ contains
 
                 ! Face: basal drag and driving stress, or boundary work at a front
                 mask     = ssa_mask_acx(i,j)
-                beta_now = beta_acx(i,j)
-                if (mask .eq. 1 .and. beta_acx(i,j) .eq. 0.0_wp) beta_now = beta_min
+                beta_now = beta_acx(i,j)      ! beta_min at mask 1 is set before the call
                 if (mask .eq. 3) then
                     ! Calving front: only the ice half of the face's control area has drag
                     call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
-                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0_wp) then
+                    if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .lt. 1.0_wp) then
                         bval = bval + taul_int_acx(i,j)*real(dy,dp)
                     else
                         bval = bval - taul_int_acx(i,j)*real(dy,dp)
                     end if
+                else if (mask .eq. 4) then
+                    ! Front treated as inner ssa (land margin): half drag as at mask 3
+                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
+                    bval = bval - taud_acx(i,j)*dxdy
                 else
                     call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acx(i,j)*dxdy
@@ -519,15 +524,18 @@ contains
 
                 mask     = ssa_mask_acy(i,j)
                 beta_now = beta_acy(i,j)
-                if (mask .eq. 1 .and. beta_acy(i,j) .eq. 0.0_wp) beta_now = beta_min
                 if (mask .eq. 3) then
                     ! Calving front: only the ice half of the face's control area has drag
                     call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
-                    if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(i,jp1) .lt. 1.0_wp) then
+                    if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .lt. 1.0_wp) then
                         bval = bval + taul_int_acy(i,j)*real(dx,dp)
                     else
                         bval = bval - taul_int_acy(i,j)*real(dx,dp)
                     end if
+                else if (mask .eq. 4) then
+                    ! Front treated as inner ssa (land margin): half drag as at mask 3
+                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
+                    bval = bval - taud_acy(i,j)*dxdy
                 else
                     call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acy(i,j)*dxdy
@@ -649,7 +657,7 @@ contains
             if (nb .gt. NNZ_ROW_MAX) then
                 write(io_unit_err,*) "linear_solver_matrix_ssa_ac_csr_2D_energy:: Error: &
                     &more than NNZ_ROW_MAX entries in a row."
-                stop "Program stopped."
+                error stop 1
             end if
             cols(nb) = c
             vals(nb) = v

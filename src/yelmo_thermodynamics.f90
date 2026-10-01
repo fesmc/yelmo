@@ -69,21 +69,32 @@ contains
             thrm%now%kt  = calc_thermal_conductivity(thrm%now%T_ice,bnd%c%sec_year)
         end if 
 
+        ! The thermodynamics uses the column of the dynamics: thickness
+        ! tpo%now%H_ice_dyn (H_eff in partial front cells and on the H_eff floor)
+
         ! Calculate the pressure-corrected melting point (in Kelvin)
         do k = 1, thrm%par%nz_aa  
-            thrm%now%T_pmp(:,:,k) = calc_T_pmp(tpo%now%H_ice,thrm%par%z%zeta_aa(k), &
+            thrm%now%T_pmp(:,:,k) = calc_T_pmp(tpo%now%H_ice_dyn,thrm%par%z%zeta_aa(k), &
                                         bnd%c%T0,bnd%c%T_pmp_beta,bnd%c%rho_ice,bnd%c%g)
         end do 
 
         ! === Calculate heat source terms (Yelmo vertical grid) === 
 
         select case(thrm%par%qb_method)
-            case(1)     ! "aa" == simple stagger to aa-nodes directly
+            case(1)   ! "faces" == taub*u formed on the acx/acy faces, averaged to aa-nodes (energy-consistent)
+                ! Calculate the basal frictional heating (from face products)
+                call calc_basal_heating_faces(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
+                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
+            case(2)   ! "faces-nodes" == taub*u formed on the acx/acy faces, to quadrature nodes, averaged to aa-nodes (energy-consistent), default
+                ! Calculate the basal frictional heating (from face products at quadrature-nodes)
+                call calc_basal_heating_faces_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
+                                beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
+            case(3)     ! "aa" == simple stagger to aa-nodes directly
                 ! Calculate the basal frictional heating (from aa-nodes)
                 call calc_basal_heating_simplestagger(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
                                                     beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year, &
                                                     boundaries=thrm%par%boundaries)
-            case(2)   ! "nodes" == Gaussian quadrature to aa-node, default and best choice
+            case(4)   ! "nodes" == Gaussian quadrature to aa-node
                 ! Calculate the basal frictional heating (from quadrature-nodes)
                 call calc_basal_heating_nodes(thrm%now%Q_b,dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy,tpo%now%f_ice, &
                                 beta1=thrm%par%dt_beta(1),beta2=thrm%par%dt_beta(2),sec_year=bnd%c%sec_year,boundaries=thrm%par%boundaries)
@@ -97,7 +108,7 @@ contains
             ! Calculate strain heating from SIA approximation
 
             call calc_strain_heating_sia(thrm%now%Q_strn,dyn%now%ux,dyn%now%uy,tpo%now%dzsdx,tpo%now%dzsdy, &
-                                      thrm%now%cp,tpo%now%H_ice,bnd%c%rho_ice,bnd%c%g,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac, &
+                                      thrm%now%cp,tpo%now%H_ice_dyn,bnd%c%rho_ice,bnd%c%g,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac, &
                                       thrm%par%dt_beta(1),thrm%par%dt_beta(2))
         
         else
@@ -110,7 +121,7 @@ contains
         
         ! Diagnose rate of change of strain heating w.r.t. temperature (dQsdT)
         if (calculate_Q_strn_derivative) then
-            call calc_strain_heating_temp_derivative(thrm%now%dQsdT,thrm%now%Q_strn,thrm%now%T_ice,thrm%now%cp,tpo%now%H_ice,tpo%now%f_ice, &
+            call calc_strain_heating_temp_derivative(thrm%now%dQsdT,thrm%now%Q_strn,thrm%now%T_ice,thrm%now%cp,tpo%now%H_ice_dyn,tpo%now%f_ice, &
                                                         thrm%par%z%zeta_aa,bnd%c%rho_ice,thrm%par%dx,thrm%par%dy,thrm%par%boundaries)
         else
             thrm%now%dQsdT = 0.0
@@ -141,15 +152,15 @@ contains
                     if (trim(thrm%par%method) .eq. "enth") then 
 
                         ! Calculate the explicit horizontal advection term using enthalpy from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%enth,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
 
                     else
 
                         ! Calculate the explicit horizontal advection term using temperature from previous timestep
-                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice,tpo%now%z_srf, &
-                                            dyn%now%ux,dyn%now%uy,thrm%par%z%zeta_aa,thrm%par%dx,dt,thrm%par%advecxy_order, &
+                        call calc_advec_horizontal_3D(thrm%now%advecxy,thrm%now%T_ice,tpo%now%H_ice, &
+                                            dyn%now%ux,dyn%now%uy,thrm%par%dx,dt,thrm%par%advecxy_order, &
                                             thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries)
                     
                     end if 
@@ -175,10 +186,10 @@ contains
                     call calc_ytherm_enthalpy_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%bmb_grnd, &
                                 thrm%now%Q_ice_b,thrm%now%H_cts,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt,thrm%now%advecxy, &
                                 dyn%now%ux,dyn%now%uy,dyn%now%uz_star,thrm%now%Q_strn,thrm%now%Q_b,thrm%now%Q_rock,bnd%T_srf, &
-                                tpo%now%H_ice,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
+                                tpo%now%H_ice_dyn,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%dx,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
+                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
                                 thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
                                 thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp)
 
@@ -188,7 +199,7 @@ contains
                     ! Use Robin solution for ice temperature
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,hyd%now%W_til,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral)
 
@@ -197,7 +208,7 @@ contains
                     ! to ensure cold ice at the base
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice,hyd%now%W_til,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral)
 
@@ -205,7 +216,7 @@ contains
                     ! Use linear solution for ice temperature
 
                     ! Calculate the ice temperature (eventually water content and enthalpy too)
-                    call define_temp_linear_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%cp,tpo%now%H_ice,bnd%T_srf,thrm%par%z%zeta_aa, &
+                    call define_temp_linear_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%cp,tpo%now%H_ice_dyn,bnd%T_srf,thrm%par%z%zeta_aa, &
                                         bnd%c%T0,bnd%c%rho_ice,bnd%c%L_ice,bnd%c%T_pmp_beta,bnd%c%g,enth_integral=thrm%par%enth_integral)
 
                 case("fixed") 
@@ -214,7 +225,7 @@ contains
                 case DEFAULT 
 
                     write(*,*) "ytherm:: Error: thermodynamics option not recognized: method = ", trim(thrm%par%method)
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -242,7 +253,7 @@ contains
 
                     call calc_ytherm_temp_bedrock_3D(thrm%now%T_rock,thrm%now%Q_rock, &
                                     thrm%now%T_ice(:,:,1),thrm%now%T_pmp(:,:,1),thrm%par%rhoc_rock,thrm%par%kt_rock, &
-                                    thrm%par%H_rock,tpo%now%H_ice,tpo%now%H_grnd,thrm%now%Q_ice_b,bnd%Q_geo, &
+                                    thrm%par%H_rock,tpo%now%H_ice_dyn,tpo%now%H_grnd,thrm%now%Q_ice_b,bnd%Q_geo, &
                                     thrm%par%zr%zeta_aa,thrm%par%zr%zeta_ac,thrm%par%zr%dzeta_a,thrm%par%zr%dzeta_b, &
                                     bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%T0,bnd%c%sec_year,dt)
 
@@ -283,11 +294,15 @@ contains
     end subroutine calc_ytherm
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
-                                        T_srf,H_ice,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,dx,solver,solver_advec,enth_integral, &
+                                        T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
                                         boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
-        ! which are solved independently by calling calc_enth_column
+        ! which are solved independently by calling calc_enth_column.
+        ! The column is that of the dynamics (thickness H_ice_dyn, paired with
+        ! uz_star). It is solved in fully ice-covered cells (f_ice == 1) thicker
+        ! than H_ice_thin; partial front cells get a linear profile and are then
+        ! filled from their fully ice-covered neighbours.
 
         ! Note zeta=height, k=1 base, k=nz surface 
         
@@ -295,7 +310,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J m-3] Ice enthalpy
+        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J kg-1] Ice enthalpy
         real(wp), intent(INOUT) :: T_ice(:,:,:)   ! [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:,:,:)   ! [--] Ice water content
         real(wp), intent(INOUT) :: bmb_grnd(:,:)  ! [m a-1] Basal mass balance (melting is negative)
@@ -304,15 +319,15 @@ contains
         real(wp), intent(INOUT) :: T_pmp(:,:,:)   ! [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:,:,:)      ! [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:,:,:)      ! [J a-1 m-1 K-1] Heat conductivity 
-        real(wp), intent(IN)    :: advecxy(:,:,:) ! [m a-1] Horizontal x-velocity 
+        real(wp), intent(IN)    :: advecxy(:,:,:) ! [J kg-1 a-1] (enth) or [K a-1] (temp) Horizontal advection 
         real(wp), intent(IN)    :: ux(:,:,:)      ! [m a-1] Horizontal x-velocity 
         real(wp), intent(IN)    :: uy(:,:,:)      ! [m a-1] Horizontal y-velocity 
         real(wp), intent(IN)    :: uz(:,:,:)      ! [m a-1] Vertical velocity 
-        real(wp), intent(IN)    :: Q_strn(:,:,:)  ! [K a-1] Internal strain heat production in ice
+        real(wp), intent(IN)    :: Q_strn(:,:,:)  ! [J a-1 m-3] Internal strain heat production in ice
         real(wp), intent(IN)    :: Q_b(:,:)       ! [J a-1 m-2] Basal frictional heat production 
         real(wp), intent(IN)    :: Q_rock(:,:)    ! [mW m-2] Heat flux at bed surface from bedrock (like Q_geo)
         real(wp), intent(IN)    :: T_srf(:,:)     ! [K] Surface temperature 
-        real(wp), intent(IN)    :: H_ice(:,:)     ! [m] Ice thickness 
+        real(wp), intent(IN)    :: H_ice_dyn(:,:) ! [m] Active column thickness (tpo%now%H_ice_dyn)
         real(wp), intent(IN)    :: f_ice(:,:)     ! [--] Area fraction ice cover
         real(wp), intent(IN)    :: z_srf(:,:)     ! [m] Surface elevation 
         real(wp), intent(IN)    :: W_til(:,:)     ! [m] Basal till water thickness (from hyd)
@@ -332,7 +347,6 @@ contains
         real(wp), intent(IN)    :: T0
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
-        real(wp), intent(IN)    :: dx             ! [a] Horizontal grid step 
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
@@ -391,11 +405,7 @@ contains
         do j = j1, j2
         do i = i1, i2 
             
-            if (f_ice(i,j) .gt. 0.0) then 
-                H_ice_now = H_ice(i,j) / f_ice(i,j) 
-            else 
-                H_ice_now = H_ice(i,j) 
-            end if 
+            H_ice_now = H_ice_dyn(i,j)
 
             ! For floating points, calculate the approximate marine-shelf temperature 
             ! ajr, later this should come from an external model, and T_shlf would
@@ -480,7 +490,7 @@ if (.FALSE.) then
         call check_symmetry_2D(T_ice(:,:,1),"T_ice_b",i,j,"x",is_symmetric)
         
         if (.not. is_symmetric) then
-            call check_symmetry_2D(H_ice,"H_ice",i,j,"x")
+            call check_symmetry_2D(H_ice_dyn,"H_ice_dyn",i,j,"x")
             call check_symmetry_2D(f_ice,"f_ice",i,j,"x")
             call check_symmetry_2D(bmb_grnd,"bmb_grnd",i,j,"x")
             call check_symmetry_2D(Q_strn(:,:,1),"Q_strn_b",i,j,"x")
@@ -581,7 +591,7 @@ end if
             js = jmid - (j-jmid)
         else
             write(error_unit,*) "check_symmetry_2D:: Error: argument 'dir' must be 'x' or 'y'."
-            stop
+            error stop 1
         end if
 
         write(*,"(a4,a12,2f15.3,g18.6)") "sym: ", trim(varnm), var(i,j), var(is,js), abs(var(is,js)-var(i,j))
@@ -602,7 +612,7 @@ end if
                                                 H_ice,H_grnd,Q_ice_b,Q_geo,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                                 rho_ice,rho_sw,T0,sec_year,dt)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
-        ! which are solved independently by calling calc_enth_column
+        ! which are solved independently by calling calc_temp_bedrock_column
 
         ! Note zeta=height, k=1 base, k=nz surface 
         
@@ -617,7 +627,7 @@ end if
         real(wp), intent(IN)    :: rhoc_rock          ! [J m-3 K-1] Volumetric heat capacity
         real(wp), intent(IN)    :: kt_rock            ! [J a-1 m-1 K-1] Heat conductivity
         real(wp), intent(IN)    :: H_rock             ! [m] Bedrock thickness 
-        real(wp), intent(IN)    :: H_ice(:,:)         ! [m] Ice thickness 
+        real(wp), intent(IN)    :: H_ice(:,:)         ! [m] Ice column thickness (tpo%now%H_ice_dyn)
         real(wp), intent(IN)    :: H_grnd(:,:)        ! [--] Ice thickness above flotation 
         real(wp), intent(IN)    :: Q_ice_b(:,:)       ! [mW m-2] Ice base heat flux
         real(wp), intent(IN)    :: Q_geo(:,:)         ! [mW m-2] Geothermal heat flux deep in bedrock
@@ -775,25 +785,31 @@ end if
         call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
+        call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa
-            stop "Program stopped."
+            error stop 1
+        end if
+
+        if (par%qb_method .lt. 1 .or. par%qb_method .gt. 4) then
+            write(io_unit_err,*) "ytherm_par_load:: error: qb_method must be 1, 2, 3 or 4; got ", par%qb_method
+            error stop 1
         end if
 
         if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_cfl .le. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
-            stop "Program stopped."
+            error stop 1
         end if
 
         if (par%advecxy_nmax .lt. 1) then
             write(io_unit_err,*) "ytherm_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! In case of method=="temp", prescribe some parameters

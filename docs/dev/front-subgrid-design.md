@@ -1,6 +1,9 @@
 # Subgrid ice-front treatment: design proposal
 
-Status: design agreed 2026-09-28 (decisions in section 8). Nothing implemented yet.
+Status: design agreed 2026-09-28 (decisions in section 8); steps 1-7 implemented
+on dev, `front_subgrid = "marine"` is the default. Later changes (front reference
+thickness `calc_front_H_ref`, single-pass level-set trim, `H_ice_dyn = max(H_eff, H_ice)`)
+are noted in place and in CHANGELOG.md.
 
 ## 1. Problem
 
@@ -98,18 +101,20 @@ design below maps that onto Yelmo's C-grid.
 - Front-eligible cells: floating (`"floating"`) or floating + grounded below
   sea level (`"marine"`), with H > 0 and at least one ocean face (ice-free,
   `z_bed < z_sl`).
-- `H_eff` from upstream **full** edge neighbours: max of min(H, H_flot) minus
-  `ytopo.front_dHdx`·dx; diagonal neighbours (distance √2·dx) if there is no
-  full edge neighbour. Floor `ytopo.front_H_eff_min` (default 50 m), cap at
-  flotation for floating cells. For marine-grounded cells, limit the effective
-  surface as CISM option 2: `z_srf_eff` ≤ `z_srf` of the neighbour + 0.001·dx
-  and ≤ `z_srf` + 25 m (if a limit applies, recompute `H_eff` and treat the
-  cell as full).
+- `H_eff` from the interior (eligible, not front) edge neighbours: the thickest
+  one minus `ytopo.front_dHdx`·dx; diagonal neighbours (distance √2·dx) if there
+  is no interior edge neighbour (`calc_front_H_ref`). Floor
+  `ytopo.front_H_eff_min` (default 50 m). With `"floating"` only, the
+  neighbours and the front cell's `H_eff` are capped at flotation. With
+  `"marine"`, the effective surface is limited as CISM option 2: `z_srf_eff` ≤
+  `z_srf` of the neighbour + 0.001·dist and ≤ `z_srf` + 25 m. Front cells
+  without an interior neighbour keep `H_eff = H`.
 - `a_eff = min(H/H_eff, 1)`; stored as `tpo%now%H_eff` (finally filled) and
   used as `f_ice` at fronts. Everywhere else `H_eff = H`, `f_ice = 1` (or 0).
 - `f_ice_method` is retired (step 7): `a_eff = H/H_eff` in both calving paths;
   with the level set, H is trimmed to `a_lsf`·`H_ref` first (4.7).
-- `calc_H_eff` reads the stored field. The `set_frac_zero` call sites
+- `calc_H_eff` still computes H/`f_ice` (equal to the stored `H_eff` in partial
+  front cells, since `f_ice = H/H_eff` there). The `set_frac_zero` call sites
   (`calc_z_srf_max`, `calc_H_grnd`, `scale_beta_gl_zstar`) are reviewed one by
   one: surface and base use `H_eff` in partial cells; `f_grnd` from the true H
   (as CISM).
@@ -126,8 +131,8 @@ design below maps that onto Yelmo's C-grid.
   viscosity, beta, N (`hydro_calc_N` already takes `f_ice_dyn`).
 - `calc_ice_front` is computed from `f_ice_dyn`, so the partial cell is the
   front cell and the lateral BC sits on its ocean face with `H_eff`.
-- `fill_partial_ice_cells` / `fill_strain_2D_partial` become unnecessary for
-  front cells (they are solved), but stay for other partial cells.
+- `fill_partial_ice_cells` / `fill_strain_2D_partial` are removed (26fd7062):
+  partial cells carry their own strain rates and viscosity.
 
 ### 4.3 Transport and front advance
 
@@ -200,6 +205,13 @@ negative-thickness problem CISM hit with edge masks does not arise here.
   where `a_lsf` ≥ 0.1 there (`set_inactive_margins` with `a_front`), and only
   ice-free cells without an ice-covered edge neighbour are reset to lsf = 1, so
   the level set and the thickness advance together (review 2026-09-29, §1.8).
+- Front cells are exempt from the margin cap (H ≤ thickest neighbour) on both
+  paths. On the level-set path they are bounded by the trim (partial cells)
+  and by open outflow faces (full cells pass u·H to the ocean neighbour,
+  kept where the level set covers it, calved otherwise). Front cells thicker
+  than all neighbours are mostly geometry (deeper bed, partial neighbours);
+  capping them removes ice the flow brings back every step (ANT-16 5.5,
+  GRL-16 0.9 km³/yr; review 2026-10-01, TPO-8), so there is no cap.
 
 ### 4.8 Not in scope here
 

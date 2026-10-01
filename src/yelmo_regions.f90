@@ -92,7 +92,7 @@ contains
         if (trim(reg%name) .eq. "UNDEFINED") then
             write(io_unit_err,*) "yelmo_region_init:: Error: this region has not yet been allocated and defined. &
             &First, it is necessary to call yelmo_regions_init(ylmo,n) with the desired number of subregions."
-            stop
+            error stop 1
         end if
         
         if (present(outfldr)) then
@@ -201,7 +201,7 @@ contains
                 write(io_unit_err,*) "yelmo_regions_write:: Error: missing time units. If initializing &
                                 &the regional output files, the time units argument 'units' must &
                                 &also be specified."
-                stop
+                error stop 1
             end if
         else
             initialize_files = .FALSE.
@@ -507,7 +507,7 @@ contains
                        &object must be provided, not both. Try again."
             write(*,*) "filename = ", trim(filename) 
             write(*,*) "time     = ", time 
-            stop 
+            error stop 1
         end if 
 
         if (present(mask)) then 

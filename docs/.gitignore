@@ -1,2 +1,4 @@
 /.quarto/
 **/*.quarto_ipynb
+# generated from ../input by _scripts/sync-variable-tables.sh (pre-render)
+/yelmo-variables-y*.md

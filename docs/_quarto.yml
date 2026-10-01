@@ -1,6 +1,7 @@
 project:
   type: website
   output-dir: _site
+  pre-render: sh _scripts/sync-variable-tables.sh   # copies ../input/yelmo-variables-*.md
   render:
     - "*.md"
     - "physics/**/*.md"
@@ -59,6 +60,7 @@ website:
           - yelmo-variables-ytopo.md
           - yelmo-variables-ydyn.md
           - yelmo-variables-ymat.md
+          - yelmo-variables-ytrc.md
           - yelmo-variables-ytherm.md
           - yelmo-variables-yhyd.md
           - yelmo-variables-ydata.md

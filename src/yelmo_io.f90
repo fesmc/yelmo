@@ -241,7 +241,7 @@ contains
             write(io_unit_err,*) "yelmo_write_var:: Error: variable not yet supported."
             write(io_unit_err,*) "variable = ", trim(varname)
             write(io_unit_err,*) "filename = ", trim(filename)
-            stop   
+            error stop 1
         end if
 
         return
@@ -405,7 +405,7 @@ contains
         end if 
 
         ! == Predictor-corrector (pc) variables ===
-        ! (these will not be read in by yelmo_restart_read, but can be useful to output for diagnostics)
+        ! (read back by yelmo_restart_read)
 
         call nc_write(filename,"pc_tau",       dom%time%pc_tau(i1:i2,j1:j2),        units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_masked",dom%time%pc_tau_masked(i1:i2,j1:j2), units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
@@ -419,7 +419,11 @@ contains
         ! for restarting with the same model trajectory and should be kept.
         
         call nc_write(filename,"pc_dt",        dom%time%pc_dt,         units="yr",  dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
-        call nc_write(filename,"pc_eta",       dom%time%pc_eta,        units="m/yr",dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
+        call nc_write(filename,"pc_eta",       dom%time%pc_eta,        units="1/yr",dim1="pc_steps",dim2="time",ncid=ncid,start=[1,n],count=[3,1],grid_mapping="")
+
+        ! Previous-call state of ybound_update_rates (z_bed_n, z_sl_n are in the ybound table)
+        call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+        call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
         ! == ytopo variables ===
         do q = 1, size(io%tpo)
@@ -718,7 +722,7 @@ contains
             case default
                 write(*,*) "yelmo_restart_load_map:: Error: unknown restart_interp_gen '" &
                             //trim(restart_interp_gen)//"'. Expected 'cdo' or 'coords'."
-                stop
+                error stop 1
 
         end select
 
@@ -742,6 +746,7 @@ contains
         ! Local variables
         integer  :: ncid, n, nx, ny
         real(wp) :: time_of_restart_file 
+        logical  :: is_continuation
 
         ! Read all yelmo data from file,
         ! in order to restart a simulation.
@@ -761,7 +766,7 @@ contains
         n = 1 
 
         ! == time variables ===
-        ! ajr: testing reading these variables too to improve restart file performance
+        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart)
         call nc_read(filename,"pc_dt",       tme%pc_dt, start=[1,n],count=[3,1],ncid=ncid)
         call nc_read(filename,"pc_eta",      tme%pc_eta,start=[1,n],count=[3,1],ncid=ncid)
         
@@ -864,6 +869,21 @@ contains
         call nc_read_interp(filename,"calv_mask",   bnd%calv_mask,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"H_ice_ref",   bnd%H_ice_ref,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"z_bed_ref",   bnd%z_bed_ref,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
+
+        ! Previous-call state of ybound_update_rates, so the first call after the
+        ! restart gives the same dz_bed_dt, dz_sl_dt as a straight run. Restored only
+        ! for a true continuation: the model time at initialisation equals the restart
+        ! file's time (tolerance 1e-3 yr, or a few ulps of the single-precision time).
+        ! Otherwise (restart used as a state at another time, or an old restart
+        ! without it) keep rates_init = .FALSE. (zero rates on the first call).
+        call nc_read(filename,"time",time_of_restart_file,start=[n],count=[1],ncid=ncid)
+        is_continuation = abs(time - time_of_restart_file) .le. max(1e-3_wp,4.0_wp*spacing(abs(time)))
+        if (is_continuation .and. nc_exists_var(filename,"bnd_rates_init")) then
+            call nc_read(filename,"bnd_rates_init", bnd%rates_init,start=[n],count=[1],ncid=ncid)
+            call nc_read(filename,"bnd_time_n",     bnd%time_n,    start=[n],count=[1],ncid=ncid)
+            call nc_read_interp(filename,"z_bed_n", bnd%z_bed_n,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+            call nc_read_interp(filename,"z_sl_n",  bnd%z_sl_n, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
         
         ! Close the netcdf file
         call nc_close(ncid)
@@ -1013,7 +1033,7 @@ contains
         ! == ymat variables ===
 
         call nc_read_interp(filename,"enh",         dom%mat%now%enh,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"enh_bnd",     dom%mat%now%enh_bnd,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
+        call nc_read_interp(filename,"enh_bnd",     dom%mat%now%enh_bnd,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"enh_bar",     dom%mat%now%enh_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"ATT",         dom%mat%now%ATT,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"ATT_bar",     dom%mat%now%ATT_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
@@ -1189,6 +1209,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("mb_resid")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_resid(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("mb_clip")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_clip(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("mb_err")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_err(i1:i2,j1:j2), &
@@ -1388,9 +1411,6 @@ contains
             case("lsf")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%lsf(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("dlsfdt")
-                call nc_write(filename,trim(v%varname),ylmo%tpo%now%dlsfdt(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("cmb_flt_x")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%cmb_flt_x(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -1404,7 +1424,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytopo:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1476,6 +1496,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("uz_b")
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%uz_b(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("uz_srf_err")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%uz_srf_err(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("uxy_b")
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%uxy_b(i1:i2,j1:j2), &
@@ -1652,7 +1675,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydyn:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1810,7 +1833,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ymat:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -1875,7 +1898,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytrc:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -1979,7 +2002,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ytherm:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2065,7 +2088,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_yhyd:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop
+                error stop 1
 
         end select
 
@@ -2156,8 +2179,11 @@ contains
             case("mask_ice")
                 call nc_write(filename,trim(v%varname),ylmo%bnd%mask_ice(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("tau_relax")
-                call nc_write(filename,trim(v%varname),ylmo%bnd%tau_relax(i1:i2,j1:j2), &
+            case("z_bed_n")
+                call nc_write(filename,trim(v%varname),ylmo%bnd%z_bed_n(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("z_sl_n")
+                call nc_write(filename,trim(v%varname),ylmo%bnd%z_sl_n(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case DEFAULT 
 
@@ -2165,7 +2191,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ybound:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2257,7 +2283,7 @@ contains
                 write(io_unit_err,*) "yelmo_write_var_io_ydata:: Error: variable not yet supported."
                 write(io_unit_err,*) "variable = ", trim(v%varname)
                 write(io_unit_err,*) "filename = ", trim(filename)
-                stop 
+                error stop 1
                 
         end select
 
@@ -2334,7 +2360,7 @@ contains
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
         call nc_write(filename,"dt_avg",ylmo%time%dt_avg,units="yr",long_name="Average timestep", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
-        call nc_write(filename,"eta_avg",ylmo%time%eta_avg,units="m a**-1",long_name="Average eta (maximum PC truncation error)", &
+        call nc_write(filename,"eta_avg",ylmo%time%eta_avg,units="a**-1",long_name="Average eta (pc error norm)", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)
         call nc_write(filename,"ssa_iter_avg",ylmo%time%ssa_iter_avg,units="",long_name="Average Picard iterations for SSA convergence", &
                       dim1="time",start=[n],count=[1],missing_value=mv,ncid=ncid)

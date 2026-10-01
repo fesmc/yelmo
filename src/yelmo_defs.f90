@@ -132,8 +132,6 @@ module yelmo_defs
         character(len=56)  :: bmb_gl_method
         integer            :: fmb_method  
         integer            :: dmb_method
-        integer            :: surf_gl_method 
-        logical            :: margin2nd
         character(len=12)  :: front_subgrid
         real(wp)           :: front_H_eff_min
         real(wp)           :: front_dHdx
@@ -186,12 +184,10 @@ module yelmo_defs
 
         ! Internal parameters 
         real(dp)           :: time 
-        real(dp)           :: time_calv
         integer            :: nx, ny
         real(wp)           :: dx, dy
         character(len=256) :: boundaries 
         
-        character(len=256) :: pc_step 
         real(wp)   :: dt_zeta, dt_beta(4)
         integer    :: pc_k 
 
@@ -225,6 +221,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)
         real(wp), allocatable :: mb_relax(:,:)
         real(wp), allocatable :: mb_resid(:,:)
+        real(wp), allocatable :: mb_clip(:,:)
         real(wp), allocatable :: smb(:,:)
         real(wp), allocatable :: bmb(:,:)
         real(wp), allocatable :: fmb(:,:)
@@ -233,6 +230,15 @@ module yelmo_defs
         real(wp), allocatable :: cmb_flt(:,:)
         real(wp), allocatable :: cmb_grnd(:,:)  
         real(wp), allocatable :: lsf(:,:)
+        ! Calving-rate diagnostics of the level set (stage-consistent output)
+        real(wp), allocatable :: cmb_flt_x(:,:)
+        real(wp), allocatable :: cmb_flt_y(:,:)
+        real(wp), allocatable :: cmb_grnd_x(:,:)
+        real(wp), allocatable :: cmb_grnd_y(:,:)
+        real(wp), allocatable :: cr_acx(:,:)
+        real(wp), allocatable :: cr_acy(:,:)
+        real(wp), allocatable :: calv_rate_flt(:,:)
+        real(wp), allocatable :: calv_rate_grnd(:,:)
 
     end type
 
@@ -243,6 +249,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)      ! Net mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable :: mb_relax(:,:)    ! Residual mass balance from boundary conditions, cleanup
         real(wp), allocatable :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable :: mb_clip(:,:)     ! Clip of negative ice thickness after transport
         real(wp), allocatable :: mb_err(:,:)      ! Residual error in mass balance accounting 
         real(wp), allocatable :: smb(:,:)         ! Net smb applied
         real(wp), allocatable :: bmb(:,:)         ! Net combined field of bmb_grnd and bmb_shlf 
@@ -274,6 +281,7 @@ module yelmo_defs
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
         real(wp), allocatable   :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable   :: mb_clip(:,:)     ! [m/a] Clip of negative ice thickness after transport (not in dHidt_dyn)
         real(wp), allocatable   :: mb_err(:,:)      ! Residual error in mass balance accounting 
 
         real(wp), allocatable   :: smb(:,:)         ! Actual smb applied [m/a]
@@ -441,7 +449,6 @@ module yelmo_defs
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc
-        real(wp)   :: ssa_beta_max          ! Maximum value of beta for which ssa should be calculated
         real(wp)   :: ssa_vel_max
         integer    :: ssa_iter_max 
         real(wp)   :: ssa_iter_rel 
@@ -497,6 +504,7 @@ module yelmo_defs
         real(wp), allocatable :: uxy(:,:,:)
         real(wp), allocatable :: uz(:,:,:)  
         real(wp), allocatable :: uz_star(:,:,:)
+        real(wp), allocatable :: uz_srf_err(:,:)    ! [m/yr] uz_star at the surface + smb (0 if consistent)
         
         real(wp), allocatable :: ux_bar(:,:) 
         real(wp), allocatable :: uy_bar(:,:)
@@ -813,7 +821,7 @@ module yelmo_defs
 
     ! ytherm state variables
     type ytherm_state_class
-        real(wp), allocatable :: enth(:,:,:)      ! [J m-3] Ice enthalpy 
+        real(wp), allocatable :: enth(:,:,:)      ! [J kg-1] Ice enthalpy 
         real(wp), allocatable :: T_ice(:,:,:)     ! [K]     Ice temp. 
         real(wp), allocatable :: omega(:,:,:)     ! [--]    Ice water content
         real(wp), allocatable :: T_pmp(:,:,:)     ! Pressure-corrected melting point
@@ -1239,7 +1247,7 @@ contains
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  value      = '", trim(value), "'"
             write(io_unit_err,*) "  allowed    = ", trim(allowed)
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1264,7 +1272,7 @@ contains
             write(io_unit_err,*) "yelmo_check_file:: Error: file not found."
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  path       = '", trim(path), "'"
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1359,7 +1367,7 @@ contains
         if (narg .ne. 1) then 
             write(*,*) "yelmo_load_command_line_args:: Error: The following &
             &argument must be provided: path_par"
-            stop 
+            error stop 1
         end if 
 
         call get_command_argument(1,path_par)
@@ -1415,7 +1423,7 @@ contains
 
             if (.not. present(time0)) then  
                 write(*,*) "yelmo_cpu_time:: Error: time0 argument is missing, but necessary."
-                stop
+                error stop 1
             end if 
             
             ! Calculate the difference between current time and time0 in [s]
@@ -1426,7 +1434,7 @@ contains
                 write(*,*) "yelmo_cpu_time:: Error: dtime cannot equal zero - check precision of timing variables, &
                             &which should be real(kind=8) to maintain precision."
                 write(*,*) "clock", time, time0, dtime  
-                stop  
+                error stop 1
             end if 
 
         end if 
@@ -1502,7 +1510,7 @@ contains
                 case DEFAULT 
                     write(*,*) "yelmo_calc_running_stats:: Error: stat not found."
                     write(*,*) "stat = ", trim(stat) 
-                    stop 
+                    error stop 1
 
             end select 
                    
