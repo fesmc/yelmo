@@ -807,7 +807,7 @@ module yelmo_defs
 
     ! ytherm state variables
     type ytherm_state_class
-        real(wp), allocatable :: enth(:,:,:)      ! [J m-3] Ice enthalpy 
+        real(wp), allocatable :: enth(:,:,:)      ! [J kg-1] Ice enthalpy 
         real(wp), allocatable :: T_ice(:,:,:)     ! [K]     Ice temp. 
         real(wp), allocatable :: omega(:,:,:)     ! [--]    Ice water content
         real(wp), allocatable :: T_pmp(:,:,:)     ! Pressure-corrected melting point

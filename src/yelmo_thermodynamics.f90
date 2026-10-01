@@ -274,7 +274,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J m-3] Ice enthalpy
+        real(wp), intent(INOUT) :: enth(:,:,:)    ! [J kg-1] Ice enthalpy
         real(wp), intent(INOUT) :: T_ice(:,:,:)   ! [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:,:,:)   ! [--] Ice water content
         real(wp), intent(INOUT) :: bmb_grnd(:,:)  ! [m a-1] Basal mass balance (melting is negative)
@@ -283,11 +283,11 @@ contains
         real(wp), intent(INOUT) :: T_pmp(:,:,:)   ! [K] Pressure melting point temp.
         real(wp), intent(IN)    :: cp(:,:,:)      ! [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:,:,:)      ! [J a-1 m-1 K-1] Heat conductivity 
-        real(wp), intent(IN)    :: advecxy(:,:,:) ! [m a-1] Horizontal x-velocity 
+        real(wp), intent(IN)    :: advecxy(:,:,:) ! [J kg-1 a-1] (enth) or [K a-1] (temp) Horizontal advection 
         real(wp), intent(IN)    :: ux(:,:,:)      ! [m a-1] Horizontal x-velocity 
         real(wp), intent(IN)    :: uy(:,:,:)      ! [m a-1] Horizontal y-velocity 
         real(wp), intent(IN)    :: uz(:,:,:)      ! [m a-1] Vertical velocity 
-        real(wp), intent(IN)    :: Q_strn(:,:,:)  ! [K a-1] Internal strain heat production in ice
+        real(wp), intent(IN)    :: Q_strn(:,:,:)  ! [J a-1 m-3] Internal strain heat production in ice
         real(wp), intent(IN)    :: Q_b(:,:)       ! [J a-1 m-2] Basal frictional heat production 
         real(wp), intent(IN)    :: Q_rock(:,:)    ! [mW m-2] Heat flux at bed surface from bedrock (like Q_geo)
         real(wp), intent(IN)    :: T_srf(:,:)     ! [K] Surface temperature 

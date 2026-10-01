@@ -1118,7 +1118,7 @@ contains
 
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy
+        real(wp), intent(OUT) :: enth(:,:,:)          ! [J kg-1] Enthalpy
         real(wp), intent(OUT) :: T_ice(:,:,:)         ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)         ! [--] Water content
         real(wp), intent(IN)  :: cp(:,:,:)            ! Heat capacity
@@ -1212,7 +1212,7 @@ contains
 
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)      ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth(:,:,:)      ! [J kg-1] Enthalpy 
         real(wp), intent(OUT) :: T_ice(:,:,:)     ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)     ! [--] Water content
         real(wp), intent(IN)  :: T_pmp(:,:,:)     ! [K] Pressure melting point temp.
@@ -1544,7 +1544,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(OUT) :: enth             ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth             ! [J kg-1] Enthalpy 
         real(wp), intent(IN)  :: temp             ! [K] Temperature 
         real(wp), intent(IN)  :: omega            ! [-] Water content (fraction)
         real(wp), intent(IN)  :: T_pmp            ! [K] Pressure melting point
@@ -1562,7 +1562,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)            ! [J m-3] Enthalpy, nz_aa nodes
+        real(wp), intent(INOUT) :: enth(:)            ! [J kg-1] Enthalpy, nz_aa nodes
         real(wp), intent(OUT)   :: temp(:)            ! [K] Temperature, nz_aa nodes  
         real(wp), intent(OUT)   :: omega(:)           ! [-] Water content (fraction), nz_aa nodes 
         real(wp), intent(IN)    :: T_pmp(:)           ! [K] Pressure melting point, nz_aa nodes 
