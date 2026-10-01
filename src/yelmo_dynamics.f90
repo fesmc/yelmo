@@ -139,7 +139,7 @@ contains
         ! Finally calculate c_bed, which is simply c_bed = f(N_eff,cb_ref)
         call calc_c_bed(dyn%now%c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
 
-        ! Sub-temperate sliding factor (beta is divided by f_slide in the solvers)
+        ! Sub-temperate sliding factor (beta is divided by f_slide in calc_beta)
         if (dyn%par%slide_T) then
             call calc_f_slide(dyn%now%f_slide,thrm%now%T_prime_b,tpo%now%f_ice_dyn,tpo%now%f_grnd, &
                                                         dyn%par%gamma_T,dyn%par%lambda_min)

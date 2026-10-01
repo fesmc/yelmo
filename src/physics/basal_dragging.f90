@@ -29,7 +29,6 @@ module basal_dragging
     public :: calc_cb_ref 
     public :: calc_c_bed 
     public :: calc_f_slide
-    public :: scale_beta_slide
     public :: calc_beta 
     public :: stagger_beta 
 
@@ -330,75 +329,7 @@ contains
 
     end subroutine calc_f_slide
 
-    subroutine scale_beta_slide(beta_acx,beta_acy,beta,f_slide,f_ice,boundaries)
-        ! Scale beta by the sliding factor, beta = beta/f_slide, on aa- and ac-nodes.
-        ! f_slide is staggered to ac-nodes (not beta), so that sliding is 
-        ! averaged across a frozen/temperate transition. At the ice margin, 
-        ! take the value of the ice-covered neighbor.
-
-        implicit none
-        
-        real(wp), intent(INOUT) :: beta_acx(:,:)   ! ac-nodes
-        real(wp), intent(INOUT) :: beta_acy(:,:)   ! ac-nodes
-        real(wp), intent(INOUT) :: beta(:,:)       ! aa-nodes
-        real(wp), intent(IN)    :: f_slide(:,:)    ! aa-nodes
-        real(wp), intent(IN)    :: f_ice(:,:)      ! aa-nodes
-        character(len=*), intent(IN) :: boundaries
-
-        ! Local variables
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        integer  :: BC
-        real(wp) :: fs_ac
-
-        nx = size(beta_acx,1)
-        ny = size(beta_acx,2) 
-
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,fs_ac)
-        do j = 1, ny 
-        do i = 1, nx
-
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            ! acx-nodes
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .lt. 1.0_wp) then 
-                fs_ac = f_slide(i,j)
-            else if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(ip1,j) .eq. 1.0_wp) then
-                fs_ac = f_slide(ip1,j)
-            else 
-                fs_ac = 0.5_wp*(f_slide(i,j)+f_slide(ip1,j))
-            end if 
-            beta_acx(i,j) = beta_acx(i,j) / fs_ac
-
-            ! acy-nodes
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .lt. 1.0_wp) then 
-                fs_ac = f_slide(i,j)
-            else if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(i,jp1) .eq. 1.0_wp) then
-                fs_ac = f_slide(i,jp1)
-            else 
-                fs_ac = 0.5_wp*(f_slide(i,j)+f_slide(i,jp1))
-            end if 
-            beta_acy(i,j) = beta_acy(i,j) / fs_ac
-
-        end do 
-        end do 
-        !$omp end parallel do
-
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, ny 
-        do i = 1, nx
-            beta(i,j) = beta(i,j) / f_slide(i,j)
-        end do 
-        end do 
-        !$omp end parallel do
-
-        return
-        
-    end subroutine scale_beta_slide
-
-    subroutine calc_beta(beta,c_bed,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,beta_method, &
+    subroutine calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,beta_method, &
                          beta_const,beta_q,beta_u0,beta_gl_scale,beta_gl_f,H_grnd_lim, &
                          beta_min,rho_ice,rho_sw,boundaries)
 
@@ -408,6 +339,7 @@ contains
         
         real(wp), intent(INOUT) :: beta(:,:) 
         real(wp), intent(IN)    :: c_bed(:,:)  
+        real(wp), intent(IN)    :: f_slide(:,:)         ! [-] Sub-temperate sliding factor (1 where not grounded ice)
         real(wp), intent(IN)    :: ux_b(:,:) 
         real(wp), intent(IN)    :: uy_b(:,:)  
         real(wp), intent(IN)    :: H_ice(:,:) 
@@ -482,7 +414,11 @@ contains
 
         end select 
 
-        ! 2. Scale beta as it approaches grounding line 
+        ! 2. Reduce sliding where the base is below the pressure melting point,
+        ! on aa-nodes before staggering, like any other spatial variation of friction
+        beta = beta / f_slide
+
+        ! 3. Scale beta as it approaches grounding line 
         select case(beta_gl_scale) 
 
             case(0) 
@@ -517,7 +453,7 @@ contains
 
         end select 
 
-        ! 3. Ensure beta==0 for purely floating ice 
+        ! 4. Ensure beta==0 for purely floating ice 
         ! Note: assume a binary f_grnd_aa, this does not affect any subgrid gl parameterization
         ! that may be applied during the staggering step.
 
