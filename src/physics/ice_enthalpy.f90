@@ -537,7 +537,8 @@ end if
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
-                                basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out)
+                                basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
+                                melt_int_out)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -582,7 +583,8 @@ end if
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy definition?
         character(len=*), intent(IN), optional :: basal_bc_method ! "wtil" (default) or "capacity"
         real(wp), intent(IN), optional :: C_cap          ! [m/a ice equiv.] Freeze-on capacity (capacity rule)
-        real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (capacity rule)
+        real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (either rule)
+        real(wp), intent(OUT), optional :: melt_int_out  ! [m/a ice equiv.] Englacial water drained to the bed (included in bmb_grnd)
         real(wp), intent(IN), optional :: cap_eps        ! [m/a ice equiv.] Capacity below which the bed counts as dry
         real(wp), intent(OUT), optional :: bmb_star_out  ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
         real(wp), intent(OUT), optional :: bc_b_out      ! [--] basal BC used: 0 not grounded, 1 held at T_pmp, 2 flux
@@ -695,9 +697,11 @@ end if
         C_now     = 0.0_wp
         Q_wat_now = 0.0_wp
         eps_now   = 0.0_wp
+        ! Water-side heat (Q_diss + Q_sens from hydrology): part of the interface
+        ! balance under either rule, zero when hydrology does not supply it.
+        if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
         if (use_capacity) then
             if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
-            if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
             if (present(cap_eps)) eps_now   = cap_eps
             if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
         end if
@@ -771,7 +775,7 @@ end if
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition
-                val_base = (Q_b_now + Q_lith_now) / kt(1) * cp_eff(1)
+                val_base = (Q_b_now + Q_lith_now + Q_wat_now) / kt(1) * cp_eff(1)
                 is_basal_flux = .TRUE.
                 
             else 
@@ -874,8 +878,8 @@ end if
 
         ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
         ! Q_b_now/Q_lith_now/Q_ice_b_now are in [J a-1 m-2]; Q_ice_b_now is positive up.
-        ! With the capacity rule, the water-side heat Q_wat_now (zero otherwise)
-        ! is part of the interface balance, and freeze-on is limited by C_now.
+        ! The water-side heat Q_wat_now is part of the interface balance; with
+        ! the capacity rule, freeze-on is also limited by C_now.
         if (f_grnd .gt. 0.0_wp) then
             if (cap_flux) then
                 ! Flux branch: all available water was frozen, by construction
@@ -899,6 +903,7 @@ end if
 
         ! Include internal melting in bmb_grnd
         bmb_grnd = bmb_grnd - melt_internal
+        if (present(melt_int_out)) melt_int_out = melt_internal
 
         ! Finally, calculate the CTS height 
         H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa,integral=use_int)

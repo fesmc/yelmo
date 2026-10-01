@@ -847,6 +847,7 @@ module yelmo_defs
         real(wp), allocatable :: bmb_grnd_star(:,:) ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
         real(wp), allocatable :: bc_b(:,:)          ! [--] basal BC used: 0 not grounded/solved, 1 held at T_pmp, 2 flux
         real(wp), allocatable :: bmb_clamp(:,:)     ! [m/a] freeze-on removed by the capacity safety clamp
+        real(wp), allocatable :: melt_int(:,:)      ! [m/a ice equiv.] englacial water drained to the bed (in bmb_grnd)
         
         real(wp), allocatable :: advecxy(:,:,:)
         

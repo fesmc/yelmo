@@ -1986,6 +1986,9 @@ contains
             case("bmb_clamp")
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%bmb_clamp(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("melt_int")
+                call nc_write(filename,trim(v%varname),ylmo%thrm%now%melt_int(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("advecxy") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%thrm%now%advecxy(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)

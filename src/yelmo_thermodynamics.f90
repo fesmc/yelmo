@@ -165,8 +165,8 @@ contains
                     
                     end if 
 
-                    ! Freeze-on capacity and water-side basal heat for the grounded
-                    ! basal boundary condition (used only when basal_bc_method="capacity").
+                    ! Freeze-on capacity (used only when basal_bc_method="capacity") and
+                    ! water-side basal heat (used under either basal BC rule).
                     ! hyd stores them in SI: C_frz [m/s ice equiv.], Q_diss/Q_sens [W m-2].
                     allocate(C_cap(nx,ny), Q_wat(nx,ny))
                     select case(trim(thrm%par%cap_source))
@@ -191,7 +191,7 @@ contains
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
                                 thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
-                                thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp)
+                                thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp,thrm%now%melt_int)
 
                     deallocate(C_cap, Q_wat)
 
@@ -296,7 +296,7 @@ contains
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                         cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
-                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp)
+                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp,melt_int)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column.
         ! The column is that of the dynamics (thickness H_ice_dyn, paired with
@@ -358,6 +358,7 @@ contains
         real(wp),         intent(OUT) :: bmb_grnd_star(:,:) ! [m/a] bmb of a base held at T_pmp (capacity rule)
         real(wp),         intent(OUT) :: bc_b(:,:)          ! [--] basal BC used: 0 not grounded/solved, 1 held at T_pmp, 2 flux
         real(wp),         intent(OUT) :: bmb_clamp(:,:)     ! [m/a] freeze-on removed by the capacity safety clamp
+        real(wp),         intent(OUT) :: melt_int(:,:)      ! [m/a ice equiv.] englacial water drained to the bed
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac  
@@ -432,7 +433,7 @@ contains
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
                             zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
                             basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps, &
-                            bmb_grnd_star(i,j),bc_b(i,j),bmb_clamp(i,j))
+                            bmb_grnd_star(i,j),bc_b(i,j),bmb_clamp(i,j),melt_int_out=melt_int(i,j))
 
                 else
 
@@ -443,6 +444,7 @@ contains
                     bmb_grnd_star(i,j) = 0.0_wp
                     bc_b(i,j)          = 0.0_wp
                     bmb_clamp(i,j)     = 0.0_wp
+                    melt_int(i,j)      = 0.0_wp
 
                 end if
 
@@ -468,6 +470,7 @@ contains
                 bmb_grnd_star(i,j) = 0.0_wp
                 bc_b(i,j)          = 0.0_wp
                 bmb_clamp(i,j)     = 0.0_wp
+                melt_int(i,j)      = 0.0_wp
 
             end if 
 
@@ -560,6 +563,7 @@ end if
         call fill_borders_2D(bmb_grnd_star,nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         call fill_borders_2D(bc_b,         nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         call fill_borders_2D(bmb_clamp,    nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
+        call fill_borders_2D(melt_int,     nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         
         return 
 
@@ -890,6 +894,7 @@ end if
         allocate(now%bmb_grnd_star(nx,ny))
         allocate(now%bc_b(nx,ny))
         allocate(now%bmb_clamp(nx,ny))
+        allocate(now%melt_int(nx,ny))
         allocate(now%T_prime_b(nx,ny))
         allocate(now%advecxy(nx,ny,nz_aa))
 
@@ -913,6 +918,7 @@ end if
         now%bmb_grnd_star = 0.0
         now%bc_b          = 0.0
         now%bmb_clamp     = 0.0
+        now%melt_int      = 0.0
         now%T_prime_b   = 0.0
 
         now%advecxy     = 0.0
@@ -947,6 +953,7 @@ end if
         if (allocated(now%bmb_grnd_star)) deallocate(now%bmb_grnd_star)
         if (allocated(now%bc_b))          deallocate(now%bc_b)
         if (allocated(now%bmb_clamp))     deallocate(now%bmb_clamp)
+        if (allocated(now%melt_int))      deallocate(now%melt_int)
         if (allocated(now%T_prime_b))   deallocate(now%T_prime_b)
 
         if (allocated(now%advecxy))     deallocate(now%advecxy)

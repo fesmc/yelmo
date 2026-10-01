@@ -480,6 +480,7 @@ contains
       case("thrm_bmb_grnd_star"); v2D = real(ylmo%thrm%now%bmb_grnd_star, c_double)
       case("thrm_bc_b");         v2D = real(ylmo%thrm%now%bc_b,         c_double)
       case("thrm_bmb_clamp");    v2D = real(ylmo%thrm%now%bmb_clamp,    c_double)
+      case("thrm_melt_int");     v2D = real(ylmo%thrm%now%melt_int,     c_double)
       case("thrm_Q_rock");       v2D = real(ylmo%thrm%now%Q_rock,       c_double)
 
       ! -----------------------------------------------------------------------

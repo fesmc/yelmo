@@ -98,8 +98,7 @@ contains
         !   dyn%now%ux_b, uy_b      ->  ux_b, uy_b (C-grid, staggered friction)
         !   dyn%now%taub            ->  taub   (prescribed-field sliding law)
         !   dyn%now%cb_ref          ->  c_till (regularized-Coulomb-field law)
-        !   i_eb = 0 for now: Yelmo's drained englacial water (melt_internal)
-        !   is not yet kept as a field.
+        !   thrm%now%melt_int       ->  i_eb   (englacial water drained to the bed)
         !
         ! K24 builds its water source from these terms (and the friction and
         ! dissipation heat it computes itself); mdot (from bmb_grnd) drives the
@@ -170,7 +169,7 @@ contains
         ! Terms of the K24 water source [W m-2]; i_eb [m/s water-equivalent].
         G    = bnd%Q_geo        * 1e-3_wp
         q_T  = thrm%now%Q_ice_b * 1e-3_wp
-        i_eb = 0.0_wp
+        i_eb = thrm%now%melt_int * (bnd%c%rho_ice / bnd%c%rho_w) / bnd%c%sec_year
 
         ! C-grid basal velocities [m/a] -> [m/s] (staggered friction).
         ux_b = dyn%now%ux_b / bnd%c%sec_year
