@@ -18,9 +18,9 @@ Then, from the directory where you want the checkout to live, install Yelmo and 
 configme install yelmo
 ```
 
-This clones Yelmo together with `fesm-utils`, configures each for your machine and compiler, links them, and builds `fesm-utils` (LIS + FFTW + utils, which can take 10-30 min). If `configme` can detect your machine from the hostname it does so, otherwise it prompts you.
+This clones Yelmo together with `fesm-utils`, `FastHydrology`, `elsa` and `tracer`, configures each for your machine and compiler, links them, and builds `fesm-utils` (LIS + FFTW + utils, which can take 10-30 min). If `configme` can detect your machine from the hostname it does so, otherwise it prompts you.
 
-The only system dependency you must install yourself is **netCDF** (see [Dependencies](#dependencies)). Everything else — LIS, FFTW, the `fesm-utils` libraries, and `runme` — is managed by `configme`.
+The only system dependency you must install yourself is **netCDF** (see [Dependencies](#dependencies)). LIS, FFTW and the Fortran packages are managed by `configme`. The `runme` command is installed separately (`pip install git+https://github.com/fesmc/runme`), and its local config is created in the checkout with `runme config init`.
 
 Once the install finishes you are ready to compile and run; see [Usage](#usage) below.
 
@@ -67,7 +67,7 @@ The Yelmo stack depends on the following libraries:
 - FFTW (ver. 3.9+)
 - ['runme' Python package (fesmc)](https://github.com/fesmc/runme)
 
-Of these, only **NetCDF** must be installed on your system beforehand. LIS, FFTW (built via `fesm-utils`) and `runme` are all managed for you by `configme`. Installation tips for netCDF can be found below.
+Of these, only **NetCDF** must be installed on your system beforehand. LIS and FFTW (built via `fesm-utils`) are managed for you by `configme`; `runme` is installed with `pip` (see [Quick start](#quick-start)). Installation tips for netCDF can be found below.
 
 ### Installing NetCDF (preferably version 4.0 or higher)
 
@@ -113,7 +113,7 @@ configme update
 
 ## Usage
 
-After `configme install yelmo` (see [Quick start](#quick-start)) you have a configured Yelmo checkout with its `Makefile`, linked libraries and `.runme/config.toml` (from `runme config init`) already in place. The steps below cover (1) compiling the code and (2) running a simulation.
+After `configme install yelmo` (see [Quick start](#quick-start)) you have a configured Yelmo checkout with its `Makefile` and linked libraries in place. Create the local runme config once with `runme config init` (writes `.runme/config.toml`). The steps below cover (1) compiling the code and (2) running a simulation.
 
 ### 1. Compile the code
 
@@ -152,7 +152,7 @@ The Makefile additionally allows you to specify debugging compiler flags with th
 ### 2. Run the model
 
 Once an executable has been created, you can run the model. This can be
-achieved via the `runme` command (installed for you by `configme`). The following steps
+achieved via the `runme` command (installed with `pip`). The following steps
 are carried out by `runme`:
 
 1. The output directory is created.
