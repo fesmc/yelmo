@@ -208,6 +208,17 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Vertical velocity at ice fronts** (review 2026-10-01). The sigma-coordinate
+  transform (`uz`, `uz_star`, Jacobian corrections) uses the gradients of the ice
+  column: at faces between ice and ice-free ocean (bed below sea level) the jump
+  to sea level is replaced by the gradient of the adjacent interior face; margins
+  to ice-free land keep their slope. Before, half of the front cliff entered the
+  basal `uz` and `uz_star` of full front cells: surface `uz_star + smb` was +6.95
+  m/yr at TROUGH-8 fronts and +9.3 m/yr at MISMIP3D fronts (now ~0), and front
+  columns were too warm (TROUGH -10.6 -> -11.8 °C). The uz quadrature, the cross
+  sigma terms of the Jacobian and the velocity-dependent beta (`beta_method` 2, 3)
+  only use velocity faces with a solution. Ice thickness: TROUGH <= 0.5 m,
+  CalvingMIP 3 m at 10 ka, MISMIP3D and EISMINT unchanged.
 - **Calving-front stress and strain at subgrid fronts** (review 2026-09-29).
   With `front_subgrid /= "none"`, `calc_ymat` built the viscosity and the calving
   stress on `f_ice` instead of the dynamics' `f_ice_dyn`/`H_ice_dyn`: partial front
