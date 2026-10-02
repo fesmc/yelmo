@@ -28,7 +28,12 @@ Some solvers already work internally in double precision:
 
 The EISMINT-moving symmetry check (`symmetry_check` in the `&ctrl` group,
 `src/yelmo_symmetry.f90`) compares the solution with its mirror images,
-normalised by the maximum ice thickness, against a tolerance of 1e-3.
+normalised by the maximum ice thickness, against the tolerance `symmetry_tol`.
+EISMINT-moving and EXPA check the final state at 1e-3. EXPF's symmetric state
+is thermomechanically unstable and shows transient symmetry-breaking bursts
+with either thermal solver, so it checks the mean over the last 20 kyr
+(`symmetry_avg_time`) at 2e-2; persistent asymmetry ("spokes", ~0.1) still
+fails.
 
 With the SIA solver the check passes in single precision. With
 `ydyn.solver = "diva"` it fails (Linf/Hmax ≈ 1.7e-3), although every DIVA
