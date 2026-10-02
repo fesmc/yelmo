@@ -7,6 +7,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`yelmo.pc_eps` default 1.0 → 0.02** (input/yelmo_defaults.nml, par/yelmo_initmip.nml).
+  With the RMS pc norm, pc_eta stays at 1e-3 - 5e-2 in GRL/ANT runs, so pc_eps >= 0.2 never
+  limited dt; 0.02 removes the 8-km outlet checkerboard (GRL-8: 0 persistent cells) and lets
+  GRL-8/GRL-4 run where pc_eps 1 was killed. Benchmark par files (<= 1e-2) are unchanged.
 - **Smooth velocity limit is the default** (`ydyn.ssa_vel_lim_method = "drag"`,
   `ssa_vel_max = 1e4` m/yr in the defaults and all par files, was a per-component
   clip at 5000 m/yr). A drag τ_c·x², x = (s − 0.8·u_max)/(0.2·u_max), acts on all free
