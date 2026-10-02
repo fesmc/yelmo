@@ -761,10 +761,14 @@ contains
         call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none")
         call yelmo_check_enum(group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, "clip|drag")
 
-        if (trim(par%ssa_vel_lim_method) .eq. "drag" .and. &
-                (par%ssa_vel_max .le. 0.0_wp .or. par%ssa_vel_lim_tau .le. 0.0_wp)) then
-            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.ssa_vel_lim_method='drag' requires ssa_vel_max > 0 and ssa_vel_lim_tau > 0; got ", &
-                                 par%ssa_vel_max, par%ssa_vel_lim_tau
+        if (par%ssa_vel_max .le. 0.0_wp) then
+            ! (also sets the kill limit in yelmo_check_kill: 2*ssa_vel_max)
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.ssa_vel_max must be > 0; got ", par%ssa_vel_max
+            error stop 1
+        end if
+        if (trim(par%ssa_vel_lim_method) .eq. "drag" .and. par%ssa_vel_lim_tau .le. 0.0_wp) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.ssa_vel_lim_method='drag' requires ssa_vel_lim_tau > 0; got ", &
+                                 par%ssa_vel_lim_tau
             error stop 1
         end if
 
