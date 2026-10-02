@@ -46,6 +46,7 @@ program test_ssa_energy_sym
 
     integer :: total_fail
     real(wp) :: ux_sol(nx,ny), uy_sol(nx,ny), tie_err
+    integer  :: cap_acx(nx,ny), cap_acy(nx,ny)
     integer :: i, j
 
     ! ---- Uniform symmetric inputs ----
@@ -127,7 +128,7 @@ program test_ssa_energy_sym
 
     ! Solve (CG) and check that tied edge velocities equal their inner roots
     call linear_solver_matrix_solve(lgs,"-i cg -p jacobi -maxiter 1000 -tol 1.0e-8 -initx_zeros false")
-    call linear_solver_save_velocity(ux_sol,uy_sol,lgs,1.0e6_wp)
+    call linear_solver_save_velocity(ux_sol,uy_sol,cap_acx,cap_acy,lgs,1.0e6_wp)
     tie_err = max( maxval(abs(ux_sol(nx,2:ny-1)-ux_sol(nx-1,2:ny-1))), &
                    maxval(abs(ux_sol(1,2:ny-1)-ux_sol(2,2:ny-1))),       &
                    maxval(abs(uy_sol(2:nx-1,ny)-uy_sol(2:nx-1,ny-1))),   &

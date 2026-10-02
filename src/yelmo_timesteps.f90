@@ -148,8 +148,12 @@ contains
     end subroutine set_pc_beta_coefficients
 
 
-    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,z_bed,z_sl,rho_ice,rho_sw,pc_eps,H_min,u_min,boundaries, &
-                                                            front_subgrid,front_H_eff_min,front_dHdx,dx)
+    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,ssa_cap_acx,ssa_cap_acy,z_bed,z_sl,rho_ice,rho_sw, &
+                                    pc_eps,H_min,u_min,boundaries,front_subgrid,front_H_eff_min,front_dHdx,dx)
+        ! Points whose truncation error is checked by the pc error norm (calc_pc_eta).
+        ! Not checked: thin or slow ice, ice margins (f_ice < 1 in the 3x3 neighborhood),
+        ! grounding-line and floating points, isolated points with high tau, and points
+        ! at the SSA velocity cap (a face clipped at ssa_vel_max) with an n_halo_cap halo.
 
         implicit none 
 
@@ -158,6 +162,8 @@ contains
         real(wp), intent(IN) :: H_ice_pred(:,:) 
         real(wp), intent(IN) :: H_ice_corr(:,:) 
         real(wp), intent(IN) :: uxy(:,:)          ! [m/yr] Ice speed (aa-nodes)
+        integer,  intent(IN) :: ssa_cap_acx(:,:)  ! [--] 1: ux clipped at ssa_vel_max (acx-nodes)
+        integer,  intent(IN) :: ssa_cap_acy(:,:)  ! [--] 1: uy clipped at ssa_vel_max (acy-nodes)
         real(wp), intent(IN) :: z_bed(:,:) 
         real(wp), intent(IN) :: z_sl(:,:) 
         real(wp), intent(IN) :: rho_ice
@@ -172,7 +178,7 @@ contains
         real(wp), intent(IN) :: dx                        ! [m]   Grid resolution
 
         ! Local variables 
-        integer :: i, j, nx, ny 
+        integer :: i, j, nx, ny, n
         integer :: im1, jm1, ip1, jp1 
         integer :: BC
 
@@ -181,6 +187,12 @@ contains
         real(wp), allocatable :: H_grnd_pred(:,:) 
         real(wp), allocatable :: H_grnd_corr(:,:) 
         real(wp), allocatable :: H_eff(:,:) 
+        logical,  allocatable :: is_cap(:,:)
+        logical,  allocatable :: is_cap_now(:,:)
+
+        ! Halo [cells] around the points at the velocity cap left out too:
+        ! 1 cell was not enough deep in the TROUGH-F17 ice-stream activation
+        integer, parameter :: n_halo_cap = 2
 
         
         nx = size(mask,1)
@@ -270,6 +282,39 @@ if (.TRUE.) then
         end do  
 
 end if 
+
+        ! Points at the SSA velocity cap: the velocity there is clipped at ssa_vel_max,
+        ! not a solution of the momentum balance, and the Picard iteration may not
+        ! converge. tau then measures the clipping, not the time truncation error,
+        ! and does not decrease with dt, also at the points next to the clipped ones.
+        if (any(ssa_cap_acx .eq. 1) .or. any(ssa_cap_acy .eq. 1)) then
+
+            allocate(is_cap(nx,ny))
+            allocate(is_cap_now(nx,ny))
+
+            ! Points with a clipped face
+            do j = 1, ny 
+            do i = 1, nx
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                is_cap(i,j) = ssa_cap_acx(i,j) .eq. 1 .or. ssa_cap_acx(im1,j) .eq. 1 .or. &
+                              ssa_cap_acy(i,j) .eq. 1 .or. ssa_cap_acy(i,jm1) .eq. 1
+            end do 
+            end do 
+
+            ! Extend by n_halo_cap points (3x3 neighborhood per pass)
+            do n = 1, n_halo_cap
+                is_cap_now = is_cap
+                do j = 1, ny 
+                do i = 1, nx
+                    call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                    is_cap(i,j) = any(is_cap_now([im1,i,ip1],[jm1,j,jp1]))
+                end do 
+                end do 
+            end do 
+
+            where (is_cap) mask = .FALSE.
+
+        end if 
 
         return 
 

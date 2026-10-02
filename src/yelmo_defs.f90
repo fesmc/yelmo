@@ -591,6 +591,8 @@ module yelmo_defs
         integer,  allocatable :: ssa_mask_acy(:,:) 
         real(wp), allocatable :: ssa_err_acx(:,:) 
         real(wp), allocatable :: ssa_err_acy(:,:) 
+        integer,  allocatable :: ssa_cap_acx(:,:)  ! [--] 1: ux clipped at ssa_vel_max in the last SSA/DIVA solve
+        integer,  allocatable :: ssa_cap_acy(:,:)  ! [--] 1: uy clipped at ssa_vel_max in the last SSA/DIVA solve
         
         type(jacobian_3D_class) :: jvel
         type(strain_3D_class)   :: strn 

@@ -427,6 +427,8 @@ contains
       ! integer SSA masks cast to double
       case("dyn_ssa_mask_acx");  v2D = real(ylmo%dyn%now%ssa_mask_acx,  c_double)
       case("dyn_ssa_mask_acy");  v2D = real(ylmo%dyn%now%ssa_mask_acy,  c_double)
+      case("dyn_ssa_cap_acx");   v2D = real(ylmo%dyn%now%ssa_cap_acx,   c_double)
+      case("dyn_ssa_cap_acy");   v2D = real(ylmo%dyn%now%ssa_cap_acy,   c_double)
       ! strain_2D_class (dyn)
       case("dyn_strn2D_dxx");    v2D = real(ylmo%dyn%now%strn2D%dxx,    c_double)
       case("dyn_strn2D_dyy");    v2D = real(ylmo%dyn%now%strn2D%dyy,    c_double)

@@ -346,7 +346,7 @@ contains
 
                 ! Calculate eta for this timestep 
                 call set_pc_mask(pc_mask,dom%time%pc_tau,dom%tpo%now%corr%H_ice,dom%tpo%now%pred%H_ice,dom%dyn%now%uxy_bar, &
-                                dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
+                                dom%dyn%now%ssa_cap_acx,dom%dyn%now%ssa_cap_acy,dom%bnd%z_bed,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw,dom%par%pc_eps, &
                                 dom%par%pc_eta_H_min,dom%par%pc_eta_u_min,dom%tpo%par%boundaries, &
                                 dom%tpo%par%front_subgrid,dom%tpo%par%front_H_eff_min,dom%tpo%par%front_dHdx,dom%tpo%par%dx)
                 eta_now = calc_pc_eta(dom%time%pc_tau,H_ice=dom%tpo%now%corr%H_ice,mask=pc_mask,frac_trim=dom%par%pc_eta_trim)

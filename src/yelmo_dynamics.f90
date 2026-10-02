@@ -178,12 +178,20 @@ contains
         !     ssa_mask_acy(:,:)   ! [-]
         !     ssa_err_acx(:,:)
         !     ssa_err_acy(:,:)
+        !     ssa_cap_acx(:,:)
+        !     ssa_cap_acy(:,:)
         ! If a given solver does not use/calculate the variable, it is set to zero. 
         ! For the rest of Yelmo, at least these variables should be populated:
         ! ux, uy, ux_bar, uy_bar, ux_b, uy_b, taub_acx, taub_acy, beta 
 
         if (abs(dt) .gt. TOL .or. (.not. dyn%par%init_state_set)) then
             ! Only solve velocity if time is advancing (important for starting from a restart file)
+
+            ! No velocity clipped at ssa_vel_max unless an SSA/DIVA solve below
+            ! sets it (so that the mask of an earlier solve cannot persist with
+            ! the fixed, SIA-only or no-SSA solutions)
+            dyn%now%ssa_cap_acx = 0
+            dyn%now%ssa_cap_acy = 0
 
             select case(dyn%par%solver)
 
@@ -438,7 +446,8 @@ contains
             
             call calc_velocity_ssa(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
                                       dyn%now%visc_eff,dyn%now%visc_eff_int,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy, &
-                                      dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%beta, &
+                                      dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%now%ssa_cap_acx,dyn%now%ssa_cap_acy, &
+                                      dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%beta, &
                                       dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy, &
                                       dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                       tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
@@ -563,7 +572,8 @@ contains
                                 dyn%now%beta_acy,dyn%now%beta_eff,dyn%now%de_eff,dyn%now%visc_eff, &
                                 dyn%now%visc_eff_int,    &
                                 dyn%now%duxdz,dyn%now%duydz,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,      &
-                                dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%c_bed, &
+                                dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%now%ssa_cap_acx,dyn%now%ssa_cap_acy, &
+                                dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%c_bed, &
                                 dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                 tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,   &
                                 tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,mat%now%ATT, &
@@ -894,6 +904,8 @@ contains
         allocate(now%ssa_mask_acy(nx,ny)) 
         allocate(now%ssa_err_acx(nx,ny)) 
         allocate(now%ssa_err_acy(nx,ny)) 
+        allocate(now%ssa_cap_acx(nx,ny)) 
+        allocate(now%ssa_cap_acy(nx,ny)) 
         
         allocate(now%jvel%dxx(nx,ny,nz_aa))
         allocate(now%jvel%dxy(nx,ny,nz_aa))
@@ -1004,6 +1016,8 @@ contains
         now%ssa_mask_acy      = 0.0 
         now%ssa_err_acx       = 0.0 
         now%ssa_err_acy       = 0.0 
+        now%ssa_cap_acx       = 0 
+        now%ssa_cap_acy       = 0 
         
         now%jvel%dxx          = 0.0
         now%jvel%dxy          = 0.0
@@ -1124,6 +1138,8 @@ contains
         if (allocated(now%ssa_mask_acy))    deallocate(now%ssa_mask_acy) 
         if (allocated(now%ssa_err_acx))     deallocate(now%ssa_err_acx) 
         if (allocated(now%ssa_err_acy))     deallocate(now%ssa_err_acy) 
+        if (allocated(now%ssa_cap_acx))     deallocate(now%ssa_cap_acx) 
+        if (allocated(now%ssa_cap_acy))     deallocate(now%ssa_cap_acy) 
 
         if (allocated(now%jvel%dxx))         deallocate(now%jvel%dxx)
         if (allocated(now%jvel%dxy))         deallocate(now%jvel%dxy)
@@ -1286,6 +1302,10 @@ contains
         call nc_write(filename,"ssa_err_acx",dyn%now%ssa_err_acx,units="1",long_name="SSA L1 error metric (x)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"ssa_err_acy",dyn%now%ssa_err_acy,units="1",long_name="SSA L1 error metric (y)", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"ssa_cap_acx",dyn%now%ssa_cap_acx,units="1",long_name="SSA velocity clipped at ssa_vel_max (x)", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"ssa_cap_acy",dyn%now%ssa_cap_acy,units="1",long_name="SSA velocity clipped at ssa_vel_max (y)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
 !         call nc_write(filename,"ux",dyn%now%ux,units="m/a",long_name="Horizontal velocity (x)", &

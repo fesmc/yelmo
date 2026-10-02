@@ -23,13 +23,15 @@ module solver_ssa_ac
 
 contains
     
-    subroutine linear_solver_save_velocity(ux,uy,lgs,ulim)
+    subroutine linear_solver_save_velocity(ux,uy,cap_acx,cap_acy,lgs,ulim)
         ! Extract velocity solution from lgs object. 
 
         implicit none 
 
         real(wp), intent(OUT) :: ux(:,:)                ! [m yr^-1] Horizontal velocity x
         real(wp), intent(OUT) :: uy(:,:)                ! [m yr^-1] Horizontal velocity y
+        integer,  intent(OUT) :: cap_acx(:,:)           ! [--] 1: ux clipped at +/-ulim, 0: otherwise
+        integer,  intent(OUT) :: cap_acy(:,:)           ! [--] 1: uy clipped at +/-ulim, 0: otherwise
         type(linear_solver_class), intent(IN) :: lgs 
         real(wp), intent(IN)    :: ulim 
 
@@ -58,8 +60,8 @@ contains
         !$omp parallel do collapse(2) private(i,j)
         do j = 1, size(ux,2)
         do i = 1, size(ux,1)
-            call limit_vel(ux(i,j),ulim)
-            call limit_vel(uy(i,j),ulim)
+            call limit_vel(ux(i,j),ulim,cap_acx(i,j))
+            call limit_vel(uy(i,j),ulim,cap_acy(i,j))
         end do
         end do
         !$omp end parallel do
@@ -1047,21 +1049,29 @@ contains
 
     end subroutine stagger_visc_aa_ab
 
-    elemental subroutine limit_vel(u,u_lim)
+    elemental subroutine limit_vel(u,u_lim,is_lim)
         ! Apply a velocity limit (for stability)
 
         implicit none 
 
         real(wp), intent(INOUT) :: u  
         real(wp), intent(IN)    :: u_lim
+        integer,  intent(OUT)   :: is_lim       ! [--] 1: u was clipped at +/-u_lim, 0: otherwise
 
         real(wp), parameter :: tol = TOL_UNDERFLOW
 
         ! Explicit comparisons (not min/max) so that a NaN passes through
-        ! unchanged and is caught by yelmo_check_kill, instead of being
-        ! silently mapped to +u_lim.
-        if (u .gt.  u_lim) u =  u_lim
-        if (u .lt. -u_lim) u = -u_lim
+        ! unchanged (is_lim = 0) and is caught by yelmo_check_kill, instead
+        ! of being silently mapped to +u_lim.
+        is_lim = 0
+        if (u .gt.  u_lim) then
+            u      = u_lim
+            is_lim = 1
+        end if
+        if (u .lt. -u_lim) then
+            u      = -u_lim
+            is_lim = 1
+        end if
 
         ! Also avoid underflow errors 
         if (abs(u) .lt. tol) u = 0.0 

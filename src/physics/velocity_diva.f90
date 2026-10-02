@@ -57,7 +57,7 @@ contains
     
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
-                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
+                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_cap_acx,ssa_cap_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
                                   f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
@@ -92,6 +92,8 @@ contains
         integer,  intent(INOUT) :: ssa_mask_acy(:,:)  ! [-]
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
+        integer,  intent(OUT)   :: ssa_cap_acx(:,:)     ! [--] 1: ux_bar clipped at ssa_vel_max in the last iteration
+        integer,  intent(OUT)   :: ssa_cap_acy(:,:)     ! [--] 1: uy_bar clipped at ssa_vel_max in the last iteration
         integer,  intent(OUT)   :: ssa_iter_now 
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
@@ -156,6 +158,10 @@ contains
         ssa_err_acx = 1.0_wp 
         ssa_err_acy = 1.0_wp 
         
+        ! No velocity clipped yet
+        ssa_cap_acx = 0
+        ssa_cap_acy = 0
+
         ! Ensure dynamically inactive cells have no velocity at 
         ! outer margins before starting iterations
         !call set_inactive_margins(ux_bar,uy_bar,f_ice,par%boundaries)
@@ -312,7 +318,7 @@ contains
             L2_norm = lgs_now%L2_rel_norm 
 
             ! Store velocity solution
-            call linear_solver_save_velocity(ux_bar,uy_bar,lgs_now,par%ssa_vel_max)
+            call linear_solver_save_velocity(ux_bar,uy_bar,ssa_cap_acx,ssa_cap_acy,lgs_now,par%ssa_vel_max)
 
             ! Apply relaxation to keep things stable
             call picard_relax_vel(ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1,rel=par%ssa_iter_rel)

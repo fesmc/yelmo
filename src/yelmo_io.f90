@@ -1635,6 +1635,12 @@ contains
             case("ssa_err_acy")
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%ssa_err_acy(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("ssa_cap_acx")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%ssa_cap_acx(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("ssa_cap_acy")
+                call nc_write(filename,trim(v%varname),ylmo%dyn%now%ssa_cap_acy(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("jvel_dxx") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%dyn%now%jvel%dxx(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)

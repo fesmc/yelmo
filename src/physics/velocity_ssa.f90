@@ -57,7 +57,7 @@ module velocity_ssa
 contains 
 
     subroutine calc_velocity_ssa(ux_b,uy_b,taub_acx,taub_acy,visc_eff,visc_eff_int,ssa_mask_acx,ssa_mask_acy, &
-                                  ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
+                                  ssa_err_acx,ssa_err_acy,ssa_cap_acx,ssa_cap_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
                                   taul_int_acx,taul_int_acy,H_ice, &
                                   f_ice,H_grnd,f_grnd,f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
@@ -75,6 +75,8 @@ contains
         integer,  intent(INOUT) :: ssa_mask_acy(:,:)  ! [-]
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
+        integer,  intent(OUT)   :: ssa_cap_acx(:,:)     ! [--] 1: ux_b clipped at ssa_vel_max in the last iteration
+        integer,  intent(OUT)   :: ssa_cap_acy(:,:)     ! [--] 1: uy_b clipped at ssa_vel_max in the last iteration
         integer,  intent(OUT)   :: ssa_iter_now 
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
@@ -158,6 +160,10 @@ contains
         ssa_err_acx = 1.0_wp 
         ssa_err_acy = 1.0_wp 
         
+        ! No velocity clipped yet
+        ssa_cap_acx = 0
+        ssa_cap_acy = 0
+
         corr_nm1 = 0.0_wp 
         corr_nm2 = 0.0_wp 
 
@@ -292,7 +298,7 @@ if (.TRUE.) then
             L2_norm = lgs_now%L2_rel_norm 
 
             ! Store velocity solution
-            call linear_solver_save_velocity(ux_b,uy_b,lgs_now,par%ssa_vel_max)
+            call linear_solver_save_velocity(ux_b,uy_b,ssa_cap_acx,ssa_cap_acy,lgs_now,par%ssa_vel_max)
 
 end if 
 
