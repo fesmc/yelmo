@@ -596,6 +596,8 @@ end if
         real(wp) :: W_til_predicted
         logical  :: use_capacity
         logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
+        logical  :: is_cold_base   ! capacity rule: base below T_pmp at the start of the step
+        real(wp), parameter :: cold_base_tol = 0.01_wp   ! [K] base counts as cold below T_pmp - this
         real(wp) :: C_now, Q_wat_now, eps_now
         real(wp) :: q_up_star, net_enth_b, bmb_star, bmb_clamp
         real(wp) :: dz
@@ -743,14 +745,21 @@ end if
                 bmb_star   = (q_up_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
                                 / (rho_ice*(L_ice - net_enth_b))             ! [m/a ice equiv.]
 
-                if (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now) then
+                ! A base below the pressure melting point cannot simply be held there:
+                ! warming it to T_pmp takes sensible heat that bmb_star does not include
+                ! (e.g. 1 mm of refrozen water warms only ~3 cm of ice by 5 K). Such a base
+                ! takes the flux branch, where any water present freezes and its latent heat
+                ! warms the base gradually; it is held at T_pmp once it gets there.
+                is_cold_base = enth(1) .lt. enth_pmp(1) - cold_base_tol*cp(1)
+
+                if (.not. is_cold_base .and. (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now)) then
                     ! The base would melt, or the water can supply the freezing:
                     ! hold the base at the pressure melting point
                     val_base = enth_pmp(1)
                     is_basal_flux = .FALSE.
                 else
-                    ! Not enough water: freeze all of it (freeze-on = C_now) and let
-                    ! the base cool. The interface balance then fixes the upward
+                    ! Cold base, or not enough water: freeze all of it (freeze-on = C_now)
+                    ! and let the base evolve under the flux condition. The interface balance then fixes the upward
                     ! conductive flux, q_up = G + Q_b + Q_wat + rho_ice*L*C.
                     val_base = (Q_b_now + Q_lith_now + Q_wat_now + rho_ice*L_ice*C_now) / kt(1) * cp_eff(1)
                     is_basal_flux = .TRUE.
