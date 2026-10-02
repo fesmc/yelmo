@@ -135,11 +135,18 @@ contains
             ! Calculate friction coefficient online, so set current friction equal to cb_tgt
             dyn%now%cb_ref = dyn%now%cb_tgt
         else if (dyn%par%till_method .eq. -1) then
-            ! cb_ref is set externally: zero friction under grounded ice
-            ! usually means it was never set.
-            if (any(dyn%now%cb_ref .le. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp &
+            ! cb_ref is set externally. Local zeros are allowed (e.g. the free-slip
+            ! centreline of SLAB-S06), but negative values, or zero everywhere under
+            ! grounded ice, mean it was not set properly.
+            if (any(dyn%now%cb_ref .lt. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp &
                                               .and. tpo%now%f_grnd .gt. 0.0_wp)) then
-                write(io_unit_err,*) "Error: calc_ydyn:: cb_ref <= 0 under grounded ice with ytill.method = -1."
+                write(io_unit_err,*) "Error: calc_ydyn:: cb_ref < 0 under grounded ice with ytill.method = -1."
+                error stop 1
+            end if
+            if (any(tpo%now%H_ice .gt. 0.0_wp .and. tpo%now%f_grnd .gt. 0.0_wp) .and. &
+                .not. any(dyn%now%cb_ref .gt. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp &
+                                                    .and. tpo%now%f_grnd .gt. 0.0_wp)) then
+                write(io_unit_err,*) "Error: calc_ydyn:: cb_ref = 0 everywhere under grounded ice with ytill.method = -1."
                 write(io_unit_err,*) "cb_ref is set externally; was it initialized?"
                 error stop 1
             end if
