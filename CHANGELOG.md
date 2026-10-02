@@ -415,6 +415,12 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **`yelmo_update` steps until `time` is reached** (`yelmo_ice.f90`). The loop ran at most
+  `nstep = ceiling((time-time_now)/dt_min)` steps, so steps shorter than `dt_min` (the last
+  steps to reach `time`, `dt_min` rounded down in `limit_adaptive_timestep`) could make the
+  call return before `time`. The loop now exits when `time` is reached; `dt_save` is replaced
+  by running counters, and the `dt_min` kill check is unchanged. EISMINT, TROUGH-F17:
+  unchanged.
 - **Courant limit of the time step on the transport velocity** (`calc_transport_velocity`,
   `yelmo_update`). The limit used `ux_bar`/`uy_bar` on all faces, including faces that
   the thickness advection closes (partial cell next to an ice-free cell that may not
