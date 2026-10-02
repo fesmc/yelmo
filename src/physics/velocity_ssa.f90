@@ -38,6 +38,7 @@ module velocity_ssa
         real(wp) :: H_grnd_lim 
         real(wp) :: beta_min                ! Minimum allowed value of beta
         real(wp) :: eps_0 
+        character(len=56) :: ssa_vel_lim_method ! "clip"
         real(wp) :: ssa_vel_max
         integer  :: ssa_iter_max 
         real(wp) :: ssa_iter_rel 
@@ -292,7 +293,12 @@ if (.TRUE.) then
             L2_norm = lgs_now%L2_rel_norm 
 
             ! Store velocity solution
-            call linear_solver_save_velocity(ux_b,uy_b,lgs_now,par%ssa_vel_max)
+            call linear_solver_save_velocity(ux_b,uy_b,lgs_now)
+
+            ! Limit the velocity
+            if (trim(par%ssa_vel_lim_method) .eq. "clip") then
+                call ssa_vel_clip(ux_b,uy_b,par%ssa_vel_max)
+            end if
 
 end if 
 

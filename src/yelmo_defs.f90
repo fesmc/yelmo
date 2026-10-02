@@ -459,6 +459,7 @@ module yelmo_defs
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc
+        character(len=56)  :: ssa_vel_lim_method   ! "clip": clip each component at ssa_vel_max
         real(wp)   :: ssa_vel_max
         integer    :: ssa_iter_max 
         real(wp)   :: ssa_iter_rel 

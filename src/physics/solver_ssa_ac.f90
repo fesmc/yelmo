@@ -16,6 +16,7 @@ module solver_ssa_ac
 
     ! Routines that make use of the linear_solver_class object defined in the module solver_linear.F90:
     public :: linear_solver_save_velocity
+    public :: ssa_vel_clip
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
     ! Helper used by alternative SSA assemblers (e.g. solver_ssa_ac_energy):
@@ -23,7 +24,7 @@ module solver_ssa_ac
 
 contains
     
-    subroutine linear_solver_save_velocity(ux,uy,lgs,ulim)
+    subroutine linear_solver_save_velocity(ux,uy,lgs)
         ! Extract velocity solution from lgs object. 
 
         implicit none 
@@ -31,10 +32,11 @@ contains
         real(wp), intent(OUT) :: ux(:,:)                ! [m yr^-1] Horizontal velocity x
         real(wp), intent(OUT) :: uy(:,:)                ! [m yr^-1] Horizontal velocity y
         type(linear_solver_class), intent(IN) :: lgs 
-        real(wp), intent(IN)    :: ulim 
 
         ! Local variables 
         integer :: i, j, n, nr 
+
+        real(wp), parameter :: tol = TOL_UNDERFLOW
 
         !$omp parallel do private(n,i,j,nr)
         do n = 1, lgs%nmax-1, 2
@@ -54,15 +56,9 @@ contains
         end do
         !$omp end parallel do
 
-        ! Limit the velocity generally =====================
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, size(ux,2)
-        do i = 1, size(ux,1)
-            call limit_vel(ux(i,j),ulim)
-            call limit_vel(uy(i,j),ulim)
-        end do
-        end do
-        !$omp end parallel do
+        ! Avoid underflow errors 
+        where (abs(ux) .lt. tol) ux = 0.0_wp 
+        where (abs(uy) .lt. tol) uy = 0.0_wp 
 
         return
 
@@ -1047,6 +1043,32 @@ contains
 
     end subroutine stagger_visc_aa_ab
 
+    subroutine ssa_vel_clip(ux,uy,u_lim)
+        ! Clip each velocity component to [-u_lim,u_lim]
+        ! (ssa_vel_lim_method="clip")
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: ux(:,:)              ! [m yr^-1] Horizontal velocity x
+        real(wp), intent(INOUT) :: uy(:,:)              ! [m yr^-1] Horizontal velocity y
+        real(wp), intent(IN)    :: u_lim                ! [m yr^-1] Velocity limit
+
+        ! Local variables 
+        integer :: i, j 
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            call limit_vel(ux(i,j),u_lim)
+            call limit_vel(uy(i,j),u_lim)
+        end do
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end subroutine ssa_vel_clip
+
     elemental subroutine limit_vel(u,u_lim)
         ! Apply a velocity limit (for stability)
 
@@ -1055,16 +1077,11 @@ contains
         real(wp), intent(INOUT) :: u  
         real(wp), intent(IN)    :: u_lim
 
-        real(wp), parameter :: tol = TOL_UNDERFLOW
-
         ! Explicit comparisons (not min/max) so that a NaN passes through
         ! unchanged and is caught by yelmo_check_kill, instead of being
         ! silently mapped to +u_lim.
         if (u .gt.  u_lim) u =  u_lim
         if (u .lt. -u_lim) u = -u_lim
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
 
         return 
 

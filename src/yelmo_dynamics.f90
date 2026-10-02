@@ -433,6 +433,7 @@ contains
             ssa_par%H_grnd_lim     = dyn%par%H_grnd_lim 
             ssa_par%beta_min       = dyn%par%beta_min
             ssa_par%eps_0          = dyn%par%eps_0  
+            ssa_par%ssa_vel_lim_method = dyn%par%ssa_vel_lim_method
             ssa_par%ssa_vel_max    = dyn%par%ssa_vel_max 
             ssa_par%ssa_iter_max   = dyn%par%ssa_iter_max 
             ssa_par%ssa_iter_rel   = dyn%par%ssa_iter_rel 
@@ -554,6 +555,7 @@ contains
         diva_par%H_grnd_lim     = dyn%par%H_grnd_lim 
         diva_par%beta_min       = dyn%par%beta_min 
         diva_par%eps_0          = dyn%par%eps_0 
+        diva_par%ssa_vel_lim_method = dyn%par%ssa_vel_lim_method
         diva_par%ssa_vel_max    = dyn%par%ssa_vel_max 
         diva_par%ssa_iter_max   = dyn%par%ssa_iter_max 
         diva_par%ssa_iter_rel   = dyn%par%ssa_iter_rel 
@@ -722,6 +724,7 @@ contains
 
         ! Apply default for ssa_solver if not set in namelist
         if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "energy"
+        call nml_read(filename,group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -753,6 +756,7 @@ contains
                               "fixed|sia|ssa|hybrid|diva|diva-noslip")
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
         call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none")
+        call yelmo_check_enum(group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, "clip")
 
         if (par%slide_T .and. (par%gamma_T .le. 0.0_wp .or. par%lambda_min .le. 0.0_wp &
                                                         .or. par%lambda_min .gt. 1.0_wp)) then
