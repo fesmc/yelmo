@@ -184,7 +184,7 @@
     ssa_lis_opt_residual    = "-i bicgsafe -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"
     ssa_lis_opt_energy      = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"
     ssa_lat_bc          = "all"
-    ssa_vel_max         = 5000.0
+    ssa_vel_max         = 10000.0
     ssa_iter_max        = 20
     ssa_iter_rel        = 0.7
     ssa_iter_conv       = 1e-2
