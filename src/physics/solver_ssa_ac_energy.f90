@@ -69,10 +69,14 @@ contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
                             N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries)
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries, &
+                            lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
         ! Same argument list so the two assemblers are interchangeable from the
         ! Picard loop. Assembles K (symmetric) and b such that K * [u; v] = b.
+        ! The optional linearised speed-limit drag (calc_vel_lim_drag) enters
+        ! every free face with the same weight as beta: k on the diagonal and
+        ! the offset r on the RHS.
 
         implicit none
 
@@ -92,6 +96,10 @@ contains
         real(wp), intent(IN) :: taul_int_acy(:,:)       ! [Pa m] vertically integrated lateral stress (acy-nodes)
         real(wp), intent(IN) :: dx, dy
         character(len=*), intent(IN) :: boundaries
+        real(wp), intent(IN), optional :: lim_k_acx(:,:)    ! [Pa yr m^-1] linearised speed-limit drag, friction (acx-nodes)
+        real(wp), intent(IN), optional :: lim_k_acy(:,:)    ! [Pa yr m^-1] linearised speed-limit drag, friction (acy-nodes)
+        real(wp), intent(IN), optional :: lim_r_acx(:,:)    ! [Pa] linearised speed-limit drag, offset (acx-nodes)
+        real(wp), intent(IN), optional :: lim_r_acy(:,:)    ! [Pa] linearised speed-limit drag, offset (acy-nodes)
 
         ! Local variables
         integer  :: nx, ny, nmax
@@ -101,6 +109,7 @@ contains
         integer  :: cols(NNZ_ROW_MAX)
         real(dp) :: vals(NNZ_ROW_MAX)
         logical  :: per_x, per_y
+        logical  :: use_lim
 
         ! Boundary conditions counterclockwise unit circle:
         ! 1: x, right border; 2: y, upper; 3: x, left; 4: y, lower
@@ -119,6 +128,9 @@ contains
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
+
+        use_lim = present(lim_k_acx) .and. present(lim_k_acy) .and. &
+                  present(lim_r_acx) .and. present(lim_r_acy)
 
         ! Initialise the lgs object if needed (n_terms=9 matches the residual assembler)
         if (.not. allocated(lgs%x_value)) then
@@ -480,7 +492,7 @@ contains
             integer  :: ci, cj
             integer  :: d(4)
             real(dp) :: H(4,4)
-            real(dp) :: beta_now
+            real(dp) :: beta_now, w_face
 
             qq = (mm+1)/2
             i  = lgs%n2i(qq)
@@ -496,20 +508,23 @@ contains
                 ! Face: basal drag and driving stress, or boundary work at a front
                 mask     = ssa_mask_acx(i,j)
                 beta_now = beta_acx(i,j)      ! beta_min at mask 1 is set before the call
+                ! Front faces (mask 3, and 4 = front treated as inner ssa):
+                ! only the ice half of the face's control area has drag
+                w_face = 1.0_dp
+                if (mask .eq. 3 .or. mask .eq. 4) w_face = 0.5_dp
+                if (use_lim) then
+                    beta_now = beta_now + lim_k_acx(i,j)
+                    bval     = bval + w_face*lim_r_acx(i,j)*dxdy
+                end if
+                call add_entry(r,w_face*beta_now*dxdy,nb,cols,vals)
                 if (mask .eq. 3) then
-                    ! Calving front: only the ice half of the face's control area has drag
-                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
+                    ! Calving front: boundary work instead of the driving stress
                     if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .lt. 1.0_wp) then
                         bval = bval + taul_int_acx(i,j)*real(dy,dp)
                     else
                         bval = bval - taul_int_acx(i,j)*real(dy,dp)
                     end if
-                else if (mask .eq. 4) then
-                    ! Front treated as inner ssa (land margin): half drag as at mask 3
-                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
-                    bval = bval - taud_acx(i,j)*dxdy
                 else
-                    call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acx(i,j)*dxdy
                 end if
 
@@ -523,21 +538,24 @@ contains
                 ! ---- uy(i,j) ----
 
                 mask     = ssa_mask_acy(i,j)
-                beta_now = beta_acy(i,j)
+                beta_now = beta_acy(i,j)      ! beta_min at mask 1 is set before the call
+                ! Front faces (mask 3, and 4 = front treated as inner ssa):
+                ! only the ice half of the face's control area has drag
+                w_face = 1.0_dp
+                if (mask .eq. 3 .or. mask .eq. 4) w_face = 0.5_dp
+                if (use_lim) then
+                    beta_now = beta_now + lim_k_acy(i,j)
+                    bval     = bval + w_face*lim_r_acy(i,j)*dxdy
+                end if
+                call add_entry(r,w_face*beta_now*dxdy,nb,cols,vals)
                 if (mask .eq. 3) then
-                    ! Calving front: only the ice half of the face's control area has drag
-                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
+                    ! Calving front: boundary work instead of the driving stress
                     if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .lt. 1.0_wp) then
                         bval = bval + taul_int_acy(i,j)*real(dx,dp)
                     else
                         bval = bval - taul_int_acy(i,j)*real(dx,dp)
                     end if
-                else if (mask .eq. 4) then
-                    ! Front treated as inner ssa (land margin): half drag as at mask 3
-                    call add_entry(r,0.5_dp*beta_now*dxdy,nb,cols,vals)
-                    bval = bval - taud_acy(i,j)*dxdy
                 else
-                    call add_entry(r,beta_now*dxdy,nb,cols,vals)
                     bval = bval - taud_acy(i,j)*dxdy
                 end if
 

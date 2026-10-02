@@ -59,7 +59,7 @@ contains
     
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
-                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
+                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
                                   f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
@@ -97,6 +97,7 @@ contains
         integer,  intent(OUT)   :: ssa_iter_now 
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
+        integer,  intent(OUT)   :: ssa_lim_n            ! Faces at the velocity limit after the last iteration (count_vel_lim_faces)
         real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
@@ -128,10 +129,10 @@ contains
         real(wp), allocatable :: uy_bar_nm1(:,:)  
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
-        real(wp), allocatable :: beta_mat_acx(:,:)    ! beta used by the matrix, incl. speed-limit drag
-        real(wp), allocatable :: beta_mat_acy(:,:)
-        real(wp), allocatable :: taud_mat_acx(:,:)    ! taud used by the matrix, incl. speed-limit drag
-        real(wp), allocatable :: taud_mat_acy(:,:)
+        real(wp), allocatable :: lim_k_acx(:,:)       ! [Pa yr m^-1] Linearised speed-limit drag, friction
+        real(wp), allocatable :: lim_k_acy(:,:)
+        real(wp), allocatable :: lim_r_acx(:,:)       ! [Pa] Linearised speed-limit drag, offset
+        real(wp), allocatable :: lim_r_acy(:,:)
         real(wp), allocatable :: F2(:,:)              ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acx(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acy(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
@@ -154,10 +155,14 @@ contains
         allocate(uy_bar_nm1(nx,ny))
         allocate(beta_eff_acx(nx,ny))
         allocate(beta_eff_acy(nx,ny))
-        allocate(beta_mat_acx(nx,ny))
-        allocate(beta_mat_acy(nx,ny))
-        allocate(taud_mat_acx(nx,ny))
-        allocate(taud_mat_acy(nx,ny))
+        allocate(lim_k_acx(nx,ny))
+        allocate(lim_k_acy(nx,ny))
+        allocate(lim_r_acx(nx,ny))
+        allocate(lim_r_acy(nx,ny))
+        lim_k_acx = 0.0_wp
+        lim_k_acy = 0.0_wp
+        lim_r_acx = 0.0_wp
+        lim_r_acy = 0.0_wp
         allocate(F2(nx,ny))
         allocate(F2_acx(nx,ny))
         allocate(F2_acy(nx,ny))
@@ -268,15 +273,11 @@ contains
             ! Friction used by the matrix (and taub): beta_min at grounded faces with beta_eff=0
             call set_beta_min_grounded(beta_eff_acx,beta_eff_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
 
-            ! Matrix friction and driving stress: add the speed-limit drag
-            ! (copies, so that taub and taud do not include it)
-            beta_mat_acx = beta_eff_acx
-            beta_mat_acy = beta_eff_acy
-            taud_mat_acx = taud_acx
-            taud_mat_acy = taud_acy
+            ! Speed-limit drag, linearised around the current iterate
+            ! (kept out of beta and taud, so that taub and taud do not include it)
             if (trim(par%ssa_vel_lim_method) .eq. "drag") then
-                call add_vel_lim_drag(beta_mat_acx,beta_mat_acy,taud_mat_acx,taud_mat_acy,ux_bar,uy_bar, &
-                                f_grnd_acx,f_grnd_acy,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                call calc_vel_lim_drag(lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy,ux_bar,uy_bar, &
+                                ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
                                 par%ssa_vel_lim_tau,par%boundaries)
             end if
 
@@ -315,14 +316,16 @@ contains
             select case(trim(par%ssa_solver))
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
-                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
+                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
+                                lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
-                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
+                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
+                                lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
             end select
 
             ! Solve linear equation
@@ -339,6 +342,10 @@ contains
             ! Limit the velocity
             if (trim(par%ssa_vel_lim_method) .eq. "clip") then
                 call ssa_vel_clip(ux_bar,uy_bar,par%ssa_vel_max)
+            else if (trim(par%ssa_solver) .ne. "energy") then
+                ! Residual assembler: the limit drag cannot act at lateral-bc
+                ! front faces (stress condition rows), clip there instead
+                call ssa_vel_clip_front(ux_bar,uy_bar,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max)
             end if
 
             ! Apply relaxation to keep things stable
@@ -378,6 +385,10 @@ contains
             if (is_converged) exit 
             
         end do 
+
+        ! Diagnostic: number of faces where the velocity limit acts
+        ssa_lim_n = count_vel_lim_faces(ux_bar,uy_bar,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                        par%ssa_vel_lim_method,par%boundaries)
 
         ! Iterations are finished, finalize calculations of 3D velocity field 
 
