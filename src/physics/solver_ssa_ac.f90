@@ -17,6 +17,7 @@ module solver_ssa_ac
     ! Routines that make use of the linear_solver_class object defined in the module solver_linear.F90:
     public :: linear_solver_save_velocity
     public :: ssa_vel_clip
+    public :: add_vel_lim_drag
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
     ! Helper used by alternative SSA assemblers (e.g. solver_ssa_ac_energy):
@@ -1068,6 +1069,119 @@ contains
         return 
 
     end subroutine ssa_vel_clip
+
+    subroutine add_vel_lim_drag(beta_acx,beta_acy,taud_acx,taud_acy, &
+                                    ux,uy,f_grnd_acx,f_grnd_acy,ssa_mask_acx,ssa_mask_acy, &
+                                    u_max,tau_c,boundaries)
+        ! Speed-limit drag (ssa_vel_lim_method="drag"). An extra basal drag
+        ! acts on grounded faces (weighted by f_grnd_ac) once the speed s
+        ! exceeds s0 = 0.8*u_max:
+        !
+        !     tau_lim(s) = tau_c * x^2,   x = max(0, (s-s0)/(u_max-s0))
+        !
+        ! so tau_lim(u_max) = tau_c, and tau_lim and its derivative vanish at s0.
+        ! The drag enters the matrix only (not taub), Newton-linearised around
+        ! the current iterate u0 for the face's own component (the cross
+        ! component interpolated to the face is held fixed):
+        !
+        !     tau_lim_x(u) ~ tau_lim_x(u0) + k*(u-u0),
+        !     k = dtau_lim_x/du_x = b*(1 - ux^2/s^2) + tau_lim'(s)*ux^2/s^2,  b = tau_lim/s
+        !
+        ! k >= 0, so the matrix stays symmetric positive definite. k is added
+        ! to the matrix friction and tau_lim_x(u0) - k*u0 to the driving stress
+        ! (the RHS of "stress - beta*u = taud"). Pass copies of beta and taud,
+        ! so that taub and the stored taud do not include the limit drag.
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: beta_acx(:,:)        ! [Pa yr m^-1] Matrix friction (acx-nodes)
+        real(wp), intent(INOUT) :: beta_acy(:,:)        ! [Pa yr m^-1] Matrix friction (acy-nodes)
+        real(wp), intent(INOUT) :: taud_acx(:,:)        ! [Pa] Matrix driving stress (acx-nodes)
+        real(wp), intent(INOUT) :: taud_acy(:,:)        ! [Pa] Matrix driving stress (acy-nodes)
+        real(wp), intent(IN)  :: ux(:,:)                ! [m yr^-1] Current velocity iterate x (acx-nodes)
+        real(wp), intent(IN)  :: uy(:,:)                ! [m yr^-1] Current velocity iterate y (acy-nodes)
+        real(wp), intent(IN)  :: f_grnd_acx(:,:)        ! [--] Grounded fraction (acx-nodes)
+        real(wp), intent(IN)  :: f_grnd_acy(:,:)        ! [--] Grounded fraction (acy-nodes)
+        integer,  intent(IN)  :: ssa_mask_acx(:,:)      ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN)  :: ssa_mask_acy(:,:)      ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN)  :: u_max                  ! [m yr^-1] Speed at which tau_lim = tau_c
+        real(wp), intent(IN)  :: tau_c                  ! [Pa] Limit drag at u_max
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, inv_du, u_cross 
+
+        real(wp), parameter :: f_s0 = 0.8_wp            ! [--] Onset of the limit drag, s0 = f_s0*u_max
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        s0     = f_s0*u_max
+        inv_du = 1.0_wp / (u_max - s0)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! acx-node: uy interpolated from the four surrounding acy-nodes
+            u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+            call lim_drag_face(beta_acx(i,j),taud_acx(i,j),ux(i,j),u_cross, &
+                                                    f_grnd_acx(i,j),ssa_mask_acx(i,j))
+
+            ! acy-node: ux interpolated from the four surrounding acx-nodes
+            u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+            call lim_drag_face(beta_acy(i,j),taud_acy(i,j),uy(i,j),u_cross, &
+                                                    f_grnd_acy(i,j),ssa_mask_acy(i,j))
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    contains
+
+        subroutine lim_drag_face(beta,taud,u,u_cross,f_grnd,mask)
+
+            implicit none
+
+            real(wp), intent(INOUT) :: beta
+            real(wp), intent(INOUT) :: taud
+            real(wp), intent(IN)  :: u
+            real(wp), intent(IN)  :: u_cross
+            real(wp), intent(IN)  :: f_grnd
+            integer,  intent(IN)  :: mask
+
+            real(wp) :: s, x, tau, dtauds, b, w, k
+
+            ! Inner ssa faces only (no lateral boundary or half-drag faces)
+            if (mask .ne. 1 .and. mask .ne. 2) return
+            if (f_grnd .le. 0.0_wp) return
+
+            s = sqrt(u*u + u_cross*u_cross)
+            if (s .le. s0) return
+
+            x      = (s-s0)*inv_du
+            tau    = f_grnd*tau_c*x*x
+            dtauds = f_grnd*2.0_wp*tau_c*x*inv_du
+            b      = tau/s
+            w      = (u/s)**2
+
+            k    = b*(1.0_wp-w) + dtauds*w
+            beta = beta + k
+            taud = taud + (b-k)*u
+
+            return
+
+        end subroutine lim_drag_face
+
+    end subroutine add_vel_lim_drag
 
     elemental subroutine limit_vel(u,u_lim)
         ! Apply a velocity limit (for stability)

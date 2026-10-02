@@ -38,7 +38,8 @@ module velocity_ssa
         real(wp) :: H_grnd_lim 
         real(wp) :: beta_min                ! Minimum allowed value of beta
         real(wp) :: eps_0 
-        character(len=56) :: ssa_vel_lim_method ! "clip"
+        character(len=56) :: ssa_vel_lim_method ! "clip" | "drag"
+        real(wp) :: ssa_vel_lim_tau         ! [Pa] Speed-limit drag at ssa_vel_max ("drag")
         real(wp) :: ssa_vel_max
         integer  :: ssa_iter_max 
         real(wp) :: ssa_iter_rel 
@@ -113,6 +114,10 @@ contains
         real(wp), allocatable :: uy_b_nm1(:,:)    
         real(wp), allocatable :: beta_ssa_acx(:,:)    ! beta used by the matrix
         real(wp), allocatable :: beta_ssa_acy(:,:)
+        real(wp), allocatable :: beta_mat_acx(:,:)    ! beta used by the matrix, incl. speed-limit drag
+        real(wp), allocatable :: beta_mat_acy(:,:)
+        real(wp), allocatable :: taud_mat_acx(:,:)    ! taud used by the matrix, incl. speed-limit drag
+        real(wp), allocatable :: taud_mat_acy(:,:)
         
         integer,  allocatable :: ssa_mask_acx_ref(:,:)
         integer,  allocatable :: ssa_mask_acy_ref(:,:)
@@ -142,6 +147,10 @@ contains
         allocate(uy_b_nm1(nx,ny))
         allocate(beta_ssa_acx(nx,ny))
         allocate(beta_ssa_acy(nx,ny))
+        allocate(beta_mat_acx(nx,ny))
+        allocate(beta_mat_acy(nx,ny))
+        allocate(taud_mat_acx(nx,ny))
+        allocate(taud_mat_acy(nx,ny))
         beta_ssa_acx = beta_acx     ! (set in each iteration below)
         beta_ssa_acy = beta_acy
         
@@ -262,6 +271,18 @@ contains
             beta_ssa_acy = beta_acy
             call set_beta_min_grounded(beta_ssa_acx,beta_ssa_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
 
+            ! Matrix friction and driving stress: add the speed-limit drag
+            ! (copies, so that taub and taud do not include it)
+            beta_mat_acx = beta_ssa_acx
+            beta_mat_acy = beta_ssa_acy
+            taud_mat_acx = taud_acx
+            taud_mat_acy = taud_acy
+            if (trim(par%ssa_vel_lim_method) .eq. "drag") then
+                call add_vel_lim_drag(beta_mat_acx,beta_mat_acy,taud_mat_acx,taud_mat_acy,ux_b,uy_b, &
+                                f_grnd_acx,f_grnd_acy,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                par%ssa_vel_lim_tau,par%boundaries)
+            end if
+
 
             ! =========================================================================================
             ! Step 2: Call the SSA solver to obtain new estimate of ux_b/uy_b
@@ -274,13 +295,13 @@ if (.TRUE.) then
             select case(trim(par%ssa_solver))
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
-                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy,  &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
-                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy,  &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
             end select
 

@@ -38,7 +38,8 @@ module velocity_diva
         real(wp) :: H_grnd_lim 
         real(wp) :: beta_min                ! Minimum allowed value of beta
         real(wp) :: eps_0 
-        character(len=56) :: ssa_vel_lim_method ! "clip"
+        character(len=56) :: ssa_vel_lim_method ! "clip" | "drag"
+        real(wp) :: ssa_vel_lim_tau         ! [Pa] Speed-limit drag at ssa_vel_max ("drag")
         real(wp) :: ssa_vel_max
         integer  :: ssa_iter_max 
         real(wp) :: ssa_iter_rel 
@@ -127,6 +128,10 @@ contains
         real(wp), allocatable :: uy_bar_nm1(:,:)  
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
+        real(wp), allocatable :: beta_mat_acx(:,:)    ! beta used by the matrix, incl. speed-limit drag
+        real(wp), allocatable :: beta_mat_acy(:,:)
+        real(wp), allocatable :: taud_mat_acx(:,:)    ! taud used by the matrix, incl. speed-limit drag
+        real(wp), allocatable :: taud_mat_acy(:,:)
         real(wp), allocatable :: F2(:,:)              ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acx(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acy(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
@@ -149,6 +154,10 @@ contains
         allocate(uy_bar_nm1(nx,ny))
         allocate(beta_eff_acx(nx,ny))
         allocate(beta_eff_acy(nx,ny))
+        allocate(beta_mat_acx(nx,ny))
+        allocate(beta_mat_acy(nx,ny))
+        allocate(taud_mat_acx(nx,ny))
+        allocate(taud_mat_acy(nx,ny))
         allocate(F2(nx,ny))
         allocate(F2_acx(nx,ny))
         allocate(F2_acy(nx,ny))
@@ -259,6 +268,18 @@ contains
             ! Friction used by the matrix (and taub): beta_min at grounded faces with beta_eff=0
             call set_beta_min_grounded(beta_eff_acx,beta_eff_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
 
+            ! Matrix friction and driving stress: add the speed-limit drag
+            ! (copies, so that taub and taud do not include it)
+            beta_mat_acx = beta_eff_acx
+            beta_mat_acy = beta_eff_acy
+            taud_mat_acx = taud_acx
+            taud_mat_acy = taud_acy
+            if (trim(par%ssa_vel_lim_method) .eq. "drag") then
+                call add_vel_lim_drag(beta_mat_acx,beta_mat_acy,taud_mat_acx,taud_mat_acy,ux_bar,uy_bar, &
+                                f_grnd_acx,f_grnd_acy,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                par%ssa_vel_lim_tau,par%boundaries)
+            end if
+
             ! Also calculate beta_eff on aa-nodes (diagnostic output only)
             call calc_beta_eff(beta_eff,beta,F2,no_slip=par%no_slip)
 
@@ -294,13 +315,13 @@ contains
             select case(trim(par%ssa_solver))
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
-                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy, &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
-                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                    call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_mat_acx,beta_mat_acy,visc_eff_int,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_mat_acx,taud_mat_acy, &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries)
             end select
 
