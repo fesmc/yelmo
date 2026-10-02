@@ -61,6 +61,8 @@ All three standalone benchmarks (**T2 cold-limit, T3 Exp A, T4 Exp B**) now pass
   margin columns:
   1. **Advection-dominated** oscillation — **fixed** by Péclet-hybrid upwinding
      of the vertical advection (Spalding 1972, as the paper prescribes).
+     (2026-10: the hybrid was later replaced by minmod-limited second-order
+     upwind, as its numerical diffusion broke the symmetry of EISMINT-2 EXPA/EXPF.)
   2. **Near-singular temperate block** — with `enth_cr = 10⁻³` the temperate-layer
      nodes (κ = cr·κ_cold) blow up to ~−10⁷ J/kg while the cold layer stays fine.
      The temperate block becomes an almost-isolated Neumann problem (near-zero

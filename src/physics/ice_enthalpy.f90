@@ -946,10 +946,10 @@ end if
         real(wp) :: fac, fac_a, fac_b, uz_aa, dz, dzeta
         real(wp) :: h1, h2, afac_a, afac_b, afac_mid
         real(wp) :: kappa_a, kappa_b, dz1, dz2
-        real(wp) :: kappa_mid, Pe, wt
-        real(wp) :: adv_lo_c, adv_hi_c, adv_mid_c
         real(wp) :: adv_lo_u, adv_hi_u, adv_mid_u
-        real(wp), allocatable :: subd(:)      ! nz_aa 
+        real(wp) :: e_lo, e_hi, dedz_1, dedz_2
+        real(wp), allocatable :: z_aa(:)      ! nz_aa [m] height of aa-nodes
+        real(wp), allocatable :: subd(:)      ! nz_aa
         real(wp), allocatable :: diag(:)      ! nz_aa  
         real(wp), allocatable :: supd(:)      ! nz_aa 
         real(wp), allocatable :: rhs(:)       ! nz_aa 
@@ -962,15 +962,18 @@ end if
         allocate(supd(nz_aa))
         allocate(rhs(nz_aa))
         allocate(solution(nz_aa))
+        allocate(z_aa(nz_aa))
+
+        z_aa = thickness*zeta_aa
 
         ! == Ice base ==
 
-        if (is_basal_flux) then 
+        if (is_basal_flux) then
             ! Impose basal flux (Neumann condition)
 
             ! Calculate dz for the bottom layer between the basal boundary
             ! (ac-node) and the centered (aa-node) temperature point above
-            ! Note: zeta_aa(1) == zeta_ac(1) == bottom boundary 
+            ! Note: zeta_aa(1) == zeta_ac(1) == bottom boundary
             dz = thickness * (zeta_aa(2) - zeta_aa(1))
 
             ! backward Euler flux basal boundary condition
@@ -978,7 +981,7 @@ end if
             diag(1) =  1.0_wp
             supd(1) = -1.0_wp
             rhs(1)  = val_base * dz
-                
+
         else if (k_cts .ge. 2 .and. .not. basal_freezing) then
             ! Grounded temperate base: the layer above is also temperate (water likely
             ! present), so set K0 dE/dz = 0 by holding basal enthalpy equal to the layer
@@ -1061,43 +1064,43 @@ end if
             ! Get implicit vertical advection term, ac => aa nodes
             uz_aa   = 0.5*(uz(k)+uz(k+1))
 
-            ! Vertical advection: blend the second-order centered scheme with a
-            ! first-order upwind scheme according to the local cell Peclet number,
-            ! following the hybrid scheme of Spalding (1972) used by Kleiner et al.
-            ! (2015) for the advection-dominated transport in the temperate ice
-            ! layer. wt = 0 (pure centered, second-order accurate) where diffusion
-            ! dominates (Pe <= 2); wt -> 1 (pure upwind, stable) as Pe -> inf, i.e.
-            ! in the low-diffusivity temperate limit where centered differences
-            ! oscillate. This preserves the centered solution wherever it is stable.
-            dz      = thickness * (zeta_aa(k+1)-zeta_aa(k-1))   ! centered (2-layer) span
+            ! Vertical advection: second-order upwind with a minmod limiter, in
+            ! deferred-correction form. The matrix holds implicit first-order upwind
+            ! (dedz_1); the rhs adds the explicit difference between the limited
+            ! second-order upwind gradient (dedz_2) and dedz_1, both from the
+            ! start-of-step enthalpy. Where the profile is smooth this removes the
+            ! first-order numerical diffusion |uz|*dz/2; at extrema (e.g. the CTS)
+            ! the limiter falls back to first-order upwind, so the scheme stays
+            ! monotone. The numerical diffusion of first-order upwind (or of a
+            ! Peclet blend towards it) strengthened the thermomechanical feedback
+            ! enough to break the radial symmetry of EISMINT-2 EXPA/EXPF.
             dz1     = thickness * (zeta_aa(k)  -zeta_aa(k-1))   ! lower layer (upwind, uz>0)
             dz2     = thickness * (zeta_aa(k+1)-zeta_aa(k))     ! upper layer (upwind, uz<0)
-
-            kappa_mid = 0.5_wp*(kappa_a+kappa_b)
-            Pe        = abs(uz_aa)*dz / max(kappa_mid,1e-12_wp)
-            wt        = max(0.0_wp, 1.0_wp - 2.0_wp/max(Pe,1e-12_wp))
-
-            ! Centered advection contributions (coeff of enth(k-1), enth(k+1), enth(k))
-            adv_lo_c  = -uz_aa*dt/dz
-            adv_hi_c  = +uz_aa*dt/dz
-            adv_mid_c =  0.0_wp
 
             ! First-order upwind advection contributions (one-sided, sign of uz)
             if (uz_aa .ge. 0.0_wp) then
                 adv_lo_u  = -uz_aa*dt/dz1
                 adv_hi_u  =  0.0_wp
                 adv_mid_u = +uz_aa*dt/dz1
+                dedz_1    = (enth(k) - enth(k-1)) / dz1
             else
                 adv_lo_u  =  0.0_wp
                 adv_hi_u  = +uz_aa*dt/dz2
                 adv_mid_u = -uz_aa*dt/dz2
+                dedz_1    = (enth(k+1) - enth(k)) / dz2
             end if
 
-            ! Assemble the tridiagonal row: diffusion + Peclet-blended advection
-            subd(k) = fac_a          + (1.0_wp-wt)*adv_lo_c  + wt*adv_lo_u
-            supd(k) = fac_b          + (1.0_wp-wt)*adv_hi_c  + wt*adv_hi_u
-            diag(k) = 1.0_wp - fac_a - fac_b + (1.0_wp-wt)*adv_mid_c + wt*adv_mid_u
-            rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k)
+            ! Limited upwind face values at the lower and upper faces of layer k
+            e_lo   = face_value_minmod(enth,z_aa,k-1,k,  thickness*zeta_ac(k),  uz_aa)
+            e_hi   = face_value_minmod(enth,z_aa,k,  k+1,thickness*zeta_ac(k+1),uz_aa)
+            dedz_2 = (e_hi - e_lo) / (thickness*(zeta_ac(k+1)-zeta_ac(k)))
+
+            ! Assemble the tridiagonal row: diffusion + implicit upwind advection
+            subd(k) = fac_a          + adv_lo_u
+            supd(k) = fac_b          + adv_hi_u
+            diag(k) = 1.0_wp - fac_a - fac_b + adv_mid_u
+            rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k) &
+                                         - dt*uz_aa*(dedz_2 - dedz_1)
 
         end do
 
@@ -1116,9 +1119,52 @@ end if
 
         enth = solution + enth_ref 
 
-        return 
+        return
 
     end subroutine calc_enth_column_internal
+
+    function face_value_minmod(var,z,ka,kb,z_face,u) result(var_face)
+        ! Upwind value of var at the face z_face between nodes ka < kb on the
+        ! nonuniform grid z, with a minmod-limited linear reconstruction from the
+        ! donor node (ka for u >= 0, kb for u < 0). The limiter compares the local
+        ! gradient across the face with the gradient upstream of the donor; with
+        ! no upstream node (column end) the donor value is used (first order).
+
+        implicit none
+
+        real(wp), intent(IN) :: var(:)
+        real(wp), intent(IN) :: z(:)
+        integer,  intent(IN) :: ka, kb
+        real(wp), intent(IN) :: z_face
+        real(wp), intent(IN) :: u
+        real(wp) :: var_face
+
+        ! Local variables
+        integer  :: kd, ku
+        real(wp) :: grad_loc, grad_up, r, phi
+
+        grad_loc = (var(kb) - var(ka)) / (z(kb) - z(ka))
+
+        if (u .ge. 0.0_wp) then
+            kd = ka
+            ku = ka - 1
+        else
+            kd = kb
+            ku = kb + 1
+        end if
+
+        phi = 0.0_wp
+        if (ku .ge. 1 .and. ku .le. size(var) .and. grad_loc .ne. 0.0_wp) then
+            grad_up = (var(kd) - var(ku)) / (z(kd) - z(ku))
+            r       = grad_up / grad_loc
+            phi     = max(0.0_wp, min(1.0_wp, r))
+        end if
+
+        var_face = var(kd) + phi*grad_loc*(z_face - z(kd))
+
+        return
+
+    end function face_value_minmod
 
     ! ========== ENTHALPY ==========================================
 
