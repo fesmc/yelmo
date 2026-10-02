@@ -276,6 +276,11 @@ end if
     end subroutine set_pc_mask
 
     function calc_pc_eta(tau,H_ice,mask,frac_trim) result(eta)
+        ! Error norm of the pc truncation error over the checked points:
+        ! the L_p norm (mean e^p)^(1/p) of the scaled errors e = tau/(a_tol + r_tol*H).
+        ! With p = 8 a localised patch of large errors sets eta almost
+        ! independently of the domain size (unlike the RMS, which dilutes it),
+        ! while all checked points still contribute (unlike the max).
 
         implicit none 
 
@@ -288,41 +293,27 @@ end if
         ! Local variables
         integer :: i, j, nx, ny
         integer :: npts, k, n_trim
-        real(wp) :: s_now
-        real(wp), allocatable :: e2(:)
+        real(wp) :: e_max
+        real(wp), allocatable :: e(:)
         real(wp), parameter :: eta_tol = 1e-8 
         real(wp), parameter :: a_tol = 1.0 ! [m]
         real(wp), parameter :: r_tol = 1e-2 ! [--] r_tol*H = [m]
-        
-if (.FALSE.) then
-        ! Calculate eta 
-        eta = maxval(abs(tau),mask=mask)
+        real(wp), parameter :: p_norm = 8.0_wp ! [--] Order of the L_p norm
 
-        ! Limit to non-zero value
-        ! Note: Limiting minimum to above eg 1e-8 is very 
-        ! important for reducing fluctuations in dt 
-        eta = max(eta,eta_tol)
-
-else
-    ! ajr: testing rmse(tau) instead of max(tau)
-    ! So far, this works, but leads to large areas of Antarctica on the coast with large tau values.
         npts = count(mask)
         if (npts .gt. 0) then 
-            ! eta = sqrt(sum(tau**2,mask=mask)/real(npts,wp))
-            ! eta = max(eta,eta_tol)
 
             nx = size(tau,1)
             ny = size(tau,2)
 
-            ! Scaled squared errors of the checked points
-            allocate(e2(npts))
+            ! Scaled errors of the checked points
+            allocate(e(npts))
             k = 0
             do i = 1, nx
             do j = 1, ny
                 if (.not. mask(i,j)) cycle
                 k = k + 1
-                s_now = a_tol + r_tol*H_ice(i,j)
-                e2(k) = (tau(i,j) / s_now)**2
+                e(k) = abs(tau(i,j)) / (a_tol + r_tol*H_ice(i,j))
             end do
             end do
 
@@ -330,11 +321,21 @@ else
             ! (eg, a flickering thin cell) cannot set the timestep alone
             n_trim = min(int(frac_trim*real(npts,wp)),npts-1)
             do k = 1, n_trim
-                e2(maxloc(e2,dim=1)) = -1.0_wp
+                e(maxloc(e,dim=1)) = -1.0_wp
             end do
 
-            eta = sqrt(sum(e2,mask=e2 .ge. 0.0_wp)/real(npts-n_trim,wp))
+            ! L_p norm, scaled by the largest error so that e^p cannot overflow
+            e_max = maxval(e)
+            if (e_max .gt. 0.0_wp) then
+                eta = e_max * (sum((e/e_max)**p_norm,mask=e .ge. 0.0_wp) &
+                                        / real(npts-n_trim,wp))**(1.0_wp/p_norm)
+            else
+                eta = 0.0_wp
+            end if
 
+            ! Limit to non-zero value
+            ! Note: Limiting minimum to above eg 1e-8 is very 
+            ! important for reducing fluctuations in dt 
             eta = max(eta,eta_tol)
 
         else    ! npts == 0
@@ -342,7 +343,6 @@ else
             eta = eta_tol
 
         end if
-end if 
 
         return 
 
@@ -1048,7 +1048,7 @@ end if
         call nc_write(filename, "dt_adv",dt_adv,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (CFL criterion)",ncid=ncid)
         
         call nc_write(filename,  "dt_pi", dt_pi,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (PI controller)",ncid=ncid)
-        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: L8 norm of pc_tau/(1 m + 0.01 H))",ncid=ncid)
         
         if (write_pc_tau_field) then 
             call nc_write(filename, "pc_tau",pc_tau,dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],units="m a**-1", &
