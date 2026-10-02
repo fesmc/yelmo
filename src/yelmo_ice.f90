@@ -1514,16 +1514,13 @@ contains
             ! (normally dynamics is called right after topo, but it needs thermodynamic information,
             ! thus here it is called after initializing ytherm and ymat variables)
 
-            ! Impose [high] beta value in case it hasn't been initialized (eg, in the case of cb_method=-1/beta_method=-1)
-            ! This will be overwritten when cb_ref/beta are calculated internally
-            if (maxval(dom%dyn%now%beta) .eq. 0.0_wp) then 
-                if (maxval(dom%dyn%now%cb_ref) .eq. 0.0_wp) then 
-                    dom%dyn%now%cb_ref = 1.0
-                end if 
-                dom%dyn%now%c_bed  = dom%dyn%now%cb_ref*1e5
-                dom%dyn%now%beta   = dom%dyn%now%c_bed
+            ! beta_method=-1 (beta imposed externally): impose a high beta value
+            ! in case it hasn't been initialized. With ytill.method=-1, cb_ref is
+            ! not given a fallback value: calc_ydyn stops if it was not set.
+            if (dom%dyn%par%beta_method .eq. -1 .and. maxval(dom%dyn%now%beta) .eq. 0.0_wp) then
+                dom%dyn%now%beta   = 1e5
             end if
-            
+
             call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time)
 
             ! No previous velocity solution exists yet, so the initial
