@@ -26,6 +26,10 @@ After that, `make <target>` and `runme ...` work the same as in the main tree.
 
 The `FastHydrology` symlink (capitalized to match the upstream repo name and
 `FASTHYDROROOT` in `config/common.mk`) is expected by every host config in
-`config/`. `libfasthydro.a` must be built separately by running
-`make fasthydro-static` inside the fasthydrology checkout — yelmo's Makefile
-does not recurse into it (same convention as `fesm-utils`).
+`config/`. yelmo's Makefile builds FastHydrology, elsa and tracer itself
+(`yelmo-static` depends on `fasthydro-static`, `elsa-static`, `tracer-static`)
+and `make clean` cleans them too. `fesm-utils` is not built by yelmo: build it
+beforehand in its own checkout.
+
+All four are shared checkouts symlinked into every worktree, so `make clean`
+or a rebuild in one worktree also affects other worktrees building at the same time.
