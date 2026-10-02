@@ -7,6 +7,20 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Smooth velocity limit is the default** (`ydyn.ssa_vel_lim_method = "drag"`,
+  `ssa_vel_max = 1e4` m/yr in the defaults and all par files, was a per-component
+  clip at 5000 m/yr). A drag τ_c·x², x = (s − 0.8·u_max)/(0.2·u_max), acts on grounded
+  faces above 0.8·u_max; it is Newton-linearised in the matrix and does not enter
+  τ_b or the frictional heating. The speed settles near 0.8–0.85·u_max. Floating ice
+  is no longer limited. New parameter `ssa_vel_lim_tau` (1e5 Pa, drag at u_max).
+  `"clip"` is kept. TROUGH-F17 activations (clip vs drag at 5000 m/yr, 0–8 kyr):
+  9957 steps / 1161 at dt_min → 4802 / 5, Picard at `ssa_iter_max` in about 50 % of
+  activation solves → 0 %. Runs whose speed stays below 4000 m/yr (grounded) and
+  5000 m/yr (floating) are unchanged; faster runs change. Details:
+  `docs/physics/momentum/solvers.md`, scripts in `analysis/vel-lim/`.
+- **`yelmo_check_kill` velocity limit is 2·`ssa_vel_max`** (was a fixed 1e4 m/yr);
+  `ssa_vel_max` must be > 0.
+
 - **Capacity basal boundary condition is the default** (`ytherm.basal_bc_method =
   "capacity"`); the till-water rule `"wtil"` still works but is deprecated. A grounded
   base is held at the pressure melting point if the freezing it needs is at most the

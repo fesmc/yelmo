@@ -1806,7 +1806,7 @@ contains
         character(len=3) :: pc_iter_str(10) 
 
         real(wp), parameter :: H_lim = 1e4   ! [m] 
-        real(wp), parameter :: u_lim = 1e4   ! [m/a]
+        real(wp) :: u_lim                    ! [m/a]
 
         kill_it_H    = .FALSE.
         kill_it_vel  = .FALSE.
@@ -1829,6 +1829,8 @@ contains
             kill_it_H = .TRUE. 
             kill_msg  = "Ice thickness too high."
         end if 
+
+        u_lim = 2.0_wp*dom%dyn%par%ssa_vel_max
 
         if ( maxval(abs(dom%dyn%now%uxy_bar)) .ge. u_lim ) then 
             kill_it_vel = .TRUE. 
