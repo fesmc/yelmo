@@ -14,9 +14,11 @@
     period       = 0.0                  ! [yr] for transient experiments (normally 0.0 yr or 20e3 yr)
     dT_test      = 0.0                  ! [K]  to test an imposed constant temperature anomaly
 
-    ! Regression gate: check final H_ice symmetry at end of run (symmetric cases only)
+    ! Regression gate: check H_ice symmetry at end of run (symmetric cases only)
     ! Note: CalvingMIP exp1 could also set this once wired to the symmetry check.
-    symmetry_check = .TRUE.             ! Run end-of-run symmetry regression check?
+    symmetry_check    = .TRUE.            ! Run end-of-run symmetry regression check?
+    symmetry_tol      = 1e-3              ! [Linf/Hmax] Symmetry tolerance
+    symmetry_avg_time = 0.0               ! [yr] Check mean H_ice over last symmetry_avg_time (0: final state)
 /
 
 &yelmo
