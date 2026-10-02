@@ -248,21 +248,22 @@ floating ice.
 
 The limit is imposed through an additional drag in the linear system, so
 that each Picard iteration solves a smooth, modified momentum balance.
-On grounded faces, the limit drag is defined as a function of the face
-speed $s$:
+On every free face, the limit drag is defined as a function of the
+face speed $s$:
 
 $$
-\tau_\mathrm{lim}(s) = f_\mathrm{grnd}\,\tau_c\,x^2, \qquad
+\tau_\mathrm{lim}(s) = \tau_c\,x^2, \qquad
 x = \max\left(0, \frac{s - s_0}{u_\mathrm{max} - s_0}\right),
 $$
 
 where $\tau_c$ = `ssa_vel_lim_tau` (default $10^5$ Pa) is the drag at
-$s = u_\mathrm{max}$, $s_0 = 0.8\,u_\mathrm{max}$ is the onset speed and
-$f_\mathrm{grnd}$ is the grounded fraction of the face. Both
+$s = u_\mathrm{max}$ and $s_0 = 0.8\,u_\mathrm{max}$ is the onset speed. Both
 $\tau_\mathrm{lim}$ and its derivative vanish at $s_0$, so the solution
 below $0.8\,u_\mathrm{max}$ is identical to the unlimited one. The drag
-acts only on inner faces (`ssa_mask` = 1, 2) with $f_\mathrm{grnd} > 0$.
-Floating ice is not limited. The speed at an acx-face is computed with
+acts on all free faces (`ssa_mask` = 1–4): grounded, floating and ice-front
+faces. At front faces (`ssa_mask` = 3, 4) it has the same weight 1/2 as the
+basal friction, since only the ice half of the face's control area has
+drag. The speed at an acx-face is computed with
 $\bar v$ averaged from the four neighbouring acy-faces, and vice versa.
 
 The limit drag is Newton-linearised around the current Picard iterate
@@ -278,13 +279,26 @@ $$
 where $b = \tau_\mathrm{lim}/s$. A Picard (secant) linearisation
 $b\,\bar u$, as used for the basal friction, would oscillate for this
 steep drag. Since $k \ge 0$, adding it to the friction keeps the
-matrix symmetric positive definite. `add_vel_lim_drag` adds $k$ to a copy
-of the friction used by the matrix, and
-$\tau_{\mathrm{lim},x}(\bar u^0) - k\,\bar u^0$ to a copy of the driving
-stress. The basal stress $\tau_b$, the basal velocity and the frictional
-heating are computed from the physical friction only, so the limit drag
-does not heat the bed. Both linear solvers ("residual" and "energy") use
-the same copies, and neither assembler is changed.
+matrix symmetric positive definite. `calc_vel_lim_drag` returns $k$ and
+the offset $r = (k - b)\,\bar u^0$ per face, so that
+$\tau_{\mathrm{lim},x} \approx k\,\bar u - r$. The assemblers add $k$ to
+the matrix friction and $r$ to the right-hand side, with the face weight
+of the friction. The basal stress $\tau_b$, the basal velocity and the
+frictional heating are computed from the physical friction only, so the
+limit drag does not heat the bed. In the "residual" assembler, the rows
+of lateral-bc front faces (`ssa_mask` = 3) impose the front stress
+condition and have no drag term. There, the velocity is clipped to
+$[-u_\mathrm{max}, u_\mathrm{max}]$ after each solve instead
+(`ssa_vel_clip_front`).
+
+The front faces need the limit as much as the grounded interior. At
+coarse resolution, thick front cells can be driven to runaway speeds:
+thick, barely floating front cells after the aggregation of BedMachine
+to 32 km (ANT-32, about 24 000 m/yr at t = 0), and a grounded cliff with
+about 800 m freeboard at the Helheim front (GRL-8, 40 000 m/yr) or at
+Jakobshavn (GRL-4). These runs were killed when the drag acted on
+grounded inner faces only (the 5000 m/yr clip of Yelmo v1 had applied
+everywhere).
 
 Note that the speed settles near $0.8$–$0.85\,u_\mathrm{max}$, not at
 $u_\mathrm{max}$, since a small drag (about 10 kPa in TROUGH-F17) is
