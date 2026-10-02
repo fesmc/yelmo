@@ -24,6 +24,9 @@ little. MISMIP3D and DIVA runs change more.
   faces. With `ssa_solver="residual"`, lateral-bc front faces are clipped at
   `ssa_vel_max` instead. Grounded-only drag let front faces run away: ANT-32 killed
   at t = 0.1 yr, GRL-8 (Helheim cliff) at 89 yr, GRL-4 (Jakobshavn) at 41 yr.
+- **Velocity-limit diagnostic**: `ssa_lim_n` in timesteps.nc (faces where the limit acts
+  after the last Picard iteration: drag onset 0.8·u_max, or clipped), and a log line per
+  `yelmo_update` call with the number of affected steps and the maximum face count.
 - **`yelmo_check_kill` velocity limit is 2·`ssa_vel_max`** (was a fixed 1e4 m/yr);
   `ssa_vel_max` must be > 0.
 

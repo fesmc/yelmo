@@ -19,10 +19,15 @@ module solver_ssa_ac
     public :: ssa_vel_clip
     public :: calc_vel_lim_drag
     public :: ssa_vel_clip_front
+    public :: count_vel_lim_faces
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
     ! Helper used by alternative SSA assemblers (e.g. solver_ssa_ac_energy):
     public :: stagger_visc_aa_ab
+
+
+    ! Onset of the speed-limit drag, s0 = vel_lim_f_s0*u_max (ssa_vel_lim_method="drag")
+    real(wp), parameter :: vel_lim_f_s0 = 0.8_wp
 
 contains
     
@@ -1166,14 +1171,12 @@ contains
         integer  :: im1, ip1, jm1, jp1 
         real(wp) :: s0, inv_du, u_cross 
 
-        real(wp), parameter :: f_s0 = 0.8_wp            ! [--] Onset of the limit drag, s0 = f_s0*u_max
-
         nx = size(ux,1)
         ny = size(ux,2)
 
         BC = boundary_code(boundaries)
 
-        s0     = f_s0*u_max
+        s0     = vel_lim_f_s0*u_max
         inv_du = 1.0_wp / (u_max - s0)
 
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross)
@@ -1233,6 +1236,69 @@ contains
         end subroutine lim_drag_face
 
     end subroutine calc_vel_lim_drag
+
+    integer function count_vel_lim_faces(ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,method,boundaries) result(n_lim)
+        ! Number of free ssa faces (ssa_mask >= 1) where the velocity limit acts:
+        ! "drag": face speed above the drag onset vel_lim_f_s0*u_max (speed as in
+        ! calc_vel_lim_drag); "clip": a component at the clip value u_max.
+
+        implicit none 
+
+        real(wp), intent(IN) :: ux(:,:)                 ! [m yr^-1] Velocity x (acx-nodes)
+        real(wp), intent(IN) :: uy(:,:)                 ! [m yr^-1] Velocity y (acy-nodes)
+        integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN) :: u_max                   ! [m yr^-1] ssa_vel_max
+        character(len=*), intent(IN) :: method          ! ssa_vel_lim_method: "drag" | "clip"
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, u_cross 
+        logical  :: use_drag
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        use_drag = trim(method) .eq. "drag"
+        s0       = vel_lim_f_s0*u_max
+
+        n_lim = 0
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross) reduction(+:n_lim)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (ssa_mask_acx(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+                    if (ux(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(ux(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+            if (ssa_mask_acy(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+                    if (uy(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(uy(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end function count_vel_lim_faces
 
     elemental subroutine limit_vel(u,u_lim)
         ! Apply a velocity limit (for stability)

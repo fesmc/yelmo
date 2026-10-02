@@ -502,6 +502,7 @@ module yelmo_defs
         integer    :: ssa_iter_now              ! Number of iterations used for Picard iteration to solve ssa this timestep
         integer    :: ssa_lin_iter              ! Linear solver iterations of the last ssa solve (summed over Picard iterations)
         integer    :: ssa_lin_fail              ! Linear solves of the last ssa solve that ended at breakdown or the iteration limit
+        integer    :: ssa_lim_n                 ! Faces at the velocity limit after the last ssa solve (drag active or clipped)
         real(wp)   :: speed 
 
         logical    :: init_state_set

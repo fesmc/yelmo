@@ -59,7 +59,7 @@ module velocity_ssa
 contains 
 
     subroutine calc_velocity_ssa(ux_b,uy_b,taub_acx,taub_acy,visc_eff,visc_eff_int,ssa_mask_acx,ssa_mask_acy, &
-                                  ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
+                                  ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n,beta,beta_acx,beta_acy,c_bed,f_slide,taud_acx,taud_acy, &
                                   taul_int_acx,taul_int_acy,H_ice, &
                                   f_ice,H_grnd,f_grnd,f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
@@ -80,6 +80,7 @@ contains
         integer,  intent(OUT)   :: ssa_iter_now 
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
+        integer,  intent(OUT)   :: ssa_lim_n            ! Faces at the velocity limit after the last iteration (count_vel_lim_faces)
         real(wp), intent(INOUT) :: beta(:,:)          ! [Pa yr/m]
         real(wp), intent(INOUT) :: beta_acx(:,:)      ! [Pa yr/m]
         real(wp), intent(INOUT) :: beta_acy(:,:)      ! [Pa yr/m]
@@ -387,6 +388,10 @@ end if
             if (is_converged) exit 
             
         end do 
+
+        ! Diagnostic: number of faces where the velocity limit acts
+        ssa_lim_n = count_vel_lim_faces(ux_b,uy_b,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                        par%ssa_vel_lim_method,par%boundaries)
 
         ! Iterations are finished, finalize calculations
 

@@ -1002,7 +1002,7 @@ end if
 
     subroutine yelmo_timestep_write(filename,time,dt_now,dt_adv,dt_pi,pc_eta,pc_tau, &
                                                 speed,speed_tpo,speed_dyn,ssa_iter,iter_redo, &
-                                                ssa_lin_iter,ssa_lin_fail,adv_lin_iter,adv_lin_fail)
+                                                ssa_lin_iter,ssa_lin_fail,ssa_lim_n,adv_lin_iter,adv_lin_fail)
 
         implicit none 
 
@@ -1020,6 +1020,7 @@ end if
         integer,    intent(IN) :: iter_redo 
         integer,    intent(IN) :: ssa_lin_iter
         integer,    intent(IN) :: ssa_lin_fail
+        integer,    intent(IN) :: ssa_lim_n
         integer,    intent(IN) :: adv_lin_iter
         integer,    intent(IN) :: adv_lin_fail
 
@@ -1061,6 +1062,8 @@ end if
                         long_name="Linear solver iterations of the SSA solve (summed over Picard iterations)",ncid=ncid)
         call nc_write(filename, "ssa_lin_fail",ssa_lin_fail,dim1="time",start=[n],count=[1],units="", &
                         long_name="SSA linear solves at breakdown or the iteration limit",ncid=ncid)
+        call nc_write(filename, "ssa_lim_n",ssa_lim_n,dim1="time",start=[n],count=[1],units="", &
+                        long_name="SSA faces at the velocity limit (drag active or clipped)",ncid=ncid)
         call nc_write(filename, "adv_lin_iter",adv_lin_iter,dim1="time",start=[n],count=[1],units="", &
                         long_name="Linear solver iterations of the thickness advection (predictor + corrector)",ncid=ncid)
         call nc_write(filename, "adv_lin_fail",adv_lin_fail,dim1="time",start=[n],count=[1],units="", &

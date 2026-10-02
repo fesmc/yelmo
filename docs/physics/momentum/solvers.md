@@ -300,6 +300,12 @@ Jakobshavn (GRL-4). These runs were killed when the drag acted on
 grounded inner faces only (the 5000 m/yr clip of Yelmo v1 had applied
 everywhere).
 
+The number of faces where the limit acts after the last Picard iteration
+(drag above $s_0$, or clipped) is written as `ssa_lim_n` to timesteps.nc
+(`yelmo.log_timestep`), and `yelmo_update` logs the number of steps with
+an active limit and the maximum face count. A run that leans on the limit
+is therefore visible, rather than silently capped.
+
 Note that the speed settles near $0.8$–$0.85\,u_\mathrm{max}$, not at
 $u_\mathrm{max}$, since a small drag (about 10 kPa in TROUGH-F17) is
 enough to stop the runaway. Thus `ssa_vel_max` should be set about 20 %
