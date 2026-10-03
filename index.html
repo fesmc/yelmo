@@ -518,6 +518,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Finalize Yelmo instance ==</span></span>
 <span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_<span class="kw">end</span>(yelmo1,time<span class="kw">=</span>time)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A coupled program that owns the domain definition (grid, masks, topography) can pass these to <code>yelmo_init</code> instead of having Yelmo read them from files. Each optional field replaces the matching file read; the processing that follows is the same:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type(ytopo_input_class)</span> <span class="dt">::</span> topo_pd, topo_init   <span class="co">! H_ice, z_bed [, z_bed_sd, z_srf]</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init_grid(yelmo1<span class="op">%</span>grd,grid)           <span class="co">! grid: a coords grid_class</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init(yelmo1,filename<span class="kw">=</span>path_par,grid_def<span class="kw">=</span><span class="st">"none"</span>,time<span class="kw">=</span>time_init, <span class="kw">&amp;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>                    domain<span class="kw">=</span>domain,grid_name<span class="kw">=</span>grid<span class="op">%</span>name, <span class="kw">&amp;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>                    regions<span class="kw">=</span>regions,basins<span class="kw">=</span>basins,mask_ice<span class="kw">=</span>mask_ice, <span class="kw">&amp;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>                    topo_pd<span class="kw">=</span>topo_pd,topo_init<span class="kw">=</span>topo_init)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>That’s it!</p>
 <p>See <a href="./getting-started.html">Getting started</a> to see how to get the code, compile a test program and run simulations.</p>
 

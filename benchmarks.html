@@ -108,6 +108,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   }
 }</script>
 
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -414,8 +457,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#variants-and-ensembles" id="toc-variants-and-ensembles" class="nav-link" data-scroll-target="#variants-and-ensembles">Variants and ensembles</a></li>
   </ul></li>
-  <li><a href="#initmip-grl" id="toc-initmip-grl" class="nav-link" data-scroll-target="#initmip-grl">initmip-grl</a></li>
-  <li><a href="#initmip-ant" id="toc-initmip-ant" class="nav-link" data-scroll-target="#initmip-ant">initmip-ant</a></li>
+  <li><a href="#initmip-grl" id="toc-initmip-grl" class="nav-link" data-scroll-target="#initmip-grl">initmip-grl</a>
+  <ul class="collapse">
+  <li><a href="#initmip-grl-performance" id="toc-initmip-grl-performance" class="nav-link" data-scroll-target="#initmip-grl-performance">Performance</a></li>
+  </ul></li>
+  <li><a href="#initmip-ant" id="toc-initmip-ant" class="nav-link" data-scroll-target="#initmip-ant">initmip-ant</a>
+  <ul class="collapse">
+  <li><a href="#initmip-ant-performance" id="toc-initmip-ant-performance" class="nav-link" data-scroll-target="#initmip-ant-performance">Performance</a></li>
+  </ul></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/benchmarks.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -549,6 +598,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Greenland <span class="dt">\</span></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="initmip-grl-performance" class="level3">
+<h3 class="anchored" data-anchor-id="initmip-grl-performance">Performance</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="img/timing-resolution-grl.png" class="img-fluid figure-img"></p>
+<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-grl runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads on a DKRZ Levante shared node). Grey: DIVA in Robinson et al.&nbsp;(2022), Fig. 3, on one processor. The lines are fits of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
+</figure>
+</div>
+<p>The runs use <code>par/yelmo_initmip.nml</code> with <code>ctrl.time_end=1000 ctrl.time_equil=0</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
+</section>
 </section>
 <section id="initmip-ant" class="level2">
 <h2 class="anchored" data-anchor-id="initmip-ant">initmip-ant</h2>
@@ -570,8 +629,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Antarctica <span class="dt">\</span></span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="initmip-ant-performance" class="level3">
+<h3 class="anchored" data-anchor-id="initmip-ant-performance">Performance</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="img/timing-resolution-ant.png" class="img-fluid figure-img"></p>
+<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-ant runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads on a DKRZ Levante shared node). The line is a fit of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
+</figure>
+</div>
+<p>Same setup as for <a href="#initmip-grl-performance">initmip-grl</a>. Data and plotting script: <code>analysis/timing/</code>.</p>
 
 
+</section>
 </section>
 </section>
 

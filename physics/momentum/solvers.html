@@ -417,6 +417,12 @@ window.Quarto = {
   <li><a href="#discrete-assembly" id="toc-discrete-assembly" class="nav-link" data-scroll-target="#discrete-assembly">Discrete assembly</a></li>
   <li><a href="#why-bother" id="toc-why-bother" class="nav-link" data-scroll-target="#why-bother">Why bother?</a></li>
   </ul></li>
+  <li><a href="#velocity-limit" id="toc-velocity-limit" class="nav-link" data-scroll-target="#velocity-limit">Velocity limit</a>
+  <ul class="collapse">
+  <li><a href="#clip-yelmo-v1" id="toc-clip-yelmo-v1" class="nav-link" data-scroll-target="#clip-yelmo-v1"><code>"clip"</code> (Yelmo v1)</a></li>
+  <li><a href="#drag-default" id="toc-drag-default" class="nav-link" data-scroll-target="#drag-default"><code>"drag"</code> (default)</a></li>
+  <li><a href="#test-trough-f17" id="toc-test-trough-f17" class="nav-link" data-scroll-target="#test-trough-f17">Test: TROUGH-F17</a></li>
+  </ul></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/momentum/solvers.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -519,6 +525,81 @@ K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 <li><strong>Physical interpretability and discrete consistency</strong>: every term in <span class="math inline">K</span> and <span class="math inline">\mathbf b</span> corresponds to a contribution to a discrete energy. Boundary conditions that are natural for the continuum functional (e.g.&nbsp;Neumann front stress) become natural for the discrete one. This makes it easier to add new physics — e.g. alternative friction laws, additional body forces — in a way that provably preserves the variational structure.</li>
 </ol>
 <p>The Picard loop, the viscosity update, the F-integral closure and the basal-stress and 3D velocity diagnostics are identical between the two solvers: only the linear-system assembly differs.</p>
+</section>
+</section>
+<section id="velocity-limit" class="level2">
+<h2 class="anchored" data-anchor-id="velocity-limit">Velocity limit</h2>
+<p>Yelmo bounds the depth-averaged velocity of the SSA and DIVA solvers, since a runaway velocity solution would otherwise end the run (e.g., during a thermally driven ice-stream activation). The method is set by <code>ydyn.ssa_vel_lim_method = "drag" | "clip"</code>, and the limit by <code>ydyn.ssa_vel_max</code> (default 10 000 m/yr). The run is stopped by <code>yelmo_check_kill</code> once any depth-averaged speed reaches <span class="math inline">2\,u_\mathrm{max}</span>, with <span class="math inline">u_\mathrm{max}</span> = <code>ssa_vel_max</code>.</p>
+<section id="clip-yelmo-v1" class="level3">
+<h3 class="anchored" data-anchor-id="clip-yelmo-v1"><code>"clip"</code> (Yelmo v1)</h3>
+<p>After every linear solve inside the Picard loop, each velocity component is clipped to <span class="math inline">[-u_\mathrm{max}, u_\mathrm{max}]</span> (<code>ssa_vel_clip</code>). The clipped velocity is not a solution of the momentum balance, and the Picard map becomes non-smooth at the edge of the clipped region. The viscosity and friction of the next iteration are evaluated from the clipped velocity, which is too slow, so the next solve falls below the limit and the one after overshoots it again. Picard therefore cycles instead of converging. In TROUGH-F17 (<code>ssa_vel_max</code> = 5000 m/yr), about 2500–2900 cells sit at the limit during each activation, around 50 % of the solves stop at <code>ssa_iter_max</code>, and the velocity changes by about 100 m/yr between consecutive solves at any time step. The predictor–corrector error at the clip edge then does not decrease with the time step, and the run crawls at <code>dt_min</code>. The clip also applies to floating ice.</p>
+</section>
+<section id="drag-default" class="level3">
+<h3 class="anchored" data-anchor-id="drag-default"><code>"drag"</code> (default)</h3>
+<p>The limit is imposed through an additional drag in the linear system, so that each Picard iteration solves a smooth, modified momentum balance. On every free face, the limit drag is defined as a function of the face speed <span class="math inline">s</span>:</p>
+<p><span class="math display">
+\tau_\mathrm{lim}(s) = \tau_c\,x^2, \qquad
+x = \max\left(0, \frac{s - s_0}{u_\mathrm{max} - s_0}\right),
+</span></p>
+<p>where <span class="math inline">\tau_c</span> = <code>ssa_vel_lim_tau</code> (default <span class="math inline">10^5</span> Pa) is the drag at <span class="math inline">s = u_\mathrm{max}</span> and <span class="math inline">s_0 = 0.8\,u_\mathrm{max}</span> is the onset speed. Both <span class="math inline">\tau_\mathrm{lim}</span> and its derivative vanish at <span class="math inline">s_0</span>, so the solution below <span class="math inline">0.8\,u_\mathrm{max}</span> is identical to the unlimited one. The drag acts on all free faces (<code>ssa_mask</code> = 1–4): grounded, floating and ice-front faces. At front faces (<code>ssa_mask</code> = 3, 4) it has the same weight 1/2 as the basal friction, since only the ice half of the face’s control area has drag. The speed at an acx-face is computed with <span class="math inline">\bar v</span> averaged from the four neighbouring acy-faces, and vice versa.</p>
+<p>The limit drag is Newton-linearised around the current Picard iterate <span class="math inline">\bar u^0</span>, for the face’s own component with the cross component held fixed:</p>
+<p><span class="math display">
+\tau_{\mathrm{lim},x}(\bar u) \approx \tau_{\mathrm{lim},x}(\bar u^0)
++ k\,(\bar u - \bar u^0), \qquad
+k = b\left(1 - \frac{\bar u^2}{s^2}\right) + \tau_\mathrm{lim}'(s)\,\frac{\bar u^2}{s^2},
+</span></p>
+<p>where <span class="math inline">b = \tau_\mathrm{lim}/s</span>. A Picard (secant) linearisation <span class="math inline">b\,\bar u</span>, as used for the basal friction, would oscillate for this steep drag. Since <span class="math inline">k \ge 0</span>, adding it to the friction keeps the matrix symmetric positive definite. <code>calc_vel_lim_drag</code> returns <span class="math inline">k</span> and the offset <span class="math inline">r = (k - b)\,\bar u^0</span> per face, so that <span class="math inline">\tau_{\mathrm{lim},x} \approx k\,\bar u - r</span>. The assemblers add <span class="math inline">k</span> to the matrix friction and <span class="math inline">r</span> to the right-hand side, with the face weight of the friction. The basal stress <span class="math inline">\tau_b</span>, the basal velocity and the frictional heating are computed from the physical friction only, so the limit drag does not heat the bed. In the “residual” assembler, the rows of lateral-bc front faces (<code>ssa_mask</code> = 3) impose the front stress condition and have no drag term. There, the velocity is clipped to <span class="math inline">[-u_\mathrm{max}, u_\mathrm{max}]</span> after each solve instead (<code>ssa_vel_clip_front</code>).</p>
+<p>The front faces need the limit as much as the grounded interior. At coarse resolution, thick front cells can be driven to runaway speeds: thick, barely floating front cells after the aggregation of BedMachine to 32 km (ANT-32, about 24 000 m/yr at t = 0), and a grounded cliff with about 800 m freeboard at the Helheim front (GRL-8, 40 000 m/yr) or at Jakobshavn (GRL-4). These runs were killed when the drag acted on grounded inner faces only (the 5000 m/yr clip of Yelmo v1 had applied everywhere).</p>
+<p>The number of faces where the limit acts after the last Picard iteration (drag above <span class="math inline">s_0</span>, or clipped) is written as <code>ssa_lim_n</code> to timesteps.nc (<code>yelmo.log_timestep</code>), and <code>yelmo_update</code> logs the number of steps with an active limit and the maximum face count. A run that leans on the limit is therefore visible, rather than silently capped.</p>
+<p>Note that the speed settles near <span class="math inline">0.8</span>–<span class="math inline">0.85\,u_\mathrm{max}</span>, not at <span class="math inline">u_\mathrm{max}</span>, since a small drag (about 10 kPa in TROUGH-F17) is enough to stop the runaway. Thus <code>ssa_vel_max</code> should be set about 20 % above the intended maximum speed.</p>
+</section>
+<section id="test-trough-f17" class="level3">
+<h3 class="anchored" data-anchor-id="test-trough-f17">Test: TROUGH-F17</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="../../img/vel-lim-trough-x300.png" class="img-fluid figure-img"></p>
+<figcaption>Centreline velocity and ice thickness at x = 300 km in TROUGH-F17 with <code>"clip"</code> (<code>ssa_vel_max</code> = 5000 m/yr) and <code>"drag"</code> for <code>ssa_vel_max</code> from 5000 to 50 000 m/yr. Right: zoom on activation 1.</figcaption>
+</figure>
+</div>
+<p>The thermally driven activations of TROUGH-F17 (about every 2.2 kyr) were run with both methods (DIVA, energy solver, 4 km). With <code>ssa_vel_max</code> = 5000 m/yr, the drag removes the convergence failure (Table 1). The branch with <code>"clip"</code> was bit-identical to the previous code over 0–8 kyr.</p>
+<table class="caption-top table">
+<caption>Table 1. Solver statistics in TROUGH-F17 (activation 1: 3350–3700 yr).</caption>
+<thead>
+<tr class="header">
+<th>0–8 kyr, <code>ssa_vel_max</code> = 5000 m/yr</th>
+<th><code>"clip"</code></th>
+<th><code>"drag"</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>time steps (steps at <code>dt_min</code>)</td>
+<td>9957 (1161)</td>
+<td>4802 (5)</td>
+</tr>
+<tr class="even">
+<td>activation 1: median dt</td>
+<td>0.016 yr</td>
+<td>0.42 yr</td>
+</tr>
+<tr class="odd">
+<td>activation 1: mean Picard iterations</td>
+<td>14.9</td>
+<td>6.4</td>
+</tr>
+<tr class="even">
+<td>activation 1: solves at <code>ssa_iter_max</code></td>
+<td>51 %</td>
+<td>0 %</td>
+</tr>
+<tr class="odd">
+<td>activation 1: median pc_eta</td>
+<td>1.0e-2</td>
+<td>2.2e-4</td>
+</tr>
+</tbody>
+</table>
+<p>All runs oscillate in the same way, with the first activation at about 3420–3450 yr (Figure). Below about 15 000 m/yr, the peak speed at x = 300 km is set by the limit, at about <span class="math inline">0.8\,u_\mathrm{max}</span> (e.g., 4900 m/yr for 6000 m/yr and 8300 m/yr for 10 000 m/yr). For larger limits, the peak converges to about 24 000 m/yr (30 000 and 50 000 m/yr), which is the unlimited surge of this setup. A lower limit gives a longer, weaker surge with less thinning, and a shorter cycle (activation 2 at about 5650 yr for 5000 m/yr and 5950 yr for 15 000 m/yr). With <code>"clip"</code>, the ice at x = 300 km thickens while the velocity is held at the limit, since ice keeps arriving from upstream. This does not occur with <code>"drag"</code>, which shows that the clip also changes the thickness evolution of the surge. Here TROUGH-F17 uses <code>ssa_vel_max</code> = 10 000 m/yr. The scripts and run list are in <code>analysis/vel-lim/</code>.</p>
 
 
 </section>
