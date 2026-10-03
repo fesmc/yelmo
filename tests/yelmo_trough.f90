@@ -27,6 +27,8 @@ program yelmo_trough
     real(wp) :: dtts_out                            ! [yr] Frequency of time-series output
     real(wp) :: pts_x(3)                            ! [km] Points on the centreline (y=0)
     real(wp) :: sec_x                               ! [km] Position of the cross-section (y-transect)
+    real(wp) :: H0_init                             ! [m] Initial ice thickness of the slab (TROUGH-F17)
+    character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
     real(wp) :: dtt
     integer  :: n
 
@@ -84,9 +86,13 @@ program yelmo_trough
     call nml_read(path_par,"ctrl","wc",           wc)            ! [km] Trough parameter
     call nml_read(path_par,"ctrl","x_cf",         x_cf)          ! [km] Trough parameter
 
-    ! Point/transect time series (TROUGH-F17 only)
-    write_ts = (trim(domain) .eq. "TROUGH-F17")
-    if (write_ts) then
+    ! TROUGH-F17 only: initial state and point/transect time series
+    write_ts  = (trim(domain) .eq. "TROUGH-F17")
+    H0_init   = 50.0_wp
+    thrm_init = "robin-cold"
+    if (trim(domain) .eq. "TROUGH-F17") then
+        call nml_read(path_par,"ctrl","H0_init",  H0_init)           ! [m] Initial ice thickness of the slab
+        call nml_read(path_par,"ctrl","thrm_init",thrm_init)         ! Initial ice temperature
         call nml_read(path_par,"ctrl","dtts_out", dtts_out)          ! [yr] Frequency of time-series output
         call nml_read(path_par,"ctrl","pts_x",    pts_x)             ! [km] Points on the centreline (y=0)
         call nml_read(path_par,"ctrl","sec_x",    sec_x)             ! [km] Position of the cross-section
@@ -269,7 +275,7 @@ program yelmo_trough
             ! Feldmann and Levermann (2017) domain 
 
             call trough_f17_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
-                                    yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf)
+                                    yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf,H0_init)
         
         case("MISMIP+") 
             ! MISMIP+ domain 
@@ -310,7 +316,7 @@ program yelmo_trough
     end if
 
     ! Initialize the yelmo state (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=thrm_init)
 
     ! Write initial state 
     call write_step_2D(yelmo1,file2D,time=ts%time) 
@@ -465,7 +471,7 @@ contains
 
     end subroutine slab_topo_init
 
-    subroutine trough_f17_topo_init(z_bed,H_ice,z_srf,xc,yc,fc,dc,wc,x_cf)
+    subroutine trough_f17_topo_init(z_bed,H_ice,z_srf,xc,yc,fc,dc,wc,x_cf,H0)
 
         implicit none 
 
@@ -478,6 +484,7 @@ contains
         real(wp), intent(IN)  :: dc 
         real(wp), intent(IN)  :: wc 
         real(wp), intent(IN)  :: x_cf 
+        real(wp), intent(IN)  :: H0                     ! [m] Initial ice thickness of the slab
 
         ! Local variables 
         integer :: i, j, nx, ny 
@@ -510,7 +517,7 @@ contains
         end do  
 
         ! == Ice thickness == 
-        H_ice = 50.0_wp 
+        H_ice = H0 
         do j = 1, ny 
             where(xc .gt. x_cf) H_ice(:,j) = 0.0 
         end do 
