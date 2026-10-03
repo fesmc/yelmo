@@ -137,6 +137,7 @@ program yelmo_test
             dtt                 = 5.0               ! [yr] Time step for time loop 
             dt2D_out            = 100.0             ! [yr] 2D output writing 
             cf_init             = 0.2               ! [--] Initial cf value everywhere (not too important)
+            rel_m               = 2.0               ! [--] Non-linear exponent to scale interpolation of tau between rel_time1 and rel_time2
 
         case("L19")
             ! Le clec’h et al. (2019) - needs revising 
@@ -206,6 +207,9 @@ program yelmo_test
     ! (initialize temps with robin method with a cold base),
     ! or from restart file, if specified 
     call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin-cold")
+
+    ! Ensure that cb_ref will be optimized (till_method == set externally)
+    yelmo1%dyn%par%till_method = -1
 
 
     select case(trim(cb_ref_init_method))
