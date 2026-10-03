@@ -231,7 +231,6 @@ benchmarks = libyelmo/bin/yelmo_benchmarks.x
 calving    = libyelmo/bin/yelmo_calving.x
 mismip     = libyelmo/bin/yelmo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x
-opt        = libyelmo/bin/yelmo_opt.x
 trough     = libyelmo/bin/yelmo_trough.x
 ismiphom   = libyelmo/bin/yelmo_ismiphom.x
 mask_ice   = libyelmo/bin/yelmo_mask_ice.x

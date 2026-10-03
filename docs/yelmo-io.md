@@ -141,7 +141,7 @@ Two parameters set which topography is used:
 - `yelmo.restart_H_ice` (default `False`): take the ice thickness from the
   restart file; otherwise it comes from the input topography file.
 - `yelmo.restart_z_bed` (default `False`): use the bedrock elevation of the
-  restart file. Otherwise, or when the restart is interpolated, the target
+  restart file. Otherwise, or when the restart comes from a coarser grid, the target
   bedrock is the present-day reference bedrock plus the isostatic displacement
   of the restart state. The model starts on the restart bedrock, and the
   difference to the target (e.g. the high-resolution detail missing in a coarse

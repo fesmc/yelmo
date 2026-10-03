@@ -646,6 +646,13 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- `yelmo_opt.x` (`tests/yelmo_opt.f90`, `make opt`, runme alias `opt`) removed:
+  basal friction optimization is the initmip spin-up option
+  `ctrl.equil_method = "opt"`.
+- `restart_interpolated` compares the restart grid spacing in m (restart `xc` is in
+  km); before, every interpolated restart counted as coarser than the model grid.
+  With `yelmo.restart_z_bed = True`, a restart from a finer grid now uses the
+  interpolated restart bedrock.
 - `make clean` also cleans elsa and tracer (like FastHydrology), so switching
   between `openmp=0` and `openmp=1` no longer links stale sub-library objects.
 - New public `yelmo_restart_init(dom, filename, time)`: the restart branch of

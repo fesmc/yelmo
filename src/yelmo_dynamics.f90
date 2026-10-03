@@ -220,7 +220,7 @@ contains
                 case DEFAULT
 
                     write(*,*) "calc_ydyn:: Error: ydyn solver not recognized." 
-                    write(*,*) "solver should be one of: ['fixed','hybrid','diva']"
+                    write(*,*) "solver should be one of: ['fixed','sia','ssa','hybrid','diva','diva-noslip']"
                     write(*,*) "solver = ", trim(dyn%par%solver) 
                     error stop 1
 
