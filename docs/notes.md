@@ -2,26 +2,27 @@
 
 ## `timeout` module
 
-Example parameters for using the `timeout` module. The name of the section
-should be specified when calling `timeout_init`.
+The `timeout` module of fesm-utils defines the output times of a driver
+program. Each output stream has its own parameter group, whose name is given to
+`timeout_init`. For example, initmip uses `&t1D`, `&t2Dsm`, `&t2D` and `&trst`
+(restarts):
 
 ```fortran
-&tm_1D
-    method          = "file"            ! "const", "file", "times"
-    dt              = 1.0
-    file            = "input/timeout_ramp_100kyr.txt"
-    times           = -10, -5, 0, 1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55
+&t2D
+    method          = "const"           ! "none", "const", "file", "times"
+    dt              = 1000.0
+    file            = "none"
+    times           = 0
 /
-
 ```
 
 ```fortran
 ! Get output times
-call timeout_init(tm_1D,path_par,"tm_1D","small", time_init,time_end)
+call timeout_init(t2D,path_par,"t2D","heavy",time_init,time_end)
 ```
 
-If we are loading the desired output times from a file, the format is one
-time per line, or a range of times using the format `t0:dt:t1`:
+With `method = "file"`, the times are loaded from a file with one time per
+line, or a range of times using the format `t0:dt:t1`:
 
 ```bash
 0:10:200
@@ -36,7 +37,7 @@ time per line, or a range of times using the format `t0:dt:t1`:
 ```
 
 Duplicate times will be removed, as well as times outside of the range of
-`time_init` and `time_end`. In this way, once `timeout_init` is called,
+`time_init` and `time_end`, and `time_end` is always included. In this way, once `timeout_init` is called,
 we know how many timesteps of output will be generated. This can help
 confirm that we designed the experiment well, and how much data to expect.
 
@@ -44,18 +45,16 @@ Then during the timeloop, simply use the function `timeout_check` to
 determine if the current time should be written to output:
 
 ```fortran
-if (timeout_check(tm_1D,time)) then  
-    !call write_step_1D_combined(yelmo1,hyst1,file1D_hyst,time=time)
-end if 
+if (timeout_check(t2D,time)) then
+    call yelmo_write_step(yelmo1,file2D,time)
+end if
 ```
 
-## `timing` module
+## `timer` module
 
-All calls to the intrinsic routine `cpu_time()` have been replaced by timing
-calculations performed in the new `timing` module. This has the benefit
-of ensuring timing will work properly for parallel and serial programs,
-and allows us to keep track of multiple timing objectives with one
-simple object and subroutine.
+The `timer` module of fesm-utils measures the wall time of several components
+of a driver program (e.g. isostasy, climate and Yelmo in yelmox) with one
+object. Yelmo itself measures its timing with `yelmo_cpu_time`.
 
 The control of a timing object is handled via `timer_step`:
 
@@ -106,13 +105,11 @@ during the time loop:
 ```
 
 Based on the options supplied, the time units are in `[m]` and the model time in `[kyr]`. The
-rate is then calculated as `[m/kyr]` - this is the inverse of what we used to measure `[kyr/hr]`.
-The rate as defined now is easier to manage in terms of summing the contribution of different
-components, and so is preferred moving forward. To recover `[kyr/hr]`, simply take 60/rate.
+rate is then calculated as `[m/kyr]`, which can be summed over components. To
+obtain `[kyr/hr]`, take 60/rate.
 
 ## How to read `yelmo_check_kill` output
 
-The subroutine `yelmo_check_kill` is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.
+The subroutine `yelmo_check_kill` is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to `yelmo_killed.nc` at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.
 
-Note that `pc_eps` is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution, and `pc_tol` the error above which a timestep is redone with a smaller dt. At each time step, the diagnosed model error `pc_eta` (the predictor-corrector error norm, in 1/yr) is compared with these. If the mean of the stored `pc_eta` values (the last three steps) exceeds `10*pc_tol`, this is interpreted as instability and the model is stopped. The model is also stopped if `H_ice` or the depth-averaged speed reach 1e4 m or 1e4 m/yr, or if `H_ice`, `uxy_bar` or `T_ice` are not finite.
-
+The criteria are listed in [Time stepping](physics/timestepping.md#instability-checks). The error measure is `pc_eta`, the norm of the predictor–corrector truncation error [1/yr]: `pc_eps` is its target value for the adaptive time step, and `pc_tol` the value above which a time step is redone with a smaller dt. If the mean of the stored `pc_eta` values (the last three steps) exceeds `10*pc_tol`, this is interpreted as instability and the model is stopped. The checks are switched off with `yelmo.disable_kill = True`.
