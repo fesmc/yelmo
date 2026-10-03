@@ -808,6 +808,7 @@ module yelmo_defs
         character(len=56)   :: cap_source       ! "auto", "hyd" (hyd%now%C_frz), "till" (bucket W_til), "water" (water thickness W) or "none" (C=0)
         real(wp)            :: cap_W_floor      ! [m] floor subtracted from the water thickness in the "water" fallback
         real(wp)            :: cap_eps          ! [m/a ice equiv.] capacity below which the bed counts as dry
+        real(wp)            :: cap_cold_tol     ! [K] base counts as cold (not held at T_pmp) below T_pmp minus this
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
         ! component as par%bucket%till_rate and par%W_til_max.
