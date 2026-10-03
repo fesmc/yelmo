@@ -202,6 +202,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -277,20 +283,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -377,12 +395,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -407,7 +419,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#yelmo_write_init" id="toc-yelmo_write_init" class="nav-link" data-scroll-target="#yelmo_write_init">yelmo_write_init</a></li>
   <li><a href="#yelmo_write_var" id="toc-yelmo_write_var" class="nav-link" data-scroll-target="#yelmo_write_var">yelmo_write_var</a></li>
   <li><a href="#yelmo_write_step" id="toc-yelmo_write_step" class="nav-link" data-scroll-target="#yelmo_write_step">yelmo_write_step</a></li>
-  <li><a href="#yelmo_write_restart" id="toc-yelmo_write_restart" class="nav-link" data-scroll-target="#yelmo_write_restart">yelmo_write_restart</a></li>
+  <li><a href="#yelmo_restart_write" id="toc-yelmo_restart_write" class="nav-link" data-scroll-target="#yelmo_restart_write">yelmo_restart_write</a></li>
   </ul></li>
   <li><a href="#reading-input" id="toc-reading-input" class="nav-link" data-scroll-target="#reading-input">Reading input</a></li>
   </ul></li>
@@ -465,16 +477,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>yelmo_restart.nc</code></td>
 <td>Restart snapshot (<code>yelmo_restart_write</code>)</td>
 </tr>
+<tr class="even">
+<td><code>yelmo_killed.nc</code></td>
+<td>Snapshot written by <code>yelmo_check_kill</code> before the model is stopped</td>
+</tr>
+<tr class="odd">
+<td><code>yelmo_metrics.nc</code></td>
+<td>Numerical and speed metrics (<code>yelmo.write_metrics = True</code>)</td>
+</tr>
+<tr class="even">
+<td><code>timesteps.nc</code></td>
+<td>Time steps and solver diagnostics (<code>yelmo.log_timestep = True</code>)</td>
+</tr>
 </tbody>
 </table>
-<p>The time-series names are the defaults set by <code>yelmo_region_init</code>. For the other files, the calling program chooses the name.</p>
+<p>The time-series names are the defaults set by <code>yelmo_region_init</code>. The killed, metrics and timestep files are written by Yelmo in its output folder. For the other files, the calling program chooses the name.</p>
 </section>
 <section id="yelmo_write_init" class="level3">
 <h3 class="anchored" data-anchor-id="yelmo_write_init">yelmo_write_init</h3>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yelmo_write_init(ylmo,filename,time_init,units,irange,jrange)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This routine can be used to initialize any file that will make use of one or more dimension axes of Yelmo variables. The dimension variables that will be written to the file are the following:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>xc, yc, month, zeta, zeta_ac, zeta_rock, age_iso, pd_age_iso, pc_steps, <span class="co">time [unlimited]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Some of the dimension variables above are typically only needed for restart files (<code>age_iso, pd_age_iso, pc_steps</code>), but are written as well to maintain generality.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>xc, yc, month, zeta, zeta_ac, zeta_rock, time_iso, pd_time_iso, pc_steps<span class="co">, time [unlimited]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>plus <code>depth_norm</code> when the tracer backend computes statistics. Some of the dimension variables above are typically only needed for restart files (<code>time_iso, pd_time_iso, pc_steps</code>), but are written as well to maintain generality. The routine also writes the grid definition and the static fields <code>mask_ice</code>, <code>basins</code>, <code>regions</code>, <code>z_bed_sd</code> and <code>H_sed</code>.</p>
 <p>Importantly, <code>yelmo_write_init</code> can be used to initialize a regional output file by specifying the indices of the bounding box for the region of interest via the arguments <code>irange=[i1,i2], jrange=[j1,j2]</code>.</p>
 </section>
 <section id="yelmo_write_var" class="level3">
@@ -486,8 +510,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="yelmo_write_step" class="level3">
 <h3 class="anchored" data-anchor-id="yelmo_write_step">yelmo_write_step</h3>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yelmo_write_step(ylmo,filename,time,nms,compare_pd,irange,jrange)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This routine will write several variables to a file for a given timestep. The variable names can be provided as a vector of strings via the <code>nms</code> argument (e.g., <code>nms=["H_ice","z_srf"]</code>). The routine will write relevant model performance information and then individually call <code>yelmo_write_var</code> for each variable listed. Optionally it is possible to write comparison fields with present-day data (<code>compare_pd=.TRUE.</code>), assuming it has been loaded into the <code>ylmo%dta</code> fields.</p>
-<p>This routine can also be used to write regional output using the arguements <code>irange, jrange</code>.</p>
+<p>This routine will write several variables to a file for a given timestep. The variable names can be provided as a vector of strings via the <code>nms</code> argument (e.g., <code>nms=["H_ice","z_srf"]</code>). The routine calls <code>yelmo_write_var</code> for each variable listed. Optionally it is possible to write comparison fields with present-day data (<code>compare_pd=.TRUE.</code>), assuming it has been loaded into the <code>ylmo%dta</code> fields.</p>
+<p>This routine can also be used to write regional output using the arguments <code>irange, jrange</code>.</p>
 <p>Note that this routine can be challenging to use in Fortran, when custom variable names (<code>nms</code> argument) is used. This is because of the Fortran limitation on defining string arrays as inline arguments - namely, all strings in the array are required to have the same length.</p>
 <p>Passing this argument would give an error:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nms<span class="kw">=[</span><span class="st">"H_ice"</span>,<span class="st">"z_srf"</span>,<span class="st">"mask_bed"</span><span class="kw">]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -502,26 +526,38 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">5</span>)  <span class="kw">=</span> <span class="st">"uxy_b"</span></span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">6</span>)  <span class="kw">=</span> <span class="st">"uxy_s"</span></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">7</span>)  <span class="kw">=</span> <span class="st">"uxy_bar"</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">8</span>)  <span class="kw">=</span> <span class="st">"beta"</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">9</span>)  <span class="kw">=</span> <span class="st">"visc_bar"</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">10</span>) <span class="kw">=</span> <span class="st">"T_prime_b"</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">11</span>) <span class="kw">=</span> <span class="st">"hyd_W_til"</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">12</span>) <span class="kw">=</span> <span class="st">"mb_net"</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">13</span>) <span class="kw">=</span> <span class="st">"smb"</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">14</span>) <span class="kw">=</span> <span class="st">"bmb"</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">15</span>) <span class="kw">=</span> <span class="st">"cmb"</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">16</span>) <span class="kw">=</span> <span class="st">"z_sl"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">8</span>)  <span class="kw">=</span> <span class="st">"ux_bar"</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">9</span>)  <span class="kw">=</span> <span class="st">"uy_bar"</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">10</span>) <span class="kw">=</span> <span class="st">"cb_ref"</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">11</span>) <span class="kw">=</span> <span class="st">"N_eff"</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">12</span>) <span class="kw">=</span> <span class="st">"beta"</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">13</span>) <span class="kw">=</span> <span class="st">"taub"</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">14</span>) <span class="kw">=</span> <span class="st">"taud"</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">15</span>) <span class="kw">=</span> <span class="st">"visc_bar"</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">16</span>) <span class="kw">=</span> <span class="st">"T_prime_b"</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">17</span>) <span class="kw">=</span> <span class="st">"hyd_W_til"</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">18</span>) <span class="kw">=</span> <span class="st">"mb_net"</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">19</span>) <span class="kw">=</span> <span class="st">"smb"</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">20</span>) <span class="kw">=</span> <span class="st">"bmb"</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">21</span>) <span class="kw">=</span> <span class="st">"cmb"</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>            names(<span class="dv">22</span>) <span class="kw">=</span> <span class="st">"z_sl"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
-<section id="yelmo_write_restart" class="level3">
-<h3 class="anchored" data-anchor-id="yelmo_write_restart">yelmo_write_restart</h3>
+<section id="yelmo_restart_write" class="level3">
+<h3 class="anchored" data-anchor-id="yelmo_restart_write">yelmo_restart_write</h3>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yelmo_restart_write(ylmo,filename,time,init,irange,jrange)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the <a href="./yelmo-variables.html">Yelmo variable tables</a> and write them to a NetCDF file. Optionally <code>init=.FALSE.</code> will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).</p>
-<p>This routine can also be used to write regional output using the arguements <code>irange, jrange</code>.</p>
+<p>This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the <a href="./yelmo-variables.html">Yelmo variable tables</a> and write them to a NetCDF file. The tables are read at <code>yelmo_init</code> from <code>input/yelmo-variables-*.md</code>, so a field that is missing from a table is not written to the restart file. Optionally <code>init=.FALSE.</code> will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).</p>
+<p>This routine can also be used to write regional output using the arguments <code>irange, jrange</code>.</p>
 </section>
 </section>
 <section id="reading-input" class="level2">
 <h2 class="anchored" data-anchor-id="reading-input">Reading input</h2>
 <p>By specifying the parameter <code>yelmo.restart</code> to a restart file path, Yelmo will read the NetCDF file with a saved snapshot. The routines <code>yelmo_restart_read_topo_bnd</code> and <code>yelmo_restart_read</code> are generally used internally during <code>yelmo_init</code> and <code>yelmo_init_state</code>, respectively. So these routines will not typically be needed by a user externally.</p>
+<p>If the <code>grid_name</code> attribute of the restart file differs from <code>yelmo.grid_name</code>, the restart is interpolated to the model grid with conservative remapping weights, which Yelmo computes itself. A simulation can therefore be continued at another resolution by setting <code>yelmo.restart</code> to a restart file from the other grid.</p>
+<p>Two parameters set which topography is used:</p>
+<ul>
+<li><code>yelmo.restart_H_ice</code> (default <code>False</code>): take the ice thickness from the restart file; otherwise it comes from the input topography file.</li>
+<li><code>yelmo.restart_z_bed</code> (default <code>False</code>): use the bedrock elevation of the restart file. Otherwise, or when the restart comes from a coarser grid, the target bedrock is the present-day reference bedrock plus the isostatic displacement of the restart state. The model starts on the restart bedrock, and the difference to the target (e.g.&nbsp;the high-resolution detail missing in a coarse restart) is provided as the rate <code>bnd%dzbdt_corr</code> over <code>yelmo.restart_relax</code> years (default 1000), to be applied by the driver’s isostasy model. With <code>restart_relax = 0</code>, the target bedrock is used at once.</li>
+</ul>
 
 
 </section>

@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./optimization.html" rel="next">
+<link href="./numerics-precision.html" rel="next">
 <link href="./yelmo-io.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -202,6 +202,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -277,20 +283,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -377,12 +395,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -424,14 +436,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">int</span> polar_stereographic <span class="kw">;</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:grid_mapping_name</span> = <span class="st">"polar_stereographic"</span> <span class="kw">;</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:straight_vertical_longitude_from_pole</span> = 0. <span class="kw">;</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:latitude_of_projection_origin</span> = <span class="at">-71.</span> <span class="kw">;</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:angle_of_oblique_tangent</span> = 19. <span class="kw">;</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:scale_factor_at_projection_origin</span> = 1. <span class="kw">;</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:false_easting</span> = 0. <span class="kw">;</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:false_northing</span> = 0. <span class="kw">;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:latitude_of_projection_origin</span> = <span class="at">-90.</span> <span class="kw">;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:standard_parallel</span> = <span class="at">-71.</span> <span class="kw">;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:false_easting</span> = 0. <span class="kw">;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="ex">polar_stereographic:false_northing</span> = 0. <span class="kw">;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="naming-files" class="level2">
 <h2 class="anchored" data-anchor-id="naming-files">Naming files</h2>
-<p>For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids <code>ANT-32KM</code> or <code>ANT-16KM</code> for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., <code>CLIM</code> or <code>TOPO</code>, finally followed by more descriptive information about the specific dataset <code>IPSL-14Ma</code> or <code>IPSL-PD-CTRL</code>. For example, the latest topopgraphy dataset we use is called the RTopo2.0.1 dataset, so this is processed into a file called <code>ANT-32KM_TOPO-RTOPO-2.0.1.nc</code>.</p>
+<p>For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids <code>ANT-32KM</code> or <code>ANT-16KM</code> for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., <code>CLIM</code> or <code>TOPO</code>, finally followed by more descriptive information about the specific dataset <code>IPSL-14Ma</code> or <code>IPSL-PD-CTRL</code>. For example, the RTopo-2.0.1 topography dataset processed onto the 32 km grid is called <code>ANT-32KM_TOPO-RTOPO-2.0.1.nc</code>.</p>
 </section>
 <section id="fields-yelmo-needs" class="level2">
 <h2 class="anchored" data-anchor-id="fields-yelmo-needs">Fields Yelmo needs</h2>
@@ -470,7 +481,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="using-cdo-for-remapping" class="level2">
 <h2 class="anchored" data-anchor-id="using-cdo-for-remapping">Using <code>cdo</code> for remapping</h2>
-<p>To remap a data file from lat/lon coordinates to our projection, <code>cdo</code> needs a grid description file that describes the target Polar Stereographic projection grid. For example, for a 32km resolution domain, we would use the following file named <code>grid_ANT-32KM.txt</code>:</p>
+<p>To remap a data file from lat/lon coordinates to our projection, <code>cdo</code> needs a grid description file that describes the target Polar Stereographic projection grid. The grid description files of the standard Yelmo grids are in <code>maps/</code> (<code>maps/gengriddes.sh</code> generates one from a grid file). For example, for the 32 km Antarctic domain, <code>maps/grid_ANT-32KM.txt</code> is:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">gridtype</span> = projection</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">gridsize</span> =      36481</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">xsize</span>    =        191</span>
@@ -494,7 +505,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="ex">inverse_flattening</span> =         298.25722356</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With this file defined, it’s easy to perform projections using the <code>cdo remap*</code> commands. To perform a bicubic interpolation, call:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> remapbic,grid_ANT-32KM.txt diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ANT-32KM_test-bic.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Here, <code>remapbic</code> specifies bicubic interpolation and <code>grid_ANT-32KM.txt</code> defines the target grid as above. Then the source dataset is specified and the desired output file <code>ANT-32KM_test.nc</code>.</p>
+<p>Here, <code>remapbic</code> specifies bicubic interpolation and <code>grid_ANT-32KM.txt</code> defines the target grid as above. Then the source dataset is specified and the desired output file <code>ANT-32KM_test-bic.nc</code>.</p>
 <p>To perform conservative interpolation, replace <code>remapbic</code> with <code>remapcon</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> remapcon,grid_ANT-32KM.txt diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ANT-32KM_test-con.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Conservative interpolation is generally preferred, especially when going from a high resolution to a lower resolution, as it avoids unwanted interpolation artifacts and conserves the quantity being remapped. However, from low resolution to high resolution, conservative interpolation can result in more “blocky” fields with abrupt changes in values. Thus, in this case, bicubic interpolation, or conservative interpolation with additional Gaussian smoothing is better. The latter is not supported by <code>cdo</code>, but can be acheived with other tools.</p>
@@ -510,30 +521,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="remapping-restart-file" class="level2">
 <h2 class="anchored" data-anchor-id="remapping-restart-file">Remapping restart file</h2>
-<p>Sometimes we may want to restart a simulation at a new resolution - i.e., perform a spinup simulation at relatively low resolution and then continue the simulation at higher resolution.</p>
-<ol type="1">
-<li>Use <code>cdo</code> to remap the restart file based on the grid definition files.</li>
-</ol>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define env variables as shortcuts to locations of grid files</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="va">grid_src</span><span class="op">=</span>/Users/robinson/models/EURICE/gridding/maps/grid_GRL-32KM.txt</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="va">grid_tgt</span><span class="op">=</span>/Users/robinson/models/EURICE/gridding/maps/grid_GRL-16KM.txt</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Call remapping</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> remapcon,<span class="va">${grid_tgt}</span> <span class="at">-setgrid,</span><span class="va">${grid_src}</span> yelmo_restart.nc yelmo_restart_16km.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Let’s do a test. First, run a short 32km Greenland simulation and generate a restart file:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/restarts/sim0-32km <span class="at">-p</span> ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm=<span class="st">"clim_pd_grl"</span> yelmo.domain=<span class="st">"Greenland"</span> yelmo.grid_name=<span class="st">"GRL-32KM"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>That simulation should have produced a nice restart file. Let’s test a normal 32km simulation that continues from this restart file.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/restarts/sim1-32km <span class="at">-p</span> ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm=<span class="st">"clim_pd_grl"</span> yelmo.domain=<span class="st">"Greenland"</span> yelmo.grid_name=<span class="st">"GRL-32KM"</span> yelmo.restart=<span class="st">"../sim0-32km/yelmo_restart.nc"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Ok, now generate scrip map file to interpolate from 32km down to 16km.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="va">domain</span><span class="op">=</span>Greenland</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="va">grid_name_src</span><span class="op">=</span>GRL-32KM</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="va">grid_name_tgt</span><span class="op">=</span>GRL-4KM</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="va">nc_src</span><span class="op">=</span>../ice_data/<span class="va">${domain}</span>/<span class="va">${grid_name_src}</span>/<span class="va">${grid_name_src}</span>_REGIONS.nc </span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> gencon,grid_<span class="va">${grid_name_tgt}</span>.txt <span class="at">-setgrid,grid_</span><span class="va">${grid_name_src}</span><span class="at">.txt</span> <span class="va">${nc_src}</span> scrip-con_<span class="va">${grid_name_src}</span>_<span class="va">${grid_name_tgt}</span>.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Now let’s try to run a simulation at 16km, loading the restart file from 32km</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/restarts/sim2-16km <span class="at">-p</span> ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm=<span class="st">"clim_pd_grl"</span> yelmo.domain=<span class="st">"Greenland"</span> yelmo.grid_name=<span class="st">"GRL-16KM"</span> yelmo.restart=<span class="st">"../sim0-32km/yelmo_restart.nc"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The simulation is successful! (as of branch <code>alex-dev-2</code>, revision <code>1d9783fb</code>).</p>
+<p>Sometimes we may want to restart a simulation at a new resolution, e.g.&nbsp;perform a spin-up at relatively low resolution and then continue at higher resolution. Yelmo interpolates a restart file from another grid itself: when the <code>grid_name</code> attribute of the restart file differs from <code>yelmo.grid_name</code>, it computes conservative remapping weights between the two grids and interpolates the restart state (see <a href="./yelmo-io.html#reading-input">Yelmo IO</a>). No separate remapping step is needed.</p>
+<p>For example, run a short 32 km Greenland simulation, which writes a restart file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/restarts/sim0-32km <span class="at">-p</span> ctrl.time_end=100 ctrl.set_nm=<span class="st">"set_grl_pd"</span> yelmo.domain=<span class="st">"Greenland"</span> yelmo.grid_name=<span class="st">"GRL-32KM"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>and continue it at 16 km from this restart file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/restarts/sim1-16km <span class="at">-p</span> ctrl.time_end=100 ctrl.set_nm=<span class="st">"set_grl_pd"</span> yelmo.domain=<span class="st">"Greenland"</span> yelmo.grid_name=<span class="st">"GRL-16KM"</span> yelmo.restart=<span class="st">"../sim0-32km/yelmo_restart.nc"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To remap other fields between grids with <code>cdo</code>, <code>maps/genmap.sh</code> generates conservative remapping weights from the grid description files, e.g.:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> gencon,grid_GRL-16KM.txt <span class="at">-setgrid,grid_GRL-32KM.txt</span> GRL-32KM_REGIONS.nc scrip-con_GRL-32KM_GRL-16KM.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>
@@ -952,8 +946,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./optimization.html" class="pagination-link" aria-label="Basal friction optimization">
-        <span class="nav-page-text">Basal friction optimization</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./numerics-precision.html" class="pagination-link" aria-label="Numerical precision">
+        <span class="nav-page-text">Numerical precision</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

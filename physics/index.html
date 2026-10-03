@@ -34,7 +34,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../physics/momentum/diva.html" rel="next">
-<link href="../yelmo-config.html" rel="prev">
+<link href="../optimization.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../physics/index.html" class="sidebar-item-text sidebar-link active">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -412,7 +424,9 @@ window.Quarto = {
   <li><a href="#momentum-balance" id="toc-momentum-balance" class="nav-link" data-scroll-target="#momentum-balance">Momentum balance</a></li>
   <li><a href="#vertical-velocity" id="toc-vertical-velocity" class="nav-link" data-scroll-target="#vertical-velocity">Vertical velocity</a></li>
   <li><a href="#mass-conservation" id="toc-mass-conservation" class="nav-link" data-scroll-target="#mass-conservation">Mass conservation</a></li>
+  <li><a href="#time-stepping" id="toc-time-stepping" class="nav-link" data-scroll-target="#time-stepping">Time stepping</a></li>
   <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link" data-scroll-target="#thermodynamics">Thermodynamics</a></li>
+  <li><a href="#basal-friction" id="toc-basal-friction" class="nav-link" data-scroll-target="#basal-friction">Basal friction</a></li>
   <li><a href="#calving" id="toc-calving" class="nav-link" data-scroll-target="#calving">Calving</a></li>
   <li><a href="#notation-used-throughout" id="toc-notation-used-throughout" class="nav-link" data-scroll-target="#notation-used-throughout">Notation used throughout</a></li>
   </ul></li>
@@ -427,14 +441,15 @@ window.Quarto = {
 
 <section id="physics" class="level1">
 <h1>Physics</h1>
-<p>This section describes the continuum equations and numerical methods that Yelmo uses to solve the coupled momentum balance, mass conservation, and (in time) thermodynamics of the ice sheet. The goal is to document what the code actually implements, with the same variable names used in the source so that the equations here can be traced back to specific routines. The notation follows <a href="https://doi.org/10.5194/gmd-13-2805-2020">Robinson et al.&nbsp;(2020)</a> for mass conservation and <a href="https://doi.org/10.5194/tc-16-689-2022">Robinson, Goldberg, and Lipscomb (2022)</a> for the momentum balance.</p>
+<p>This section describes the continuum equations and numerical methods that Yelmo uses to solve the coupled momentum balance, mass conservation and thermodynamics of the ice sheet. The goal is to document what the code actually implements, with the same variable names used in the source so that the equations here can be traced back to specific routines. The notation follows <a href="https://doi.org/10.5194/gmd-13-2805-2020">Robinson et al.&nbsp;(2020)</a> for mass conservation and <a href="https://doi.org/10.5194/tc-16-689-2022">Robinson, Goldberg, and Lipscomb (2022)</a> for the momentum balance.</p>
 <section id="momentum-balance" class="level2">
 <h2 class="anchored" data-anchor-id="momentum-balance">Momentum balance</h2>
-<p>The ice flow is described as a slow, incompressible, gravity-driven flow of a power-law (Glen) fluid. The full Stokes problem is never solved. Instead Yelmo offers three approximations, listed in order of <em>decreasing</em> fidelity to Stokes:</p>
+<p>The ice flow is described as a slow, incompressible, gravity-driven flow of a power-law (Glen) fluid. The full Stokes problem is never solved. Instead Yelmo offers the following approximations, in order of <em>decreasing</em> fidelity to Stokes:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
 <th>Approximation</th>
+<th><code>ydyn.solver</code></th>
 <th>Membrane stresses</th>
 <th>Vertical shear</th>
 <th>Use case</th>
@@ -443,26 +458,36 @@ window.Quarto = {
 <tbody>
 <tr class="odd">
 <td><a href="../physics/momentum/diva.html">DIVA</a></td>
+<td><code>"diva"</code> (<strong>default</strong>), <code>"diva-noslip"</code></td>
 <td>yes</td>
 <td>yes (closure)</td>
-<td>first-class momentum balance, valid from slow interior to streaming flow and shelves</td>
+<td>valid from slow interior to streaming flow and shelves</td>
 </tr>
 <tr class="even">
 <td><a href="../physics/momentum/ssa.html">SSA</a></td>
+<td><code>"ssa"</code></td>
 <td>yes</td>
 <td>no (plug flow)</td>
 <td>floating shelves, fast-streaming grounded ice</td>
 </tr>
 <tr class="odd">
 <td><a href="../physics/momentum/sia.html">SIA</a></td>
+<td><code>"sia"</code></td>
 <td>no</td>
-<td>yes (closure)</td>
-<td>slow grounded interior, used as a <em>complement</em> to DIVA in hybrid mode</td>
+<td>yes</td>
+<td>slow grounded interior without sliding</td>
+</tr>
+<tr class="even">
+<td>SIA + SSA</td>
+<td><code>"hybrid"</code></td>
+<td>yes</td>
+<td>yes (SIA)</td>
+<td>depth-averaged velocity = SIA shear + SSA basal velocity</td>
 </tr>
 </tbody>
 </table>
-<p>DIVA is the recommended choice in Yelmo and is solved as a single 2D problem for the depth-averaged horizontal velocity. SSA is recovered from DIVA in the limit of vanishing vertical shear, and SIA is recovered in the limit of vanishing membrane stresses and large basal drag. All three formulations share the same driving stress, the same Glen viscosity, and (where applicable) the same family of friction laws — see <a href="../parameters.html">Parameters</a> for the parameter choices.</p>
-<p>The fourth page in this subsection documents how the DIVA / SSA momentum balance is <a href="../physics/momentum/solvers.html">discretised and solved</a>, including the two solvers currently supported: the <strong>residual</strong> assembler inherited from Yelmo v1, and the <strong>energy</strong> assembler that minimises a discrete energy functional.</p>
+<p><code>"fixed"</code> keeps the velocity unchanged. DIVA is the recommended choice in Yelmo and is solved as a single 2D problem for the depth-averaged horizontal velocity. SSA is recovered from DIVA in the limit of vanishing vertical shear, and SIA in the limit of vanishing membrane stresses and large basal drag. All formulations share the same driving stress, the same Glen viscosity and, where applicable, the same <a href="../physics/basal-friction.html">basal friction</a> laws.</p>
+<p>The <a href="../physics/momentum/solvers.html">Numerical solution</a> page documents how the DIVA / SSA momentum balance is discretised and solved, with two linear-system assemblers: the <strong>energy</strong> assembler (default, <code>ydyn.ssa_solver = "energy"</code>), which minimises a discrete energy functional, and the <strong>residual</strong> assembler, built from the strong form of the equations. It also describes the velocity limit.</p>
 </section>
 <section id="vertical-velocity" class="level2">
 <h2 class="anchored" data-anchor-id="vertical-velocity">Vertical velocity</h2>
@@ -474,15 +499,23 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
 </section>
 <section id="mass-conservation" class="level2">
 <h2 class="anchored" data-anchor-id="mass-conservation">Mass conservation</h2>
-<p>The <a href="../physics/mass_conservation/index.html">continuity equation</a> evolves the ice thickness <span class="math inline">H</span> in time given the depth-averaged velocity from the momentum balance and a set of mass-balance inputs (surface, basal, frontal, calving). Yelmo offers several discretisations of the resulting hyperbolic transport problem; the two recommended choices — an explicit donor-cell upwind scheme and an implicit upwind scheme solved with LIS — are documented in <a href="../physics/mass_conservation/solvers.html">Numerical solution</a>.</p>
+<p>The <a href="../physics/mass_conservation/index.html">continuity equation</a> evolves the ice thickness <span class="math inline">H</span> in time given the depth-averaged velocity from the momentum balance and the mass-balance terms (surface, basal, frontal, calving). Yelmo offers several discretisations of the advection; the two recommended choices, an implicit upwind scheme solved with LIS (<code>ytopo.solver = "impl-lis"</code>, default) and an explicit donor-cell upwind scheme (<code>"expl-upwind"</code>), are documented in <a href="../physics/mass_conservation/solvers.html">Numerical solution</a>.</p>
+</section>
+<section id="time-stepping" class="level2">
+<h2 class="anchored" data-anchor-id="time-stepping">Time stepping</h2>
+<p>The ice thickness is advanced with an adaptive <a href="../physics/timestepping.html">predictor–corrector scheme</a>, whose time step is set by an estimate of the truncation error and limited by a Courant condition.</p>
 </section>
 <section id="thermodynamics" class="level2">
 <h2 class="anchored" data-anchor-id="thermodynamics">Thermodynamics</h2>
-<p>The <a href="../physics/thermodynamics.html">thermodynamics module</a> advects and diffuses temperature in the ice column coupled to a 1D bedrock column, with surface, basal, and lithospheric boundary conditions. The resulting temperature feeds back into the momentum balance through the Glen rate factor <span class="math inline">A(T')</span>.</p>
+<p>The <a href="../physics/thermodynamics.html">thermodynamics</a> solves for the enthalpy of the ice column (<code>ytherm.method = "enth"</code>, default), from which the temperature and the water content of temperate ice follow. The ice column is coupled to a bedrock column (in equilibrium with the geothermal heat flux by default), and the basal boundary condition determines the basal melt or freeze-on. The temperature and water content feed back into the momentum balance through the Glen rate factor <span class="math inline">A</span> and the sub-temperate sliding factor.</p>
+</section>
+<section id="basal-friction" class="level2">
+<h2 class="anchored" data-anchor-id="basal-friction">Basal friction</h2>
+<p>The <a href="../physics/basal-friction.html">basal friction</a> coefficient <span class="math inline">\beta</span> follows from a friction law (linear, pseudo-plastic or regularized Coulomb), a bed coefficient that depends on the till properties and the effective pressure, and a reduction of sliding below the pressure melting point.</p>
 </section>
 <section id="calving" class="level2">
 <h2 class="anchored" data-anchor-id="calving">Calving</h2>
-<p>The <a href="../physics/calving.html">calving schemes</a> provide the calving rate <span class="math inline">\dot c</span> that enters the continuity equation as a mass-loss term. Yelmo supports a small family of stress- and geometry-based laws; the Lipscomb et al.&nbsp;(2019) effective-stress law is the recommended default.</p>
+<p>By default, the calving front is a <a href="../physics/calving.html">level set</a> that moves with the ice velocity plus a calving velocity from the von Mises stress law of Morlighem et al.&nbsp;(2016) (<code>ycalv.use_lsf = True</code>, <code>calv_flt_method = calv_grnd_method = "vm-m16"</code>), and front cells are partially ice covered. Without the level set, calving is a mass-loss rate in the continuity equation, e.g.&nbsp;from the effective-stress law of Lipscomb et al. (2019).</p>
 </section>
 <section id="notation-used-throughout" class="level2">
 <h2 class="anchored" data-anchor-id="notation-used-throughout">Notation used throughout</h2>
@@ -493,7 +526,7 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
 <li><span class="math inline">H</span>: ice thickness <span class="math inline">[\mathrm{m}]</span>; <span class="math inline">s</span> and <span class="math inline">b</span>: ice surface and basal elevations.</li>
 <li><span class="math inline">z</span>: vertical Cartesian coordinate, <span class="math inline">b \le z \le s</span>.</li>
 <li><span class="math inline">\rho_i</span>, <span class="math inline">g</span>: ice density and gravitational acceleration.</li>
-<li><span class="math inline">A(T')</span>: Glen rate factor, depending on the pressure-corrected temperature <span class="math inline">T'</span> and (where relevant) the water content <span class="math inline">\omega</span>. <span class="math inline">n = n_\mathrm{glen}</span> is the Glen exponent (typically 3).</li>
+<li><span class="math inline">A(T')</span>: Glen rate factor, depending on the homologous temperature <span class="math inline">T'</span> and optionally the water content <span class="math inline">\omega</span>. <span class="math inline">n = n_\mathrm{glen}</span> is the Glen exponent (typically 3).</li>
 <li><span class="math inline">\dot\varepsilon_{ij}</span>: components of the horizontal strain-rate tensor.</li>
 <li><span class="math inline">\dot\varepsilon_e</span>: effective strain rate, the second invariant of <span class="math inline">\dot\varepsilon_{ij}</span>.</li>
 <li><span class="math inline">\mu</span>: effective viscosity; <span class="math inline">\bar\mu = \frac{1}{H}\int_b^s \mu \,\mathrm dz</span>: depth-averaged viscosity.</li>
@@ -501,8 +534,9 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
 <li><span class="math inline">\boldsymbol\tau_b = (\tau_{b,x},\tau_{b,y})</span>: basal shear stress.</li>
 <li><span class="math inline">\beta</span>: basal friction coefficient, defined by <span class="math inline">\boldsymbol\tau_b = \beta\,\mathbf u_b</span>.</li>
 <li><span class="math inline">\dot a</span>: surface mass balance (<code>smb</code>).</li>
-<li><span class="math inline">\dot b_g, \dot b_f</span>: basal mass balance on grounded and floating ice (<code>bmb</code>).</li>
-<li><span class="math inline">\dot c</span>: calving rate (<code>cmb</code>; mass loss, <span class="math inline">\dot c \ge 0</span>).</li>
+<li><span class="math inline">\dot b_g, \dot b_f</span>: basal mass balance on grounded and floating ice (<code>bmb_grnd</code>, <code>bmb_shlf</code>; combined in <code>bmb</code>).</li>
+<li><span class="math inline">\dot f</span>: frontal mass balance (<code>fmb</code>).</li>
+<li><span class="math inline">\dot c</span>: calving mass balance (<code>cmb</code>; negative for mass loss).</li>
 </ul>
 <p>All horizontal fields live on the Arakawa C-grid (called the <strong>ac-grid</strong> in Yelmo): scalars at cell centres (<code>aa</code>-nodes), <span class="math inline">u</span> on the right face of each cell (<code>acx</code>-nodes), <span class="math inline">v</span> on the top face (<code>acy</code>-nodes), and cross-derivative quantities at the cell corners (<code>ab</code>-nodes).</p>
 
@@ -918,8 +952,8 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../yelmo-config.html" class="pagination-link" aria-label="yelmo-config">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">yelmo-config</span>
+      <a href="../optimization.html" class="pagination-link" aria-label="Basal friction optimization">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

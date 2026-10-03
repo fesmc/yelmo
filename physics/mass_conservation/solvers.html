@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -442,7 +454,8 @@ H_{i+1,j} &amp; \text{if } \bar u_{i+\tfrac12,j} &lt; 0,
 \;=\; \frac{Q^{x}_{i+\tfrac12,j} - Q^{x}_{i-\tfrac12,j}}{\Delta x}
    + \frac{Q^{y}_{i,j+\tfrac12} - Q^{y}_{i,j-\tfrac12}}{\Delta y}.
 </span></p>
-<p>The two recommended schemes — selected at runtime via the namelist parameter <code>ytopo.solver</code> — differ only in <strong>how</strong> the upwind fluxes are evaluated in time. Both are mass-conservative by construction (the flux leaving cell <span class="math inline">(i,j)</span> across a face is the same flux entering its neighbour), so the discrete update of <span class="math inline">H</span> summed over the whole domain matches the discrete integral of the source/sink terms exactly, up to boundary outflows.</p>
+<p>The scheme is selected with <code>ytopo.solver</code>. The two recommended schemes, <code>"impl-lis"</code> (default) and <code>"expl-upwind"</code>, differ only in <strong>how</strong> the upwind fluxes are evaluated in time. The other options are <code>"expl"</code>, <code>"impl-upwind"</code>, <code>"expl-sico"</code>, <code>"impl-sico"</code>, <code>"impl-sico-lis"</code>, <code>"expl-new"</code> and <code>"none"</code> (no advection). All schemes are first order in space. The fluxes are conservative (the flux leaving cell <span class="math inline">(i,j)</span> across a face is the same flux entering its neighbour), so the advection does not create or destroy mass, apart from the domain boundaries, cells with a prescribed thickness and the rate limiter below.</p>
+<p>The advection solver is called twice per time step, in the predictor and the corrector of the <a href="../../physics/timestepping.html">time-stepping scheme</a>.</p>
 <section id="expl-upwind-explicit-forward-euler-donor-cell-upwind" class="level2">
 <h2 class="anchored" data-anchor-id="expl-upwind-explicit-forward-euler-donor-cell-upwind"><code>expl-upwind</code> — explicit forward-Euler donor-cell upwind</h2>
 <p>Selected by <code>ytopo.solver = "expl-upwind"</code>. The implementation is <code>calc_adv2D_expl_upwind</code> in <code>solver_advection.f90</code>; the scheme follows <a href="https://doi.org/10.5194/tc-5-715-2011">Winkelmann et al.&nbsp;(2011)</a>, Eq. (18).</p>
@@ -457,13 +470,13 @@ H^{n+1}_{i,j}
 \right]^{n}
 \;+\; \Delta t\,\dot m_{i,j}^{\,n},
 </span></p>
-<p>where <span class="math inline">\dot m</span> collects whatever source/sink term is being applied in the same call (zero in the standard dynamic-only call from the <code>mass_conservation.f90</code> driver, since the mass-balance terms are added separately). A hard rate limiter <span class="math inline">|\dot H| \le 10^{3}\,\mathrm{m\,a^{-1}}</span> is applied for safety.</p>
+<p>where <span class="math inline">\dot m</span> collects whatever source/sink term is being applied in the same call (zero in Yelmo, where the mass-balance terms are added separately). The flux divergence is limited to <span class="math inline">10^{3}\,\mathrm{m\,a^{-1}}</span> for safety.</p>
 <p>The scheme is first-order accurate in time and space, monotone, and positivity-preserving for the depth-averaged transport problem when the CFL condition</p>
 <p><span class="math display">
 \Delta t \;\le\; \min_{i,j}
 \frac{1}{|\bar u_{i+\tfrac12,j}|/\Delta x \,+\, |\bar v_{i,j+\tfrac12}|/\Delta y}
 </span></p>
-<p>is respected. Yelmo enforces this via an adaptive timestepper at the top level (see <a href="../../parameters.html">Parameters</a>), so the user does not need to tune the advection step manually — but the scheme is sensitive to under-resolved velocity peaks at the grounding line.</p>
+<p>is respected. The adaptive time step is limited by this condition with the Courant number <code>yelmo.pc_cfl_max</code> (default 0.5; <code>yelmo.cfl_max</code> for <code>dt_method = 1</code>), see <a href="../../physics/timestepping.html">Time stepping</a>.</p>
 </section>
 <section id="impl-lis-implicit-upwind-via-lis" class="level2">
 <h2 class="anchored" data-anchor-id="impl-lis-implicit-upwind-via-lis"><code>impl-lis</code> — implicit upwind via LIS</h2>
@@ -482,16 +495,16 @@ F^{x}_{i+\tfrac12,j}(H^{n+1})
 \;+\; \Delta t\,\dot m_{i,j},
 </span></p>
 <p>with <span class="math inline">F^{x}_{i+\tfrac12,j} = \bar u_{i+\tfrac12,j}\,\Delta y \cdot H^{\mathrm{up}}_{i+\tfrac12,j}</span> and analogously for <span class="math inline">F^{y}</span>. Each face contributes a single off-diagonal coefficient to the row for cell <span class="math inline">(i,j)</span> — the one corresponding to its upwind neighbour — and a diagonal contribution when cell <span class="math inline">(i,j)</span> itself is the upwind donor. The assembled operator <span class="math inline">A\,H^{n+1} = b</span> therefore has at most five non-zeros per row (centre plus four neighbours), is stored in CSR form, and is solved each timestep by <a href="http://www.ssisc.org/lis/">LIS</a> with BiCGSTAB and a Jacobi preconditioner (tolerance 1e-12, set in <code>solver_advection.f90</code>, not a parameter).</p>
-<p>Boundary rows are set per face by the <code>boundaries</code> flag: <code>"zero"</code> imposes <span class="math inline">H = 0</span> at the edge (Dirichlet), <code>"infinite"</code> zeroes the normal derivative (Neumann outflow), and <code>"periodic"</code> wraps the stencil to the opposite edge. The mask values <code>mask = 0</code> and <code>mask = -1</code> further allow per-cell pinning of <span class="math inline">H</span> to zero or to its previous value.</p>
-<p>Because the implicit upwind scheme is unconditionally stable for this linear transport problem, it tolerates larger timesteps than <code>expl-upwind</code> — typically the limiting factor becomes the <em>physical</em> adaptive timestep used by Yelmo (driven by the momentum balance and the mass-balance terms) rather than a CFL constraint on the advection. The price is one sparse linear solve per timestep and a slightly more diffusive solution than the explicit upwind scheme at the same <span class="math inline">\Delta t</span>.</p>
+<p>The rows at the domain edge depend on the boundary type of the experiment (<code>yelmo.experiment</code>): zero thickness at the edge (default), zero normal gradient (<code>"infinite"</code>) or periodic. MISMIP3D and TROUGH-F17 combine a zero edge, an outflow edge and periodic sides. Cells with <code>bnd%mask_ice = NONE</code> are held at <span class="math inline">H = 0</span> and cells with <code>FIXED</code> at their current thickness; only <code>DYNAMIC</code> cells are solved.</p>
+<p>Because the implicit upwind scheme is unconditionally stable for this linear transport problem, it tolerates larger Courant numbers than <code>expl-upwind</code>. In Yelmo, the time step is set by the predictor–corrector error estimate and the Courant cap <code>pc_cfl_max</code> for both schemes. The price is one sparse linear solve per call and a slightly more diffusive solution than the explicit upwind scheme at the same <span class="math inline">\Delta t</span>.</p>
 </section>
 <section id="choosing-between-the-two" class="level2">
 <h2 class="anchored" data-anchor-id="choosing-between-the-two">Choosing between the two</h2>
 <ul>
-<li><code>expl-upwind</code> is fast, simple and fully local, a reasonable choice for high-resolution simulations where <span class="math inline">\Delta t</span> is already small for other reasons (e.g.&nbsp;fast streaming flow).</li>
-<li><code>impl-lis</code> (the default, <code>ytopo.solver</code>) is the right choice when the velocity field has localised fast peaks that would force <code>expl-upwind</code> into very small timesteps — it lets the global adaptive <span class="math inline">\Delta t</span> be set by physics elsewhere in the model.</li>
+<li><code>impl-lis</code> (default) is robust where the velocity field has localised fast peaks, e.g.&nbsp;at the grounding line and in outlet glaciers.</li>
+<li><code>expl-upwind</code> is fast, simple and fully local, a reasonable choice for high-resolution simulations where <span class="math inline">\Delta t</span> is already small for other reasons.</li>
 </ul>
-<p>Both schemes are mass-conservative to round-off; the choice does not change the continuum equation being solved, only the time-stepping and the resulting cost / smoothing trade-off.</p>
+<p>The choice does not change the continuum equation being solved, only the time integration and the resulting cost / smoothing trade-off.</p>
 
 
 </section>

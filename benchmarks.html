@@ -245,6 +245,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -320,20 +326,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -420,12 +438,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -465,6 +477,7 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#initmip-ant-performance" id="toc-initmip-ant-performance" class="nav-link" data-scroll-target="#initmip-ant-performance">Performance</a></li>
   </ul></li>
+  <li><a href="#enthalpy-column-tests" id="toc-enthalpy-column-tests" class="nav-link" data-scroll-target="#enthalpy-column-tests">Enthalpy column tests</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/benchmarks.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -489,7 +502,7 @@ window.Quarto = {
 <p>For ensemble runs (one execution per parameter combination), pass comma-separated values to <code>-p</code>. <code>runme</code> interprets these as ensemble dimensions and creates one run directory per combination under <code>-o</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> <span class="op">&lt;</span>alias<span class="op">&gt;</span> -n <span class="op">&lt;</span>namelist<span class="op">&gt;</span> -o <span class="op">&lt;</span>ens-dir<span class="op">&gt;</span> -p key=val1,val2,val3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This is built into <code>runme</code> — no separate package or <code>jobrun</code> wrapper is needed.</p>
-<p>The sections below cover each benchmark in the current Yelmo test suite. For additional variants (alternative solvers, basal-friction sweeps, OpenMP scaling tests, and benchmarks not yet documented here such as HALFAR, ISMIP-HOM A and C, MISMIP+, and CalvingMIP), see <a href="https://github.com/fesmc/yelmo/blob/main/run_batch_gmd.sh"><code>run_batch_gmd.sh</code></a> in the repository root.</p>
+<p>The sections below cover each benchmark in the current Yelmo test suite, and the single-column tests of the thermodynamics at the end. For additional variants (alternative solvers, basal-friction sweeps, OpenMP scaling tests, and benchmarks not yet documented here such as HALFAR, ISMIP-HOM A and C, MISMIP+, and CalvingMIP), see <a href="https://github.com/fesmc/yelmo/blob/main/run_batch_gmd.sh"><code>run_batch_gmd.sh</code></a> in the repository root.</p>
 </section>
 <section id="eismint1-moving" class="level2">
 <h2 class="anchored" data-anchor-id="eismint1-moving">EISMINT1-moving</h2>
@@ -507,7 +520,7 @@ window.Quarto = {
 </section>
 <section id="mismip3d" class="level2">
 <h2 class="anchored" data-anchor-id="mismip3d">MISMIP3D</h2>
-<p>Marine Ice Sheet Model Intercomparison Project, 3D version (<a href="https://doi.org/10.3189/2013JoG12J129">Pattyn et al., 2013</a>). Tests grounding-line dynamics on a marine bed with retrograde slope, using a SSA or DIVA momentum balance. Two experiments are defined in the namelist via the <code>ctrl.experiment</code> field: <code>Stnd</code> (standard, advance to steady state) and <code>RF</code> (reverse forcing, to test reversibility).</p>
+<p>Marine Ice Sheet Model Intercomparison Project, 3D version (<a href="https://doi.org/10.3189/2013JoG12J129">Pattyn et al., 2013</a>). Tests grounding-line dynamics on a marine bed, with the SSA momentum balance (<code>ydyn.solver = "ssa"</code> in the parameter file). Two experiments are defined in the namelist via the <code>ctrl.experiment</code> field: <code>Stnd</code> (standard, advance to steady state) and <code>RF</code> (reverse forcing, to test reversibility).</p>
 <p>Standard experiment:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip</span>
@@ -517,7 +530,7 @@ window.Quarto = {
 <section id="resolution-ensembles" class="level3">
 <h3 class="anchored" data-anchor-id="resolution-ensembles">Resolution ensembles</h3>
 <p>To probe grid resolution and the treatment of the grounding line, run ensembles over <code>ctrl.dx</code> with different basal-stress scaling / staggering options at the grounding line:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Default grounding-line treatment</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simple staggering of beta (beta_gl_stag=0)</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> mismip <span class="at">-n</span> par/yelmo_MISMIP3D.nml <span class="at">-o</span> output/benchmarks/mismip3d-default <span class="dt">\</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -575,11 +588,12 @@ window.Quarto = {
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co"># cf_ref ensemble (3 values) with adjusted beta_u0</span></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> trough <span class="at">-n</span> par/yelmo_TROUGH-F17.nml <span class="at">-o</span> output/benchmarks/trough-f17-cf <span class="dt">\</span></span>
 <span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ydyn.beta_u0=100 ytill.cf_ref=5.0,10.0,20.0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The TROUGH-F17 parameter file uses a pseudo-plastic law (<code>ydyn.beta_method = 2</code>) with <code>ytill.is_angle = True</code>, so <code>cf_ref</code> is a till friction angle in degrees. Its <code>beta_u0</code> is very large (one year in seconds), so <code>beta_u0 = 100</code> above changes the friction law substantially.</p>
 </section>
 </section>
 <section id="initmip-grl" class="level2">
 <h2 class="anchored" data-anchor-id="initmip-grl">initmip-grl</h2>
-<p>Greenland initialization benchmark following the initMIP-Greenland protocol (<a href="https://doi.org/10.5194/tc-12-1433-2018">Goelzer et al., 2018</a>). Spins the ice sheet up toward a present-day steady state using the optimization-based initialization scheme (<code>equil_method = "opt"</code>) with present-day boundary conditions. Default settings: 5-yr outer timestep, 1000-yr simulation, steady-state forcing.</p>
+<p>Greenland initialization benchmark following the initMIP-Greenland protocol (<a href="https://doi.org/10.5194/tc-12-1433-2018">Goelzer et al., 2018</a>). Spins the ice sheet up toward a present-day steady state using the optimization-based initialization scheme (<code>ctrl.equil_method = "opt"</code>, see <a href="./optimization.html">Basal friction optimization</a>) with present-day boundary conditions. Default settings: 10-yr outer timestep, 1000-yr simulation, steady-state forcing.</p>
 <p>Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid by uncommenting the desired line:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="va">grid</span><span class="op">=</span>GRL-32KM</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=GRL-16KM</span></span>
@@ -589,21 +603,19 @@ window.Quarto = {
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
 <span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-<span class="va">$grid</span> <span class="dt">\</span></span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Greenland yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Greenland yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To run all four resolutions as an ensemble:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-ens <span class="dt">\</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Greenland <span class="dt">\</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Greenland <span class="dt">\</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="initmip-grl-performance" class="level3">
 <h3 class="anchored" data-anchor-id="initmip-grl-performance">Performance</h3>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="img/timing-resolution-grl.png" class="img-fluid figure-img"></p>
-<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-grl runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads on a DKRZ Levante shared node). Grey: DIVA in Robinson et al.&nbsp;(2022), Fig. 3, on one processor. The lines are fits of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
+<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ Levante shared node). Grey: DIVA in Robinson et al.&nbsp;(2022), Fig. 3, on one processor. The lines are fits of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
 </figure>
 </div>
 <p>The runs use <code>par/yelmo_initmip.nml</code> with <code>ctrl.time_end=1000 ctrl.time_equil=0</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
@@ -620,27 +632,70 @@ window.Quarto = {
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
 <span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-<span class="va">$grid</span> <span class="dt">\</span></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Antarctica yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Antarctica yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To run all three resolutions as an ensemble:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-ens <span class="dt">\</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 <span class="dt">\</span></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>       ydyn.solver=diva yelmo.domain=Antarctica <span class="dt">\</span></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Antarctica <span class="dt">\</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="initmip-ant-performance" class="level3">
 <h3 class="anchored" data-anchor-id="initmip-ant-performance">Performance</h3>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="img/timing-resolution-ant.png" class="img-fluid figure-img"></p>
-<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-ant runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads on a DKRZ Levante shared node). The line is a fit of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
+<figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-ant runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ Levante shared node). The line is a fit of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
 </figure>
 </div>
 <p>Same setup as for <a href="#initmip-grl-performance">initmip-grl</a>. Data and plotting script: <code>analysis/timing/</code>.</p>
-
-
 </section>
+</section>
+<section id="enthalpy-column-tests" class="level2">
+<h2 class="anchored" data-anchor-id="enthalpy-column-tests">Enthalpy column tests</h2>
+<p>The standalone column driver <code>tests/test_enthalpy.f90</code> (<code>make enthalpy</code>) tests the <a href="./physics/thermodynamics.html">thermodynamics</a> solvers in a single ice column, with reference data in <code>tests/data/Kleiner2015/</code>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Experiment</th>
+<th>Test</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>cold-limit</code></td>
+<td>The enthalpy solver reduces to the temperature solver for cold ice</td>
+</tr>
+<tr class="even">
+<td><code>kleiner-a</code></td>
+<td>Kleiner et al.&nbsp;(2015) Experiment A: transient basal melt and refreezing under a time-varying surface temperature, compared with the analytic steady melt rates</td>
+</tr>
+<tr class="odd">
+<td><code>kleiner-a-cap</code></td>
+<td>As <code>kleiner-a</code>, with the capacity basal boundary condition</td>
+</tr>
+<tr class="even">
+<td><code>kleiner-b</code></td>
+<td>Kleiner et al.&nbsp;(2015) Experiment B: steady polythermal column, CTS height and basal water content compared with the analytic solution</td>
+</tr>
+<tr class="odd">
+<td><code>thin-margin</code></td>
+<td>Stability of a thin polythermal margin column, over a range of thickness and horizontal advection</td>
+</tr>
+<tr class="even">
+<td><code>robin-column</code></td>
+<td>Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers</td>
+</tr>
+</tbody>
+</table>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> enthalpy</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./libyelmo/bin/test_enthalpy.x</span> kleiner-b enth 201 1e-4</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The arguments are the experiment, the solver (<code>temp</code>, <code>enth</code> or <code>both</code>), the number of vertical points (default 51) and optionally the conductivity ratio of temperate ice (<code>enth_cr</code>). Output is written to <code>output/test_enthalpy_&lt;experiment&gt;_&lt;solver&gt;.nc</code>, and the program reports whether the comparison with the reference passes.</p>
+
+
 </section>
 </section>
 

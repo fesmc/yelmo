@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -410,8 +422,8 @@ window.Quarto = {
   <li><a href="#numerical-solution-of-diva-ssa" id="toc-numerical-solution-of-diva-ssa" class="nav-link active" data-scroll-target="#numerical-solution-of-diva-ssa">Numerical solution of DIVA / SSA</a>
   <ul class="collapse">
   <li><a href="#discretisation-conventions" id="toc-discretisation-conventions" class="nav-link" data-scroll-target="#discretisation-conventions">Discretisation conventions</a></li>
-  <li><a href="#solver-a-residual-form-yelmo-v1" id="toc-solver-a-residual-form-yelmo-v1" class="nav-link" data-scroll-target="#solver-a-residual-form-yelmo-v1">Solver A — residual form (Yelmo v1)</a></li>
-  <li><a href="#solver-b-energy-form-default" id="toc-solver-b-energy-form-default" class="nav-link" data-scroll-target="#solver-b-energy-form-default">Solver B — energy form (default)</a>
+  <li><a href="#residual-assembler" id="toc-residual-assembler" class="nav-link" data-scroll-target="#residual-assembler">Residual assembler</a></li>
+  <li><a href="#energy-assembler-default" id="toc-energy-assembler-default" class="nav-link" data-scroll-target="#energy-assembler-default">Energy assembler (default)</a>
   <ul class="collapse">
   <li><a href="#energy-density" id="toc-energy-density" class="nav-link" data-scroll-target="#energy-density">Energy density</a></li>
   <li><a href="#discrete-assembly" id="toc-discrete-assembly" class="nav-link" data-scroll-target="#discrete-assembly">Discrete assembly</a></li>
@@ -419,7 +431,7 @@ window.Quarto = {
   </ul></li>
   <li><a href="#velocity-limit" id="toc-velocity-limit" class="nav-link" data-scroll-target="#velocity-limit">Velocity limit</a>
   <ul class="collapse">
-  <li><a href="#clip-yelmo-v1" id="toc-clip-yelmo-v1" class="nav-link" data-scroll-target="#clip-yelmo-v1"><code>"clip"</code> (Yelmo v1)</a></li>
+  <li><a href="#clip" id="toc-clip" class="nav-link" data-scroll-target="#clip"><code>"clip"</code></a></li>
   <li><a href="#drag-default" id="toc-drag-default" class="nav-link" data-scroll-target="#drag-default"><code>"drag"</code> (default)</a></li>
   <li><a href="#test-trough-f17" id="toc-test-trough-f17" class="nav-link" data-scroll-target="#test-trough-f17">Test: TROUGH-F17</a></li>
   </ul></li>
@@ -436,7 +448,7 @@ window.Quarto = {
 <section id="numerical-solution-of-diva-ssa" class="level1">
 <h1>Numerical solution of DIVA / SSA</h1>
 <p>The DIVA and SSA momentum balances share the same 2D depth-integrated form: a nonlinear elliptic problem for the depth-averaged horizontal velocity <span class="math inline">\bar{\mathbf u} = (\bar u, \bar v)</span>, with coefficients <span class="math inline">(\mu, \beta_\mathrm{eff})</span> that depend on the solution. Yelmo discretises this problem on the Arakawa C-grid (the <strong>ac-grid</strong>) and linearises it by Picard iteration, freezing <span class="math inline">(\mu, \beta_\mathrm{eff}, H)</span> at the previous iterate, solving a linear system for the new <span class="math inline">\bar{\mathbf u}</span>, relaxing, and repeating until convergence.</p>
-<p>Two solvers are provided for the linear step. Both produce the same solution at interior cells (the two systems are related by a sign and a cell-area factor), but they differ in the structure of the assembled matrix and in how boundary conditions are imposed. The choice is made at runtime via the parameter <code>ydyn.ssa_solver = "residual" | "energy"</code>, which the DIVA solver dispatches on.</p>
+<p>Two solvers are provided for the linear step. Both produce the same solution at interior cells (the two systems are related by a sign and a cell-area factor), but they differ in the structure of the assembled matrix and in how boundary conditions are imposed. The choice is made at runtime via the parameter <code>ydyn.ssa_solver = "energy"</code> (default) or <code>"residual"</code>, used by both the DIVA and the SSA Picard loops.</p>
 <section id="discretisation-conventions" class="level2">
 <h2 class="anchored" data-anchor-id="discretisation-conventions">Discretisation conventions</h2>
 <p>Yelmo uses the Arakawa C / staggered AC grid:</p>
@@ -446,18 +458,21 @@ window.Quarto = {
 <li><strong>acy-nodes</strong> (top face): <span class="math inline">\bar v</span>, <span class="math inline">\tau_{d,y}</span>, <span class="math inline">\beta_{\mathrm{eff},y}</span>.</li>
 <li><strong>ab-nodes</strong> (cell corners): cross-coupling viscosity <span class="math inline">(\bar\mu H)^{\mathrm{ab}}</span>, obtained by averaging <span class="math inline">\bar\mu\,H</span> from its four neighbouring aa-cells (<code>stagger_visc_aa_ab</code>).</li>
 </ul>
-<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt_residual</code> or <code>ydyn.ssa_lis_opt_energy</code>, depending on <code>ydyn.ssa_solver</code>.</p>
-<p>Per-row solver masks (<code>ssa_mask_acx</code>, <code>ssa_mask_acy</code>) classify each ac-node as one of:</p>
+<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt_energy</code> (default <code>-i cg -p jacobi -maxiter 200 -tol 1.0e-2</code>) or <code>ydyn.ssa_lis_opt_residual</code> (default <code>-i minres -p jacobi -maxiter 100 -tol 1.0e-2</code>), depending on <code>ydyn.ssa_solver</code>.</p>
+<p>Per-row solver masks (<code>ssa_mask_acx</code>, <code>ssa_mask_acy</code>, set by <code>set_ssa_masks</code>) classify each ac-node as one of:</p>
 <ul>
-<li><code>0</code>: Dirichlet zero velocity (frozen bed, edge of domain, etc.);</li>
-<li><code>-1</code>: Dirichlet prescribed velocity (e.g.&nbsp;observed input);</li>
-<li><code>1</code>: solve (interior);</li>
-<li><code>3</code>: lateral / calving-front Neumann row driven by the depth-integrated lateral stress <span class="math inline">\tau_{l,\mathrm{int}}</span>.</li>
+<li><code>-1</code>: prescribed velocity, kept at its current value;</li>
+<li><code>0</code>: zero velocity (a face without a fully ice-covered neighbour, or a floating face against ice-free land);</li>
+<li><code>1</code>: solved, grounded or grounding-line face;</li>
+<li><code>2</code>: solved, floating face;</li>
+<li><code>3</code>: ice-front face with the lateral boundary condition, a Neumann row driven by the depth-integrated lateral stress <span class="math inline">\tau_{l,\mathrm{int}}</span>;</li>
+<li><code>4</code>: ice-front face solved as an inner face, with half of the basal drag (only the ice half of its control area has drag).</li>
 </ul>
-<p>The two assemblers share the same argument list so they are drop-in interchangeable from the Picard loop in <code>calc_velocity_diva</code>.</p>
+<p>Which front faces get the lateral boundary condition (3) and which are solved as inner faces (4) is set by <code>ydyn.ssa_lat_bc</code> (see <a href="../../physics/momentum/diva.html">DIVA</a>).</p>
+<p>The two assemblers share the same argument list, so they are interchangeable in the Picard loops of <code>calc_velocity_diva</code> and <code>calc_velocity_ssa</code>.</p>
 </section>
-<section id="solver-a-residual-form-yelmo-v1" class="level2">
-<h2 class="anchored" data-anchor-id="solver-a-residual-form-yelmo-v1">Solver A — residual form (Yelmo v1)</h2>
+<section id="residual-assembler" class="level2">
+<h2 class="anchored" data-anchor-id="residual-assembler">Residual assembler</h2>
 <p>The residual assembler (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/solver_ssa_ac.f90"><code>solver_ssa_ac.f90</code></a>) builds a non-symmetric matrix <span class="math inline">A_\mathrm{res}</span> and right-hand side <span class="math inline">\mathbf b_\mathrm{res}</span> directly from the strong form of the SSA PDE. Writing <span class="math inline">N \equiv \bar\mu\,H</span> for brevity, the interior <span class="math inline">\bar u</span> row is a 5-point stencil in <span class="math inline">\bar u</span> plus cross-coupling terms in <span class="math inline">\bar v</span> on the neighbouring acy-faces, balanced against the basal drag and the driving stress. Schematically (cell <span class="math inline">(i,j)</span>, with <span class="math inline">N^{\mathrm{aa}}</span> on aa-nodes and <span class="math inline">N^{\mathrm{ab}}</span> on ab-nodes):</p>
 <p><span class="math display">
 \sum_{(i',j')}\alpha^{x}_{i',j'}\,\bar u_{i',j'}
@@ -471,17 +486,16 @@ window.Quarto = {
 <p><span class="math display">\alpha^{x}_{i,j-1} \;=\; \tfrac{1}{\Delta y^{2}}\,N^{\mathrm{ab}}_{i,j-1},</span></p>
 <p><span class="math display">\alpha^{x}_{i,j+1} \;=\; \tfrac{1}{\Delta y^{2}}\,N^{\mathrm{ab}}_{i,j},</span></p>
 <p>with the centre coefficient <span class="math inline">\alpha^{x}_{i,j}</span> being minus the sum of its four neighbours. The <span class="math inline">\gamma^{xy}</span> coefficients couple the row to four neighbouring <span class="math inline">\bar v</span>-faces via the <span class="math inline">\partial \bar v/\partial x</span> and <span class="math inline">\partial \bar v/\partial y</span> cross-terms in the membrane stress. The <span class="math inline">\bar v</span> row has the analogous structure.</p>
-<p>The right-hand side is the driving stress itself (no cell-area factor). The system <span class="math inline">A_\mathrm{res}\,\mathbf x = \mathbf b_\mathrm{res}</span> is non-symmetric, and is solved with a Krylov method such as BiCGStab plus an algebraic preconditioner.</p>
+<p>The right-hand side is the driving stress itself (no cell-area factor). The system <span class="math inline">A_\mathrm{res}\,\mathbf x = \mathbf b_\mathrm{res}</span> is in general non-symmetric (through the Dirichlet rows and the front rows).</p>
 <ul>
 <li>Lateral / calving-front rows substitute the membrane-stress balance with the prescribed depth-integrated lateral stress <span class="math inline">\tau_{l,\mathrm{int}}</span> in a row-specific stencil.</li>
 <li>Dirichlet rows replace the equation by <span class="math inline">\bar u_{i,j} = u^*</span> with the corresponding column kept in place (non-symmetric).</li>
 <li>Free-slip, no-slip and periodic conditions are applied per side via the boundary-code helper <code>get_neighbor_indices_bc_codes</code>.</li>
 </ul>
-<p>This is the formulation inherited from Yelmo v1 (the default before v2.0).</p>
 </section>
-<section id="solver-b-energy-form-default" class="level2">
-<h2 class="anchored" data-anchor-id="solver-b-energy-form-default">Solver B — energy form (default)</h2>
-<p>The energy assembler (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/solver_ssa_ac_energy.f90"><code>solver_ssa_ac_energy.f90</code></a>) builds the Hessian of a discrete energy functional and solves <span class="math inline">K\,\mathbf x = \mathbf b</span> for the velocity that minimises that energy. With <span class="math inline">(\mu, \beta, H)</span> frozen during each Picard step the energy is quadratic, so <span class="math inline">K = \frac{\partial^{2} W}{\partial \mathbf x^{\,2}}</span> is symmetric positive (semi-)definite and the linear step can use a symmetric Krylov method — CG with an AMG preconditioner — in place of BiCGStab.</p>
+<section id="energy-assembler-default" class="level2">
+<h2 class="anchored" data-anchor-id="energy-assembler-default">Energy assembler (default)</h2>
+<p>The energy assembler (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/solver_ssa_ac_energy.f90"><code>solver_ssa_ac_energy.f90</code></a>) builds the Hessian of a discrete energy functional and solves <span class="math inline">K\,\mathbf x = \mathbf b</span> for the velocity that minimises that energy. With <span class="math inline">(\mu, \beta, H)</span> frozen during each Picard step the energy is quadratic, so <span class="math inline">K = \frac{\partial^{2} W}{\partial \mathbf x^{\,2}}</span> is symmetric positive (semi-)definite and the linear step can use a symmetric Krylov method (CG by default).</p>
 <section id="energy-density" class="level3">
 <h3 class="anchored" data-anchor-id="energy-density">Energy density</h3>
 <p>The continuum energy density underlying the SSA momentum balance is the sum of a membrane (deformation) term, a basal-drag term, and a gravitational potential-energy term:</p>
@@ -498,7 +512,7 @@ W \;=\;
 \;+\; \rho_i\,g\,H\,\!\left(\bar u\,\frac{\partial s}{\partial x} + \bar v\,\frac{\partial s}{\partial y}\right).
 \end{aligned}
 </span></p>
-<p>The first line is <span class="math inline">2\,\bar\mu\,H\,\dot{\bar\varepsilon}_{ij}\,\dot{\bar\varepsilon}_{ij}</span> written out for the depth-averaged horizontal strain rates. Stationarity of the integral <span class="math inline">\mathcal W = \int W \,\mathrm dx\,\mathrm dy</span> with respect to <span class="math inline">(\bar u, \bar v)</span> reproduces exactly the SSA / DIVA strong form, so any critical point of <span class="math inline">\mathcal W</span> is a solution of the momentum balance.</p>
+<p>The first line is <span class="math inline">2\,\bar\mu\,H\,\dot{\bar\varepsilon}_e^{\,2}</span> written out for the depth-averaged horizontal strain rates, including the vertical strain rate <span class="math inline">\dot\varepsilon_{zz} = -(\dot\varepsilon_{xx} + \dot\varepsilon_{yy})</span> from incompressibility. Stationarity of the integral <span class="math inline">\mathcal W = \int W \,\mathrm dx\,\mathrm dy</span> with respect to <span class="math inline">(\bar u, \bar v)</span> reproduces exactly the SSA / DIVA strong form, so any critical point of <span class="math inline">\mathcal W</span> is a solution of the momentum balance.</p>
 </section>
 <section id="discrete-assembly" class="level3">
 <h3 class="anchored" data-anchor-id="discrete-assembly">Discrete assembly</h3>
@@ -521,7 +535,7 @@ K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 <h3 class="anchored" data-anchor-id="why-bother">Why bother?</h3>
 <p>Two practical advantages flow from the SPD structure:</p>
 <ol type="1">
-<li><strong>Linear solver choice</strong>: CG with AMG is typically faster and more robust than BiCGStab + ILU for large, well-conditioned SPD systems, and converges monotonically in the energy norm.</li>
+<li><strong>Linear solver choice</strong>: CG (optionally with an algebraic multigrid preconditioner) is typically faster and more robust than non-symmetric Krylov methods for large SPD systems, and converges monotonically in the energy norm.</li>
 <li><strong>Physical interpretability and discrete consistency</strong>: every term in <span class="math inline">K</span> and <span class="math inline">\mathbf b</span> corresponds to a contribution to a discrete energy. Boundary conditions that are natural for the continuum functional (e.g.&nbsp;Neumann front stress) become natural for the discrete one. This makes it easier to add new physics — e.g. alternative friction laws, additional body forces — in a way that provably preserves the variational structure.</li>
 </ol>
 <p>The Picard loop, the viscosity update, the F-integral closure and the basal-stress and 3D velocity diagnostics are identical between the two solvers: only the linear-system assembly differs.</p>
@@ -529,10 +543,10 @@ K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 </section>
 <section id="velocity-limit" class="level2">
 <h2 class="anchored" data-anchor-id="velocity-limit">Velocity limit</h2>
-<p>Yelmo bounds the depth-averaged velocity of the SSA and DIVA solvers, since a runaway velocity solution would otherwise end the run (e.g., during a thermally driven ice-stream activation). The method is set by <code>ydyn.ssa_vel_lim_method = "drag" | "clip"</code>, and the limit by <code>ydyn.ssa_vel_max</code> (default 10 000 m/yr). The run is stopped by <code>yelmo_check_kill</code> once any depth-averaged speed reaches <span class="math inline">2\,u_\mathrm{max}</span>, with <span class="math inline">u_\mathrm{max}</span> = <code>ssa_vel_max</code>.</p>
-<section id="clip-yelmo-v1" class="level3">
-<h3 class="anchored" data-anchor-id="clip-yelmo-v1"><code>"clip"</code> (Yelmo v1)</h3>
-<p>After every linear solve inside the Picard loop, each velocity component is clipped to <span class="math inline">[-u_\mathrm{max}, u_\mathrm{max}]</span> (<code>ssa_vel_clip</code>). The clipped velocity is not a solution of the momentum balance, and the Picard map becomes non-smooth at the edge of the clipped region. The viscosity and friction of the next iteration are evaluated from the clipped velocity, which is too slow, so the next solve falls below the limit and the one after overshoots it again. Picard therefore cycles instead of converging. In TROUGH-F17 (<code>ssa_vel_max</code> = 5000 m/yr), about 2500–2900 cells sit at the limit during each activation, around 50 % of the solves stop at <code>ssa_iter_max</code>, and the velocity changes by about 100 m/yr between consecutive solves at any time step. The predictor–corrector error at the clip edge then does not decrease with the time step, and the run crawls at <code>dt_min</code>. The clip also applies to floating ice.</p>
+<p>Yelmo bounds the depth-averaged velocity of the SSA and DIVA solvers, since a runaway velocity solution would otherwise end the run (e.g., during a thermally driven ice-stream activation). The method is set by <code>ydyn.ssa_vel_lim_method = "drag" | "clip"</code>, and the limit by <code>ydyn.ssa_vel_max</code> (default 10 000 m/yr). The run is stopped by <code>yelmo_check_kill</code> once any depth-averaged speed reaches <span class="math inline">2\,u_\mathrm{max}</span>, with <span class="math inline">u_\mathrm{max}</span> = <code>ssa_vel_max</code> (see <a href="../../physics/timestepping.html#instability-checks">Time stepping</a>).</p>
+<section id="clip" class="level3">
+<h3 class="anchored" data-anchor-id="clip"><code>"clip"</code></h3>
+<p>After every linear solve inside the Picard loop, each velocity component is clipped to <span class="math inline">[-u_\mathrm{max}, u_\mathrm{max}]</span> (<code>ssa_vel_clip</code>). The clipped velocity is not a solution of the momentum balance, and the Picard map becomes non-smooth at the edge of the clipped region. The viscosity and friction of the next iteration are evaluated from the clipped velocity, which is too slow, so the next solve falls below the limit and the one after overshoots it again. Picard therefore cycles instead of converging when many cells reach the limit, and the time step can collapse to <code>dt_min</code> (see the test below).</p>
 </section>
 <section id="drag-default" class="level3">
 <h3 class="anchored" data-anchor-id="drag-default"><code>"drag"</code> (default)</h3>
@@ -541,7 +555,7 @@ K_\mathrm{inner} \;=\; -\,A_\mathrm{res, inner}\cdot \Delta x\,\Delta y,
 \tau_\mathrm{lim}(s) = \tau_c\,x^2, \qquad
 x = \max\left(0, \frac{s - s_0}{u_\mathrm{max} - s_0}\right),
 </span></p>
-<p>where <span class="math inline">\tau_c</span> = <code>ssa_vel_lim_tau</code> (default <span class="math inline">10^5</span> Pa) is the drag at <span class="math inline">s = u_\mathrm{max}</span> and <span class="math inline">s_0 = 0.8\,u_\mathrm{max}</span> is the onset speed. Both <span class="math inline">\tau_\mathrm{lim}</span> and its derivative vanish at <span class="math inline">s_0</span>, so the solution below <span class="math inline">0.8\,u_\mathrm{max}</span> is identical to the unlimited one. The drag acts on all free faces (<code>ssa_mask</code> = 1–4): grounded, floating and ice-front faces. At front faces (<code>ssa_mask</code> = 3, 4) it has the same weight 1/2 as the basal friction, since only the ice half of the face’s control area has drag. The speed at an acx-face is computed with <span class="math inline">\bar v</span> averaged from the four neighbouring acy-faces, and vice versa.</p>
+<p>where <span class="math inline">\tau_c</span> = <code>ssa_vel_lim_tau</code> (default <span class="math inline">10^5</span> Pa) is the drag at <span class="math inline">s = u_\mathrm{max}</span> and <span class="math inline">s_0 = 0.8\,u_\mathrm{max}</span> is the onset speed (a fixed constant, <code>vel_lim_f_s0</code>). Both <span class="math inline">\tau_\mathrm{lim}</span> and its derivative vanish at <span class="math inline">s_0</span>, so the solution below <span class="math inline">0.8\,u_\mathrm{max}</span> is identical to the unlimited one. The drag acts on all free faces (<code>ssa_mask</code> = 1–4): grounded, floating and ice-front faces. At front faces (<code>ssa_mask</code> = 3, 4) it has the same weight 1/2 as the basal friction, since only the ice half of the face’s control area has drag. The speed at an acx-face is computed with <span class="math inline">\bar v</span> averaged from the four neighbouring acy-faces, and vice versa.</p>
 <p>The limit drag is Newton-linearised around the current Picard iterate <span class="math inline">\bar u^0</span>, for the face’s own component with the cross component held fixed:</p>
 <p><span class="math display">
 \tau_{\mathrm{lim},x}(\bar u) \approx \tau_{\mathrm{lim},x}(\bar u^0)
@@ -549,7 +563,7 @@ x = \max\left(0, \frac{s - s_0}{u_\mathrm{max} - s_0}\right),
 k = b\left(1 - \frac{\bar u^2}{s^2}\right) + \tau_\mathrm{lim}'(s)\,\frac{\bar u^2}{s^2},
 </span></p>
 <p>where <span class="math inline">b = \tau_\mathrm{lim}/s</span>. A Picard (secant) linearisation <span class="math inline">b\,\bar u</span>, as used for the basal friction, would oscillate for this steep drag. Since <span class="math inline">k \ge 0</span>, adding it to the friction keeps the matrix symmetric positive definite. <code>calc_vel_lim_drag</code> returns <span class="math inline">k</span> and the offset <span class="math inline">r = (k - b)\,\bar u^0</span> per face, so that <span class="math inline">\tau_{\mathrm{lim},x} \approx k\,\bar u - r</span>. The assemblers add <span class="math inline">k</span> to the matrix friction and <span class="math inline">r</span> to the right-hand side, with the face weight of the friction. The basal stress <span class="math inline">\tau_b</span>, the basal velocity and the frictional heating are computed from the physical friction only, so the limit drag does not heat the bed. In the “residual” assembler, the rows of lateral-bc front faces (<code>ssa_mask</code> = 3) impose the front stress condition and have no drag term. There, the velocity is clipped to <span class="math inline">[-u_\mathrm{max}, u_\mathrm{max}]</span> after each solve instead (<code>ssa_vel_clip_front</code>).</p>
-<p>The front faces need the limit as much as the grounded interior. At coarse resolution, thick front cells can be driven to runaway speeds: thick, barely floating front cells after the aggregation of BedMachine to 32 km (ANT-32, about 24 000 m/yr at t = 0), and a grounded cliff with about 800 m freeboard at the Helheim front (GRL-8, 40 000 m/yr) or at Jakobshavn (GRL-4). These runs were killed when the drag acted on grounded inner faces only (the 5000 m/yr clip of Yelmo v1 had applied everywhere).</p>
+<p>The front faces need the limit as much as the grounded interior. At coarse resolution, thick front cells can be driven to runaway speeds, e.g.&nbsp;thick, barely floating front cells on a 32 km Antarctic grid, or a grounded cliff with a large freeboard at the Helheim front (8 km) or at Jakobshavn (4 km).</p>
 <p>The number of faces where the limit acts after the last Picard iteration (drag above <span class="math inline">s_0</span>, or clipped) is written as <code>ssa_lim_n</code> to timesteps.nc (<code>yelmo.log_timestep</code>), and <code>yelmo_update</code> logs the number of steps with an active limit and the maximum face count. A run that leans on the limit is therefore visible, rather than silently capped.</p>
 <p>Note that the speed settles near <span class="math inline">0.8</span>–<span class="math inline">0.85\,u_\mathrm{max}</span>, not at <span class="math inline">u_\mathrm{max}</span>, since a small drag (about 10 kPa in TROUGH-F17) is enough to stop the runaway. Thus <code>ssa_vel_max</code> should be set about 20 % above the intended maximum speed.</p>
 </section>
@@ -561,7 +575,7 @@ k = b\left(1 - \frac{\bar u^2}{s^2}\right) + \tau_\mathrm{lim}'(s)\,\frac{\bar u
 <figcaption>Centreline velocity and ice thickness at x = 300 km in TROUGH-F17 with <code>"clip"</code> (<code>ssa_vel_max</code> = 5000 m/yr) and <code>"drag"</code> for <code>ssa_vel_max</code> from 5000 to 50 000 m/yr. Right: zoom on activation 1.</figcaption>
 </figure>
 </div>
-<p>The thermally driven activations of TROUGH-F17 (about every 2.2 kyr) were run with both methods (DIVA, energy solver, 4 km). With <code>ssa_vel_max</code> = 5000 m/yr, the drag removes the convergence failure (Table 1). The branch with <code>"clip"</code> was bit-identical to the previous code over 0–8 kyr.</p>
+<p>The thermally driven activations of TROUGH-F17 (about every 2.2 kyr) were run with both methods (DIVA, energy solver, 4 km). With <code>ssa_vel_max</code> = 5000 m/yr, the drag removes the convergence failure (Table 1).</p>
 <table class="caption-top table">
 <caption>Table 1. Solver statistics in TROUGH-F17 (activation 1: 3350–3700 yr).</caption>
 <thead>
@@ -599,7 +613,7 @@ k = b\left(1 - \frac{\bar u^2}{s^2}\right) + \tau_\mathrm{lim}'(s)\,\frac{\bar u
 </tr>
 </tbody>
 </table>
-<p>All runs oscillate in the same way, with the first activation at about 3420–3450 yr (Figure). Below about 15 000 m/yr, the peak speed at x = 300 km is set by the limit, at about <span class="math inline">0.8\,u_\mathrm{max}</span> (e.g., 4900 m/yr for 6000 m/yr and 8300 m/yr for 10 000 m/yr). For larger limits, the peak converges to about 24 000 m/yr (30 000 and 50 000 m/yr), which is the unlimited surge of this setup. A lower limit gives a longer, weaker surge with less thinning, and a shorter cycle (activation 2 at about 5650 yr for 5000 m/yr and 5950 yr for 15 000 m/yr). With <code>"clip"</code>, the ice at x = 300 km thickens while the velocity is held at the limit, since ice keeps arriving from upstream. This does not occur with <code>"drag"</code>, which shows that the clip also changes the thickness evolution of the surge. Here TROUGH-F17 uses <code>ssa_vel_max</code> = 10 000 m/yr. The scripts and run list are in <code>analysis/vel-lim/</code>.</p>
+<p>All runs oscillate in the same way, with the first activation at about 3420–3450 yr (Figure). Below about 15 000 m/yr, the peak speed at x = 300 km is set by the limit, at about <span class="math inline">0.8\,u_\mathrm{max}</span> (e.g., 4900 m/yr for 6000 m/yr and 8300 m/yr for 10 000 m/yr). For larger limits, the peak converges to about 24 000 m/yr (30 000 and 50 000 m/yr), which is the unlimited surge of this setup. A lower limit gives a longer, weaker surge with less thinning, and a shorter cycle (activation 2 at about 5650 yr for 5000 m/yr and 5950 yr for 15 000 m/yr). With <code>"clip"</code>, the ice at x = 300 km thickens while the velocity is held at the limit, since ice keeps arriving from upstream. This does not occur with <code>"drag"</code>, which shows that the clip also changes the thickness evolution of the surge. The TROUGH-F17 parameter file uses <code>ssa_vel_max</code> = 10 000 m/yr. The scripts and run list are in <code>analysis/vel-lim/</code>.</p>
 
 
 </section>

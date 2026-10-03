@@ -200,6 +200,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -275,20 +281,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -375,12 +393,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -412,33 +424,45 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This page is for context only. The recommended way to install Yelmo is to run <code>configme install yelmo</code> (see the <a href="./getting-started.html#quick-start">Quick start</a>); you do <strong>not</strong> need to run any of the commands below by hand. They are reproduced here so you can see exactly what <code>configme</code> clones, configures, links, and builds on your behalf.</p>
 <p><code>configme install</code> performs the following phases:</p>
 <ol type="1">
-<li><strong>Clone</strong> the Yelmo checkout together with the <code>fesm-utils</code> repository it needs.</li>
-<li><strong>Manifest</strong> — write <code>.configme/manifest.toml</code> so the checkout is self-describing regardless of its directory name.</li>
-<li><strong>Configure</strong> — generate a system-specific <code>Makefile</code> for each package from shared machine/compiler fragments, with the netCDF paths detected automatically.</li>
-<li><strong>Build</strong> <code>fesm-utils</code> (LIS + FFTW + utils). This is the slow step (~10-30 min), which is why it is folded into the install rather than run separately.</li>
+<li><strong>Clone</strong> the Yelmo checkout and the packages it needs: <code>fesm-utils</code>, <code>FastHydrology</code>, <code>elsa</code> and <code>tracer</code>, inside the checkout.</li>
+<li><strong>Manifest</strong>: write <code>.configme/manifest.toml</code>, so the checkout is self-describing regardless of its directory name.</li>
+<li><strong>Link</strong> <code>fesm-utils</code> into <code>FastHydrology</code>, <code>elsa</code> and <code>tracer</code>.</li>
+<li><strong>Configure</strong>: generate a system-specific <code>Makefile</code> for each package from shared machine/compiler fragments, with the netCDF paths detected automatically (<code>nf-config</code>, <code>nc-config</code>).</li>
+<li><strong>Build</strong> <code>fesm-utils</code> (LIS, FFTW, SHTns and the utilities), in a serial and an OpenMP variant. This is the slow step (~10–30 min); <code>configme</code> asks before running it (<code>--build-deps</code> builds without asking).</li>
 </ol>
-<p>Each run also writes the exact commands it executed to a <code>.install.sh</code> script in the checkout, so any install is reproducible. The script below is the equivalent for the <code>dkrz_levante</code> machine with the <code>ifx</code> compiler; substitute your own machine and compiler, and note that the netCDF paths (<code>NC_FROOT</code> / <code>NC_CROOT</code>) and the install root are filled in automatically for your system.</p>
+<p>Each run also writes the exact commands it executed to a <code>.install.sh</code> script in the checkout, so any install is reproducible. The script below is the equivalent for the <code>dkrz_levante</code> machine with the <code>ifx</code> compiler, where <code>$ROOT</code> is the checkout directory; substitute your own machine and compiler.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Generated by `configme install` — reproduces this install.</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-euo</span> pipefail</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># target=yelmo  machine=dkrz_levante  compiler=ifx</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># --- clone ---</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git <span class="va">$YELMOROOT</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/fesm-utils.git <span class="va">$YELMOROOT</span>/fesm-utils</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils/utils: component of fesm-utils (not cloned)</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># --- manifest ---</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="va">$YELMOROOT</span>/.configme  <span class="co"># write .configme/manifest.toml</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># --- configure (per package) ---</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils: build with autotools (slow, ~10-30 min):</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils <span class="kw">&amp;&amp;</span> <span class="va">NC_FROOT</span><span class="op">=&lt;</span>auto-detected<span class="op">&gt;</span> NC_CROOT=<span class="op">&lt;</span>auto-detected<span class="op">&gt;</span> ./build.py <span class="ex">--variant</span> both <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config fesm-utils/utils <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils/utils: build (serial, omp):</span></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=0 fesmutils-static<span class="kw">)</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/fesm-utils/utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=1 fesmutils-static<span class="kw">)</span></span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$YELMOROOT</span>/yelmo <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config yelmo <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># --- clone primary ---</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/yelmo.git <span class="va">$ROOT</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># target=yelmo  machine=dkrz_levante  compiler=ifx</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># --- clone components ---</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/fesm-utils.git <span class="va">$ROOT</span>/fesm-utils</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/FastHydrology.git <span class="va">$ROOT</span>/FastHydrology</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/elsa.git <span class="va">$ROOT</span>/elsa</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone git@github.com:fesmc/tracer.git <span class="va">$ROOT</span>/tracer</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># --- manifest ---</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> <span class="va">$ROOT</span>/.configme  <span class="co"># write .configme/manifest.toml</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># --- links ---</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> ../fesm-utils <span class="va">$ROOT</span>/FastHydrology/fesm-utils</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> ../fesm-utils <span class="va">$ROOT</span>/elsa/fesm-utils</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> ../fesm-utils <span class="va">$ROOT</span>/tracer/fesm-utils</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co"># --- configure (per package) ---</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/fesm-utils <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config fesm-utils <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="co"># fesm-utils: build (serial, omp):</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/fesm-utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=0 all<span class="kw">)</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/fesm-utils <span class="kw">&amp;&amp;</span> <span class="fu">make</span> openmp=1 all<span class="kw">)</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/FastHydrology <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config FastHydrology <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/elsa <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config elsa <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span>/tracer <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config tracer <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="bu">cd</span> <span class="va">$ROOT</span> <span class="kw">&amp;&amp;</span> <span class="ex">configme</span> config yelmo <span class="at">-m</span> dkrz_levante <span class="at">-c</span> ifx<span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>FastHydrology, elsa and tracer are compiled by Yelmo’s own Makefile, as part of <code>make yelmo-static</code>.</p>
 
 
 </section>

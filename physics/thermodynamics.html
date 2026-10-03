@@ -23,41 +23,6 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
 </style>
 
 
@@ -68,8 +33,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../physics/enthalpy-transition-plan.html" rel="next">
-<link href="../physics/vertical-velocity.html" rel="prev">
+<link href="../physics/calving.html" rel="next">
+<link href="../physics/basal-friction.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -245,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -320,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -420,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -444,18 +421,18 @@ window.Quarto = {
   <ul>
   <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link active" data-scroll-target="#thermodynamics">Thermodynamics</a>
   <ul class="collapse">
-  <li><a href="#equations" id="toc-equations" class="nav-link" data-scroll-target="#equations">Equations</a>
+  <li><a href="#methods" id="toc-methods" class="nav-link" data-scroll-target="#methods">Methods</a></li>
+  <li><a href="#enthalpy" id="toc-enthalpy" class="nav-link" data-scroll-target="#enthalpy">Enthalpy</a></li>
+  <li><a href="#ice-column" id="toc-ice-column" class="nav-link" data-scroll-target="#ice-column">Ice column</a>
   <ul class="collapse">
-  <li><a href="#ice-column" id="toc-ice-column" class="nav-link" data-scroll-target="#ice-column">Ice column</a></li>
+  <li><a href="#discretisation" id="toc-discretisation" class="nav-link" data-scroll-target="#discretisation">Discretisation</a></li>
+  <li><a href="#surface-boundary-condition" id="toc-surface-boundary-condition" class="nav-link" data-scroll-target="#surface-boundary-condition">Surface boundary condition</a></li>
+  <li><a href="#basal-boundary-condition" id="toc-basal-boundary-condition" class="nav-link" data-scroll-target="#basal-boundary-condition">Basal boundary condition</a></li>
+  <li><a href="#basal-frictional-heating" id="toc-basal-frictional-heating" class="nav-link" data-scroll-target="#basal-frictional-heating">Basal frictional heating</a></li>
+  </ul></li>
   <li><a href="#bedrock-column" id="toc-bedrock-column" class="nav-link" data-scroll-target="#bedrock-column">Bedrock column</a></li>
-  </ul></li>
-  <li><a href="#equilibrium-bedrock" id="toc-equilibrium-bedrock" class="nav-link" data-scroll-target="#equilibrium-bedrock">Equilibrium bedrock</a></li>
-  <li><a href="#active-bedrock" id="toc-active-bedrock" class="nav-link" data-scroll-target="#active-bedrock">Active bedrock</a>
-  <ul class="collapse">
-  <li><a href="#density-of-the-upper-lithosphere" id="toc-density-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#density-of-the-upper-lithosphere">Density of the upper lithosphere</a></li>
-  <li><a href="#heat-capacity-of-the-upper-lithosphere" id="toc-heat-capacity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</a></li>
-  <li><a href="#heat-conductivity-of-the-upper-lithosphere" id="toc-heat-conductivity-of-the-upper-lithosphere" class="nav-link" data-scroll-target="#heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</a></li>
-  </ul></li>
+  <li><a href="#coupling-to-the-flow" id="toc-coupling-to-the-flow" class="nav-link" data-scroll-target="#coupling-to-the-flow">Coupling to the flow</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/thermodynamics.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -468,88 +445,156 @@ window.Quarto = {
 
 <section id="thermodynamics" class="level1">
 <h1>Thermodynamics</h1>
-<section id="equations" class="level2">
-<h2 class="anchored" data-anchor-id="equations">Equations</h2>
-<section id="ice-column" class="level3">
-<h3 class="anchored" data-anchor-id="ice-column">Ice column</h3>
-<p>Prognostic equation:</p>
-<p><span class="math display">
-\frac{\partial T}{\partial t} = \frac{k}{\rho c} \frac{\partial^2 T}{\partial z^2} - u \frac{\partial T}{\partial x} - v \frac{\partial T}{\partial y} - w \frac{\partial T}{\partial z} + \frac{\Phi}{\rho c}
-</span></p>
-<p>Ice surface boundary condition:</p>
-<p><span class="math display">
-T(z=z_{\rm srf}) = {\rm min}(T_{\rm 2m},T_0)
-</span></p>
-<p>Ice base (temperate) boundary condition:</p>
-<p><span class="math display">
-T(z=z_{\rm bed}) = T_{\rm pmp}
-</span></p>
-<p>Ice base (frozen) boundary condition:</p>
-<p><span class="math display">
-k \frac{\partial T}{\partial z} = k_r \frac{\partial T_r}{\partial z}
-</span></p>
-<p>Note, the following internal Yelmo variables are defined for convenience:</p>
-<p><span class="math display">
-Q_{\rm ice,b} = -k \frac{\partial T}{\partial z}; \quad
-Q_{\rm rock} = -k_r \frac{\partial T_r}{\partial z}
-</span></p>
+<p>Yelmo solves for the energy of the ice in terms of enthalpy, which describes cold and temperate ice with one variable (Aschwanden et al., 2012). The ice column is coupled to a column of bedrock below. The thermodynamics module is <code>calc_ytherm</code> in <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_thermodynamics.f90"><code>src/yelmo_thermodynamics.f90</code></a>; the column solvers are in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/ice_enthalpy.f90"><code>src/physics/ice_enthalpy.f90</code></a> and the material properties and boundary fluxes in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/thermodynamics.f90"><code>src/physics/thermodynamics.f90</code></a>.</p>
+<section id="methods" class="level2">
+<h2 class="anchored" data-anchor-id="methods">Methods</h2>
+<p>The method is selected with <code>ytherm.method</code>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>method</code></th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>"enth"</code></td>
+<td>Enthalpy solver (<strong>default</strong>): cold and temperate ice, water content <span class="math inline">\omega</span></td>
+</tr>
+<tr class="even">
+<td><code>"temp"</code></td>
+<td>Temperature solver (<code>calc_temp_column</code>): no water content, heat above the pressure melting point is drained as basal melt, centred vertical advection, <code>"wtil"</code> basal boundary condition</td>
+</tr>
+<tr class="odd">
+<td><code>"robin"</code></td>
+<td>Steady Robin solution in grounded columns with positive net mass balance; linear profiles elsewhere (base at <span class="math inline">T_\mathrm{pmp}</span> for grounded ice, 271.15 K for floating ice)</td>
+</tr>
+<tr class="even">
+<td><code>"robin-cold"</code></td>
+<td>Robin solution averaged with a linear profile, to obtain a cold base</td>
+</tr>
+<tr class="odd">
+<td><code>"linear"</code></td>
+<td>Linear profile between the surface temperature and <span class="math inline">T_\mathrm{pmp} - 10</span> K (frozen bed) at the base</td>
+</tr>
+<tr class="even">
+<td><code>"fixed"</code></td>
+<td>No update: the temperature/enthalpy fields stay as initialised</td>
+</tr>
+</tbody>
+</table>
+<p><code>yelmo_init_state</code> initialises the thermodynamic state with <code>"linear"</code>, <code>"robin"</code> or <code>"robin-cold"</code> (argument <code>thrm_method</code>).</p>
 </section>
-<section id="bedrock-column" class="level3">
-<h3 class="anchored" data-anchor-id="bedrock-column">Bedrock column</h3>
-<p>Prognostic equation:</p>
+<section id="enthalpy" class="level2">
+<h2 class="anchored" data-anchor-id="enthalpy">Enthalpy</h2>
+<p>The specific enthalpy <span class="math inline">E</span> [J kg<span class="math inline">^{-1}</span>] is related to the temperature <span class="math inline">T</span> and the water content <span class="math inline">\omega</span> by</p>
 <p><span class="math display">
-\frac{\partial T_r}{\partial t} = \frac{k_r}{\rho_r c_r} \frac{\partial^2 T_r}{\partial z^2}
+E = \begin{cases}
+E_c(T) &amp; T &lt; T_\mathrm{pmp} \\
+E_c(T_\mathrm{pmp}) + \omega L &amp; T = T_\mathrm{pmp}
+\end{cases}
 </span></p>
-<p>Bedrock surface boundary condition:</p>
+<p>where <span class="math inline">L</span> is the latent heat of fusion (<code>L_ice</code>) and <span class="math inline">T_\mathrm{pmp}</span> is the pressure melting point,</p>
 <p><span class="math display">
-T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
+T_\mathrm{pmp} = T_0 - \beta \rho_i g (s - z),
 </span></p>
-<p>Bedrock base boundary condition:</p>
+<p>with <span class="math inline">\beta</span> = <code>T_pmp_beta</code> (<code>input/yelmo_phys_const.nml</code>). The cold-ice enthalpy <span class="math inline">E_c</span> depends on <code>ytherm.enth_cp_method</code>:</p>
+<ul>
+<li><code>"integral"</code> (default): <span class="math inline">E_c(T) = \int_0^T c(T')\,\mathrm dT'</span> with <span class="math inline">c(T) = 146.3 + 7.253\,T</span> J kg<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> (Greve and Blatter, 2009, Eq. 4.39), so that <span class="math inline">\partial E/\partial T = c(T)</span> exactly;</li>
+<li><code>"const"</code>: <span class="math inline">E_c = c_\mathrm{ref}\,T</span> with <span class="math inline">c_\mathrm{ref}</span> = 2009 J kg<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span>.</li>
+</ul>
+<p>The thermal conductivity is <span class="math inline">k(T) = 9.828\,e^{-0.0057\,T}</span> W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> (Greve and Blatter, 2009, Eq. 4.37). With <code>use_const_kt</code>, the constant <code>const_kt</code> is used instead. <code>use_const_cp</code> / <code>const_cp</code> apply to the other methods only; in the enthalpy solver, the heat capacity follows <code>enth_cp_method</code>. Yelmo expects conductivities in J a<span class="math inline">^{-1}</span> m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span>, i.e.&nbsp;W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> multiplied by <code>sec_year</code>.</p>
+</section>
+<section id="ice-column" class="level2">
+<h2 class="anchored" data-anchor-id="ice-column">Ice column</h2>
+<p>In the terrain-following coordinate <span class="math inline">\zeta</span>, the enthalpy equation solved in each column is</p>
 <p><span class="math display">
-\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+\frac{\partial E}{\partial t}
+= \frac{1}{H^2}\frac{\partial}{\partial \zeta}\!\left(K \frac{\partial E}{\partial \zeta}\right)
+- \frac{w^\star}{H}\frac{\partial E}{\partial \zeta}
+- \mathbf u \cdot \nabla_\zeta E
++ \frac{\Phi}{\rho_i},
 </span></p>
+<p>where <span class="math inline">w^\star</span> is the sigma-relative vertical velocity <code>uz_star</code> (see <a href="../physics/vertical-velocity.html">Vertical velocity</a>) and <span class="math inline">\Phi</span> is the strain heating. The diffusivity is</p>
+<p><span class="math display">
+K = \begin{cases}
+k/(\rho_i c) &amp; \text{cold ice} \\
+\epsilon\, k/(\rho_i c) &amp; \text{temperate ice}
+\end{cases}
+</span></p>
+<p>with the conductivity ratio <span class="math inline">\epsilon</span> = <code>enth_cr</code> (default <span class="math inline">10^{-3}</span>), which represents the small diffusion of water in temperate ice. On the cold side of the cold–temperate transition surface (CTS), the flux across the interface is computed with the cold-ice diffusivity (Blatter and Greve, 2015, Eq. 25).</p>
+<p>The water content is limited to <code>omega_max</code> (default 0.01). Water above this limit is drained to the bed and added to the basal melt rate (<code>melt_int</code>). The height of the CTS above the bed is diagnosed as <code>H_cts</code>.</p>
+<section id="discretisation" class="level3">
+<h3 class="anchored" data-anchor-id="discretisation">Discretisation</h3>
+<p>Each column is solved implicitly (backward Euler) as a tridiagonal system (<code>calc_enth_column_internal</code>), on the vertical aa-nodes of the ice layers, with the diffusivity at the layer faces from a weighted harmonic mean.</p>
+<ul>
+<li><strong>Vertical advection</strong> is upwind with second-order accuracy: the matrix holds first-order upwind, and the right-hand side adds the difference to a minmod-limited second-order upwind gradient from the start-of-step enthalpy (deferred correction). Where the profile is smooth this removes the numerical diffusion of first-order upwind; at extrema, such as the CTS, the limiter reduces the scheme to first-order upwind.</li>
+<li><strong>Horizontal advection</strong> is explicit and enters the column equation as a source term (<code>calc_advec_horizontal_3D</code>). It is computed in flux form, <span class="math inline">\mathbf u\cdot\nabla E = \nabla\cdot(\mathbf u E) - E\,\nabla\cdot\mathbf u</span>, with face values from a van Leer MUSCL reconstruction (<code>advecxy_order = 2</code>, default) or plain upwind (<code>advecxy_order = 1</code>). The scheme is monotone and gives zero advection for a uniform field. When the maximum horizontal Courant number over the thermodynamic time step exceeds <code>advecxy_cfl</code> (default 0.5), the horizontal advection of the whole domain is sub-cycled, with <span class="math inline">\lceil \mathrm{CFL}_\mathrm{max}/</span><code>advecxy_cfl</code><span class="math inline">\rceil</span> sub-steps, at most <code>advecxy_nmax</code> (default 10).</li>
+<li><strong>Strain heating</strong> is <span class="math inline">\Phi = 4\mu\dot\varepsilon_e^2</span> (Greve and Blatter, 2009, Eqs. 4.7, 5.65), from the 3D viscosity and effective strain rate of the material module. With <code>use_strain_sia = True</code>, the SIA approximation is used instead.</li>
+</ul>
+<p>The thermodynamics uses the column of the dynamics, with thickness <code>H_ice_dyn</code> (the effective thickness <code>H_eff</code> in partial front cells). Columns are solved where the cell is fully ice covered and thicker than <code>H_ice_thin</code> (default 10 m). Thinner columns get a linear temperature profile between the surface and the basal temperature. Partially covered and ice-free cells next to the ice take the mean of their fully covered neighbours, so that ice advected into them starts with a realistic temperature.</p>
+<p>The column solvers are tested against the Kleiner et al.&nbsp;(2015) benchmarks with a standalone driver (see <a href="../benchmarks.html#enthalpy-column-tests">Benchmarks</a>).</p>
+</section>
+<section id="surface-boundary-condition" class="level3">
+<h3 class="anchored" data-anchor-id="surface-boundary-condition">Surface boundary condition</h3>
+<p>The enthalpy at the surface is prescribed from the surface temperature, <span class="math inline">E_s = E_c(\min(T_\mathrm{srf}, T_0))</span>.</p>
+</section>
+<section id="basal-boundary-condition" class="level3">
+<h3 class="anchored" data-anchor-id="basal-boundary-condition">Basal boundary condition</h3>
+<p>The basal heat balance involves the geothermal (or bedrock) heat flux <span class="math inline">G</span> (<code>Q_rock</code>), the frictional heating <span class="math inline">Q_b = \boldsymbol\tau_b \cdot \mathbf u_b</span> (<code>Q_b</code>), the heat supplied by basal water <span class="math inline">Q_w</span> (dissipation and sensible heat, from the hydrology model), and the conductive flux into the ice <span class="math inline">Q_{i,b} = -k\,\partial T/\partial z|_b</span> (<code>Q_ice_b</code>).</p>
+<p><strong>Grounded ice.</strong> With <code>basal_bc_method = "capacity"</code> (default), the model first computes the basal mass balance <span class="math inline">\dot b^\star</span> (<code>bmb_grnd_star</code>) that would keep the base at the pressure melting point. It is compared with the freeze-on capacity <span class="math inline">C</span>, the rate at which the water at the bed can be frozen:</p>
+<ul>
+<li>if <span class="math inline">\dot b^\star \le 0</span> (melting) or <span class="math inline">\dot b^\star \le C</span>, the base is held at the pressure melting point (Dirichlet condition);</li>
+<li>otherwise all available water freezes (<span class="math inline">\dot b = C</span>), and the base cools with the flux condition <span class="math inline">k\,\partial T/\partial z|_b = -(G + Q_b + Q_w + \rho_i L C)</span>.</li>
+</ul>
+<p>With a temperate layer above the base (CTS above the first layer), the basal enthalpy follows the layer above (zero gradient). The source of <span class="math inline">C</span> is set by <code>cap_source</code>: <code>"hyd"</code> (computed by the hydrology model), <code>"till"</code> (all till water above <code>cap_W_floor</code> frozen in one step), <code>"water"</code> (same, from the water thickness), <code>"none"</code> (<span class="math inline">C = 0</span>), or <code>"auto"</code> (default; <code>"hyd"</code> with water transport, otherwise <code>"till"</code>). Capacities below <code>cap_eps</code> count as a dry bed. The diagnostic <code>bc_b</code> records the condition used (1: pressure melting point, 2: flux). The older rule <code>basal_bc_method = "wtil"</code> decides from a predictor of the till water thickness and is deprecated.</p>
+<p>The grounded basal mass balance is then (Cuffey and Paterson, 2010, Eq. 9.38)</p>
+<p><span class="math display">
+\dot b_g = -\frac{G + Q_b + Q_w - Q_{i,b}}{\rho_i\,(L - \max(E_b - E_\mathrm{pmp}, 0))},
+</span></p>
+<p>where the latent heat is reduced by the water already stored in the basal ice. Melt is only allowed for a near-temperate base (<span class="math inline">T_b - T_\mathrm{pmp} &gt; -1</span> K), and freeze-on is limited to <span class="math inline">C</span>. The englacial drainage <code>melt_int</code> is added to the basal melt.</p>
+<p><strong>Floating ice.</strong> The base is held at the freezing temperature of sea water at the depth of the ice base (Jenkins, 1991, salinity 34.75 psu), limited to the pressure melting point. Near the grounding line, the base is at the pressure melting point for ice less than 100 m below flotation, and blends to the sea water freezing point between 100 and 200 m below flotation. The diffusivity at the base is the cold-ice value, so the ocean can cool the ice above and form a cold basal boundary layer even when the shelf is temperate. Partially grounded cells use the mean of the two temperatures, weighted by the grounded fraction.</p>
+</section>
+<section id="basal-frictional-heating" class="level3">
+<h3 class="anchored" data-anchor-id="basal-frictional-heating">Basal frictional heating</h3>
+<p>The frictional heating is formed on the velocity faces and averaged to the cell centres, selected by <code>qb_method</code>: 1, face products; 2 (default), face products at quadrature nodes; 3, staggering of <span class="math inline">u_b</span> and <span class="math inline">\tau_b</span> to the cell centre; 4, quadrature of the staggered fields. Methods 1 and 2 conserve the energy dissipated by basal friction.</p>
 </section>
 </section>
-<section id="equilibrium-bedrock" class="level2">
-<h2 class="anchored" data-anchor-id="equilibrium-bedrock">Equilibrium bedrock</h2>
-<p>In this case, the bedrock temperature profile is prescribed to the equilibrium linear temperature profile. The slope follows:</p>
+<section id="bedrock-column" class="level2">
+<h2 class="anchored" data-anchor-id="bedrock-column">Bedrock column</h2>
+<p>Below the ice, a bedrock column of thickness <code>H_rock</code> (default 2000 m) with <code>nzr_aa</code> layers is treated according to <code>ytherm.rock_method</code>:</p>
+<ul>
+<li><code>"equil"</code> (default): linear profile in equilibrium with the geothermal heat flux, <span class="math inline">\partial T_r/\partial z = -Q_\mathrm{geo}/k_r</span>, and the basal ice temperature at the top;</li>
+<li><code>"active"</code>: the heat equation <span class="math inline">\rho_r c_r\, \partial T_r/\partial t = k_r\, \partial^2 T_r/\partial z^2</span> is solved with <span class="math inline">Q_\mathrm{geo}</span> at the bottom and the basal ice temperature (the ocean freezing temperature under floating ice) at the top. The flux at the top of the bedrock, <code>Q_rock</code>, is the geothermal input to the ice base.</li>
+<li><code>"fixed"</code>: no update.</li>
+</ul>
+<p>The bedrock properties are <code>rhoc_rock</code> (volumetric heat capacity, default <span class="math inline">2\times10^6</span> J m<span class="math inline">^{-3}</span> K<span class="math inline">^{-1}</span>) and <code>kt_rock</code> (default <span class="math inline">6.3\times10^7</span> J a<span class="math inline">^{-1}</span> m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span>, i.e.&nbsp;2 W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span>). In SICOPOLIS and GRISLI, <span class="math inline">c_r</span> = 1000 J kg<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> is used (Rogozhina et al., 2012; Greve, 2005). The conductivity follows Rogozhina et al.&nbsp;(2012) for Greenland, and is consistent with Lösing et al.&nbsp;(2020) for Antarctica and the 2–3 W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> of the upper crust (Cammarano and Guerri, 2017). Older values are 3 W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> (Greve, 1997, 2005) and 3.3 W m<span class="math inline">^{-1}</span> K<span class="math inline">^{-1}</span> (GRISLI).</p>
+</section>
+<section id="coupling-to-the-flow" class="level2">
+<h2 class="anchored" data-anchor-id="coupling-to-the-flow">Coupling to the flow</h2>
+<p>The temperature and water content set the Glen rate factor in the material module (<code>calc_ymat</code>, <code>ymat.rf_method = 1</code>):</p>
 <p><span class="math display">
-\frac{\partial T_r}{\partial z} = -\frac{Q_{\rm geo}}{k_r}
+A = E_f\,A_0\,\exp\!\left(-\frac{Q}{R\,T^\ast}\right),
 </span></p>
-<p>and the bedrock surface temperature is given by the ice temperature at its base:</p>
-<p><span class="math display">
-T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
-</span></p>
+<p>with the homologous temperature on the absolute scale <span class="math inline">T^\ast = T - T_\mathrm{pmp} + T_0</span> (limited to <span class="math inline">[220\,\mathrm K, T_0]</span>), and <span class="math inline">A_0</span> = 1.25671<span class="math inline">\times10^{-5}</span> Pa<span class="math inline">^{-3}</span> a<span class="math inline">^{-1}</span>, <span class="math inline">Q</span> = 60 kJ mol<span class="math inline">^{-1}</span> for <span class="math inline">T^\ast \le 263.15</span> K and <span class="math inline">A_0</span> = 6.0422976<span class="math inline">\times10^{10}</span> Pa<span class="math inline">^{-3}</span> a<span class="math inline">^{-1}</span>, <span class="math inline">Q</span> = 139 kJ mol<span class="math inline">^{-1}</span> above (Greve and Blatter, 2009). <code>rf_use_eismint2 = True</code> uses the EISMINT2 constants (Payne et al., 2000). With <code>rf_with_water = True</code>, <span class="math inline">A</span> is multiplied by <span class="math inline">1 + 181.25\,\omega</span> (Lliboutry and Duval, 1985). <span class="math inline">E_f</span> is the enhancement factor (<code>enh_method</code>, <code>enh_shear</code>, <code>enh_stream</code>, <code>enh_shlf</code>).</p>
+<p>The basal temperature enters the basal friction through the sub-temperate sliding factor (<code>ydyn.slide_T</code>, see <a href="../physics/basal-friction.html">Basal friction</a>), with the basal homologous temperature <span class="math inline">T'_b = T_b - T_\mathrm{pmp}</span> (<code>T_prime_b</code>). The temperate fraction of the base, <code>f_pmp</code> = <span class="math inline">\exp(\max(T'_b, -20\,\mathrm K)/\gamma)</span> with <span class="math inline">\gamma</span> = <code>ytherm.gamma</code> (0 and 1 below 0.01 and above 0.99; binary for <span class="math inline">\gamma = 0</span>; 1 for floating ice), is a diagnostic used in the bed mask.</p>
 </section>
-<section id="active-bedrock" class="level2">
-<h2 class="anchored" data-anchor-id="active-bedrock">Active bedrock</h2>
-<p>Yelmo calculates the temperature in the lithosphere along with the ice temperature. This can be achieved by assuming equilibrium conditions in the bedrock, i.e., that the temperature profile in the bedrock is always linear with <code>T_lith_s = T_ice_b</code> and the slope equal to <code>dT/dz = -Q_geo / k_lith</code>. Or, the temperature equation can be solved in the lithosphere together with the temperature in the ice column.</p>
-<p>The parameter block <code>ytherm_lith</code> controls how the lithosphere is calculated with <code>ytherm_lith.method=['equil','active']</code> deciding the two cases above.</p>
-<section id="density-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="density-of-the-upper-lithosphere">Density of the upper lithosphere</h3>
-</section>
-<section id="heat-capacity-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="heat-capacity-of-the-upper-lithosphere">Heat capacity of the upper lithosphere</h3>
-<p>In both SICOPOLIS and GRISLI, a value of <code>cp = 1000.0 [J kg-1 K-1]</code> is used (referenced in Rogozhina et al., 2012; Greve, 2005; Greve, 1997). This value is adopted in Yelmo as well.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">cp = 1000.0    ! [J kg-1 K-1] </span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="heat-conductivity-of-the-upper-lithosphere" class="level3">
-<h3 class="anchored" data-anchor-id="heat-conductivity-of-the-upper-lithosphere">Heat conductivity of the upper lithosphere</h3>
-<p>Note, Yelmo expects input parameter values in units of <code>[J a-1 m-1 K-1]</code>, while much literature uses <code>[W m-1 K-1]</code>. Given the number of seconds in a year <code>sec_year = 31536000.0</code>, <code>kt [W m-1 K-1] * sec_year = kt [J a-1 m-1 K-1]</code>.</p>
-<p>Rogozhina et al.&nbsp;(2012) use <code>kt = 2 [W m-1 K-1]</code> for Greenland:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">6.3e7</span>     <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This value is supported by Lösing et al.&nbsp;(2020), who perform a Bayesian inversion for GHF in Antarctica. Assuming exponentially decreasing heat production with depth, lower values of <code>kt</code> are supported (see Fig. 7b). In a study on the global thermal characteristics of the lithosphere, Cammarano and Guerri (2017) adopt an upper crust thermal conductivity of <code>kt = 2.5 [W m-1 K-1]</code>.</p>
-<p>To do: This study is also potentially relevant: <a href="https://link.springer.com/article/10.1186/s40517-020-0159-y">https://link.springer.com/article/10.1186/s40517-020-0159-y</a>. They show ranges of on the order of <code>kt = 2-3 [W m-1 K-1]</code> for the Canadian shield.</p>
-<p>The above value of <code>kt = 2 [W m-1 K-1] = 6.3e7 [J a-1 m-1 K-1]</code> is adopted as the default thermal conductivity of the upper crust in Yelmo. For historical context, see other estimates below.</p>
-<p>From Greve (1997) and Greve (2005):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">9.46e7</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>which is equivalent to <code>kt = 3 [W m-1 K-1]</code>. The source of this value is not known.</p>
-<p>From GRISLI:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>kt <span class="kw">=</span> <span class="fl">1.04e8</span>    <span class="co">! [J a-1 m-1 K-1]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>which is equivalent to <code>kt = 3.3 [W m-1 K-1]</code>. The source of this value is not known.</p>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li>Aschwanden, A., Bueler, E., Khroulev, C., and Blatter, H. (2012). An enthalpy formulation for glaciers and ice sheets. J. Glaciol., 58, 441–457.</li>
+<li>Blatter, H. and Greve, R. (2015). Comparison and verification of enthalpy schemes for polythermal glaciers and ice sheets with a one-dimensional model. Polar Sci., 9, 196–207.</li>
+<li>Cuffey, K. M. and Paterson, W. S. B. (2010). <em>The Physics of Glaciers</em>, 4th ed.</li>
+<li>Greve, R. and Blatter, H. (2009). <em>Dynamics of Ice Sheets and Glaciers.</em> Springer.</li>
+<li>Jenkins, A. (1991). A one-dimensional model of ice shelf–ocean interaction. J. Geophys. Res., 96, 20671–20677.</li>
+<li>Kleiner, T., Rückamp, M., Bondzio, J. H., and Humbert, A. (2015). Enthalpy benchmark experiments for numerical ice sheet models. The Cryosphere, 9, 217–228.</li>
+</ul>
 
 
-</section>
 </section>
 </section>
 
@@ -961,13 +1006,13 @@ T_r(z=z_{\rm bed}) = T(z=z_{\rm bed})
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../physics/vertical-velocity.html" class="pagination-link" aria-label="Vertical velocity — `uz` and `uz_star`">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Vertical velocity — <code>uz</code> and <code>uz_star</code></span>
+      <a href="../physics/basal-friction.html" class="pagination-link" aria-label="Basal friction">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../physics/enthalpy-transition-plan.html" class="pagination-link" aria-label="Enthalpy transition plan (ytherm)">
-        <span class="nav-page-text">Enthalpy transition plan (ytherm)</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../physics/calving.html" class="pagination-link" aria-label="Calving">
+        <span class="nav-page-text">Calving</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

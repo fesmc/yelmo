@@ -202,6 +202,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -277,20 +283,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -377,12 +395,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -402,7 +414,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#notes" id="toc-notes" class="nav-link active" data-scroll-target="#notes">Notes</a>
   <ul class="collapse">
   <li><a href="#timeout-module" id="toc-timeout-module" class="nav-link" data-scroll-target="#timeout-module"><code>timeout</code> module</a></li>
-  <li><a href="#timing-module" id="toc-timing-module" class="nav-link" data-scroll-target="#timing-module"><code>timing</code> module</a></li>
+  <li><a href="#timer-module" id="toc-timer-module" class="nav-link" data-scroll-target="#timer-module"><code>timer</code> module</a></li>
   <li><a href="#how-to-read-yelmo_check_kill-output" id="toc-how-to-read-yelmo_check_kill-output" class="nav-link" data-scroll-target="#how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</a></li>
   </ul></li>
   </ul>
@@ -418,16 +430,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Notes</h1>
 <section id="timeout-module" class="level2">
 <h2 class="anchored" data-anchor-id="timeout-module"><code>timeout</code> module</h2>
-<p>Example parameters for using the <code>timeout</code> module. The name of the section should be specified when calling <code>timeout_init</code>.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&amp;</span>tm_1D</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    method          <span class="kw">=</span> <span class="st">"file"</span>            <span class="co">! "const", "file", "times"</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    dt              <span class="kw">=</span> <span class="fl">1.0</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    file            <span class="kw">=</span> <span class="st">"input/timeout_ramp_100kyr.txt"</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    times           <span class="kw">=</span> <span class="kw">-</span><span class="dv">10</span>, <span class="kw">-</span><span class="dv">5</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">25</span>, <span class="dv">30</span>, <span class="dv">35</span>,<span class="co"> 40, 45, 50, 55</span></span>
+<p>The <code>timeout</code> module of fesm-utils defines the output times of a driver program. Each output stream has its own parameter group, whose name is given to <code>timeout_init</code>. For example, initmip uses <code>&amp;t1D</code>, <code>&amp;t2Dsm</code>, <code>&amp;t2D</code> and <code>&amp;trst</code> (restarts):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&amp;</span>t2D</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    method          <span class="kw">=</span> <span class="st">"const"</span>           <span class="co">! "none", "const", "file", "times"</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    dt              <span class="kw">=</span> <span class="fl">1000.0</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    file            <span class="kw">=</span> <span class="st">"none"</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    times           <span class="kw">=</span> <span class="dv">0</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">/</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">! Get output times</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">call timeout_init(tm_1D,path_par,"tm_1D","small", time_init,time_end)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>If we are loading the desired output times from a file, the format is one time per line, or a range of times using the format <code>t0:dt:t1</code>:</p>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">call timeout_init(t2D,path_par,"t2D","heavy",time_init,time_end)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With <code>method = "file"</code>, the times are loaded from a file with one time per line, or a range of times using the format <code>t0:dt:t1</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">0:10:200</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">200:20:300</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">300:50:500</span></span>
@@ -437,15 +449,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">10e3:1e3:20e3</span></span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">20e3:2e3:200e3</span></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ex">200e3:5e3:1e6</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Duplicate times will be removed, as well as times outside of the range of <code>time_init</code> and <code>time_end</code>. In this way, once <code>timeout_init</code> is called, we know how many timesteps of output will be generated. This can help confirm that we designed the experiment well, and how much data to expect.</p>
+<p>Duplicate times will be removed, as well as times outside of the range of <code>time_init</code> and <code>time_end</code>, and <code>time_end</code> is always included. In this way, once <code>timeout_init</code> is called, we know how many timesteps of output will be generated. This can help confirm that we designed the experiment well, and how much data to expect.</p>
 <p>Then during the timeloop, simply use the function <code>timeout_check</code> to determine if the current time should be written to output:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (timeout_check(tm_1D,time)) <span class="kw">then</span>  </span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">!call write_step_1D_combined(yelmo1,hyst1,file1D_hyst,time=time)</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">end if</span> </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">if</span> (timeout_check(t2D,time)) <span class="kw">then</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_write_step(yelmo1,file2D,time)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="kw">end if</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
-<section id="timing-module" class="level2">
-<h2 class="anchored" data-anchor-id="timing-module"><code>timing</code> module</h2>
-<p>All calls to the intrinsic routine <code>cpu_time()</code> have been replaced by timing calculations performed in the new <code>timing</code> module. This has the benefit of ensuring timing will work properly for parallel and serial programs, and allows us to keep track of multiple timing objectives with one simple object and subroutine.</p>
+<section id="timer-module" class="level2">
+<h2 class="anchored" data-anchor-id="timer-module"><code>timer</code> module</h2>
+<p>The <code>timer</code> module of fesm-utils measures the wall time of several components of a driver program (e.g.&nbsp;isostasy, climate and Yelmo in yelmox) with one object. Yelmo itself measures its timing with <code>yelmo_cpu_time</code>.</p>
 <p>The control of a timing object is handled via <code>timer_step</code>:</p>
 <p>First, initialize and reset the <code>timer</code> object:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">call timer_step(tmrs,comp=-1)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -473,12 +485,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.000</span>   0.010    0.000    0.000    0.016    0.051    0.067    6.694</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.010</span>   0.010    0.000    0.000    0.025    0.000    0.025    2.533</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">0.020</span>   0.010    0.000    0.000    0.024    0.000    0.025    2.458</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Based on the options supplied, the time units are in <code>[m]</code> and the model time in <code>[kyr]</code>. The rate is then calculated as <code>[m/kyr]</code> - this is the inverse of what we used to measure <code>[kyr/hr]</code>. The rate as defined now is easier to manage in terms of summing the contribution of different components, and so is preferred moving forward. To recover <code>[kyr/hr]</code>, simply take 60/rate.</p>
+<p>Based on the options supplied, the time units are in <code>[m]</code> and the model time in <code>[kyr]</code>. The rate is then calculated as <code>[m/kyr]</code>, which can be summed over components. To obtain <code>[kyr/hr]</code>, take 60/rate.</p>
 </section>
 <section id="how-to-read-yelmo_check_kill-output" class="level2">
 <h2 class="anchored" data-anchor-id="how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</h2>
-<p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a restart file is written at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
-<p>Note that <code>pc_eps</code> is the parameter that defines our target error tolerance in the time stepping of ice thickness evolution, and <code>pc_tol</code> the error above which a timestep is redone with a smaller dt. At each time step, the diagnosed model error <code>pc_eta</code> (the predictor-corrector error norm, in 1/yr) is compared with these. If the mean of the stored <code>pc_eta</code> values (the last three steps) exceeds <code>10*pc_tol</code>, this is interpreted as instability and the model is stopped. The model is also stopped if <code>H_ice</code> or the depth-averaged speed reach 1e4 m or 1e4 m/yr, or if <code>H_ice</code>, <code>uxy_bar</code> or <code>T_ice</code> are not finite.</p>
+<p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to <code>yelmo_killed.nc</code> at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
+<p>The criteria are listed in <a href="./physics/timestepping.html#instability-checks">Time stepping</a>. The error measure is <code>pc_eta</code>, the norm of the predictor–corrector truncation error [1/yr]: <code>pc_eps</code> is its target value for the adaptive time step, and <code>pc_tol</code> the value above which a time step is redone with a smaller dt. If the mean of the stored <code>pc_eta</code> values (the last three steps) exceeds <code>10*pc_tol</code>, this is interpreted as instability and the model is stopped. The checks are switched off with <code>yelmo.disable_kill = True</code>.</p>
 
 
 </section>

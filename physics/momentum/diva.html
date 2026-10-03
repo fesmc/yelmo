@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -468,7 +480,8 @@ window.Quarto = {
 \qquad
 \tau_{d,y} \;=\; \rho_i\, g\, H\, \frac{\partial s}{\partial y},
 </span></p>
-<p>evaluated on ac-faces by <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_general.f90"><code>calc_driving_stress</code></a> in <code>velocity_general.f90</code>. A grounding-line variant (<code>calc_driving_stress_gl</code>) replaces <span class="math inline">H</span> with a flotation-corrected thickness so that no spurious driving stress is generated at the flotation contact. At calving fronts the lateral boundary contributes a depth-integrated water-pressure imbalance <span class="math inline">\tau_{l,\mathrm{int}}</span> that enters as a Neumann condition.</p>
+<p>evaluated on ac-faces by <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_general.f90"><code>calc_driving_stress</code></a> in <code>velocity_general.f90</code> and limited to <code>ydyn.taud_lim</code> (default 200 kPa). With <code>ydyn.taud_gl_method</code> &gt; 0, the surface slope at the grounding line is modified (<code>calc_driving_stress_gl</code>): 1, slope weighted by the grounded fraction, with a virtual slope for floating ice; 2, one-sided differences (Feldmann et al., 2014); 3, linear interpolation (Gladstone et al., 2010). The default is 0 (no modification).</p>
+<p>At ice fronts, the depth-integrated imbalance between ice and water pressure <span class="math inline">\tau_{l,\mathrm{int}}</span> enters as a Neumann condition on the front faces. <code>ydyn.ssa_lat_bc</code> selects the fronts where it is applied: <code>"marine"</code> (default; floating and marine-terminating fronts), <code>"floating"</code> (floating fronts), <code>"all"</code> or <code>"none"</code>. The other front faces are solved as inner faces (see <a href="../../physics/momentum/solvers.html">Numerical solution</a>).</p>
 </section>
 <section id="effective-viscosity-from-glens-flow-law" class="level3">
 <h3 class="anchored" data-anchor-id="effective-viscosity-from-glens-flow-law">Effective viscosity from Glen’s flow law</h3>
@@ -476,13 +489,13 @@ window.Quarto = {
 <p><span class="math display">
 \mu \;=\; \tfrac{1}{2}\, A^{-1/n}\, \dot\varepsilon_e^{\,(1-n)/n},
 </span></p>
-<p>(routine <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>calc_viscosity_glen</code></a> in <code>deformation.f90</code>). The effective strain rate <span class="math inline">\dot\varepsilon_e</span> in DIVA uses the horizontal strain rates plus a contribution from the (closure-defined) vertical shear, regularised by <span class="math inline">\varepsilon_0</span> to avoid singular viscosity in stagnant ice:</p>
+<p>computed in 3D with the rate factor <span class="math inline">A(T'(z))</span> and depth-integrated to <span class="math inline">\bar\mu H</span>. With <code>ydyn.visc_method = 1</code> (default) it is evaluated at Gaussian quadrature points of each cell (<code>calc_visc_eff_3D_nodes</code>), with <code>visc_method = 2</code> at the cell centres (<code>calc_visc_eff_3D_aa</code>), both in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_diva.f90"><code>velocity_diva.f90</code></a>; <code>visc_method = 0</code> imposes the constant <code>visc_const</code>. The effective strain rate <span class="math inline">\dot\varepsilon_e</span> in DIVA uses the horizontal strain rates plus a contribution from the (closure-defined) vertical shear, regularised by <span class="math inline">\varepsilon_0</span> (<code>ydyn.eps_0</code>) to avoid singular viscosity in stagnant ice:</p>
 <p><span class="math display">
 \dot\varepsilon_e^{\,2}
 \;=\; \dot\varepsilon_{xx}^{\,2}
    + \dot\varepsilon_{yy}^{\,2}
    + \dot\varepsilon_{xx}\,\dot\varepsilon_{yy}
-   + \tfrac{1}{4}\,\dot\varepsilon_{xy}^{\,2}
+   + \dot\varepsilon_{xy}^{\,2}
    + \tfrac{1}{4}\!\left(\frac{\partial u}{\partial z}\right)^{\!2}
    + \tfrac{1}{4}\!\left(\frac{\partial v}{\partial z}\right)^{\!2}
    + \varepsilon_0^{\,2}.
@@ -517,18 +530,20 @@ F_m \;\equiv\; \int_b^s \frac{1}{\mu(z)}\!\left(\frac{s-z}{H}\right)^{\!m}\,\mat
 \qquad
 \beta_\mathrm{eff} \;\equiv\; \frac{\beta}{1 + \beta\,F_2}
 </span></p>
-<p>(Robinson et al.&nbsp;2022 Eq. 19; routine <code>calc_beta_eff</code>). In the no-slip limit (<span class="math inline">\beta \to \infty</span>) this reduces to <span class="math inline">\beta_\mathrm{eff} = 1/F_2</span> (Robinson et al.&nbsp;2022 Eq. 20), which is the form used when the user requests <code>no_slip = .TRUE.</code>. The effective drag <span class="math inline">\beta_\mathrm{eff}</span> — not the raw <span class="math inline">\beta</span> — is what appears in the depth-integrated momentum equation above.</p>
+<p>(Robinson et al.&nbsp;2022 Eq. 19; routine <code>calc_beta_eff</code>). In the no-slip limit (<span class="math inline">\beta \to \infty</span>) this reduces to <span class="math inline">\beta_\mathrm{eff} = 1/F_2</span> (Robinson et al.&nbsp;2022 Eq. 20), which is the form used with <code>ydyn.solver = "diva-noslip"</code>. The effective drag <span class="math inline">\beta_\mathrm{eff}</span> — not the raw <span class="math inline">\beta</span> — is what appears in the depth-integrated momentum equation above.</p>
 </section>
 <section id="picard-iteration" class="level3">
 <h3 class="anchored" data-anchor-id="picard-iteration">Picard iteration</h3>
-<p>The viscosity <span class="math inline">\mu(\bar{\mathbf u})</span> and the effective drag <span class="math inline">\beta_\mathrm{eff}(\bar{\mathbf u})</span> both depend on the solution, so the momentum equation is nonlinear. Yelmo solves it by Picard iteration:</p>
+<p>The viscosity <span class="math inline">\mu(\bar{\mathbf u})</span> and the effective drag <span class="math inline">\beta_\mathrm{eff}(\bar{\mathbf u})</span> both depend on the solution, so the momentum equation is nonlinear. Yelmo solves it by Picard iteration (<code>calc_velocity_diva</code>). Each iteration:</p>
 <ol type="1">
-<li>Compute <span class="math inline">\mu</span> from the current <span class="math inline">\bar{\mathbf u}</span> (and the current 3D viscosity <span class="math inline">\mu(z)</span>).</li>
-<li>Relax <span class="math inline">\mu</span> in log-space against the previous iterate (Sandip et al. 2023): <code>picard_relax_visc</code>.</li>
-<li>Compute <span class="math inline">\bar\mu\,H</span>, the F-integrals <span class="math inline">F_m</span>, and <span class="math inline">\beta_\mathrm{eff}</span>.</li>
-<li>Assemble and solve the linear system for <span class="math inline">\bar{\mathbf u}</span> (see <a href="../../physics/momentum/solvers.html">Numerical solution</a>).</li>
-<li>Relax <span class="math inline">\bar{\mathbf u}</span> against the previous iterate (<code>picard_relax_vel</code>) and test an L2-relative convergence criterion.</li>
+<li>computes the vertical shear <span class="math inline">\partial u/\partial z</span>, <span class="math inline">\partial v/\partial z</span> from the current basal stress and viscosity;</li>
+<li>computes the 3D viscosity <span class="math inline">\mu</span> from <span class="math inline">\bar{\mathbf u}</span> and the vertical shear, relaxes it in log-space against the previous iterate (Sandip et al., 2023; <code>picard_relax_visc</code>), and integrates it to <span class="math inline">\bar\mu H</span>;</li>
+<li>computes <span class="math inline">\beta</span> from the current basal velocity (see <a href="../../physics/basal-friction.html">Basal friction</a>), the F-integral <span class="math inline">F_2</span>, and <span class="math inline">\beta_\mathrm{eff}</span> on the velocity faces, with at least <code>beta_min</code> on grounded faces;</li>
+<li>adds the <a href="../../physics/momentum/solvers.html#velocity-limit">velocity-limit drag</a>, and assembles and solves the linear system for <span class="math inline">\bar{\mathbf u}</span> (see <a href="../../physics/momentum/solvers.html">Numerical solution</a>);</li>
+<li>relaxes <span class="math inline">\bar{\mathbf u}</span> against the previous iterate with the factor <code>ydyn.ssa_iter_rel</code> (default 0.7; <code>picard_relax_vel</code>);</li>
+<li>updates the basal stress and the basal velocity.</li>
 </ol>
+<p>The iteration stops when the relative L2 change of the velocity, <span class="math inline">\lVert \bar{\mathbf u}^{k} - \bar{\mathbf u}^{k-1}\rVert / \lVert \bar{\mathbf u}^{k-1}\rVert</span> (De Smedt et al., 2010), over the solved faces faster than <span class="math inline">10^{-5}</span> m a<span class="math inline">^{-1}</span>, is below <code>ydyn.ssa_iter_conv</code> (default <span class="math inline">10^{-2}</span>), or after <code>ydyn.ssa_iter_max</code> (default 20) iterations.</p>
 <p>When the iteration converges, the basal stress <span class="math inline">\boldsymbol\tau_b = \beta_\mathrm{eff}\bar{\mathbf u}</span> and basal velocity <span class="math inline">u_b = \bar u - \tau_{b,x}\,F_2</span> are diagnosed, and the 3D horizontal velocity field is reconstructed by integrating the vertical-shear closure from the bed upward:</p>
 <p><span class="math display">
 u(z) \;=\; u_b \,+\, \tau_{b,x}\, \tilde F_1(z),

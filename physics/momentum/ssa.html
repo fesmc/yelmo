@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -424,10 +436,10 @@ window.Quarto = {
 <section id="ssa-shallow-shelf-approximation" class="level1">
 <h1>SSA — Shallow Shelf Approximation</h1>
 <p>The SSA is the membrane-stress balance that DIVA reduces to in the limit of vanishing vertical shear. It treats the ice column as a vertical plug: the horizontal velocity is independent of <span class="math inline">z</span>, so <span class="math inline">\bar{\mathbf u}</span> <em>is</em> the basal velocity, <span class="math inline">\bar{\mathbf u} = \mathbf u_b</span>. The implementation is in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_ssa.f90"><code>src/physics/velocity_ssa.f90</code></a>.</p>
-<p>Yelmo uses the same depth-integrated 2D solver as DIVA — the difference is purely in the closure. SSA is the appropriate model for floating ice shelves (no basal drag, no vertical shear) and the right physical limit in fast-streaming grounded ice.</p>
+<p>The SSA is solved by its own Picard loop (<code>calc_velocity_ssa</code>) with the same linear-system assemblers as DIVA (<code>ydyn.ssa_solver</code>, see <a href="../../physics/momentum/solvers.html">Numerical solution</a>); the difference is in the closure. SSA is the appropriate model for floating ice shelves (no basal drag, no vertical shear) and the physical limit in fast-streaming grounded ice. It is used with <code>ydyn.solver = "ssa"</code>, where <span class="math inline">\bar{\mathbf u} = \mathbf u_b</span>, and in the hybrid mode (<code>"hybrid"</code>), where the SSA basal velocity is added to the SIA shear velocity, <span class="math inline">\bar{\mathbf u} = \bar{\mathbf u}^{(\mathrm{SIA})} + \mathbf u_b</span>.</p>
 <section id="continuum-equations" class="level2">
 <h2 class="anchored" data-anchor-id="continuum-equations">Continuum equations</h2>
-<p>The depth-integrated stress balance has the same shape as the DIVA equation but with the <strong>raw</strong> friction <span class="math inline">\beta</span> instead of <span class="math inline">\beta_\mathrm{eff}</span>:</p>
+<p>The depth-integrated stress balance has the same shape as the DIVA equation but with the friction coefficient <span class="math inline">\beta</span> instead of <span class="math inline">\beta_\mathrm{eff}</span>:</p>
 <p><span class="math display">
 \frac{\partial}{\partial x}\!\left[\, 2\,\bar\mu\,H\,(2\,\bar\varepsilon_{xx} + \bar\varepsilon_{yy})\,\right]
 + \frac{\partial}{\partial y}\!\left[\, 2\,\bar\mu\,H\,\bar\varepsilon_{xy}\,\right]
@@ -450,14 +462,14 @@ window.Quarto = {
 \;=\; \dot\varepsilon_{xx}^{\,2}
    + \dot\varepsilon_{yy}^{\,2}
    + \dot\varepsilon_{xx}\,\dot\varepsilon_{yy}
-   + \tfrac{1}{4}\,\dot\varepsilon_{xy}^{\,2}
+   + \dot\varepsilon_{xy}^{\,2}
    + \varepsilon_0^{\,2},
 </span></p>
-<p>so the Glen viscosity <span class="math inline">\mu</span> depends only on horizontal strain rates. There is no F-integral closure: <span class="math inline">F_2 \to 0</span>, so</p>
+<p>so the Glen viscosity <span class="math inline">\mu</span> depends only on the horizontal strain rates (and, through <span class="math inline">A(T'(z))</span>, still varies with depth before it is depth-integrated). There is no F-integral closure: <span class="math inline">F_2 \to 0</span>, so</p>
 <p><span class="math display">
 \beta_\mathrm{eff} \to \beta, \qquad u_b \to \bar u.
 </span></p>
-<p>The basal stress diagnosed after the solve is simply <span class="math inline">\boldsymbol\tau_b = \beta\,\bar{\mathbf u}</span>.</p>
+<p>The basal stress diagnosed after the solve is simply <span class="math inline">\boldsymbol\tau_b = \beta\,\bar{\mathbf u}</span>. <span class="math inline">\beta</span> is the friction coefficient after the grounding-line scaling, staggering and <code>beta_min</code> limit (see <a href="../../physics/basal-friction.html">Basal friction</a>).</p>
 <p>For ice shelves <span class="math inline">\beta = 0</span> identically and only the membrane terms and <span class="math inline">\boldsymbol\tau_d</span> remain — this is the SSA in its purest form.</p>
 
 

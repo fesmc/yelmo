@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./optimization.html" rel="prev">
+<link href="./remapping.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -201,6 +201,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -276,20 +282,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -376,12 +394,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -400,10 +412,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#numerical-precision" id="toc-numerical-precision" class="nav-link active" data-scroll-target="#numerical-precision">Numerical precision</a>
   <ul class="collapse">
-  <li><a href="#current-state" id="toc-current-state" class="nav-link" data-scroll-target="#current-state">Current state</a></li>
-  <li><a href="#why-it-matters-symmetry-regression-check" id="toc-why-it-matters-symmetry-regression-check" class="nav-link" data-scroll-target="#why-it-matters-symmetry-regression-check">Why it matters: symmetry regression check</a></li>
+  <li><a href="#working-precision" id="toc-working-precision" class="nav-link" data-scroll-target="#working-precision">Working precision</a></li>
+  <li><a href="#symmetry-regression-check" id="toc-symmetry-regression-check" class="nav-link" data-scroll-target="#symmetry-regression-check">Symmetry regression check</a></li>
   <li><a href="#building-in-double-precision-for-regression-checks" id="toc-building-in-double-precision-for-regression-checks" class="nav-link" data-scroll-target="#building-in-double-precision-for-regression-checks">Building in double precision (for regression checks)</a></li>
-  <li><a href="#plan-double-precision-internals-wp-interfaces" id="toc-plan-double-precision-internals-wp-interfaces" class="nav-link" data-scroll-target="#plan-double-precision-internals-wp-interfaces">Plan: double-precision internals, <code>wp</code> interfaces</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/numerics-precision.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
@@ -416,9 +427,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="numerical-precision" class="level1">
 <h1>Numerical precision</h1>
-<section id="current-state" class="level2">
-<h2 class="anchored" data-anchor-id="current-state">Current state</h2>
-<p>Yelmo and its Fortran dependencies are compiled in single precision. The working precision <code>wp</code> is hard-coded in each package:</p>
+<section id="working-precision" class="level2">
+<h2 class="anchored" data-anchor-id="working-precision">Working precision</h2>
+<p>Yelmo and its Fortran dependencies are compiled in single precision, except elsa. The working precision <code>wp</code> is hard-coded in each package:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 33%">
@@ -460,15 +471,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>There is no build switch to change this. Interfaces between packages pass <code>wp</code> arrays, so all packages above must agree on <code>wp</code>.</p>
-<p>Some solvers already work internally in double precision:</p>
+<p>There is no build switch to change this. Interfaces between packages pass <code>wp</code> arrays, so yelmo, fesm-utils, FastHydrology and tracer must agree on <code>wp</code>. elsa works in double precision; Yelmo converts its fields at the elsa interface (<code>src/yelmo_tracers.f90</code>).</p>
+<p>Some solvers work internally in double precision:</p>
 <ul>
-<li>Lis (<code>solver_linear.F90</code>) solves in double precision; the matrix is assembled in <code>wp</code> and converted.</li>
-<li>FastHydrology’s K24 transport copies its <code>wp</code> inputs to <code>dp</code>, solves, and converts the result back (<code>hydro_update</code>, <code>TRANSPORT_K24</code> branch). This is the template for the plan below.</li>
+<li>Lis (<code>src/physics/solver_linear.F90</code>) solves in double precision; the matrix is assembled in <code>wp</code> and converted.</li>
+<li>FastHydrology’s K24 transport copies its <code>wp</code> inputs to <code>dp</code>, solves, and converts the result back (<code>hydro_update</code>, <code>TRANSPORT_K24</code> branch).</li>
 </ul>
 </section>
-<section id="why-it-matters-symmetry-regression-check" class="level2">
-<h2 class="anchored" data-anchor-id="why-it-matters-symmetry-regression-check">Why it matters: symmetry regression check</h2>
+<section id="symmetry-regression-check" class="level2">
+<h2 class="anchored" data-anchor-id="symmetry-regression-check">Symmetry regression check</h2>
 <p>The EISMINT-moving symmetry check (<code>symmetry_check</code> in the <code>&amp;ctrl</code> group, <code>src/yelmo_symmetry.f90</code>) compares the solution with its mirror images, normalised by the maximum ice thickness, against the tolerance <code>symmetry_tol</code>. EISMINT-moving and EXPA check the final state at 1e-3. EXPF’s symmetric state is thermomechanically unstable and shows transient symmetry-breaking bursts with either thermal solver, so it checks the mean over the last 20 kyr (<code>symmetry_avg_time</code>) at 2e-2; persistent asymmetry (“spokes”, ~0.1) still fails.</p>
 <p>With the SIA solver the check passes in single precision. With <code>ydyn.solver = "diva"</code> it fails (Linf/Hmax ≈ 1.7e-3), although every DIVA operation is symmetric: with exactly symmetric inputs the solver output is symmetric to 4e-7 (sp) and 2e-13 (dp). The cause is dynamical. Thin grounded frontal cells switch on and off every 100-300 yr (grounded cells have <code>f_ice = 1</code> whenever <code>H_ice &gt; 0</code>), and the eight mirror-image cells slowly drift out of phase with an e-folding time of ~1.7 kyr. Single-precision round-off (~1e-7) grows to a phase slip after ~18 kyr. In double precision the asymmetry at 25 kyr is ~4e-12.</p>
 <p>The symmetry check is therefore meaningful for DIVA only in double precision.</p>
@@ -478,34 +489,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Build a separate copy; do not modify the shared checkouts.</p>
 <ol type="1">
 <li>Copy fesm-utils, FastHydrology, tracer and yelmo into a scratch tree and link them to each other there (<code>fesm-utils</code>, <code>FastHydrology</code>, <code>tracer</code> symlinks inside each package, as in a normal setup). elsa can be linked as is.</li>
-<li>Set <code>wp = dp</code> in every file listed in the table above, and also <code>prec_time = dp</code> in tracer.</li>
-<li>Add <code>-fdefault-real-8 -fdefault-double-8</code> to <code>FFLAGS_BASE</code> in the yelmo <code>Makefile</code>. This is currently required because some calls pass default-real literals to <code>wp</code> dummy arguments (e.g.&nbsp;in <code>solver_ssa_ac.f90</code>), which fail to compile with <code>wp = dp</code> otherwise.</li>
-<li>Build in dependency order: <code>make fesmutils-static</code>, <code>make fasthydro-static</code>, <code>make tracer-static</code>, then <code>make yelmo-static benchmarks</code> in yelmo.</li>
+<li>Set <code>wp = dp</code> in yelmo, fesm-utils, FastHydrology and tracer (table above), and also <code>prec_time = dp</code> in tracer.</li>
+<li>Add <code>-fdefault-real-8 -fdefault-double-8</code> (gfortran) to <code>FFLAGS_BASE</code> in the yelmo <code>Makefile</code>. This is required because some calls pass default-real literals to <code>wp</code> dummy arguments (e.g.&nbsp;in <code>solver_ssa_ac.f90</code>), which fail to compile with <code>wp = dp</code> otherwise.</li>
+<li>Build fesm-utils (<code>make openmp=0 all</code> in <code>fesm-utils</code>), then <code>make yelmo-static benchmarks</code> in yelmo, which also builds FastHydrology, elsa and tracer.</li>
 </ol>
 <p>Run the check with, for example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/sym-diva-dp <span class="at">-n</span> par/yelmo_EISMINT_moving.nml <span class="at">-p</span> ctrl.time_end=25e3 ydyn.solver=diva</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="plan-double-precision-internals-wp-interfaces" class="level2">
-<h2 class="anchored" data-anchor-id="plan-double-precision-internals-wp-interfaces">Plan: double-precision internals, <code>wp</code> interfaces</h2>
-<p>Rather than switching the whole model to double precision, the plan is to run the precision-sensitive internal calculations in <code>dp</code> while all interfaces (derived types, module arguments, I/O) stay in <code>wp</code>, following the K24 pattern:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">! inputs wp -&gt; dp</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>H_dp <span class="kw">=</span> <span class="dt">real(H_ice, dp)</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>...</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">call solve_something_dp(x_dp, H_dp, ...)</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">! result dp -&gt; wp</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>x <span class="kw">=</span> <span class="dt">real(x_dp, wp)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Candidates, in order of expected benefit:</p>
-<ul>
-<li>Picard iteration of the SSA/DIVA momentum balance, including viscosity and effective-drag updates and the convergence measure.</li>
-<li>DIVA vertical integrals (F-integrals) and basal velocity.</li>
-<li>Vertical column solvers in thermodynamics (tridiagonal enthalpy and temperature solves).</li>
-<li>Implicit advection matrix assembly (the Lis solve is already <code>dp</code>).</li>
-</ul>
-<p>Prerequisites:</p>
-<ul>
-<li>Make yelmo <code>wp</code>-clean, so that it compiles with <code>wp = dp</code> without <code>-fdefault-real-8</code>. Literals passed to <code>wp</code> arguments need a <code>_wp</code> kind.</li>
-<li>Add a double-precision build of the symmetry check to the regression tests.</li>
-</ul>
 
 
 </section>
@@ -919,8 +908,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./optimization.html" class="pagination-link" aria-label="Basal friction optimization">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
+      <a href="./remapping.html" class="pagination-link" aria-label="Remapping">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Remapping</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

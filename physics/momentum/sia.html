@@ -210,6 +210,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -285,20 +291,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -385,12 +403,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -424,7 +436,7 @@ window.Quarto = {
 
 <section id="sia-shallow-ice-approximation" class="level1">
 <h1>SIA — Shallow Ice Approximation</h1>
-<p>The SIA is the complementary limit to SSA: membrane stresses are neglected and the horizontal stress balance is dominated by the basal drag exerted by vertical shear. Yelmo’s SIA solver is implemented in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_sia.f90"><code>src/physics/velocity_sia.f90</code></a> and is used to provide the vertical-shear contribution to the velocity field in the hybrid SIA + SSA mode and as a diagnostic on its own.</p>
+<p>The SIA is the complementary limit to SSA: membrane stresses are neglected and the horizontal stress balance is dominated by the basal drag exerted by vertical shear. Yelmo’s SIA solver is implemented in <a href="https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_sia.f90"><code>src/physics/velocity_sia.f90</code></a> and is used with <code>ydyn.solver = "sia"</code> and to provide the vertical-shear contribution to the velocity in the hybrid SIA + SSA mode (<code>"hybrid"</code>).</p>
 <p>Crucially, Yelmo formulates SIA in <strong>stress form</strong>: the shear stress and the basal stress are computed <em>from the driving stress</em> <span class="math inline">\boldsymbol\tau_d</span> exactly as in DIVA, and the velocity is then obtained by integrating Glen’s flow law vertically. This is mathematically equivalent to the familiar closed-form SIA expression in terms of <span class="math inline">\nabla s</span>, but it keeps the link to the Stokes balance explicit, uses the same <span class="math inline">\boldsymbol\tau_d</span> field as DIVA/SSA (including the same lateral and grounding-line treatments), and makes the SIA → DIVA limit transparent.</p>
 <section id="continuum-equations" class="level2">
 <h2 class="anchored" data-anchor-id="continuum-equations">Continuum equations</h2>
@@ -460,10 +472,10 @@ window.Quarto = {
 </span></p>
 <p>where the effective stress under SIA assumptions is <span class="math inline">\tau_e^{\,2} = \tau_{xz}^{\,2} + \tau_{yz}^{\,2}</span>. Since <span class="math inline">\dot\varepsilon_{xz} = \frac{1}{2}\frac{\partial u}{\partial z}</span> in the SIA limit, the horizontal velocity is obtained by integrating from the bed upward:</p>
 <p><span class="math display">
-u(z) \;=\; u_b \,+\, 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
+u_i(z) \;=\; 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
 </span></p>
-<p>and analogously for <span class="math inline">v</span>. The integral is evaluated layer-by-layer with the trapezoidal rule (routine <code>calc_uxy_sia_3D</code>). The depth-averaged velocity <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> is obtained by trapezoidal integration over <span class="math inline">z</span>.</p>
-<p>In hybrid mode, Yelmo uses <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> to provide the shearing contribution that is added to the basal velocity produced by the membrane (DIVA/SSA) solve. In a pure-SIA configuration, the basal velocity is either zero (frozen bed) or comes from a sliding law of choice (not the default in current Yelmo versions).</p>
+<p>and analogously for <span class="math inline">v</span>. This is the shear (internal deformation) part of the velocity, which is zero at the bed. The integral is evaluated layer-by-layer with the trapezoidal rule (routine <code>calc_uxy_sia_3D</code>). The depth-averaged velocity <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> is obtained by trapezoidal integration over <span class="math inline">z</span>.</p>
+<p>In hybrid mode, <span class="math inline">\bar{\mathbf u}^{(\mathrm{SIA})}</span> is the shearing contribution that is added to the basal velocity from the <a href="../../physics/momentum/ssa.html">SSA</a> solve. In a pure-SIA configuration (<code>"sia"</code>), the basal velocity and basal stress are zero; sliding requires the hybrid mode.</p>
 </section>
 <section id="relationship-to-the-textbook-sia" class="level2">
 <h2 class="anchored" data-anchor-id="relationship-to-the-textbook-sia">Relationship to the textbook SIA</h2>

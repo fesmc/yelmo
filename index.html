@@ -200,6 +200,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./physics/index.html" class="sidebar-item-text sidebar-link">
@@ -275,20 +281,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="./physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -375,12 +393,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -419,11 +431,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img src="img/yelmo.jpg" class="img-fluid figure-img"></p>
-<figcaption>Yelmo, Gaudarrama Mountains</figcaption>
+<figcaption>Yelmo, Guadarrama Mountains</figcaption>
 </figure>
 </div>
 <p>Welcome to <strong>Yelmo</strong>, an easy to use continental ice sheet model. <strong>Yelmo</strong> is a 3D ice-sheet-shelf model solving for the coupled dynamics and thermodynamics of the ice sheet system. Yelmo can be used for idealized simulations, stand-alone ice sheet simulations and fully coupled ice-sheet and climate simulations.</p>
-<p><strong>Yelmo</strong> has been designed to operate as a stand-alone model or to be easily plugged in as a module in another program. The key to its flexibility is that no variables are defined globally and parameters are defined according to the domain being modeled. In this way, all variables and calculations are store in an object that entirely represents the model domain.</p>
+<p><strong>Yelmo</strong> has been designed to operate as a stand-alone model or to be easily plugged in as a module in another program. The key to its flexibility is that no variables are defined globally and parameters are defined according to the domain being modeled. In this way, all variables and calculations are stored in an object that entirely represents the model domain.</p>
 <p>The physics and design of <strong>Yelmo</strong> are described in the following article:</p>
 <blockquote class="blockquote">
 <p>Robinson, A., Alvarez-Solas, J., Montoya, M., Goelzer, H., Greve, R., and Ritz, C.: Description and validation of the ice-sheet model Yelmo (version 1.0), Geosci. Model Dev., 13, 2805–2823, <a href="https://doi.org/10.5194/gmd-13-2805-2020">https://doi.org/10.5194/gmd-13-2805-2020</a>, 2020.</p>
@@ -436,23 +448,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The Yelmo class defines all data related to a model domain, such as Greenland or Antarctica. As seen below in the yelmo_class defintion, the ‘class’ is simply a user-defined Fortran type that contains additional types representing various parameters, variables or sets of module variables.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type</span> yelmo_class</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yelmo_param_class)</span> <span class="dt">::</span> par      <span class="co">! General domain parameters</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ygrid_class)</span>       <span class="dt">::</span> grd      <span class="co">! Grid definition</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_class)</span>       <span class="dt">::</span> tpo      <span class="co">! Topography variables</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydyn_class)</span>        <span class="dt">::</span> dyn      <span class="co">! Dynamics variables</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ymat_class)</span>        <span class="dt">::</span> mat      <span class="co">! Material variables</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytherm_class)</span>      <span class="dt">::</span> thrm     <span class="co">! Thermodynamics variables</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ybound_class)</span>      <span class="dt">::</span> bnd      <span class="co">! Boundary variables to drive model</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydata_class)</span>       <span class="dt">::</span> dta      <span class="co">! Data variables for comparison</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yregions_class)</span>    <span class="dt">::</span> reg      <span class="co">! Regionally aggregated variables</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(grid_class)</span>        <span class="dt">::</span> grd      <span class="co">! Grid definition (fesm-utils/coords)</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytime_class)</span>       <span class="dt">::</span> time     <span class="co">! Timestep and timing variables</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytime_class)</span>       <span class="dt">::</span> time_amc <span class="co">! Timestep and timing variables</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_class)</span>       <span class="dt">::</span> tpo      <span class="co">! Topography variables</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydyn_class)</span>        <span class="dt">::</span> dyn      <span class="co">! Dynamics variables</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ymat_class)</span>        <span class="dt">::</span> mat      <span class="co">! Material variables</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytrc_class)</span>        <span class="dt">::</span> trc      <span class="co">! Passive-tracer subsystem (euler/tracer/elsa backends)</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytherm_class)</span>      <span class="dt">::</span> thrm     <span class="co">! Thermodynamics variables</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(hydro_class)</span>       <span class="dt">::</span> hyd      <span class="co">! Basal hydrology (fasthydrology)</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ybound_class)</span>      <span class="dt">::</span> bnd      <span class="co">! Boundary variables to drive model</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ydata_class)</span>       <span class="dt">::</span> dta      <span class="co">! Data variables for comparison</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yregions_class)</span>    <span class="dt">::</span> reg      <span class="co">! Regionally aggregated variables for whole domain</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yregions_class)</span>, <span class="dt">allocatable</span> <span class="dt">::</span> regs(:)  <span class="co">! Regionally aggregated variables for sub-regions</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(yelmo_io_tables)</span>   <span class="dt">::</span> io       <span class="co">! IO variable tables</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="dt">character(len=512)</span>      <span class="dt">::</span> outfldr  <span class="co">! Output folder for files written internally by yelmo (regions, metrics)</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Likewise the module variables are defined in a similar way, e.g.&nbsp;ytopo_class that defines variables and parameters associated with the topography:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type</span> ytopo_class</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_param_class)</span> <span class="dt">::</span> par        <span class="co">! Parameters</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_state_class)</span> <span class="dt">::</span> now        <span class="co">! Variables</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Submodules such as ytopo_class include parameter definitions relevant to topography calculations, as well as all variables that define the state of the domain being modeled.</p>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(ytopo_pc_class)</span>    <span class="dt">::</span> pc         <span class="co">! Predictor-corrector variables</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">type(rk4_class)</span>         <span class="dt">::</span> rk4</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">end type</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Components such as ytopo_class include the parameters relevant to topography calculations (<code>par</code>), as well as all variables that define the state of the domain being modeled (<code>now</code>).</p>
 </section>
 <section id="example-model-domain-intialization" class="level3">
 <h3 class="anchored" data-anchor-id="example-model-domain-intialization">Example model domain intialization</h3>
@@ -469,55 +490,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">! === Load initial boundary conditions for current time and yelmo state =====</span></span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">! These variables can be loaded from a file, or passed from another</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">! component being simulated. Yelmo does not care about the source,</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">! it only needs all variables in the `bnd` class to be populated.</span></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">! ybound: z_bed, z_sl, H_sed, smb, T_srf, bmb_shlf, T_shlf, Q_geo</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">! component being simulated. Yelmo does not care about the source.</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">! z_bed (and z_bed_sd), the masks and the reference fields are set by</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">! yelmo_init; the forcing below must be set by the driver.</span></span>
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_bed    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_sl     <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>H_sed    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>smb      <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>T_srf    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>bmb_shlf <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>T_shlf   <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>Q_geo    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Print summary of initial boundary conditions  </span></span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_print_bound(yelmo1<span class="op">%</span>bnd)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>z_sl     <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [m] Sea level</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>H_sed    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [m] Sediment thickness</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>smb      <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [m/a ice equiv.] Surface mass balance</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>T_srf    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [K] Surface temperature</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>bmb_shlf <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [m/a ice equiv.] Sub-shelf basal mass balance</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>fmb_shlf <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [m/a ice equiv.] Frontal mass balance (ytopo.fmb_method=0)</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    yelmo1<span class="op">%</span>bnd<span class="op">%</span>Q_geo    <span class="kw">=</span> <span class="kw">[</span><span class="dv">2</span>D array<span class="kw">]</span>    <span class="co">! [mW/m2] Geothermal heat flux</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Depending on the methods used: T_shlf, tf_shlf and Qd (ocean</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">! temperature, thermal forcing and subglacial discharge for frontal melt</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">! and ismip7 calving), enh_srf (surface enhancement factor, "*-tracer" enh_method).</span></span>
 <span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Next, initialize the state variables (dyn,therm,mat)</span></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (in this case, initialize temps with robin method)</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Print summary of initial boundary conditions</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_print_bound(yelmo1<span class="op">%</span>bnd)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init_state(yelmo1,time<span class="kw">=</span>time_init,thrm_method<span class="kw">=</span><span class="st">"robin"</span>)</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Run yelmo for eg 100.0 years with constant boundary conditions and topo</span></span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="co">! to equilibrate thermodynamics and dynamics</span></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (impose a constant, small dt=1yr to reduce possibility for instabilities)</span></span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_update_equil(yelmo1,time,time_tot<span class="kw">=</span><span class="fl">100.0</span>,topo_fixed<span class="kw">=</span><span class="cn">.FALSE.</span>,dt<span class="kw">=</span><span class="fl">1.0</span>)</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == YELMO INITIALIZATION COMPLETE ==</span></span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Note: the above routines `yelmo_init_state` and `yelmo_update_equil`</span></span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    <span class="co">! are optional, if the user prefers another way to initialize the state variables.</span></span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Start time looping and run the model ==</span></span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Advance timesteps</span></span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="kw">do</span> n <span class="kw">=</span> <span class="dv">1</span>, ntot</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Next, initialize the state variables (dyn,therm,mat)</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (in this case, initialize temps with robin method)</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_init_state(yelmo1,time<span class="kw">=</span>time_init,thrm_method<span class="kw">=</span><span class="st">"robin"</span>)</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Run yelmo for eg 100.0 years with constant boundary conditions and fixed topography</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="co">! to equilibrate thermodynamics and dynamics</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="co">! (impose a constant, small dt=1yr to reduce possibility for instabilities)</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_update_equil(yelmo1,time,time_tot<span class="kw">=</span><span class="fl">100.0_wp</span>,topo_fixed<span class="kw">=</span><span class="cn">.TRUE.</span>,dt<span class="kw">=</span><span class="fl">1.0_wp</span>)</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == YELMO INITIALIZATION COMPLETE ==</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Note: the above routines `yelmo_init_state` and `yelmo_update_equil`</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    <span class="co">! are optional, if the user prefers another way to initialize the state variables.</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Start time looping and run the model ==</span></span>
 <span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Get current time</span></span>
-<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>        time <span class="kw">=</span> time_init <span class="kw">+</span> n<span class="kw">*</span>dt</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    <span class="co">! Advance timesteps</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    <span class="kw">do</span> n <span class="kw">=</span> <span class="dv">1</span>, ntot</span>
 <span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Update the Yelmo ice sheet</span></span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> yelmo_update(yelmo1,time)</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Get current time</span></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>        time <span class="kw">=</span> time_init <span class="kw">+</span> n<span class="kw">*</span>dt</span>
 <span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Here you may be updating `yelmo1%bnd` variables to drive the model transiently.</span></span>
-<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end do</span></span>
-<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Finalize Yelmo instance ==</span></span>
-<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_<span class="kw">end</span>(yelmo1,time<span class="kw">=</span>time)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Update the Yelmo ice sheet</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        <span class="kw">call</span> yelmo_update(yelmo1,time)</span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>        <span class="co">! Here you may be updating `yelmo1%bnd` variables to drive the model transiently.</span></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end do</span></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>    <span class="co">! == Finalize Yelmo instance ==</span></span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">call</span> yelmo_<span class="kw">end</span>(yelmo1,time<span class="kw">=</span>time)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>A coupled program that owns the domain definition (grid, masks, topography) can pass these to <code>yelmo_init</code> instead of having Yelmo read them from files. Each optional field replaces the matching file read; the processing that follows is the same:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    <span class="dt">type(ytopo_input_class)</span> <span class="dt">::</span> topo_pd, topo_init   <span class="co">! H_ice, z_bed [, z_bed_sd, z_srf]</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>enth-temp-discretization – Yelmo</title>
+<title>tracers – Yelmo</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -33,6 +33,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
+<link href="../yelmo-variables.html" rel="next">
+<link href="../physics/calving.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -118,7 +120,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/tracers.html">Passive tracers</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -163,6 +165,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../yelmo-config.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">yelmo-config</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -240,20 +248,32 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../physics/tracers.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -340,12 +360,6 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../numerics-precision.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Numerical precision</span></a>
   </div>
@@ -362,80 +376,53 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#enthalpy-vs-temperature-solver-residual-discretization-difference" id="toc-enthalpy-vs-temperature-solver-residual-discretization-difference" class="nav-link active" data-scroll-target="#enthalpy-vs-temperature-solver-residual-discretization-difference">Enthalpy vs temperature solver: residual discretization difference</a>
-  <ul class="collapse">
-  <li><a href="#status" id="toc-status" class="nav-link" data-scroll-target="#status">Status</a></li>
-  <li><a href="#what-is-established" id="toc-what-is-established" class="nav-link" data-scroll-target="#what-is-established">What is established</a></li>
-  <li><a href="#can-icecolumnsolutions.jl-referee-it" id="toc-can-icecolumnsolutions.jl-referee-it" class="nav-link" data-scroll-target="#can-icecolumnsolutions.jl-referee-it">Can IceColumnSolutions.jl referee it?</a></li>
-  <li><a href="#proposed-plan-for-the-new-session" id="toc-proposed-plan-for-the-new-session" class="nav-link" data-scroll-target="#proposed-plan-for-the-new-session">Proposed plan for the new session</a></li>
-  <li><a href="#landing-state-2026-07-08-branch-therm-dev" id="toc-landing-state-2026-07-08-branch-therm-dev" class="nav-link" data-scroll-target="#landing-state-2026-07-08-branch-therm-dev">Landing state (2026-07-08, branch <code>therm-dev</code>)</a></li>
-  <li><a href="#session-update-2026-07-08-icecolumnsolutions.jl-bench-plan-step-1" id="toc-session-update-2026-07-08-icecolumnsolutions.jl-bench-plan-step-1" class="nav-link" data-scroll-target="#session-update-2026-07-08-icecolumnsolutions.jl-bench-plan-step-1">Session update (2026-07-08): IceColumnSolutions.jl bench (plan step 1)</a></li>
-  </ul></li>
+  <li><a href="#passive-tracers" id="toc-passive-tracers" class="nav-link active" data-scroll-target="#passive-tracers">Passive tracers</a></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/enth-temp-discretization.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/tracers.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/tracers.html">Passive tracers</a></li></ol></nav></header>
 
 
 
 
-<section id="enthalpy-vs-temperature-solver-residual-discretization-difference" class="level1">
-<h1>Enthalpy vs temperature solver: residual discretization difference</h1>
-<p>Follow-up investigation, deferred to a dedicated session. Companion to <a href="../physics/enthalpy-transition-plan.html">enthalpy-transition-plan.md</a>.</p>
-<section id="status" class="level2">
-<h2 class="anchored" data-anchor-id="status">Status</h2>
-<p>After the 2026-07 enth fixes (cold-floor clamp, <code>cp_ref</code>/A1, integral/A2, <code>dzsdt</code>→<code>uz</code>), the enthalpy solver reproduces the temperature solver on initmip-grl-16km to <strong>~0.46 K RMS</strong> basal temperature. The remaining difference is a genuine discretization inconsistency, not a bug that a small patch removes. This note records what is established so a future session does not repeat the dead ends.</p>
-</section>
-<section id="what-is-established" class="level2">
-<h2 class="anchored" data-anchor-id="what-is-established">What is established</h2>
-<ol type="1">
-<li><p><strong>It is a real inconsistency, not truncation.</strong> Refining the vertical grid (<code>nz</code> 51 → 201 → 501) leaves the temp↔︎enth basal-temperature gap essentially fixed (~0.69 K at <code>Q_geo = 70 mW m⁻²</code> in the <code>robin-column</code> test). The two solvers <strong>converge to different limits</strong>.</p></li>
-<li><p><strong>It appears only with variable material properties.</strong> With <em>constant</em> <code>cp</code> and <code>kt</code>, temp ≡ enth ≡ Robin analytic to 0.008 K. The divergence switches on only when <code>cp(T) = 146.3 + 7.253 T</code> and <code>kt(T)</code> vary through the column. It grows with the basal temperature / vertical gradient (i.e.&nbsp;with the amount of property variation).</p></li>
-<li><p><strong>It is not the harmonic-mean interface indexing.</strong> <code>calc_temp_column_internal</code> evaluates the interface conductivity at <code>zeta_ac(k)</code>/<code>zeta_ac(k+1)</code> (consistent with <code>dzeta_a(k)</code>/<code>dzeta_b(k)</code> from <code>calc_dzeta_terms</code>), while <code>calc_enth_column_internal</code> uses <code>zeta_ac(k-1)</code>/<code>zeta_ac(k)</code>. Aligning enth to temp’s indexing was <strong>tested and rejected</strong>: it did not close the gap and it worsened the Kleiner-B CTS (20.8 → 23.2 m vs analytic 19.0 m). The original enth indexing is the empirically-validated one; reverted, not committed.</p></li>
-<li><p><strong>Root cause is the T-scheme vs E-scheme difference.</strong> temp discretizes the temperature equation (diffuse <code>T</code> with <code>kt</code>); enth discretizes the enthalpy equation (diffuse <code>E = ∫cp dT</code> with <code>κ = kt/(ρ cp)</code>). These are discretely equivalent <strong>only</strong> when <code>cp</code> is constant. With variable <code>cp</code>, the nonlinear <code>E(T)</code> combined with the harmonic mean of the compound <code>kt/cp</code> coefficient makes the two discrete operators genuinely different, so they reach different steady states. A2 (integral enthalpy) removes the constant-<code>cp</code> <em>definition</em> error but not this operator-level difference.</p></li>
-<li><p><strong>“Which is more correct” is currently undetermined.</strong> The Robin analytic and the Kleiner benchmarks all assume constant <code>cp</code>, so none of the existing references can referee the variable-property case where temp and enth disagree.</p></li>
-</ol>
-</section>
-<section id="can-icecolumnsolutions.jl-referee-it" class="level2">
-<h2 class="anchored" data-anchor-id="can-icecolumnsolutions.jl-referee-it">Can IceColumnSolutions.jl referee it?</h2>
-<p><a href="https://github.com/fesmc/IceColumnSolutions.jl" class="uri">https://github.com/fesmc/IceColumnSolutions.jl</a> — analytic solutions for the 1D advection–diffusion column (Moreno-Parada et al., 2024, Appendix A): <code>solve_stationary</code> (steady θ(ζ)) and <code>solve(par, ts)</code> (transient θ(ξ,τ) via an eigenfunction/eigenvalue expansion), parameterized by dimensionless <code>Pe</code> (vertical advection), <code>Br</code> (strain heating), <code>Λ</code> (horizontal advection), <code>γ</code>/<code>β'</code> (geothermal / surface insulation).</p>
-<ul>
-<li><strong>Helps a lot</strong> for the regimes where temp and enth <em>should</em> agree. It is far broader than the hand-rolled steady Robin used so far: transient, strong advection (<code>Pe</code>), strain heating (<code>Br</code>), horizontal advection (<code>Λ</code>). Use it to
-<ol type="a">
-<li>verify both Yelmo solvers reproduce the exact solution in the constant-property limit across this parameter space, and (b) measure each scheme’s order of accuracy / dispersion. A scheme that is demonstrably more accurate there is the more trustworthy one.</li>
-</ol></li>
-<li><strong>Not sufficient on its own.</strong> The eigenfunction method needs a <em>linear, constant-coefficient</em> equation, so it assumes constant <code>cp</code>/<code>kt</code>. It therefore cannot directly referee the variable-<code>cp(T)</code>/<code>kt(T)</code> divergence — which is exactly the disagreement. For that, a separate <strong>high-resolution numerical reference</strong> (an independent fine solver, or MMS with a manufactured variable-property solution) is needed; IceColumnSolutions.jl can validate that reference in the constant-property limit.</li>
-</ul>
-</section>
-<section id="proposed-plan-for-the-new-session" class="level2">
-<h2 class="anchored" data-anchor-id="proposed-plan-for-the-new-session">Proposed plan for the new session</h2>
-<ol type="1">
-<li>Wire IceColumnSolutions.jl into the standalone harness (or a Julia driver) and validate <code>calc_temp_column</code> and <code>calc_enth_column</code> against <code>solve</code>/<code>solve_stationary</code> across (Pe, Br, Λ, transient) at constant properties — confirm both are correct and quantify their convergence order.</li>
-<li>Build a variable-property referee: either MMS (manufactured solution with <code>cp(T)</code>, <code>kt(T)</code> — add the analytic source term) or a heavily-refined independent numerical solution. Determine which of temp / enth converges to it.</li>
-<li>If one scheme is demonstrably wrong for variable properties, fix that one; if both are “reasonable” discretizations of different-but-valid forms, decide whether to unify them onto a single shared discrete operator (so temp and enth agree by construction) — noting the cost of revalidating the production temp solver against EISMINT.</li>
-<li>Re-run initmip-grl temp-vs-enth to confirm the gap closes.</li>
-</ol>
-</section>
-<section id="landing-state-2026-07-08-branch-therm-dev" class="level2">
-<h2 class="anchored" data-anchor-id="landing-state-2026-07-08-branch-therm-dev">Landing state (2026-07-08, branch <code>therm-dev</code>)</h2>
-<p>Committed and stable: cold-floor clamp, A1 (<code>cp_ref</code>), A2 (<code>enth_cp_method</code>, default <code>integral</code>), <code>dzsdt</code>→<code>uz</code> fix, <code>analysis/compare_grl.jl</code>. enth ≈ temp to 0.46 K RMS on initmip-grl. This residual is the subject of the investigation above and does <strong>not</strong> block using the enth solver.</p>
-</section>
-<section id="session-update-2026-07-08-icecolumnsolutions.jl-bench-plan-step-1" class="level2">
-<h2 class="anchored" data-anchor-id="session-update-2026-07-08-icecolumnsolutions.jl-bench-plan-step-1">Session update (2026-07-08): IceColumnSolutions.jl bench (plan step 1)</h2>
-<p>Step 1 of the plan is implemented and the constant-property regime is validated.</p>
-<ul>
-<li><strong>Harness.</strong> The standalone column driver <code>tests/test_icetemp.f90</code> was resurrected against the current API (constants moved into <code>ybound_const_class</code>; new <code>calc_temp_column</code>/<code>calc_enth_column</code>/<code>calc_T_pmp</code>/bedrock signatures; dropped the removed <code>calc_temp_robin_column</code> and active-bedrock <code>calc_temp_column_bedrock</code>). A new <code>"ics"</code> experiment was added: constant cp/kt, linear vertical velocity, no strain heating, cold column, geothermal flux prescribed at the base, uniform ζ grid. It is driven via CLI args (<code>nz cr solver experiment [smb] [Qgeo]</code>).</li>
-<li><strong>Referee.</strong> <code>analysis/compare_column_analytic.jl</code> orchestrates the harness and compares the steady T(ζ) to <code>IceColumnSolutions.solve_stationary</code>, over an nz refinement sweep and a (Pe, γ) grid. Env in <code>analysis/Project.toml</code> (devs IceColumnSolutions).</li>
-<li><strong>Result.</strong> Both solvers reproduce the exact advection–diffusion solution to <strong>0.003–0.06 K RMS</strong> across Pe ∈ [0, 22], γ from Q_geo ∈ {15,30,45} mW m⁻². <strong>temp ≈ enth everywhere</strong> (differences ~1–2 %), confirming they agree at constant properties against a far broader exact solution than the hand-rolled Robin. In the pure-diffusion limit (Pe=0) enth is ~2× less accurate than temp (e.g.&nbsp;6.0e-3 vs 2.8e-3 K at Q_geo=30) — a faint but consistent signal.</li>
-<li><strong>Convergence order could NOT be measured.</strong> Yelmo is built single precision (<code>wp = sp</code>); the error floors at the sp round-off level (~0.05–0.1 K), so RMS is flat vs nz (order ≈ 0.0–0.3) across the whole sweep. Measuring the true order needs a double-precision toolchain.</li>
-<li><strong>Why dp is not a quick flip.</strong> Setting <code>wp = dp</code> cascades into the <em>external</em> <code>fesm-utils</code> library (shared by all models): its public routines are locked to <code>wp = sp</code>, so a dp Yelmo hits interface type mismatches. <code>fesm-utils/src/subgrid.f90</code> was made precision-generic (generic interface → <code>_dp</code> worker + <code>_sp</code> wrapper; committed/pushed on <code>fesm-utils:dev</code>), but <code>gaussian_quadrature</code>, <code>derivatives</code>, <code>distances</code>, … need the same treatment (dozens of routines). The cheaper route for a future dp bench is to build a separate dp <code>fesm-utils</code> variant and link Yelmo’s dp build against it, rather than genericizing every routine.</li>
-<li><strong>IceColumnSolutions gotcha (filed).</strong> Its <code>w0</code> sign convention is inverted vs its docstring: accumulation is <code>Pe &gt; 0</code> (real-<code>erf</code> branch); the documented “negative = downward” lands on an ill-conditioned imaginary-<code>erf</code> path and gives unphysical results. The referee therefore maps <code>w0 = +smb</code>. See fesmc/IceColumnSolutions.jl#6 (proposes adopting negative = downward, matching Yelmo, and fixing the sign so downward is the well-conditioned branch).</li>
-</ul>
-<p><strong>Still open:</strong> step 2 (variable-property MMS / fine-solver referee) — the actual <code>cp(T)</code> divergence — is untouched and remains the crux. Step 1’s analytic bench can only validate that reference in the constant-property limit.</p>
+<section id="passive-tracers" class="level1">
+<h1>Passive tracers</h1>
+<p>The passive-tracer subsystem (<code>calc_ytrc</code> in <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90"><code>src/yelmo_tracers.f90</code></a>, group <code>&amp;ytrc</code>) traces the deposition time of the ice, from which the depths of isochronal layers follow. It does not feed back on the flow. Three backends can run in any combination:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Switch</th>
+<th>Method</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Eulerian</td>
+<td><code>use_euler</code>, <code>calc_age</code></td>
+<td>Advection of the deposition time on the model grid (<code>calc_tracer_3D</code>), with <code>uz_star</code></td>
+<td><code>t_dep_euler</code></td>
+</tr>
+<tr class="even">
+<td>Lagrangian particles</td>
+<td><code>use_tracer</code></td>
+<td>Particle model (<a href="https://github.com/fesmc/tracer">tracer</a>), with <code>ux</code>, <code>uy</code>, <code>uz</code>; namelist <code>tracer_nml</code></td>
+<td><code>t_dep_trc</code></td>
+</tr>
+<tr class="odd">
+<td>Lagrangian layers</td>
+<td><code>use_elsa</code></td>
+<td>Layer model (<a href="https://github.com/fesmc/elsa">elsa</a>), driven by the ice thickness, velocity and surface and basal mass balance; namelist <code>elsa_nml</code>, group <code>elsa_group</code></td>
+<td><code>t_dep_elsa</code></td>
+</tr>
+</tbody>
+</table>
+<p>All backends are off by default. Each one gives a deposition-time field on the Yelmo vertical grid. The backend selected by <code>t_dep_source</code> (<code>"euler"</code>, <code>"trc"</code> or <code>"elsa"</code>) is copied to <code>t_dep</code>, from which the depths of the isochrones at the times <code>time_iso</code> [ka] are diagnosed (<code>depth_iso</code>; with <code>calc_age = False</code>, only the first time is used). The Eulerian solver is explicit (<code>tracer_method = "expl"</code>) or implicit in the vertical with an artificial diffusion <code>tracer_impl_kappa</code> (<code>"impl"</code>); the horizontal advection is explicit upwind in both cases. The elsa layer stack is sized by the simulation end time <code>time_end</code>. On a restart, the state of the Lagrangian backends is read from separate files next to the restart file (<code>&lt;restart&gt;_tracer.nc</code>, and <code>&lt;restart&gt;_elsa.nc</code> with <code>elsa_restart = True</code>).</p>
+<p>The tracers are updated after the material properties and before the thermodynamics in each <a href="../physics/timestepping.html">time step</a>. The variables are listed in the <a href="../yelmo-variables-ytrc.html">tracer variable table</a>.</p>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -844,9 +831,21 @@ ul.task-list li input[type="checkbox"] {
     }
   });
   </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../physics/calving.html" class="pagination-link" aria-label="Calving">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Calving</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../yelmo-variables.html" class="pagination-link" aria-label="Variables">
+        <span class="nav-page-text">Variables</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
 </div> <!-- /content -->
 
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/enth-temp-discretization.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/tracers.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

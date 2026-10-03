@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../physics/thermodynamics.html" rel="next">
+<link href="../physics/timestepping.html" rel="next">
 <link href="../physics/mass_conservation/solvers.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -245,6 +245,12 @@ window.Quarto = {
  <span class="menu-text">yelmo-config</span></a>
   </div>
 </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
@@ -320,20 +326,32 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/enthalpy-transition-plan.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Enthalpy transition plan (ytherm)</span></a>
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Calving schemes</span></a>
+  <a href="../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
   </div>
 </li>
       </ul>
@@ -416,12 +434,6 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../remapping.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Remapping</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Basal friction optimization</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -545,7 +557,7 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 \;=\; \frac{\partial u}{\partial x}\bigg|_\zeta
 \;+\; \frac{\partial \zeta}{\partial x}\,\frac{\partial u}{\partial \zeta} .
 </span></p>
-<p>The code applies exactly this correction. In <code>calc_uz_3D</code>:</p>
+<p>The code applies exactly this correction. In <code>calc_uz_3D</code> (<code>uz_method = 2</code>; <code>calc_uz_3D_aa</code> is analogous):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">c_x = -H_inv * ( (1.0-zeta_now)*dzbdx_aa + zeta_now*dzsdx_aa )   ! = dzeta/dx</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">c_y = -H_inv * ( (1.0-zeta_now)*dzbdy_aa + zeta_now*dzsdy_aa )   ! = dzeta/dy</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -555,20 +567,20 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <p>The corrected divergence is then integrated upward (Greve and Blatter, 2009, Eq. 5.95), with <span class="math inline">H\,\Delta\zeta = \Delta z</span>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>uz(i,j,<span class="dv">1</span>) <span class="kw">=</span> dzbdt_now <span class="kw">+</span> f_bmb<span class="kw">*</span>bmb(i,j) <span class="kw">+</span> ux_aa<span class="kw">*</span>dzbdx_aa <span class="kw">+</span> uy_aa<span class="kw">*</span>dzbdy_aa<span class="co">   ! basal KBC</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>uz(i,j,k) <span class="kw">=</span> uz(i,j,k<span class="kw">-</span><span class="dv">1</span>) <span class="kw">-</span> H_now<span class="kw">*</span>(zeta_ac(k)<span class="kw">-</span>zeta_ac(k<span class="kw">-</span><span class="dv">1</span>))<span class="kw">*</span>(dudx_aa<span class="kw">+</span>dvdy_<span class="co">aa)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>with <code>dzbdt_now = tpo%now%dzbdt_kin</code>, the kinematic rate of the column base (<code>dzsdt_kin</code> for the surface), computed in <code>calc_ytopo_pc</code> from the tendencies:</p>
+<p>with <code>dzbdt_now = tpo%now%dzbdt_kin</code>, the kinematic rate of the column base (<code>dzsdt_kin</code> for the surface), computed by <code>calc_column_kinematic_rates</code> from the tendencies of the topography step:</p>
 <ul>
-<li>vertical thickness change of the column, <code>dHidt_vert</code> = advection + smb + bmb (+ relaxation). Calving, frontal melt, discharge, front advance and removals are lateral and do not move the column surface or base;</li>
+<li>vertical thickness change of the column, <code>dHidt_vert</code> = advection (including <code>mb_clip</code>) + smb + bmb (+ relaxation). Calving, frontal melt, discharge, front advance and removals are lateral and do not move the column surface or base;</li>
 <li>grounded ice: the base follows the bedrock, <code>dzbdt_kin = dz_bed/dt</code>;</li>
 <li>floating ice: the column floats, <code>dzbdt_kin = dz_sl/dt - (rho_ice/rho_sw)*dHidt_vert</code>;</li>
 <li>blended by the grounded fraction; <code>dzsdt_kin = dzbdt_kin + dHidt_vert</code>;</li>
-<li>partial front cells (column from <code>H_eff</code>) and ice-free cells: zero.</li>
+<li>zero in partial front cells (column from <code>H_eff</code>), cells on the <code>H_eff</code> floor, cells that became ice covered during the step, and ice-free cells.</li>
 </ul>
-<p>The bedrock and sea-level rates are the changes since the previous call of <code>yelmo_update</code> (<code>ybound_update_rates</code>), zero on the first call after initialisation or a restart. Before, the base rate was the difference <code>dzsdt - dHidt</code>, which mixed the <code>H_eff</code>-based surface with the true thickness at subgrid fronts and counted lateral removals as vertical motion (basal <code>uz</code> of several km/yr in the first steps).</p>
+<p>The bedrock and sea-level rates are the changes since the previous call of <code>yelmo_update</code> (<code>ybound_update_rates</code>). They are written to the restart file, so a continued run uses the same rates; they are zero on the first call after initialisation or after a restart that does not continue the run.</p>
 <p><strong>The sigma-ness is removed, not embedded.</strong> The coordinate corrections are applied to the <em>horizontal derivatives</em> precisely so that what gets integrated is the true constant-<span class="math inline">z</span> divergence. What comes out, <code>uz</code>, is honest physical <span class="math inline">w</span> in a fixed frame.</p>
 </section>
 <section id="the-three-methods" class="level3">
 <h3 class="anchored" data-anchor-id="the-three-methods">The three methods</h3>
-<p><code>ydyn.uz_method</code> selects among three implementations that differ only in how the horizontal derivatives are evaluated — all three produce the same quantity:</p>
+<p><code>ydyn.uz_method</code> selects among three implementations that differ only in how the horizontal derivatives are evaluated — all three produce the same quantity. They use the column of the dynamics (<code>H_ice_dyn</code>), so partial front cells are full columns with the effective thickness:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -591,7 +603,7 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <tr class="odd">
 <td>3 (<code>uz_jac</code>)</td>
 <td><code>calc_uz_3D_jac</code></td>
-<td><strong>default</strong>; uses the precomputed 3D velocity Jacobian <code>jvel</code> from <code>calc_jacobian_vel_3D_uxyterms</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a>). Most stable and most correct.</td>
+<td><strong>default</strong>; uses the precomputed 3D velocity Jacobian <code>jvel</code> from <code>calc_jacobian_vel_3D_uxyterms</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a>), with 3D quadrature. The constant-<span class="math inline">z</span> correction is applied in the Jacobian, so <code>uz</code> is integrated from the corrected divergence directly. Most stable and most correct.</td>
 </tr>
 </tbody>
 </table>
@@ -599,8 +611,8 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <section id="practical-caveats" class="level3">
 <h3 class="anchored" data-anchor-id="practical-caveats">Practical caveats</h3>
 <ul>
-<li><strong>The surface kinematic BC is not enforced.</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward. The corresponding surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is computed but the redistribution correction is commented out in all three routines. So <code>uz</code> is <em>exactly divergence-consistent and exactly satisfies the basal BC</em>; any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. “Consistent with mass conservation” should be read in that precise sense.</li>
-<li><strong>No clamps.</strong> <code>uz</code> and <code>uz_star</code> are not limited (the former ±10 m/yr clamps cut the physical <span class="math inline">w</span> in fast outlets, where it reaches tens of m/yr). Values below <code>TOL_UNDERFLOW</code> are zeroed.</li>
+<li><strong>The surface kinematic BC is not enforced.</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward, and the surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is not imposed. So <code>uz</code> is <em>exactly divergence-consistent and exactly satisfies the basal BC</em>; any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. The mismatch is diagnosed as <code>uz_srf_err</code> = <span class="math inline">w^\star_s + \dot a</span> in fully ice-covered cells.</li>
+<li><strong>No clamps.</strong> <code>uz</code> and <code>uz_star</code> are not limited; in fast outlets <span class="math inline">w</span> reaches tens of m/yr. Values below <code>TOL_UNDERFLOW</code> are zeroed.</li>
 <li><strong>Ice-free points</strong> get <code>uz = dzbdt - max(smb,0)</code> and <code>uz_star = uz</code>.</li>
 </ul>
 </section>
@@ -663,7 +675,7 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 </section>
 <section id="the-two-c_x-are-not-the-same" class="level2">
 <h2 class="anchored" data-anchor-id="the-two-c_x-are-not-the-same">The two <code>c_x</code> are not the same</h2>
-<p>Within the <em>same subroutine</em>, <code>c_x</code> is defined twice with different normalisations. This trips people up:</p>
+<p>In <code>calc_uz_3D</code> and <code>calc_uz_3D_aa</code>, <code>c_x</code> is defined twice with different normalisations within the <em>same subroutine</em>. This trips people up:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -758,14 +770,24 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 <td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_thermodynamics.f90"><code>yelmo_thermodynamics.f90</code></a> → <code>calc_ytherm_enthalpy_3D</code></td>
 </tr>
 <tr class="even">
-<td>Age (<code>dep_time</code>) and <code>enh_bnd</code> tracer advection</td>
+<td>Eulerian deposition-time tracer (<code>t_dep</code>)</td>
 <td><code>uz_star</code></td>
-<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90"><code>yelmo_material.f90</code></a> → <code>calc_tracer_3D</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90"><code>ice_tracer.f90</code></a>)</td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90"><code>yelmo_tracers.f90</code></a> → <code>calc_tracer_3D</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90"><code>ice_tracer.f90</code></a>)</td>
+</tr>
+<tr class="odd">
+<td>Lagrangian particle tracer (<code>tracer</code> backend)</td>
+<td><code>uz</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90"><code>yelmo_tracers.f90</code></a></td>
+</tr>
+<tr class="even">
+<td><code>enh_bnd</code> tracer advection (<code>*-tracer</code> enhancement methods)</td>
+<td><code>uz_star</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90"><code>yelmo_material.f90</code></a> → <code>calc_tracer_3D</code></td>
 </tr>
 <tr class="odd">
 <td>Velocity Jacobian <code>jvel</code></td>
 <td><code>uz</code></td>
-<td><a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a> → <code>calc_jacobian_vel_3D_*</code></td>
+<td><a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a> → <code>calc_jacobian_vel_3D_uzterms</code></td>
 </tr>
 <tr class="even">
 <td><code>uz_b</code>, <code>uz_s</code> diagnostics</td>
@@ -790,7 +812,7 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>There is no 3D advective CFL limit: <code>set_adaptive_timestep</code> in <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_timesteps.f90"><code>yelmo_timesteps.f90</code></a> only applies the 2D (depth-averaged) advective CFL. Should a 3D constraint ever be added, it must be driven by <code>uz_star</code>, since that is the velocity at which scalars actually cross model layers.</p>
+<p>There is no 3D advective CFL limit: the adaptive time step (<a href="../physics/timestepping.html">Time stepping</a>) only applies the 2D (depth-averaged) advective CFL. The vertical advection of the thermodynamics is implicit, and its horizontal advection is sub-cycled internally. A 3D constraint would have to be driven by <code>uz_star</code>, since that is the velocity at which scalars actually cross model layers.</p>
 </div>
 </div>
 </section>
@@ -1219,8 +1241,8 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
-        <span class="nav-page-text">Thermodynamics</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../physics/timestepping.html" class="pagination-link" aria-label="Time stepping">
+        <span class="nav-page-text">Time stepping</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
