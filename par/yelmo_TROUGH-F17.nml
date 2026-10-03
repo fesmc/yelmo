@@ -9,6 +9,9 @@
     dtt          = 5.0                  ! [yr] Main loop timestep 
     dt1D_out     = 100.0                ! [yr] Frequency of writing 1D output files 
     dt2D_out     = 200.0                ! [yr] Frequency of writing 2D output files 
+    dtts_out     = 5.0                  ! [yr] Frequency of writing the point/transect time series (yelmo_trough_ts.nc), multiple of dtt
+    pts_x        = 100.0 300.0 400.0    ! [km] Points on the centreline (y=0) for the time series (100, 400: Feldmann and Levermann, 2017)
+    sec_x        = 350.0                ! [km] Position of the cross-section (y-transect) for the time series
 
     ! Domain parameters 
     dx           = 4.0                  ! [km] Grid resolution
