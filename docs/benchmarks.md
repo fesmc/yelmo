@@ -224,6 +224,21 @@ runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
        yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
 ```
 
+### Performance {#initmip-grl-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-grl runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads
+on a DKRZ Levante shared node). Grey: DIVA in Robinson et al. (2022), Fig. 3, on
+one processor. The lines are fits of $\Delta t \propto \Delta x^p$.](img/timing-resolution-grl.png)
+
+The runs use `par/yelmo_initmip.nml` with `ctrl.time_end=1000 ctrl.time_equil=0`.
+The mean time step is the simulated time divided by the number of time steps, and
+the model speed is the simulated time per hour of wall time of the main loop. The
+time step is set by the predictor-corrector controller (`yelmo.pc_eps = 0.02`)
+and the Courant cap (`yelmo.pc_cfl_max`). It scales as $\Delta x^{1.0}$, against
+$\Delta x^{1.8}$ in Robinson et al. (2022), so the high-resolution grids gain the
+most. Data and plotting script: `analysis/timing/`.
+
 ## initmip-ant
 
 Antarctica initialization benchmark following the
@@ -256,3 +271,12 @@ runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
        ydyn.solver=diva yelmo.domain=Antarctica \
        yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
 ```
+
+### Performance {#initmip-ant-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-ant runs with the default settings (dev 6d0b30d6, DIVA, 16 OpenMP threads
+on a DKRZ Levante shared node). The line is a fit of $\Delta t \propto \Delta x^p$.](img/timing-resolution-ant.png)
+
+Same setup as for [initmip-grl](#initmip-grl-performance). Data and plotting script:
+`analysis/timing/`.
