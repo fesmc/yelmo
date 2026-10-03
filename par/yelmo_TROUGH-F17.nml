@@ -14,6 +14,7 @@
     sec_x        = 350.0                ! [km] Position of the cross-section (y-transect) for the time series
     H0_init      = 50.0                 ! [m] Initial ice thickness of the slab (Feldmann and Levermann, 2017: 500 m)
     thrm_init    = "robin-cold"         ! Initial ice temperature: "robin-cold", "robin", "linear"
+    full_domain  = False                ! Full symmetric domain x = [-lx,lx] with the divide inside (Feldmann and Levermann, 2017)
 
     ! Domain parameters 
     dx           = 4.0                  ! [km] Grid resolution

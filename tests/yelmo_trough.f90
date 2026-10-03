@@ -29,6 +29,7 @@ program yelmo_trough
     real(wp) :: sec_x                               ! [km] Position of the cross-section (y-transect)
     real(wp) :: H0_init                             ! [m] Initial ice thickness of the slab (TROUGH-F17)
     character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
+    logical  :: full_domain                         ! TROUGH-F17: full symmetric domain x = [-lx,lx] (divide inside)?
     real(wp) :: dtt
     integer  :: n
 
@@ -45,7 +46,7 @@ program yelmo_trough
     real(wp), allocatable :: H_init(:,:)            ! [m] Analytic initial ice thickness
     real(wp), allocatable :: z_srf_init(:,:)        ! [m] Analytic initial surface elevation
 
-    real(wp) :: xmax, ymin, ymax, y0 
+    real(wp) :: xmax, ymin, ymax, x0, y0 
     integer  :: i, j, nx, ny 
     
     real(8)  :: cpu_start_time, cpu_end_time, cpu_dtime  
@@ -90,9 +91,11 @@ program yelmo_trough
     write_ts  = (trim(domain) .eq. "TROUGH-F17")
     H0_init   = 50.0_wp
     thrm_init = "robin-cold"
+    full_domain = .FALSE.
     if (trim(domain) .eq. "TROUGH-F17") then
         call nml_read(path_par,"ctrl","H0_init",  H0_init)           ! [m] Initial ice thickness of the slab
         call nml_read(path_par,"ctrl","thrm_init",thrm_init)         ! Initial ice temperature
+        call nml_read(path_par,"ctrl","full_domain",full_domain)     ! Full symmetric domain x = [-lx,lx]?
         call nml_read(path_par,"ctrl","dtts_out", dtts_out)          ! [yr] Frequency of time-series output
         call nml_read(path_par,"ctrl","pts_x",    pts_x)             ! [km] Points on the centreline (y=0)
         call nml_read(path_par,"ctrl","sec_x",    sec_x)             ! [km] Position of the cross-section
@@ -134,7 +137,19 @@ program yelmo_trough
             ! period is exactly ly. For even ny the wall y=-ly/2 is a row, for
             ! odd ny the wall lies midway between the first and last rows.
 
-            nx = int(xmax/dx)+1
+            ! With full_domain (TROUGH-F17), x spans [-lx,lx] and the ice
+            ! divide at x=0 is an interior point, as in Feldmann and
+            ! Levermann (2017). Otherwise x spans [0,lx] with a symmetry
+            ! boundary at x=0.
+
+            if (full_domain) then
+                ! Symmetric about x=0 (a grid point) for any dx
+                nx = 2*int(xmax/dx)+1
+                x0 = -real(int(xmax/dx),wp)*dx
+            else
+                nx = int(xmax/dx)+1
+                x0 = 0.0_wp
+            end if
             ny = periodic_npts(ly,dx,"ly")
             y0 = -real(ny/2,wp)*dx
 
@@ -145,18 +160,20 @@ program yelmo_trough
 
             nx = periodic_npts(lx,dx,"lx")
             ny = periodic_npts(ly,dx,"ly")
+            x0 = 0.0_wp
             y0 = -real(ny/2,wp)*dx
 
         case DEFAULT
 
             nx = int(xmax/dx)+1
             ny = int((ymax-ymin)/dx)+1
+            x0 = 0.0_wp
             y0 = ymin
 
     end select
 
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km", &
-                            x0=0.0_wp,dx=dx,nx=nx, &
+                            x0=x0,dx=dx,nx=nx, &
                             y0=y0,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model =====
@@ -422,7 +439,7 @@ contains
 
     subroutine define_calving_front(calv_mask,xx,x_cf)
         ! Define a calving mask in the x direction where 
-        ! beyond the position x_cf ice will be calved. 
+        ! beyond the position |x| = x_cf ice will be calved. 
 
         implicit none 
 
@@ -431,7 +448,7 @@ contains
         real(wp), intent(IN) :: x_cf 
 
         calv_mask = .FALSE. 
-        where (xx .ge. x_cf) calv_mask = .TRUE. 
+        where (abs(xx) .ge. x_cf) calv_mask = .TRUE. 
     
         return 
 
@@ -519,7 +536,7 @@ contains
         ! == Ice thickness == 
         H_ice = H0 
         do j = 1, ny 
-            where(xc .gt. x_cf) H_ice(:,j) = 0.0 
+            where(abs(xc) .gt. x_cf) H_ice(:,j) = 0.0 
         end do 
 
         ! == Surface elevation == 
@@ -587,7 +604,7 @@ contains
         ! == Ice thickness == 
         H_ice = 50.0_wp 
         do j = 1, ny 
-            where(xc .gt. x_cf) H_ice(:,j) = 0.0 
+            where(abs(xc) .gt. x_cf) H_ice(:,j) = 0.0 
         end do 
 
         ! == Surface elevation == 
@@ -885,6 +902,7 @@ end if
         real(wp), allocatable :: wt(:,:)                ! [--] Grounded-ice weight, f_grnd*f_ice
         real(wp), allocatable :: flux(:,:)              ! [m2 a-1] Ice flux magnitude
         real(wp), allocatable :: Q_strn_int(:,:)        ! [mW m-2] Column-integrated strain heating
+        real(wp), allocatable :: T_ice_bar(:,:)         ! [degC] Vertically averaged ice temperature
         real(wp), allocatable :: taud_x(:)              ! [Pa] Driving stress (flow direction)
         real(wp), allocatable :: taub_x(:)              ! [Pa] Basal stress
         real(wp), allocatable :: taulon_x(:)            ! [Pa] Longitudinal resistance
@@ -902,7 +920,7 @@ end if
         sec_year = ylmo%bnd%c%sec_year
         rho_ice  = ylmo%bnd%c%rho_ice
 
-        allocate(wt(nx,ny),flux(nx,ny),Q_strn_int(nx,ny))
+        allocate(wt(nx,ny),flux(nx,ny),Q_strn_int(nx,ny),T_ice_bar(nx,ny))
         allocate(taud_x(nx),taub_x(nx),taulon_x(nx),taulat_x(nx),taures_x(nx),wt_x(nx))
 
         ! Grounded-ice weight, flux and column-integrated strain heating
@@ -916,6 +934,9 @@ end if
             ! [J a-1 m-3] => [mW m-2]
             Q_strn_int(i,j) = ylmo%tpo%now%H_ice(i,j) &
                     * integrate_trapezoid1D_pt(ylmo%thrm%now%Q_strn(i,j,:),ylmo%par%zeta_aa) * 1e3_wp/sec_year
+            T_ice_bar(i,j)  = 0.0_wp
+            if (ylmo%tpo%now%H_ice(i,j) .gt. 0.0_wp) T_ice_bar(i,j) = &
+                    integrate_trapezoid1D_pt(ylmo%thrm%now%T_ice(i,j,:),ylmo%par%zeta_aa) - ylmo%bnd%c%T0
         end do
         end do
 
@@ -1007,6 +1028,10 @@ end if
         call ts_write_aa(filename,ncid,n,"Q_b",ylmo%thrm%now%Q_b,"mW m-2","Basal frictional heating", &
                          pts_x,sec_x,wt,j0,x0,dx)
         call ts_write_aa(filename,ncid,n,"Q_strn_int",Q_strn_int,"mW m-2","Column-integrated strain heating", &
+                         pts_x,sec_x,wt,j0,x0,dx)
+        call ts_write_aa(filename,ncid,n,"Q_ice_b",ylmo%thrm%now%Q_ice_b,"mW m-2","Basal ice heat flux (positive up)", &
+                         pts_x,sec_x,wt,j0,x0,dx)
+        call ts_write_aa(filename,ncid,n,"T_ice_bar",T_ice_bar,"degC","Vertically averaged ice temperature", &
                          pts_x,sec_x,wt,j0,x0,dx)
         call ts_write_aa(filename,ncid,n,"ATT_bar",ylmo%mat%now%ATT_bar,"a^-1 Pa^-3","Vertically averaged rate factor", &
                          pts_x,sec_x,wt,j0,x0,dx)
