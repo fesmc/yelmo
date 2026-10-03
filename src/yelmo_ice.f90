@@ -1687,7 +1687,7 @@ contains
         end if 
 
         if (par%pc_eps .gt. par%pc_tol) then
-            write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must be less than pc_tol."
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must not exceed pc_tol."
             write(io_unit_err,*) trim(filename), " : ", trim(group)
             write(io_unit_err,*) "pc_eps, pc_tol: ", par%pc_eps, par%pc_tol
             error stop 1

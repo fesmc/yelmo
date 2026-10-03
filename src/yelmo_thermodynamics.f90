@@ -148,8 +148,9 @@ contains
 
                 case("enth","temp") 
                     ! Perform enthalpy/temperature solving via advection-diffusion equation
-                    ! Note: method==temp performs the same calculations as for method==enth, 
-                    ! except enth_cr=1.0 and omega_max=0.0 as prescribed in par_load(). 
+                    ! Note: method==temp solves the columns with calc_temp_column (no water
+                    ! content, centred vertical advection, "wtil" basal BC), with
+                    ! enth_cr=1.0 and omega_max=0.0 prescribed in par_load(). 
 
                     if (trim(thrm%par%method) .eq. "enth") then 
 
