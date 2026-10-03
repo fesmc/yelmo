@@ -155,7 +155,7 @@ contains
 
     end subroutine calc_calving_rate_vonmises_m16
        
-    subroutine calc_calving_rate_eigen(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
+    subroutine calc_calving_rate_eigen_ac(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
         ! Calculate the 'horizontal' calving rate [m/yr] based on the 
         ! von Mises stress approach, as outlined by Lipscomb et al. (2019)
         ! Eqs. 73-75.
@@ -201,11 +201,11 @@ contains
         ! NOTE: Eigen calving (Levermann et al., 2012) is not fully implemented here.
         ! The lateral calving rate (calv_ref) is computed but never used, and calv_now
         ! was previously applied uninitialized. Fail loudly rather than return garbage.
-        error stop "calc_calving_rate_eigen: Eigen calving is not implemented"
+        error stop "calc_calving_rate_eigen_ac: Eigen calving is not implemented"
 
         return
 
-    end subroutine calc_calving_rate_eigen
+    end subroutine calc_calving_rate_eigen_ac
      
     ! ===================================================================
     !
