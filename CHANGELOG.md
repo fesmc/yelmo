@@ -303,6 +303,12 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
+  methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
+  which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
+  The basal gradient was then G/9.83 instead of G/k, and the profile far too
+  diffusive (TROUGH-F17, H = 500 m, G = 70 mW m-2, a = 0.3 m/yr: T_b = -16.5 °C,
+  should be about -10 °C).
 - **Gaps in the topography files are filled** (`yelmo_init_topo`, `ydata_load`):
   where a dataset has missing values (e.g. outside its coverage, as in the ISMIP7
   obs files), there is no ice, the bed comes from the nearest valid cell (fesm-utils

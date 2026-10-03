@@ -214,7 +214,7 @@ contains
                 case("robin")
                     ! Use Robin solution for ice temperature
 
-                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
+                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral)
@@ -223,7 +223,7 @@ contains
                     ! Use Robin solution for ice temperature averaged with cold linear profile
                     ! to ensure cold ice at the base
 
-                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
+                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral)

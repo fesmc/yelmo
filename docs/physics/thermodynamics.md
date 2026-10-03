@@ -24,7 +24,10 @@ The method is selected with `ytherm.method`:
 | `"fixed"` | No update: the temperature/enthalpy fields stay as initialised |
 
 `yelmo_init_state` initialises the thermodynamic state with `"linear"`,
-`"robin"` or `"robin-cold"` (argument `thrm_method`).
+`"robin"` or `"robin-cold"` (argument `thrm_method`). The Robin solution
+assumes constant material properties and uses `const_kt` and `const_cp`
+(whatever `use_const_kt` / `use_const_cp`), so that the basal gradient is
+$-G/k$ with $k$ = `const_kt`.
 
 ## Enthalpy
 
@@ -56,7 +59,7 @@ enthalpy $E_c$ depends on `ytherm.enth_cp_method`:
 The thermal conductivity is $k(T) = 9.828\,e^{-0.0057\,T}$ W m$^{-1}$ K$^{-1}$
 (Greve and Blatter, 2009, Eq. 4.37). With `use_const_kt`, the constant
 `const_kt` is used instead. `use_const_cp` / `const_cp` apply to the other
-methods only; in the enthalpy solver, the heat capacity follows
+methods only (the Robin methods always use `const_kt` and `const_cp`); in the enthalpy solver, the heat capacity follows
 `enth_cp_method`. Yelmo expects
 conductivities in J a$^{-1}$ m$^{-1}$ K$^{-1}$, i.e. W m$^{-1}$ K$^{-1}$
 multiplied by `sec_year`.
