@@ -6,6 +6,7 @@ project:
     - "*.md"
     - "physics/**/*.md"
     - "!README.md"
+    - "!dev/"
 
 website:
   title: "Yelmo"
@@ -36,6 +37,7 @@ website:
       - benchmarks.md
       - parameters.md
       - yelmo-config.md
+      - optimization.md
       - section: "Physics"
         href: physics/index.md
         contents:
@@ -50,9 +52,11 @@ website:
               - physics/mass_conservation/index.md
               - physics/mass_conservation/solvers.md
           - physics/vertical-velocity.md
+          - physics/timestepping.md
+          - physics/basal-friction.md
           - physics/thermodynamics.md
-          - physics/enthalpy-transition-plan.md
           - physics/calving.md
+          - physics/tracers.md
       - section: "Variables"
         href: yelmo-variables.md
         contents:
@@ -69,7 +73,6 @@ website:
         contents:
           - yelmo-io.md
           - remapping.md
-          - optimization.md
           - numerics-precision.md
 
 format:

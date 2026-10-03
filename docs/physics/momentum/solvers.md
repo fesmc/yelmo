@@ -14,8 +14,8 @@ Two solvers are provided for the linear step. Both produce the same
 solution at interior cells (the two systems are related by a sign and a
 cell-area factor), but they differ in the structure of the assembled
 matrix and in how boundary conditions are imposed. The choice is made
-at runtime via the parameter `ydyn.ssa_solver = "residual" | "energy"`,
-which the DIVA solver dispatches on.
+at runtime via the parameter `ydyn.ssa_solver = "energy"` (default) or
+`"residual"`, used by both the DIVA and the SSA Picard loops.
 
 ## Discretisation conventions
 
@@ -36,22 +36,31 @@ so the assembled linear system has dimension $2 N_\mathrm{cells}$. The
 matrix is stored in CSR format and solved with
 [LIS](http://www.ssisc.org/lis/) (Library of Iterative Solvers for
 Linear Systems); the iterative method and preconditioner are configured
-at runtime via `ydyn.ssa_lis_opt_residual` or `ydyn.ssa_lis_opt_energy`,
-depending on `ydyn.ssa_solver`.
+at runtime via `ydyn.ssa_lis_opt_energy` (default
+`-i cg -p jacobi -maxiter 200 -tol 1.0e-2`) or `ydyn.ssa_lis_opt_residual`
+(default `-i minres -p jacobi -maxiter 100 -tol 1.0e-2`), depending on
+`ydyn.ssa_solver`.
 
-Per-row solver masks (`ssa_mask_acx`, `ssa_mask_acy`) classify each
-ac-node as one of:
+Per-row solver masks (`ssa_mask_acx`, `ssa_mask_acy`, set by `set_ssa_masks`)
+classify each ac-node as one of:
 
-- `0`: Dirichlet zero velocity (frozen bed, edge of domain, etc.);
-- `-1`: Dirichlet prescribed velocity (e.g. observed input);
-- `1`: solve (interior);
-- `3`: lateral / calving-front Neumann row driven by the
-  depth-integrated lateral stress $\tau_{l,\mathrm{int}}$.
+- `-1`: prescribed velocity, kept at its current value;
+- `0`: zero velocity (a face without a fully ice-covered neighbour, or a
+  floating face against ice-free land);
+- `1`: solved, grounded or grounding-line face;
+- `2`: solved, floating face;
+- `3`: ice-front face with the lateral boundary condition, a Neumann row
+  driven by the depth-integrated lateral stress $\tau_{l,\mathrm{int}}$;
+- `4`: ice-front face solved as an inner face, with half of the basal drag
+  (only the ice half of its control area has drag).
 
-The two assemblers share the same argument list so they are drop-in
-interchangeable from the Picard loop in `calc_velocity_diva`.
+Which front faces get the lateral boundary condition (3) and which are solved
+as inner faces (4) is set by `ydyn.ssa_lat_bc` (see [DIVA](diva.md)).
 
-## Solver A — residual form (Yelmo v1)
+The two assemblers share the same argument list, so they are interchangeable
+in the Picard loops of `calc_velocity_diva` and `calc_velocity_ssa`.
+
+## Residual assembler
 
 The residual assembler ([`solver_ssa_ac.f90`][resid_src]) builds a
 non-symmetric matrix $A_\mathrm{res}$ and right-hand side
@@ -88,9 +97,8 @@ The $\bar v$ row has the analogous structure.
 
 The right-hand side is the driving stress itself (no cell-area factor).
 The system
-$A_\mathrm{res}\,\mathbf x = \mathbf b_\mathrm{res}$ is non-symmetric,
-and is solved with a Krylov method such as BiCGStab plus an algebraic
-preconditioner.
+$A_\mathrm{res}\,\mathbf x = \mathbf b_\mathrm{res}$ is in general
+non-symmetric (through the Dirichlet rows and the front rows).
 
 - Lateral / calving-front rows substitute the membrane-stress balance
   with the prescribed depth-integrated lateral stress
@@ -100,10 +108,7 @@ preconditioner.
 - Free-slip, no-slip and periodic conditions are applied per side via
   the boundary-code helper `get_neighbor_indices_bc_codes`.
 
-This is the formulation inherited from Yelmo v1 (the default before
-v2.0).
-
-## Solver B — energy form (default)
+## Energy assembler (default)
 
 The energy assembler ([`solver_ssa_ac_energy.f90`][energy_src]) builds
 the Hessian of a discrete energy functional and solves
@@ -111,8 +116,7 @@ $K\,\mathbf x = \mathbf b$ for the velocity that minimises that energy.
 With $(\mu, \beta, H)$ frozen during each Picard step the energy is
 quadratic, so $K = \frac{\partial^{2} W}{\partial \mathbf x^{\,2}}$ is
 symmetric positive (semi-)definite and the linear step can use a
-symmetric Krylov method — CG with an AMG preconditioner — in place of
-BiCGStab.
+symmetric Krylov method (CG by default).
 
 ### Energy density
 
@@ -134,8 +138,10 @@ W \;=\;
 \end{aligned}
 $$
 
-The first line is $2\,\bar\mu\,H\,\dot{\bar\varepsilon}_{ij}\,\dot{\bar\varepsilon}_{ij}$
-written out for the depth-averaged horizontal strain rates. Stationarity
+The first line is $2\,\bar\mu\,H\,\dot{\bar\varepsilon}_e^{\,2}$
+written out for the depth-averaged horizontal strain rates, including the
+vertical strain rate $\dot\varepsilon_{zz} = -(\dot\varepsilon_{xx} + \dot\varepsilon_{yy})$
+from incompressibility. Stationarity
 of the integral $\mathcal W = \int W \,\mathrm dx\,\mathrm dy$ with
 respect to $(\bar u, \bar v)$ reproduces exactly the SSA / DIVA strong
 form, so any critical point of $\mathcal W$ is a solution of the
@@ -202,9 +208,10 @@ The viscosity staggering aa $\to$ ab is the same routine
 
 Two practical advantages flow from the SPD structure:
 
-1. **Linear solver choice**: CG with AMG is typically faster and more
-   robust than BiCGStab + ILU for large, well-conditioned SPD systems,
-   and converges monotonically in the energy norm.
+1. **Linear solver choice**: CG (optionally with an algebraic multigrid
+   preconditioner) is typically faster and more robust than non-symmetric
+   Krylov methods for large SPD systems, and converges monotonically in the
+   energy norm.
 2. **Physical interpretability and discrete consistency**: every term
    in $K$ and $\mathbf b$ corresponds to a contribution to a discrete
    energy. Boundary conditions that are natural for the continuum
@@ -225,9 +232,10 @@ during a thermally driven ice-stream activation). The method is set by
 `ydyn.ssa_vel_lim_method = "drag" | "clip"`, and the limit by
 `ydyn.ssa_vel_max` (default 10 000 m/yr). The run is stopped by
 `yelmo_check_kill` once any depth-averaged speed reaches
-$2\,u_\mathrm{max}$, with $u_\mathrm{max}$ = `ssa_vel_max`.
+$2\,u_\mathrm{max}$, with $u_\mathrm{max}$ = `ssa_vel_max` (see
+[Time stepping](../timestepping.md#instability-checks)).
 
-### `"clip"` (Yelmo v1)
+### `"clip"`
 
 After every linear solve inside the Picard loop, each velocity component
 is clipped to $[-u_\mathrm{max}, u_\mathrm{max}]$ (`ssa_vel_clip`). The
@@ -236,13 +244,8 @@ Picard map becomes non-smooth at the edge of the clipped region. The
 viscosity and friction of the next iteration are evaluated from the
 clipped velocity, which is too slow, so the next solve falls below the
 limit and the one after overshoots it again. Picard therefore cycles
-instead of converging. In TROUGH-F17 (`ssa_vel_max` = 5000 m/yr), about
-2500–2900 cells sit at the limit during each activation, around 50 % of
-the solves stop at `ssa_iter_max`, and the velocity changes by about
-100 m/yr between consecutive solves at any time step. The
-predictor–corrector error at the clip edge then does not decrease with
-the time step, and the run crawls at `dt_min`. The clip also applies to
-floating ice.
+instead of converging when many cells reach the limit, and the time step
+can collapse to `dt_min` (see the test below).
 
 ### `"drag"` (default)
 
@@ -257,7 +260,8 @@ x = \max\left(0, \frac{s - s_0}{u_\mathrm{max} - s_0}\right),
 $$
 
 where $\tau_c$ = `ssa_vel_lim_tau` (default $10^5$ Pa) is the drag at
-$s = u_\mathrm{max}$ and $s_0 = 0.8\,u_\mathrm{max}$ is the onset speed. Both
+$s = u_\mathrm{max}$ and $s_0 = 0.8\,u_\mathrm{max}$ is the onset speed (a
+fixed constant, `vel_lim_f_s0`). Both
 $\tau_\mathrm{lim}$ and its derivative vanish at $s_0$, so the solution
 below $0.8\,u_\mathrm{max}$ is identical to the unlimited one. The drag
 acts on all free faces (`ssa_mask` = 1–4): grounded, floating and ice-front
@@ -292,13 +296,10 @@ $[-u_\mathrm{max}, u_\mathrm{max}]$ after each solve instead
 (`ssa_vel_clip_front`).
 
 The front faces need the limit as much as the grounded interior. At
-coarse resolution, thick front cells can be driven to runaway speeds:
-thick, barely floating front cells after the aggregation of BedMachine
-to 32 km (ANT-32, about 24 000 m/yr at t = 0), and a grounded cliff with
-about 800 m freeboard at the Helheim front (GRL-8, 40 000 m/yr) or at
-Jakobshavn (GRL-4). These runs were killed when the drag acted on
-grounded inner faces only (the 5000 m/yr clip of Yelmo v1 had applied
-everywhere).
+coarse resolution, thick front cells can be driven to runaway speeds,
+e.g. thick, barely floating front cells on a 32 km Antarctic grid, or a
+grounded cliff with a large freeboard at the Helheim front (8 km) or at
+Jakobshavn (4 km).
 
 The number of faces where the limit acts after the last Picard iteration
 (drag above $s_0$, or clipped) is written as `ssa_lim_n` to timesteps.nc
@@ -320,8 +321,7 @@ above the intended maximum speed.
 The thermally driven activations of TROUGH-F17 (about every 2.2 kyr)
 were run with both methods (DIVA, energy solver, 4 km). With
 `ssa_vel_max` = 5000 m/yr, the drag removes the convergence failure
-(Table 1). The branch with `"clip"` was bit-identical to the previous
-code over 0–8 kyr.
+(Table 1).
 
 | 0–8 kyr, `ssa_vel_max` = 5000 m/yr | `"clip"` | `"drag"` |
 |---|---|---|
@@ -344,7 +344,7 @@ gives a longer, weaker surge with less thinning, and a shorter cycle
 15 000 m/yr). With `"clip"`, the ice at x = 300 km thickens while the
 velocity is held at the limit, since ice keeps arriving from upstream.
 This does not occur with `"drag"`, which shows that the clip also changes
-the thickness evolution of the surge. Here TROUGH-F17 uses
+the thickness evolution of the surge. The TROUGH-F17 parameter file uses
 `ssa_vel_max` = 50 000 m/yr, so that the surge is not limited. The scripts and run list are in
 `analysis/vel-lim/`.
 

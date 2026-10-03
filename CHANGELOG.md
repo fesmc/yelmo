@@ -305,6 +305,12 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
+  methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
+  which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
+  The basal gradient was then G/9.83 instead of G/k, and the profile far too
+  diffusive (TROUGH-F17, H = 500 m, G = 70 mW m-2, a = 0.3 m/yr: T_b = -16.5 °C,
+  should be about -10 °C).
 - **Gaps in the topography files are filled** (`yelmo_init_topo`, `ydata_load`):
   where a dataset has missing values (e.g. outside its coverage, as in the ISMIP7
   obs files), there is no ice, the bed comes from the nearest valid cell (fesm-utils
@@ -648,6 +654,13 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- `yelmo_opt.x` (`tests/yelmo_opt.f90`, `make opt`, runme alias `opt`) removed:
+  basal friction optimization is the initmip spin-up option
+  `ctrl.equil_method = "opt"`.
+- `restart_interpolated` compares the restart grid spacing in m (restart `xc` is in
+  km); before, every interpolated restart counted as coarser than the model grid.
+  With `yelmo.restart_z_bed = True`, a restart from a finer grid now uses the
+  interpolated restart bedrock.
 - `make clean` also cleans elsa and tracer (like FastHydrology), so switching
   between `openmp=0` and `openmp=1` no longer links stale sub-library objects.
 - New public `yelmo_restart_init(dom, filename, time)`: the restart branch of

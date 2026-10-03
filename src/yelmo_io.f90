@@ -598,16 +598,17 @@ contains
 
             ! Load the x-axis from the restart file 
             ! and determine grid resolution from first points
+            ! (restart xc is written in [km], grd%G%dx is in [m])
             nx_restart = nc_size(filename,"xc")
             allocate(xc_restart(nx_restart))
             call nc_read(filename,"xc",xc_restart)
-            dx_restart = xc_restart(2) - xc_restart(1) 
+            dx_restart = (xc_restart(2) - xc_restart(1))*1e3_wp
 
-            if (dx_restart .lt. grd%G%dx) then 
-                ! Low to high resolution
+            if (dx_restart .gt. grd%G%dx) then 
+                ! Low to high resolution (coarser restart grid)
                 restart_interpolated = 1
             else 
-                ! High to low resolution
+                ! High to low resolution (finer or equal restart grid)
                 restart_interpolated = -1 
             end if 
 

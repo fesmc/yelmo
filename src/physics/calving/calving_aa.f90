@@ -772,7 +772,7 @@ contains
 
         tau1    = max(teig1,0.0_wp)
         tau2    = max(teig2,0.0_wp)
-        tau_eff = sqrt(tau1**2 + (w2 * tau2)**2)
+        tau_eff = sqrt(tau1**2 + w2*tau2**2)
 
         return 
 

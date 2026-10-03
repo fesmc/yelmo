@@ -8,16 +8,15 @@ Typically for a given domain, we define a Polar Stereographic projection to be a
 int polar_stereographic ;
     polar_stereographic:grid_mapping_name = "polar_stereographic" ;
     polar_stereographic:straight_vertical_longitude_from_pole = 0. ;
-    polar_stereographic:latitude_of_projection_origin = -71. ;
-    polar_stereographic:angle_of_oblique_tangent = 19. ;
-    polar_stereographic:scale_factor_at_projection_origin = 1. ;
+    polar_stereographic:latitude_of_projection_origin = -90. ;
+    polar_stereographic:standard_parallel = -71. ;
     polar_stereographic:false_easting = 0. ;
     polar_stereographic:false_northing = 0. ;
 ```
 
 ## Naming files
 
-For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids `ANT-32KM` or `ANT-16KM` for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., `CLIM` or `TOPO`, finally followed by more descriptive information about the specific dataset `IPSL-14Ma` or `IPSL-PD-CTRL`. For example, the latest topopgraphy dataset we use is called the RTopo2.0.1 dataset, so this is processed into a file called `ANT-32KM_TOPO-RTOPO-2.0.1.nc`.
+For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids `ANT-32KM` or `ANT-16KM` for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., `CLIM` or `TOPO`, finally followed by more descriptive information about the specific dataset `IPSL-14Ma` or `IPSL-PD-CTRL`. For example, the RTopo-2.0.1 topography dataset processed onto the 32 km grid is called `ANT-32KM_TOPO-RTOPO-2.0.1.nc`.
 
 ## Fields Yelmo needs
 
@@ -73,7 +72,7 @@ CDO Reference card:
 
 ## Using `cdo` for remapping
 
-To remap a data file from lat/lon coordinates to our projection, `cdo` needs a grid description file that describes the target Polar Stereographic projection grid. For example, for a 32km resolution domain, we would use the following file named `grid_ANT-32KM.txt`:
+To remap a data file from lat/lon coordinates to our projection, `cdo` needs a grid description file that describes the target Polar Stereographic projection grid. The grid description files of the standard Yelmo grids are in `maps/` (`maps/gengriddes.sh` generates one from a grid file). For example, for the 32 km Antarctic domain, `maps/grid_ANT-32KM.txt` is:
 
 ```bash
 gridtype = projection
@@ -105,7 +104,7 @@ With this file defined, it's easy to perform projections using the `cdo remap*` 
 cdo remapbic,grid_ANT-32KM.txt diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ANT-32KM_test-bic.nc
 ```
 
-Here, `remapbic` specifies bicubic interpolation and `grid_ANT-32KM.txt` defines the target grid as above. Then the source dataset is specified and the desired output file `ANT-32KM_test.nc`.
+Here, `remapbic` specifies bicubic interpolation and `grid_ANT-32KM.txt` defines the target grid as above. Then the source dataset is specified and the desired output file `ANT-32KM_test-bic.nc`.
 
 To perform conservative interpolation, replace `remapbic` with `remapcon`:
 
@@ -133,47 +132,29 @@ It is best to define a script or program with all the processing steps clearly d
 
 ## Remapping restart file
 
-Sometimes we may want to restart a simulation at a new resolution - i.e., perform a spinup simulation at relatively low resolution and then continue the simulation at higher resolution.
+Sometimes we may want to restart a simulation at a new resolution, e.g. perform
+a spin-up at relatively low resolution and then continue at higher resolution.
+Yelmo interpolates a restart file from another grid itself: when the
+`grid_name` attribute of the restart file differs from `yelmo.grid_name`, it
+computes conservative remapping weights between the two grids and interpolates
+the restart state (see [Yelmo IO](yelmo-io.md#reading-input)). No separate
+remapping step is needed.
 
-1. Use `cdo` to remap the restart file based on the grid definition files.
-
-```bash
-# Define env variables as shortcuts to locations of grid files
-grid_src=/Users/robinson/models/EURICE/gridding/maps/grid_GRL-32KM.txt
-grid_tgt=/Users/robinson/models/EURICE/gridding/maps/grid_GRL-16KM.txt
-
-# Call remapping
-cdo remapcon,${grid_tgt} -setgrid,${grid_src} yelmo_restart.nc yelmo_restart_16km.nc
-```
-
-Let's do a test. First, run a short 32km Greenland simulation and generate a restart file:
+For example, run a short 32 km Greenland simulation, which writes a restart file:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
 ```
 
-That simulation should have produced a nice restart file. Let's test a normal 32km simulation that continues from this restart file.
+and continue it at 16 km from this restart file:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim1-32km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
+runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim1-16km -p ctrl.time_end=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
 ```
 
-Ok, now generate scrip map file to interpolate from 32km down to 16km.
+To remap other fields between grids with `cdo`, `maps/genmap.sh` generates
+conservative remapping weights from the grid description files, e.g.:
 
 ```bash
-domain=Greenland
-grid_name_src=GRL-32KM
-grid_name_tgt=GRL-4KM
-nc_src=../ice_data/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc 
-
-cdo gencon,grid_${grid_name_tgt}.txt -setgrid,grid_${grid_name_src}.txt ${nc_src} scrip-con_${grid_name_src}_${grid_name_tgt}.nc
-
+cdo gencon,grid_GRL-16KM.txt -setgrid,grid_GRL-32KM.txt GRL-32KM_REGIONS.nc scrip-con_GRL-32KM_GRL-16KM.nc
 ```
-
-Now let's try to run a simulation at 16km, loading the restart file from 32km
-
-```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim2-16km -p ctrl.time_end=100 ctrl.time_equil=0 ctrl.clim_nm="clim_pd_grl" yelmo.domain="Greenland" yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
-```
-
-The simulation is successful! (as of branch `alex-dev-2`, revision `1d9783fb`).

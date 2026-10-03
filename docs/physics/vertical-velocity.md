@@ -85,7 +85,8 @@ $$
 \;+\; \frac{\partial \zeta}{\partial x}\,\frac{\partial u}{\partial \zeta} .
 $$
 
-The code applies exactly this correction. In `calc_uz_3D`:
+The code applies exactly this correction. In `calc_uz_3D` (`uz_method = 2`;
+`calc_uz_3D_aa` is analogous):
 
 ```fortran
 c_x = -H_inv * ( (1.0-zeta_now)*dzbdx_aa + zeta_now*dzsdx_aa )   ! = dzeta/dx
@@ -107,22 +108,22 @@ uz(i,j,k) = uz(i,j,k-1) - H_now*(zeta_ac(k)-zeta_ac(k-1))*(dudx_aa+dvdy_aa)
 ```
 
 with `dzbdt_now = tpo%now%dzbdt_kin`, the kinematic rate of the column base
-(`dzsdt_kin` for the surface), computed in `calc_ytopo_pc` from the tendencies:
+(`dzsdt_kin` for the surface), computed by `calc_column_kinematic_rates` from
+the tendencies of the topography step:
 
-- vertical thickness change of the column, `dHidt_vert` = advection + smb + bmb
-  (+ relaxation). Calving, frontal melt, discharge, front advance and removals are
-  lateral and do not move the column surface or base;
+- vertical thickness change of the column, `dHidt_vert` = advection (including
+  `mb_clip`) + smb + bmb (+ relaxation). Calving, frontal melt, discharge, front
+  advance and removals are lateral and do not move the column surface or base;
 - grounded ice: the base follows the bedrock, `dzbdt_kin = dz_bed/dt`;
 - floating ice: the column floats, `dzbdt_kin = dz_sl/dt - (rho_ice/rho_sw)*dHidt_vert`;
 - blended by the grounded fraction; `dzsdt_kin = dzbdt_kin + dHidt_vert`;
-- partial front cells (column from `H_eff`) and ice-free cells: zero.
+- zero in partial front cells (column from `H_eff`), cells on the `H_eff`
+  floor, cells that became ice covered during the step, and ice-free cells.
 
 The bedrock and sea-level rates are the changes since the previous call of
-`yelmo_update` (`ybound_update_rates`), zero on the first call after
-initialisation or a restart. Before, the base rate was the difference
-`dzsdt - dHidt`, which mixed the `H_eff`-based surface with the true thickness at
-subgrid fronts and counted lateral removals as vertical motion (basal `uz` of
-several km/yr in the first steps).
+`yelmo_update` (`ybound_update_rates`). They are written to the restart file,
+so a continued run uses the same rates; they are zero on the first call after
+initialisation or after a restart that does not continue the run.
 
 **The sigma-ness is removed, not embedded.** The coordinate corrections are
 applied to the *horizontal derivatives* precisely so that what gets integrated
@@ -133,27 +134,27 @@ $w$ in a fixed frame.
 
 `ydyn.uz_method` selects among three implementations that differ only in how
 the horizontal derivatives are evaluated — all three produce the same
-quantity:
+quantity. They use the column of the dynamics (`H_ice_dyn`), so partial front
+cells are full columns with the effective thickness:
 
 | `uz_method` | Routine | Notes |
 |---|---|---|
 | 1 (`uz_aa`) | `calc_uz_3D_aa` | simplest; plain finite differences on `aa`-nodes |
 | 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging |
-| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)). Most stable and most correct. |
+| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)), with 3D quadrature. The constant-$z$ correction is applied in the Jacobian, so `uz` is integrated from the corrected divergence directly. Most stable and most correct. |
 
 ### Practical caveats
 
 - **The surface kinematic BC is not enforced.** `uz` is anchored at the *base*
-  and integrated upward. The corresponding surface condition
+  and integrated upward, and the surface condition
   $w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a$
-  is computed but the redistribution correction is commented out in all three
-  routines. So `uz` is *exactly divergence-consistent and exactly satisfies the
-  basal BC*; any mismatch with the surface BC accumulates as a residual at the
-  top rather than being spread through the column. "Consistent with mass
-  conservation" should be read in that precise sense.
-- **No clamps.** `uz` and `uz_star` are not limited (the former ±10 m/yr clamps
-  cut the physical $w$ in fast outlets, where it reaches tens of m/yr). Values
-  below `TOL_UNDERFLOW` are zeroed.
+  is not imposed. So `uz` is *exactly divergence-consistent and exactly
+  satisfies the basal BC*; any mismatch with the surface BC accumulates as a
+  residual at the top rather than being spread through the column. The
+  mismatch is diagnosed as `uz_srf_err` = $w^\star_s + \dot a$ in fully
+  ice-covered cells.
+- **No clamps.** `uz` and `uz_star` are not limited; in fast outlets $w$ reaches
+  tens of m/yr. Values below `TOL_UNDERFLOW` are zeroed.
 - **Ice-free points** get `uz = dzbdt - max(smb,0)` and `uz_star = uz`.
 
 ## `uz_star` — the sigma-relative advective velocity
@@ -244,8 +245,8 @@ nothing to do with numerics.
 
 ## The two `c_x` are not the same {#the-two-c_x-are-not-the-same}
 
-Within the *same subroutine*, `c_x` is defined twice with different
-normalisations. This trips people up:
+In `calc_uz_3D` and `calc_uz_3D_aa`, `c_x` is defined twice with different
+normalisations within the *same subroutine*. This trips people up:
 
 | Context | Code | Value | Multiplies |
 |---|---|---|---|
@@ -293,8 +294,10 @@ $\dot x = u,\ \dot y = v,\ \dot z = w$, pass `ux`, `uy`, `uz` — never
 | Consumer | Field | Location |
 |---|---|---|
 | Enthalpy/temperature vertical advection | `uz_star` | [`yelmo_thermodynamics.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_thermodynamics.f90) → `calc_ytherm_enthalpy_3D` |
-| Age (`dep_time`) and `enh_bnd` tracer advection | `uz_star` | [`yelmo_material.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90) → `calc_tracer_3D` ([`ice_tracer.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90)) |
-| Velocity Jacobian `jvel` | `uz` | [`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90) → `calc_jacobian_vel_3D_*` |
+| Eulerian deposition-time tracer (`t_dep`) | `uz_star` | [`yelmo_tracers.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90) → `calc_tracer_3D` ([`ice_tracer.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90)) |
+| Lagrangian particle tracer (`tracer` backend) | `uz` | [`yelmo_tracers.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90) |
+| `enh_bnd` tracer advection (`*-tracer` enhancement methods) | `uz_star` | [`yelmo_material.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90) → `calc_tracer_3D` |
+| Velocity Jacobian `jvel` | `uz` | [`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90) → `calc_jacobian_vel_3D_uzterms` |
 | `uz_b`, `uz_s` diagnostics | `uz` | `yelmo_dynamics.f90` |
 | Output / restart / C API | both | `yelmo_io.f90`, `yelmo_c_api.f90` |
 
@@ -305,11 +308,12 @@ to the restart file.
 ::: {.callout-note}
 ## 3D CFL timestep
 
-There is no 3D advective CFL limit: `set_adaptive_timestep` in
-[`yelmo_timesteps.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_timesteps.f90)
-only applies the 2D (depth-averaged) advective CFL. Should a 3D constraint ever
-be added, it must be driven by `uz_star`, since that is the velocity at which
-scalars actually cross model layers.
+There is no 3D advective CFL limit: the adaptive time step
+([Time stepping](timestepping.md)) only applies the 2D (depth-averaged)
+advective CFL. The vertical advection of the thermodynamics is implicit, and
+its horizontal advection is sub-cycled internally. A 3D constraint would have
+to be driven by `uz_star`, since that is the velocity at which scalars actually
+cross model layers.
 :::
 
 ## References

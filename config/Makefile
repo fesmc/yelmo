@@ -194,13 +194,6 @@ ssa_energy_lr_sym : yelmo-static tests/test_ssa_energy_lr_sym.f90
 		@echo "    test_ssa_energy_lr_sym.x is ready."
 		@echo " "
 
-opt : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_opt.x tests/yelmo_opt.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_opt.x is ready."
-		@echo " "
-
 trough : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_trough.x tests/yelmo_trough.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -235,7 +228,6 @@ usage:
 	@echo " make calving     : yelmo_calving.x     [calving]    CalvingMIP"
 	@echo " make ismiphom    : yelmo_ismiphom.x    [ismiphom]   ISMIP-HOM"
 	@echo " make mask_ice    : yelmo_mask_ice.x    [mask_ice]   MASK_ICE test"
-	@echo " make opt         : yelmo_opt.x         [opt]        basal friction optimisation"
 	@echo " make regridding  : yelmo_test_regridding.x [regridding] placeholder (empty program)"
 	@echo ""
 	@echo " Tests:"

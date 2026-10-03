@@ -224,14 +224,13 @@ To run a benchmark simulation, for example, use the following command:
 runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml
 ```
 
-where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead will submit the simulation to the cluster queue system (`-q` selects the queue alias, see `runme queues`). The option `-e` lets you specify the executable. For the standard programs, shortcuts are defined in `.runme/info.json`:
+where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead prepares a job script for the cluster queue system and `-rs` also submits it (`-q` selects the queue alias, see `runme queues`). The option `-e` lets you specify the executable. For the standard programs, shortcuts are defined in `.runme/info.json`:
 
 ```
 benchmarks = libyelmo/bin/yelmo_benchmarks.x
 calving    = libyelmo/bin/yelmo_calving.x
 mismip     = libyelmo/bin/yelmo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x
-opt        = libyelmo/bin/yelmo_opt.x
 trough     = libyelmo/bin/yelmo_trough.x
 ismiphom   = libyelmo/bin/yelmo_ismiphom.x
 mask_ice   = libyelmo/bin/yelmo_mask_ice.x

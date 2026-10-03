@@ -1,5 +1,18 @@
 # HPC Notes
 
+`configme` supports the clusters below as machines (`configme list`) and detects
+them from the hostname. Load the modules listed for each cluster first, so that
+the compilers and the netCDF tools (`nf-config`, `nc-config`) are found, then
+install as usual (see [Installation](getting-started.md)), e.g.
+
+```bash
+configme install yelmo -m dkrz_levante -c ifx
+```
+
+The input data for realistic domains are on each cluster in `<datapath>/ice_data`;
+link them into the checkout with `ln -s <datapath>/ice_data ice_data`. To submit
+jobs, set `hpc` and `account` in `.runme/config.toml` and use `runme -rs`.
+
 ## Running at PIK on HPC2024 (foote)
 
 The following modules have to be loaded in order to compile and run the model.
@@ -21,13 +34,9 @@ module load ncview/2.1.10
 module load cdo/2.4.2
 ```
 
-When installing `fesm-utils` (see [Installation](getting-started.md#dependencies)) use the `pik` script:
+Install with `configme install yelmo -m pik_hpc2024 -c ifx`.
 
-```bash
-./install_pik.sh ifx
-```
-
-To link to data sources, use the following path:
+Data path:
 
 ```bash
 datapath=/p/projects/megarun
@@ -49,13 +58,9 @@ module load python/3.11.7
 module load git-lfs/3.1.2
 ```
 
-When installing `fesm-utils` (see [Installation](getting-started.md#dependencies)) use the `awi` script (which is a link to the `dkrz` script):
+Install with `configme install yelmo -m awi_albedo -c ifx`.
 
-```bash
-./install_awi.sh ifx
-```
-
-To link to data sources, use the following path:
+Data path:
 
 ```bash
 datapath=/albedo/work/projects/p_forclima
@@ -79,13 +84,9 @@ module load netcdf-c/4.8.1-openmpi-4.1.2-intel-2021.5.0
 module load netcdf-fortran/4.5.3-openmpi-4.1.2-intel-2021.5.0
 ```
 
-When installing `fesm-utils` (see [Installation](getting-started.md#dependencies)) use the `dkrz` script:
+Install with `configme install yelmo -m dkrz_levante -c ifx`.
 
-```bash
-./install_dkrz.sh ifx
-```
-
-To link to data sources, use the following path:
+Data path:
 
 ```bash
 datapath=/work/ba1442

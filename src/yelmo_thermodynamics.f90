@@ -148,8 +148,9 @@ contains
 
                 case("enth","temp") 
                     ! Perform enthalpy/temperature solving via advection-diffusion equation
-                    ! Note: method==temp performs the same calculations as for method==enth, 
-                    ! except enth_cr=1.0 and omega_max=0.0 as prescribed in par_load(). 
+                    ! Note: method==temp solves the columns with calc_temp_column (no water
+                    ! content, centred vertical advection, "wtil" basal BC), with
+                    ! enth_cr=1.0 and omega_max=0.0 prescribed in par_load(). 
 
                     if (trim(thrm%par%method) .eq. "enth") then 
 
@@ -213,7 +214,7 @@ contains
                 case("robin")
                     ! Use Robin solution for ice temperature
 
-                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
+                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral)
@@ -222,7 +223,7 @@ contains
                     ! Use Robin solution for ice temperature averaged with cold linear profile
                     ! to ensure cold ice at the base
 
-                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%now%cp,thrm%now%kt, &
+                    call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral)
