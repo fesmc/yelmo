@@ -52,6 +52,18 @@ module velocity_diva
     private
     public :: diva_param_class 
     public :: calc_velocity_diva
+    public :: neff_hook_iface
+
+    abstract interface
+        subroutine neff_hook_iface(c_bed,ux_b,uy_b)
+            ! Recomputes the basal friction coefficient c_bed from a new basal velocity, for a
+            ! hydrology whose effective pressure depends on it (see calc_ydyn)
+            import :: wp
+            real(wp), intent(INOUT) :: c_bed(:,:)
+            real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+        end subroutine neff_hook_iface
+    end interface
+        procedure(neff_hook_iface), optional :: neff_hook  ! N (and so c_bed) from the current u_b, see calc_ydyn
 
 contains
     
@@ -60,7 +72,7 @@ contains
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
-                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
+                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par,neff_hook)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
         ! following the Depth-Integrated Viscosity Approximation (DIVA),
         ! as outlined by Lipscomb et al. (2019). Method originally 
@@ -95,7 +107,7 @@ contains
         integer,  intent(OUT)   :: ssa_iter_now 
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
-        real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
+        real(wp), intent(INOUT) :: c_bed(:,:)         ! [Pa] updated in the iteration when neff_hook is present
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
@@ -236,6 +248,12 @@ contains
             ! Note L19 uses eta_bar*H in the ssa equation. Yelmo uses eta_int=eta_bar*H directly.
             call calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
             
+            ! Effective pressure that depends on the sliding speed (a steady hydrology such as K24):
+            ! re-evaluate it, and with it c_bed, from this iteration's u_b, so that N and u_b
+            ! converge together instead of alternating between steps. The first iteration's u_b is
+            ! the one N was already computed from.
+            if (present(neff_hook) .and. iter .gt. 1) call neff_hook(c_bed,ux_b,uy_b)
+
             ! Calculate beta (at the ice base)
             call calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
                                 par%beta_const,par%beta_q,par%beta_u0,par%beta_gl_scale,par%beta_gl_f, &
