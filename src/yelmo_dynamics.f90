@@ -531,7 +531,14 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm 
         type(ybound_class), intent(IN)    :: bnd   
-        procedure(neff_hook_iface), optional :: neff_hook   ! see calc_ydyn
+        interface
+            subroutine neff_hook(c_bed,ux_b,uy_b)   ! N (and so c_bed) from the current u_b, see calc_ydyn
+                use yelmo_defs, only : wp
+                real(wp), intent(INOUT) :: c_bed(:,:)
+                real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+            end subroutine neff_hook
+        end interface
+        optional :: neff_hook
 
         ! Local variables
         integer :: iter, n_iter

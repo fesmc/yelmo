@@ -52,17 +52,6 @@ module velocity_diva
     private
     public :: diva_param_class 
     public :: calc_velocity_diva
-    public :: neff_hook_iface
-
-    abstract interface
-        subroutine neff_hook_iface(c_bed,ux_b,uy_b)
-            ! Recomputes the basal friction coefficient c_bed from a new basal velocity, for a
-            ! hydrology whose effective pressure depends on it (see calc_ydyn)
-            use yelmo_defs, only : wp
-            real(wp), intent(INOUT) :: c_bed(:,:)
-            real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
-        end subroutine neff_hook_iface
-    end interface
 
 contains
     
@@ -107,7 +96,14 @@ contains
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
         real(wp), intent(INOUT) :: c_bed(:,:)         ! [Pa] updated in the iteration when neff_hook is present
-        procedure(neff_hook_iface), optional :: neff_hook  ! N (and so c_bed) from the current u_b, see calc_ydyn
+        interface
+            subroutine neff_hook(c_bed,ux_b,uy_b)   ! N (and so c_bed) from the current u_b, see calc_ydyn
+                use yelmo_defs, only : wp
+                real(wp), intent(INOUT) :: c_bed(:,:)
+                real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+            end subroutine neff_hook
+        end interface
+        optional :: neff_hook
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
