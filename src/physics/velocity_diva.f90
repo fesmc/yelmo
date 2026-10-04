@@ -131,6 +131,7 @@ contains
 
         real(wp), allocatable :: visc_eff_nm1(:,:,:) 
         real(wp), allocatable :: ux_bar_nm1(:,:) 
+        real(wp), allocatable :: c_bed_nm1(:,:)   ! c_bed of the previous iteration (neff_hook)
         real(wp), allocatable :: uy_bar_nm1(:,:)  
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
@@ -244,12 +245,6 @@ contains
             ! Note L19 uses eta_bar*H in the ssa equation. Yelmo uses eta_int=eta_bar*H directly.
             call calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
             
-            ! Effective pressure that depends on the sliding speed (a steady hydrology such as K24):
-            ! re-evaluate it, and with it c_bed, from this iteration's u_b, so that N and u_b
-            ! converge together instead of alternating between steps. The first iteration's u_b is
-            ! the one N was already computed from.
-            if (present(neff_hook) .and. iter .gt. 1) call neff_hook(c_bed,ux_b,uy_b)
-
             ! Calculate beta (at the ice base)
             call calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
                                 par%beta_const,par%beta_q,par%beta_u0,par%beta_gl_scale,par%beta_gl_f, &
@@ -362,6 +357,17 @@ contains
             call calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2_acx,F2_acy,taub_acx,taub_acy,par%no_slip)
 
             ! Exit iterations if ssa solution has converged
+            ! Effective pressure that depends on the sliding speed (a steady hydrology such as K24):
+            ! re-evaluate it, and with it c_bed, from this iterations u_b, so the next iterations
+            ! beta uses N consistent with the current velocity. The solve has converged only when
+            ! c_bed has stopped changing too (relative L1 change below ssa_iter_conv), otherwise a
+            ! warm-started solve can exit after one iteration without ever updating N.
+            if (present(neff_hook)) then
+                c_bed_nm1 = c_bed
+                call neff_hook(c_bed,ux_b,uy_b)
+                if (sum(abs(c_bed-c_bed_nm1)) .gt. par%ssa_iter_conv*max(sum(abs(c_bed)),TOL_UNDERFLOW)) is_converged = .FALSE.
+            end if
+
             if (is_converged) exit 
             
         end do 
