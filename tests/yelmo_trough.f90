@@ -28,6 +28,7 @@ program yelmo_trough
     real(wp) :: pts_x(3)                            ! [km] Points on the centreline (y=0)
     real(wp) :: sec_x                               ! [km] Position of the cross-section (y-transect)
     real(wp) :: H0_init                             ! [m] Initial ice thickness of the slab (TROUGH-F17)
+    character(len=512) :: H0_file                   ! TROUGH-F17: file with the initial H_ice on the model grid ("None": slab)
     character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
     logical  :: full_domain                         ! TROUGH-F17: full symmetric domain x = [-lx,lx] (divide inside)?
     real(wp) :: dtt
@@ -90,10 +91,12 @@ program yelmo_trough
     ! TROUGH-F17 only: initial state and point/transect time series
     write_ts  = (trim(domain) .eq. "TROUGH-F17")
     H0_init   = 50.0_wp
+    H0_file   = "None"
     thrm_init = "robin-cold"
     full_domain = .FALSE.
     if (trim(domain) .eq. "TROUGH-F17") then
         call nml_read(path_par,"ctrl","H0_init",  H0_init)           ! [m] Initial ice thickness of the slab
+        call nml_read(path_par,"ctrl","H0_file",  H0_file)           ! Initial H_ice from file ("None": slab of H0_init)
         call nml_read(path_par,"ctrl","thrm_init",thrm_init)         ! Initial ice temperature
         call nml_read(path_par,"ctrl","full_domain",full_domain)     ! Full symmetric domain x = [-lx,lx]?
         call nml_read(path_par,"ctrl","dtts_out", dtts_out)          ! [yr] Frequency of time-series output
@@ -293,6 +296,14 @@ program yelmo_trough
 
             call trough_f17_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                                     yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,fc,dc,wc,x_cf,H0_init)
+
+            ! Optionally replace the slab by an initial thickness from file (same grid)
+            if (trim(H0_file) .ne. "None") then
+                call nc_read(H0_file,"H_ice",H_init)
+                where (abs(spread(yelmo1%grd%G%x*1e-3,2,size(H_init,2))) .gt. x_cf) H_init = 0.0_wp
+                z_srf_init = yelmo1%bnd%z_bed + H_init
+                write(*,*) "TROUGH-F17: initial H_ice read from ", trim(H0_file)
+            end if
         
         case("MISMIP+") 
             ! MISMIP+ domain 

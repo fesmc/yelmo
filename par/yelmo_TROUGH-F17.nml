@@ -13,6 +13,7 @@
     pts_x        = 100.0 300.0 400.0    ! [km] Points on the centreline (y=0) for the time series (100, 400: Feldmann and Levermann, 2017)
     sec_x        = 350.0                ! [km] Position of the cross-section (y-transect) for the time series
     H0_init      = 50.0                 ! [m] Initial ice thickness of the slab (Feldmann and Levermann, 2017: 500 m)
+    H0_file      = "None"               ! File with the initial H_ice on the model grid; "None": slab of H0_init
     thrm_init    = "robin-cold"         ! Initial ice temperature: "robin-cold", "robin", "linear"
     full_domain  = False                ! Full symmetric domain x = [-lx,lx] with the divide inside (Feldmann and Levermann, 2017)
 
