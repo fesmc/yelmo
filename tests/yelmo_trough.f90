@@ -41,6 +41,7 @@ program yelmo_trough
     real(wp) :: Tsrf_const, smb_const, Qgeo_const  
 
     real(wp) :: s06_alpha, s06_H0, s06_W, s06_m
+    real(wp) :: fs_H0, fs_dHdx, fs_zb               ! FRONT-SLAB: divide thickness, thickness gradient, bed elevation
     real(wp) :: B, L  
     real(wp), allocatable :: ux_ref(:,:) 
     real(wp), allocatable :: tau_c_ref(:,:)
@@ -111,6 +112,11 @@ program yelmo_trough
             call nml_read(path_par,"ctrl_schoof","H0",   s06_H0)     ! [m]   Constant ice thickness
             call nml_read(path_par,"ctrl_schoof","W",    s06_W)      ! [m]   Half-width weak till
             call nml_read(path_par,"ctrl_schoof","m",    s06_m)      ! []    Exponent
+        case("FRONT-SLAB")
+            call nml_read(path_par,"ctrl_front","H0",   fs_H0)       ! [m]    Ice thickness at the divide (x=0)
+            call nml_read(path_par,"ctrl_front","dHdx", fs_dHdx)     ! [m/km] Thickness decrease with |x|
+            call nml_read(path_par,"ctrl_front","zb",   fs_zb)       ! [m]    Flat bed elevation
+            full_domain = .TRUE.
     end select
 
     ! Simulation parameters 
@@ -134,7 +140,7 @@ program yelmo_trough
 
     select case(trim(domain))
 
-        case("TROUGH-F17","MISMIP+")
+        case("TROUGH-F17","MISMIP+","FRONT-SLAB")
             ! Channel periodic in y (true wrap, period ny*dx, no halo): centred
             ! grid y_j = (j-jc)*dx with jc = ny/2+1, so that y=0 is a row and the
             ! period is exactly ly. For even ny the wall y=-ly/2 is a row, for
@@ -305,6 +311,12 @@ program yelmo_trough
                 write(*,*) "TROUGH-F17: initial H_ice read from ", trim(H0_file)
             end if
         
+        case("FRONT-SLAB")
+            ! Grounded marine slab with ice fronts at |x| = x_cf (front-stress benchmark)
+
+            call front_slab_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
+                                    yelmo1%grd%G%x*1e-3,fs_H0,fs_dHdx,fs_zb,x_cf)
+
         case("MISMIP+") 
             ! MISMIP+ domain 
 
@@ -498,6 +510,39 @@ contains
         return 
 
     end subroutine slab_topo_init
+
+    subroutine front_slab_topo_init(z_bed,H_ice,z_srf,xc,H0,dHdx,zb,x_cf)
+        ! Flat bed and an ice thickness decreasing linearly away from the
+        ! divide at x=0, uniform in y, ending at ice fronts |x| < x_cf.
+
+        implicit none
+
+        real(wp), intent(OUT) :: z_bed(:,:)
+        real(wp), intent(OUT) :: H_ice(:,:)
+        real(wp), intent(OUT) :: z_srf(:,:)
+        real(dp), intent(IN)  :: xc(:)          ! [km]
+        real(wp), intent(IN)  :: H0             ! [m]    Thickness at x=0
+        real(wp), intent(IN)  :: dHdx           ! [m/km] Thickness decrease with |x|
+        real(wp), intent(IN)  :: zb             ! [m]    Bed elevation
+        real(wp), intent(IN)  :: x_cf           ! [km]   Front position
+
+        ! Local variables
+        integer :: i
+
+        z_bed = zb
+        do i = 1, size(H_ice,1)
+            if (abs(xc(i)) .lt. x_cf) then
+                H_ice(i,:) = max(H0 - dHdx*abs(xc(i)), 0.0_wp)
+            else
+                H_ice(i,:) = 0.0_wp
+            end if
+        end do
+
+        z_srf = z_bed + H_ice
+
+        return
+
+    end subroutine front_slab_topo_init
 
     subroutine trough_f17_topo_init(z_bed,H_ice,z_srf,xc,yc,fc,dc,wc,x_cf,H0)
 
