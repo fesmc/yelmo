@@ -63,7 +63,6 @@ module velocity_diva
             real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
         end subroutine neff_hook_iface
     end interface
-        procedure(neff_hook_iface), optional :: neff_hook  ! N (and so c_bed) from the current u_b, see calc_ydyn
 
 contains
     
@@ -108,6 +107,7 @@ contains
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
         real(wp), intent(INOUT) :: c_bed(:,:)         ! [Pa] updated in the iteration when neff_hook is present
+        procedure(neff_hook_iface), optional :: neff_hook  ! N (and so c_bed) from the current u_b, see calc_ydyn
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
