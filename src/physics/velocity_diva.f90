@@ -58,7 +58,7 @@ module velocity_diva
         subroutine neff_hook_iface(c_bed,ux_b,uy_b)
             ! Recomputes the basal friction coefficient c_bed from a new basal velocity, for a
             ! hydrology whose effective pressure depends on it (see calc_ydyn)
-            import :: wp
+            use yelmo_defs, only : wp
             real(wp), intent(INOUT) :: c_bed(:,:)
             real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
         end subroutine neff_hook_iface
