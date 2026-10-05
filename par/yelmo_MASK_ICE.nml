@@ -261,7 +261,6 @@
     rf_with_water           = False
     n_glen                  = 3.0
     visc_min                = 1e3
-    de_max                  = 2.0
     enh_method              = "shear3D"
     enh_shear               = 1.0
     enh_stream              = 1.0
