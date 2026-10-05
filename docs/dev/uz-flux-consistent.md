@@ -1,6 +1,6 @@
 # Flux-consistent vertical velocity (design)
 
-*Status: design for discussion, 2026-10-05. Nothing here is implemented.*
+*Status: design 2026-10-05; implemented 2026-10-06 as `ydyn.uz_method = 4` (`calc_uz_3D_flux`), described in docs/physics/vertical-velocity.md. The decisions on the open points are given below.*
 
 ## Problem
 
@@ -45,13 +45,14 @@ We propose to compute w* with the flux divergence of the thickness equation itse
 
 For plug flow with uniform thickness along the flow (A4), D_k = Δζ_k D and w* = −SMB ζ, the exact solution. Where the velocity carries grid-scale noise, w* carries the same noise as the thickness transport. This is the consistent result: any smoothing then belongs in the velocity or thickness solution, not in w*.
 
-## Points to settle in the implementation
+## Decisions in the implementation
 
-- **Time level.** w* must be formed from the tendencies of the thickness step that the thermodynamics follows. At present the dynamics computes `uz` before the corrector and advance steps, with `dzsdt_kin` from the previous advance. The order of the calls in `yelmo_update` and the stored tendencies (`dHidt_dyn_raw`, `dHidt_vert`) need to be checked, so that D and ∂H/∂t refer to the same step.
-- **Depth-averaged velocity.** The correction in step 2 absorbs any difference between ū and the layer mean Σ Δζ_k u_k, but a large difference would distort the vertical profile. Both should be computed with the same vertical quadrature.
-- **Partial front cells and the H_eff floor.** The kinematic rates are set to zero in partial front cells, cells on the H_eff floor and newly ice-covered cells, since their column is re-derived. The same cells need a defined w* (e.g., the current treatment), and `uz_srf_err` is evaluated only in fully ice-covered cells.
-- **Floating ice.** The base of floating ice moves with the thickness (`dzbdt_kin`); the layer budget includes this through ∂H/∂t and w*_{1/2} = −BMB.
-- **Other thickness solvers.** The explicit and second-order upwind solvers use other stencils. The layer divergence must use the stencil of the solver in use, or the method is restricted to `impl-lis` and `impl-upwind`.
+- **Time level.** The vertical velocity stays in `calc_ydyn`, after the predictor. At this point `dHidt_dyn`, `dHidt_vert` and the kinematic rates are those of the predictor. With `pc_use_H_pred = True` (default) the predictor is the applied step and the closure is exact. With `pc_use_H_pred = False` (EISMINT, MISMIP3D and CalvingMIP parameter files) the closure is to the predictor and differs from the applied corrector by the predictor–corrector truncation error. Moving the vertical velocity after the corrector would also move the uz-dependent Jacobian and strain-rate terms, for all methods, and was not done.
+- **Closure mask.** `tpo%now%mask_kin`, set in `calc_column_kinematic_rates`: 1 where the column rate is given by the thickness step applied this step (the column is the actual ice at the start and end of the step, and the thickness was advanced). It is 0 in partial front cells, cells on the H_eff floor, newly ice-covered cells, and in `topo_fixed` and initialization steps. There the layer fluxes are those of the current velocity and ∂H/∂t = 0.
+- **∂H/∂t.** `dzsdt_kin − dzbdt_kin`, which equals `dHidt_vert` where `mask_kin` = 1, so w and w* use the same column rates.
+- **Face thickness.** `H_ice` (the field advected by the thickness solver), upwind by the sign of the depth-averaged velocity at each face. With the trapezoid weights of `zeta_aa` equal to Δζ_k, the uncorrected layer fluxes sum to the solver flux of the current velocity. Any difference between ū and Σ Δζ_k u_k is absorbed by the correction.
+- **Non-transport terms.** `mb_clip` and `mb_relax` are part of `dHidt_vert` and appear as surface terms: w*_s = −(SMB + clip + relax). Both are zero in the ice interior.
+- **Other thickness solvers.** No restriction: the correction closes the budget to the applied tendency whatever the solver stencil, which only affects the vertical distribution of the uncorrected fluxes.
 
 ## Implementation and tests
 
