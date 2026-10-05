@@ -155,8 +155,8 @@
     beta_min            = 0.0             ! [Pa a m-1] Minimum value of beta allowed for grounded ice (for stability)
     eps_0               = 1e-6            ! [1/a] Regularization term for effective viscosity - minimum strain rate
     frz_scale           = False           ! Reduce sliding where the bed is below the pressure melting point: beta*f**(-q), f=frz_min+(1-frz_min)*exp(T_prime_b/frz_efold)
-    frz_efold           = 1.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
-    frz_min             = 1e-6            ! [-] Minimum sliding-speed factor for frozen beds
+    frz_efold           = 3.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
+    frz_min             = 1e-3            ! [-] Minimum sliding-speed factor for frozen beds
     ssa_solver          = "energy"      ! "residual" | "energy"
     ssa_lis_opt_residual= "-i bicgsafe -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"  ! See Lis library
     ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"       ! SPD => CG (matches Yelmo.jl default)

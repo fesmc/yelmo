@@ -178,8 +178,8 @@
     beta_min            = 0.0
     eps_0               = 1e-6
     frz_scale           = False           ! Reduce sliding where the bed is below the pressure melting point: beta*f**(-q), f=frz_min+(1-frz_min)*exp(T_prime_b/frz_efold)
-    frz_efold           = 1.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
-    frz_min             = 1e-6            ! [-] Minimum sliding-speed factor for frozen beds
+    frz_efold           = 3.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
+    frz_min             = 1e-3            ! [-] Minimum sliding-speed factor for frozen beds
     ssa_solver              = "energy"
     ssa_lis_opt_residual    = "-i bicgsafe -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"
     ssa_lis_opt_energy      = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"
