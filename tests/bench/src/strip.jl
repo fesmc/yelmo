@@ -8,8 +8,12 @@
 # ydyn.solver = "fixed" and ytopo.topo_fixed = True.
 #
 # Domain: x ∈ [−nx dx/2, nx dx/2] (cell-centred, x = 0 on a cell centre),
-# one row per parameter set along y, plus one border row at each end that
-# repeats its neighbour and is excluded from the comparison.
+# three identical rows per parameter set along y, plus one border row at each
+# end that repeats its neighbour. Only the middle row of each set and the
+# columns two or more cells from the x-borders are compared: the default
+# vertical velocity (ydyn.uz_method = 3) averages the divergence over the
+# neighbouring cells (weights 1/4, 1/2, 1/4), which mixes parameter sets in
+# adjacent rows and reaches one cell in from the borders.
 #
 # Velocity (plug flow, uniform with depth):
 #   u = c(y) x,  v = 0,  c = SMB/H.
@@ -25,7 +29,7 @@
 #   :smb         T_ice from P1, forcing P2 = P1 with SMB × fsmb  (A4b)
 # ----------------------------------------------------------------------
 
-export StripThermoBenchmark, strip_params, strip_column, strip_solution
+export StripThermoBenchmark, strip_params, strip_column, strip_solution, strip_check_row
 
 # Default rows (H [m], SMB [m/yr]): Péclet numbers ~0.5–33, all with a basal
 # temperature at least ~5 K below the pressure-melting point for
@@ -65,7 +69,7 @@ function StripThermoBenchmark(exp::Symbol = :stationary;
     isodd(nx) || error("StripThermoBenchmark: nx must be odd, so that x = 0 is a cell centre (got $nx).")
     dx = Float64(dx_km) * 1e3
     xc = collect((-(nx ÷ 2):(nx ÷ 2)) .* dx)
-    yc = collect(((0:length(rows)+1) .+ 0.5) .* dx)
+    yc = collect(((0:STRIP_NREP*length(rows)+1) .+ 0.5) .* dx)
     b = StripThermoBenchmark(exp, xc, yc, Float64(dx_km), [Tuple(Float64.(r)) for r in rows],
                              Float64(T_srf), Float64(Q_geo), Float64(dT), Float64(fsmb), Float64(z_bed))
     for (k, (H, smb)) in enumerate(b.rows)
@@ -78,8 +82,14 @@ function StripThermoBenchmark(exp::Symbol = :stationary;
     return b
 end
 
-"Row index of the parameter set for grid row j (border rows repeat their neighbour)."
-strip_row(b::StripThermoBenchmark, j) = clamp(j - 1, 1, length(b.rows))
+"Rows per parameter set (the middle one is compared)."
+const STRIP_NREP = 3
+
+"Parameter set of grid row j (border rows repeat their neighbour)."
+strip_row(b::StripThermoBenchmark, j) = clamp(cld(j - 1, STRIP_NREP), 1, length(b.rows))
+
+"Grid row compared for parameter set k (the middle row of its block)."
+strip_check_row(b::StripThermoBenchmark, k) = STRIP_NREP * k
 
 """
     strip_params(b, k; forcing = :P2) -> IceColumnPar

@@ -132,27 +132,45 @@ $w$ in a fixed frame.
 
 ### The three methods
 
-`ydyn.uz_method` selects among three implementations that differ only in how
-the horizontal derivatives are evaluated — all three produce the same
-quantity. They use the column of the dynamics (`H_ice_dyn`), so partial front
-cells are full columns with the effective thickness:
+`ydyn.uz_method` selects among three implementations that differ in how the
+horizontal divergence is discretized. They use the column of the dynamics
+(`H_ice_dyn`), so partial front cells are full columns with the effective
+thickness:
 
 | `uz_method` | Routine | Notes |
 |---|---|---|
-| 1 (`uz_aa`) | `calc_uz_3D_aa` | simplest; plain finite differences on `aa`-nodes |
-| 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging |
-| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)), with 3D quadrature. The constant-$z$ correction is applied in the Jacobian, so `uz` is integrated from the corrected divergence directly. Most stable and most correct. |
+| 1 (`uz_aa`) | `calc_uz_3D_aa` | divergence from the two faces of each cell, $(u_{i+1/2}-u_{i-1/2})/\Delta x$, the same face differences as the thickness equation |
+| 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging (same effective stencil as method 3) |
+| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)), with 3D quadrature. The constant-$z$ correction is applied in the Jacobian, so `uz` is integrated from the corrected divergence directly. |
+
+Methods 2 and 3 average the divergence over neighbouring cells. Along the
+flow, the centred face derivatives $(u_{i+3/2}-u_{i-1/2})/(2\Delta x)$ averaged
+to the cell centre give a four-face stencil, which does not see a 2$\Delta x$
+oscillation of the velocity; across the flow, the corner and quadrature
+averaging weights the neighbouring rows by 1/4, 1/2, 1/4. This smooths grid-scale
+noise in the divergence: in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and
+TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatch
+`uz_srf_err` and a 2–5 times smoother `uz` than method 1. However, where the
+divergence changes from one cell to the next, the vertical velocity of a column
+is mixed with that of its neighbours: in the A4 benchmark (plug flow with
+uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a
+surface `uz` off by up to a factor of 5 next to a jump in the divergence, while
+method 1 is exact.
 
 ### Practical caveats
 
 - **The surface kinematic BC is not enforced.** `uz` is anchored at the *base*
   and integrated upward, and the surface condition
   $w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a$
-  is not imposed. So `uz` is *exactly divergence-consistent and exactly
-  satisfies the basal BC*; any mismatch with the surface BC accumulates as a
-  residual at the top rather than being spread through the column. The
-  mismatch is diagnosed as `uz_srf_err` = $w^\star_s + \dot a$ in fully
-  ice-covered cells.
+  is not imposed. So `uz` *exactly satisfies the basal BC*, and any mismatch
+  with the surface BC accumulates as a residual at the top rather than being
+  spread through the column. The mismatch is diagnosed as `uz_srf_err` =
+  $w^\star_s + \dot a$ in fully ice-covered cells. It is not zero, since the
+  integrated divergence ($H\,\nabla\cdot\mathbf{u}$ plus the basal and
+  coordinate terms) is not the discrete flux divergence of the thickness
+  equation, which uses face thicknesses and the time-filtered velocity
+  (`pc_filter_vel`). It is largest at grounding lines and outlet margins
+  (several m/yr in Greenland at 16 km) for all three methods.
 - **No clamps.** `uz` and `uz_star` are not limited; in fast outlets $w$ reaches
   tens of m/yr. Values below `TOL_UNDERFLOW` are zeroed.
 - **Ice-free points** get `uz = dzbdt - max(smb,0)` and `uz_star = uz`.

@@ -3,9 +3,9 @@
 # Compare the ice temperature of an A4 run (thermodynamics strip) with the
 # analytic column solution of IceColumnSolutions.jl. The benchmark parameters
 # are read from the fixture attributes. For each row (one parameter set) the
-# script prints the Péclet number and the maximum error over the interior
-# columns at each output time, and the spread across the columns of a row
-# (which should be at round-off, since the solution is uniform in x).
+# script prints the Péclet number and the maximum error over the compared
+# columns of its middle row at each output time, and the spread across these
+# columns (which should be at round-off, since the solution is uniform in x).
 #
 # Usage (from the yelmo root):
 #   julia --project=tests/bench tests/bench/check_strip.jl <fixture.nc> <run-dir or yelmo3D.nc> [n_modes]
@@ -30,7 +30,7 @@ zeta  = Float64.(ds["zeta"][:])
 T_ice = Float64.(ds["T_ice"][:, :, :, :])
 close(ds)
 nx, ny = size(T_ice, 1), size(T_ice, 2)
-ic = 2:nx-1                                   # interior columns (borders excluded)
+ic = 3:nx-2                                   # compared columns (see strip.jl)
 # Times printed: all, or a selection when the run has many outputs (the
 # maximum error covers all times)
 tsel = length(t) <= 8 ? collect(eachindex(t)) :
@@ -39,8 +39,8 @@ tsel = length(t) <= 8 ? collect(eachindex(t)) :
 println("== ", file, "  (exp = ", b.exp, ", nz = ", length(zeta), ", n_modes = ", n_modes, ")")
 @printf("%4s %7s %6s %6s  %s\n", "row", "H [m]", "SMB", "Pe", join([@sprintf("%9s", "t=$(Int(round(t[n])))") for n in tsel], " "))
 emax = 0.0; spread = 0.0
-for j in 2:ny-1
-    k = j - 1
+for k in eachindex(b.rows)
+    j = strip_check_row(b, k)
     H, smb = b.rows[k]
     p  = strip_params(b, k)
     Ta = strip_solution(b, k, zeta, t; n_modes)
