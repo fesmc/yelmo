@@ -282,7 +282,7 @@ A4 (2026-10-05, 10 km, 7 × 38 cells, 12 parameter sets with Pe ≈ 0.5–33, T_
 
 1. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
 2. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
-3. **Flux-consistent vertical velocity.** A vertical velocity computed from the discrete layer fluxes of the thickness equation would be exact in A4 and remove the mismatch at grounding lines and margins (design in preparation).
+3. **Flux-consistent vertical velocity.** A vertical velocity computed from the discrete layer fluxes of the thickness equation would be exact in A4 and remove the mismatch at grounding lines and margins (design: [`docs/dev/uz-flux-consistent.md`](../uz-flux-consistent.md)).
 4. **A4b reference.** Sign convention of Pe in IceColumnSolutions.jl (see Status).
 5. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
 6. **Pass thresholds.** To be set after the first round of runs. Single precision with tight tolerances stays at about 1e-6 over 1 kyr on ISLAND4 at 32 km.
