@@ -155,10 +155,10 @@ contains
         ! Finally calculate c_bed, which is simply c_bed = f(N_eff,cb_ref)
         call calc_c_bed(dyn%now%c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
 
-        ! Sub-temperate sliding factor (beta is divided by f_slide in calc_beta)
-        if (dyn%par%slide_T) then
+        ! Frozen-bed sliding factor (calc_beta applies beta*f_slide**(-q))
+        if (dyn%par%frz_scale) then
             call calc_f_slide(dyn%now%f_slide,thrm%now%T_prime_b,tpo%now%f_ice_dyn,tpo%now%f_grnd, &
-                                                        dyn%par%gamma_T,dyn%par%lambda_min)
+                              hyd%now%W,hyd%now%W_til,dyn%par%frz_efold,dyn%par%frz_min,dyn%par%boundaries)
         else
             dyn%now%f_slide = 1.0_wp
         end if
@@ -716,9 +716,9 @@ contains
         call nml_read(filename,group_ydyn,"H_grnd_lim",         par%H_grnd_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"beta_min",           par%beta_min,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"eps_0",              par%eps_0,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"slide_T",            par%slide_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"gamma_T",            par%gamma_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"lambda_min",         par%lambda_min,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_scale",          par%frz_scale,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_efold",          par%frz_efold,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_min",            par%frz_min,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_solver",         par%ssa_solver,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -772,10 +772,10 @@ contains
             error stop 1
         end if
 
-        if (par%slide_T .and. (par%gamma_T .le. 0.0_wp .or. par%lambda_min .le. 0.0_wp &
-                                                        .or. par%lambda_min .gt. 1.0_wp)) then
-            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.slide_T requires gamma_T > 0 and 0 < lambda_min <= 1; got ", &
-                                 par%gamma_T, par%lambda_min
+        if (par%frz_scale .and. (par%frz_efold .le. 0.0_wp .or. par%frz_min .le. 0.0_wp &
+                                                          .or. par%frz_min .gt. 1.0_wp)) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.frz_scale requires frz_efold > 0 and 0 < frz_min <= 1; got ", &
+                                 par%frz_efold, par%frz_min
             error stop 1
         end if
         if (par%till_z0 .ge. par%till_z1) then
@@ -1267,7 +1267,7 @@ contains
 
         call nc_write(filename,"c_bed",dyn%now%c_bed,units="Pa",long_name="Dragging coefficient", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Sub-temperate sliding factor", &
+        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Frozen-bed sliding-speed factor", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"N_eff",dyn%now%N_eff,units="Pa",long_name="Effective pressure", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

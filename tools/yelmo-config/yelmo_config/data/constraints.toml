@@ -137,23 +137,23 @@ any_of = [
 # Conditional ranges: enforced only when the guard holds (as for [[order]] below).
 [[range]]
 group = "ydyn"
-name = "gamma_T"
+name = "frz_efold"
 min = 0.0
 min_inclusive = false
-when_name = "slide_T"
+when_name = "frz_scale"
 when_value = "True"
-note = "must be > 0 with slide_T = True"
+note = "must be > 0 with frz_scale = True"
 
 [[range]]
 group = "ydyn"
-name = "lambda_min"
+name = "frz_min"
 min = 0.0
 max = 1.0
 min_inclusive = false
 max_inclusive = true
-when_name = "slide_T"
+when_name = "frz_scale"
 when_value = "True"
-note = "must be in (0, 1] with slide_T = True"
+note = "must be in (0, 1] with frz_scale = True"
 
 # --- ordering checks: `left` `op` `right` (both in the same group) ---
 # op is one of  lt (<) | le (<=) | gt (>) | ge (>=)

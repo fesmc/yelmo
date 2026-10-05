@@ -7,6 +7,18 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ydyn.slide_T`, `gamma_T`, `lambda_min` replaced by `ydyn.frz_scale`, `frz_efold`,
+  `frz_min`** (`calc_f_slide`, `calc_beta`). β was divided by `f_slide`, which scales
+  the sliding speed by `f_slide**(1/q)`: with q = 1/3 (TROUGH) `gamma_T` = 1 K was a
+  0.33 K e-fold and `lambda_min` = 1e-6 a speed floor of 1e-18. β is now multiplied by
+  `f_slide**(-q)` (q = `beta_q`, 1 for `beta_method` 0, 1), with
+  `f_slide = frz_min + (1-frz_min)*exp(T_prime_b/frz_efold)`, so `frz_efold` is the
+  e-folding temperature of the sliding speed for any friction law. `f_slide = 1` also at
+  grounded cells in contact with the ocean (`f_grnd < 1` or next to a floating cell),
+  which inherited the sub-shelf base temperature (T'_b ~ -1.9 K) and froze, and where the
+  bed is wet (`hyd_W > 0` or `hyd_W_til > 0`). Defaults and initmip keep `frz_scale = True`,
+  `frz_efold = 1`, `frz_min = 1e-6` (linear law: as before apart from the exemptions and
+  the smooth floor). Replace the old keys in external par files (`nml_validate` stops).
 - **Mirror-symmetric one-sided strain rates at ice fronts** (`calc_jacobian_vel_3D_uxyterms`,
   `jvel%dxx`/`dyy`). At a front with ice on the low-index side, the second-order
   one-sided stencil on the faces i, i-1, i-2 tested `f_ice` of cell i-2 instead of

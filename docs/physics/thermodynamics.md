@@ -242,8 +242,8 @@ constants (Payne et al., 2000). With `rf_with_water = True`, $A$ is multiplied
 by $1 + 181.25\,\omega$ (Lliboutry and Duval, 1985). $E_f$ is the enhancement
 factor (`enh_method`, `enh_shear`, `enh_stream`, `enh_shlf`).
 
-The basal temperature enters the basal friction through the sub-temperate
-sliding factor (`ydyn.slide_T`, see [Basal friction](basal-friction.md)), with
+The basal temperature enters the basal friction through the frozen-bed
+sliding factor (`ydyn.frz_scale`, see [Basal friction](basal-friction.md)), with
 the basal homologous temperature $T'_b = T_b - T_\mathrm{pmp}$ (`T_prime_b`).
 The temperate fraction of the base, `f_pmp` = $\exp(\max(T'_b, -20\,\mathrm K)/\gamma)$
 with $\gamma$ = `ytherm.gamma` (0 and 1 below 0.01 and above 0.99; binary for

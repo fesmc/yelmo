@@ -54,21 +54,26 @@ upstream (grounded) value at grounding-line faces; 2, the downstream value;
 grounded fraction of the face; 4, weighted by the grounded
 share of the velocity across the face (Gladstone et al., 2010).
 
-### Sub-temperate sliding
+### Frozen-bed sliding
 
-With `ydyn.slide_T = True` (default), sliding is reduced below the pressure
-melting point by dividing $\beta$ by
+With `ydyn.frz_scale = True` (default), sliding is reduced where the bed is
+below the pressure melting point. After the friction law, $\beta$ is multiplied
+by $f_\mathrm{slide}^{-q}$, with
 
 $$
-f_\mathrm{slide} = \max\left(\lambda_\mathrm{min}, \exp(T'_b/\gamma_T)\right),
+f_\mathrm{slide} = f_\mathrm{min} + (1 - f_\mathrm{min})\exp(T'_b/\gamma_T),
 $$
 
 where $T'_b \le 0$ is the basal homologous temperature, $\gamma_T$ is
-`ydyn.gamma_T` (default 1 K) and $\lambda_\mathrm{min}$ is `ydyn.lambda_min`
-(default $10^{-6}$) (e.g., Fowler, 1986; Hindmarsh and Le Meur, 2001).
-$f_\mathrm{slide} = 1$ where the base is temperate or not grounded. It is output
-as `f_slide`. For DIVA, $\beta \to \infty$ tends to the no-slip limit
-$\beta_\mathrm{eff} = 1/F_2$, so a small $\lambda_\mathrm{min}$ is safe.
+`ydyn.frz_efold` and $f_\mathrm{min}$ is `ydyn.frz_min` (e.g., Fowler, 1986;
+Hindmarsh and Le Meur, 2001). $q$ is `beta_q`, or 1 for `beta_method` 0 and 1.
+At a given basal stress this scales the sliding speed by $f_\mathrm{slide}$ for
+the linear and power-plastic laws, so $\gamma_T$ is the e-folding temperature of
+the sliding speed for any friction law. For the regularized Coulomb law this
+holds for $u_b \ll u_0$; for $u_b \gg u_0$ the yield stress becomes
+$c_b f_\mathrm{slide}^{-q}$. $f_\mathrm{slide} = 1$ where the base is temperate,
+not grounded, in contact with the ocean (partially floating, or next to floating
+ice) or wet (`hyd_W` > 0 or `hyd_W_til` > 0). It is output as `f_slide`.
 
 ## Bed coefficient
 
