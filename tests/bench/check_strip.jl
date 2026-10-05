@@ -31,9 +31,13 @@ T_ice = Float64.(ds["T_ice"][:, :, :, :])
 close(ds)
 nx, ny = size(T_ice, 1), size(T_ice, 2)
 ic = 2:nx-1                                   # interior columns (borders excluded)
+# Times printed: all, or a selection when the run has many outputs (the
+# maximum error covers all times)
+tsel = length(t) <= 8 ? collect(eachindex(t)) :
+       unique([argmin(abs.(t .- x)) for x in (0.0, 1e3, 5e3, 1e4, 2e4, 5e4) if x <= t[end]])
 
 println("== ", file, "  (exp = ", b.exp, ", nz = ", length(zeta), ", n_modes = ", n_modes, ")")
-@printf("%4s %7s %6s %6s  %s\n", "row", "H [m]", "SMB", "Pe", join([@sprintf("%9s", "t=$(Int(round(x)))") for x in t], " "))
+@printf("%4s %7s %6s %6s  %s\n", "row", "H [m]", "SMB", "Pe", join([@sprintf("%9s", "t=$(Int(round(t[n])))") for n in tsel], " "))
 emax = 0.0; spread = 0.0
 for j in 2:ny-1
     k = j - 1
@@ -44,6 +48,6 @@ for j in 2:ny-1
     e   = vec(maximum(err; dims = 1))
     global emax   = max(emax, maximum(e))
     global spread = max(spread, maximum(maximum(T_ice[ic, j, :, :]; dims = 1) .- minimum(T_ice[ic, j, :, :]; dims = 1)))
-    @printf("%4d %7.0f %6.2f %6.2f  %s\n", k, H, p.w0, p.Pe, join([@sprintf("%9.3g", x) for x in e], " "))
+    @printf("%4d %7.0f %6.2f %6.2f  %s\n", k, H, p.w0, p.Pe, join([@sprintf("%9.3g", e[n]) for n in tsel], " "))
 end
 @printf("max |T - T_analytic| = %.3g K,  max spread across columns = %.3g K\n", emax, spread)
