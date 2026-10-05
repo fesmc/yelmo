@@ -7,6 +7,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ytherm.use_strain_sia` replaced by `ytherm.strain_heating = "full" | "sia" | "none"`**
+  (default `"full"`, same as `use_strain_sia = False`). `"none"` switches strain heating
+  off, which the analytic thermodynamics benchmarks need. Par files using
+  `use_strain_sia` must be updated (all files in `par/` are).
 - **`yelmo.pc_eps` default 1.0 → 0.02** (input/yelmo_defaults.nml, par/yelmo_initmip.nml).
   With the RMS pc norm, pc_eta stays at 1e-3 - 5e-2 in GRL/ANT runs, so pc_eps >= 0.2 never
   limited dt; 0.02 removes the 8-km outlet checkerboard (GRL-8: 0 persistent cells) and lets

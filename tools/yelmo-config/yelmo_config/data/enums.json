@@ -260,6 +260,16 @@
   },
   {
     "group": "ytherm",
+    "name": "strain_heating",
+    "allowed": [
+      "full",
+      "sia",
+      "none"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
     "name": "zeta_scale_rock",
     "allowed": [
       "linear",
