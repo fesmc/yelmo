@@ -121,8 +121,9 @@ with the diffusivity at the layer faces from a weighted harmonic mean.
   sub-steps, at most `advecxy_nmax` (default 10).
 - **Strain heating** is $\Phi = 4\mu\dot\varepsilon_e^2$ (Greve and Blatter, 2009,
   Eqs. 4.7, 5.65), from the 3D viscosity and effective strain rate of the
-  material module. With `use_strain_sia = True`, the SIA approximation is used
-  instead.
+  material module (`strain_heating = "full"`, default). With
+  `strain_heating = "sia"`, the SIA approximation is used instead, and with
+  `"none"` strain heating is switched off.
 
 The thermodynamics uses the column of the dynamics, with thickness `H_ice_dyn`
 (the effective thickness `H_eff` in partial front cells). Columns are solved

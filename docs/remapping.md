@@ -158,3 +158,36 @@ conservative remapping weights from the grid description files, e.g.:
 ```bash
 cdo gencon,grid_GRL-16KM.txt -setgrid,grid_GRL-32KM.txt GRL-32KM_REGIONS.nc scrip-con_GRL-32KM_GRL-16KM.nc
 ```
+
+## Remapping fields inside a program
+
+The module `yelmo_remapping` (re-exported by `use yelmo`) maps 2D and 3D fields
+from another source, such as another model or another resolution, onto the
+Yelmo grid:
+
+- `yelmo_remap(var, var_in, mp)` maps a 2D field with a coords map `mp`.
+- `yelmo_remap(var, zeta, var_in, zeta_in, [mp])` maps a 3D field. Each column
+  is first interpolated linearly from the source levels `zeta_in` onto the Yelmo
+  levels `zeta` (constant beyond the end levels), and then each level is
+  remapped horizontally if `mp` is given. Levels are normalized heights (0 at
+  the base, 1 at the top), as `zeta_aa`, `zeta_ac` and the bedrock axes.
+- `yelmo_load_map(mp, grd, filename, src_grid_name, [method])` builds the map
+  from the xc/yc axes of a NetCDF file onto the Yelmo grid, with the projection
+  of the Yelmo grid (method `"con"` by default, as for restart files).
+- `yelmo_read_remap(var, grd, filename, varname, [zeta, zeta_name], [method])`
+  reads a 2D or 3D field (the last time record, if there is a time dimension)
+  and maps it onto the Yelmo grid. The field is remapped horizontally only if
+  the file's axes differ from the Yelmo grid.
+
+For example, to initialize the ice temperature from a field `T_ice` on the
+levels `zeta` of another file:
+
+```fortran
+allocate(T_ice(nx,ny,size(yelmo1%thrm%par%z%zeta_aa)))
+call yelmo_read_remap(T_ice,yelmo1%grd,"T_init.nc","T_ice",yelmo1%thrm%par%z%zeta_aa,"zeta")
+call yelmo_init_state(yelmo1,time=time_init,thrm_method="prescribed",T_ice=T_ice)
+```
+
+With `thrm_method = "prescribed"`, Yelmo caps the temperature at the pressure
+melting point, sets the water content to zero and computes the consistent
+enthalpy.

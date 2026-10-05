@@ -621,7 +621,9 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
                     if (im1 .gt. 1) then
                         im2 = im1-1
-                        if (f_ice(im2,j) .eq. 1.0) then  
+                        ! Faces im2 and im1 border cell im1 (mirror of the
+                        ! f_ice(ip2) test below; ux lives on the faces)
+                        if (f_ice(im1,j) .eq. 1.0) then  
                             jvel%dxx(i,j,k) = (1.0*ux(im2,j,k)-4.0*ux(im1,j,k)+3.0*ux(i,j,k))/(2.0*dx)
                         else
                             jvel%dxx(i,j,k) = (ux(i,j,k)-ux(im1,j,k))/dx
@@ -646,7 +648,8 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
                     if (jm1 .gt. 1) then
                         jm2 = jm1-1
-                        if (f_ice(i,jm2) .eq. 1.0) then
+                        ! Faces jm2 and jm1 border cell jm1 (see x-direction)
+                        if (f_ice(i,jm1) .eq. 1.0) then
                             jvel%dyy(i,j,k) = (1.0*uy(i,jm2,k)-4.0*uy(i,jm1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,j,k)-uy(i,jm1,k))/dy

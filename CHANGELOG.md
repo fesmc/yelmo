@@ -7,6 +7,38 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Mirror-symmetric one-sided strain rates at ice fronts** (`calc_jacobian_vel_3D_uxyterms`,
+  `jvel%dxx`/`dyy`). At a front with ice on the low-index side, the second-order
+  one-sided stencil on the faces i, i-1, i-2 tested `f_ice` of cell i-2 instead of
+  cell i-1 (the cell between faces i-2 and i-1), unlike the mirror case and
+  `calc_strain_rate_horizontal_2D`. The strain rates, viscosity and principal stresses
+  near fronts were not mirror symmetric; in the ISLAND4 benchmark this switched the
+  calving rate at single front cells (in double precision, symmetry error 3e-6 → <1e-13
+  over 100 yr).
+
+- **Ice thinner than 1 mm is ice free for the subgrid front scheme** (`H_ice_eps` in
+  `calc_ice_fraction` and `calc_front_cells`, was `H_ice > 0`). A cell holding a round-off
+  amount of ice became a front cell with the full reference thickness (`H_eff >=
+  front_H_eff_min`), so the front force jumped by one cell on round-off and broke the
+  symmetry of the ISLAND4 benchmark (CISM uses `thck > eps11` for the same masks, in double
+  precision). CalvingMIP Exp1, MISMIP+ Ice0, MISMIP3D Stnd and A2: unchanged (volume
+  differences <= 2e-5).
+
+- **No shear stress at ice-margin corners in the SSA solvers** (`stagger_visc_aa_ab`,
+  both assemblers). The corner viscosity was the mean over the ice-covered cells around
+  the corner, so corners on a calving front coupled the front faces to the u = 0 faces of
+  the ice-free cells: a drag on the velocity along the front. It is now the mean over the
+  four cells when all are fully ice covered, and zero otherwise (traction-free margin).
+  Found with benchmark A2 (radial floating shelf, docs/dev/benchmark-protocol): rms error
+  44 % (energy) / 15 % (residual) → 0.07 %. CalvingMIP Exp1 (25 km, 10 kyr): grounding-line
+  radius 573 → 539 km, axis-to-diagonal spread 39 → 28 km (no orientation trend), volume
+  −15 %. TROUGH-F17: volume −1.5 %, max speed 971 → 781 m/yr. MISMIP+ Ice0 and MISMIP3D
+  Stnd unchanged (straight fronts).
+
+- **`ytherm.use_strain_sia` replaced by `ytherm.strain_heating = "full" | "sia" | "none"`**
+  (default `"full"`, same as `use_strain_sia = False`). `"none"` switches strain heating
+  off, which the analytic thermodynamics benchmarks need. Par files using
+  `use_strain_sia` must be updated (all files in `par/` are).
 - **`yelmo.pc_eps` default 1.0 → 0.02** (input/yelmo_defaults.nml, par/yelmo_initmip.nml).
   With the RMS pc norm, pc_eta stays at 1e-3 - 5e-2 in GRL/ANT runs, so pc_eps >= 0.2 never
   limited dt; 0.02 removes the 8-km outlet checkerboard (GRL-8: 0 persistent cells) and lets
@@ -660,6 +692,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- New module `yelmo_remapping` (`src/yelmo_remapping.f90`, re-exported by `use yelmo`):
+  `yelmo_remap` (2D: horizontal with a coords map; 3D: vertical interpolation onto a
+  Yelmo axis, then horizontal), `yelmo_load_map` (map from a file's axes; replaces
+  `yelmo_restart_load_map` in the restart reader) and `yelmo_read_remap` (read and map a
+  2D or 3D field from NetCDF). See docs/remapping.md.
+- `yelmo_init_state(..., thrm_method="prescribed", T_ice=T_ice)`: initial ice temperature
+  from an external field on the Yelmo grid, capped at the pressure melting point, with
+  the consistent enthalpy.
 - `yelmo_opt.x` (`tests/yelmo_opt.f90`, `make opt`, runme alias `opt`) removed:
   basal friction optimization is the initmip spin-up option
   `ctrl.equil_method = "opt"`.

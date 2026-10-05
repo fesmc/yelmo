@@ -1011,6 +1011,15 @@ contains
 ! === INTERNAL ROUTINES ==== 
 
     subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,boundaries)
+        ! Stagger the (depth-integrated) viscosity from cell centres to the
+        ! corners (ab-nodes), where it multiplies the shear strain rate.
+        ! The corner value is the mean over the four surrounding cells when
+        ! all of them are fully ice covered, and zero otherwise. A corner
+        ! touching an ice-free or partially covered cell lies on the ice
+        ! margin, which is traction free: there is no shear stress along the
+        ! front. A nonzero value there couples the front faces to the u = 0
+        ! faces of the ice-free cells and acts as a drag on the velocity along
+        ! the front (benchmark A2, docs/dev/benchmark-protocol).
 
         implicit none 
 
@@ -1020,7 +1029,7 @@ contains
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: i, j, k
+        integer :: i, j
         integer :: im1, ip1, jm1, jp1 
         integer :: nx, ny 
         integer :: BC
@@ -1031,41 +1040,19 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Initialisation
-        visc_ab = 0.0_wp 
-
-        ! Stagger viscosity only using contributions from neighbors that have ice  
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            visc_ab(i,j) = 0.0_wp
-            k=0
-
-            if (f_ice(i,j) .eq. 1.0_wp) then
-                k = k+1                              ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,j)
+            if (f_ice(i,j)   .eq. 1.0_wp .and. f_ice(ip1,j)   .eq. 1.0_wp .and. &
+                f_ice(i,jp1) .eq. 1.0_wp .and. f_ice(ip1,jp1) .eq. 1.0_wp) then
+                visc_ab(i,j) = 0.25_wp*(visc(i,j)+visc(ip1,j)+visc(i,jp1)+visc(ip1,jp1))
+            else
+                visc_ab(i,j) = 0.0_wp
             end if
-
-            if (f_ice(ip1,j) .eq. 1.0_wp) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,j)
-            end if
-
-            if (f_ice(i,jp1) .eq. 1.0_wp) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,jp1)
-            end if
-
-            if (f_ice(ip1,jp1) .eq. 1.0_wp) then
-                k = k+1                                      ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,jp1)
-            end if
-
-            if (k .gt. 0) visc_ab(i,j) = visc_ab(i,j)/real(k,wp)
 
         end do
         end do

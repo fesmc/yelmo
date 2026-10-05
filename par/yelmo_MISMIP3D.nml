@@ -265,7 +265,7 @@
     advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
     gamma           = 1.0               ! [K] Scalar for the pressure melting point decay function 
-    use_strain_sia  = False             ! True: calculate strain heating from SIA approx.
+    strain_heating  = "full"          ! "full": from 3D viscosity and strain rate, "sia": SIA approx., "none": no strain heating
     use_const_cp    = True              ! Use specified constant value of heat capacity?
     const_cp        = 2009.0            ! [J kg-1 K-1] Specific heat capacity 
     use_const_kt    = True              ! Use specified constant value of heat conductivity?

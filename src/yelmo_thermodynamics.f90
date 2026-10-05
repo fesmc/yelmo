@@ -106,20 +106,27 @@ contains
         
         ! Calculate internal strain heating
 
-        if (thrm%par%use_strain_sia) then 
-            ! Calculate strain heating from SIA approximation
+        select case(trim(thrm%par%strain_heating))
 
-            call calc_strain_heating_sia(thrm%now%Q_strn,dyn%now%ux,dyn%now%uy,tpo%now%dzsdx,tpo%now%dzsdy, &
-                                      thrm%now%cp,tpo%now%H_ice_dyn,bnd%c%rho_ice,bnd%c%g,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac, &
-                                      thrm%par%dt_beta(1),thrm%par%dt_beta(2))
-        
-        else
-            ! Calculate strain heating from strain rate tensor and viscosity (general approach)
-            
-            call calc_strain_heating(thrm%now%Q_strn,mat%now%strn%de,mat%now%visc,thrm%now%cp,bnd%c%rho_ice, &
+            case("full")
+                ! Calculate strain heating from strain rate tensor and viscosity (general approach)
+
+                call calc_strain_heating(thrm%now%Q_strn,mat%now%strn%de,mat%now%visc,thrm%now%cp,bnd%c%rho_ice, &
                                                                         thrm%par%dt_beta(1),thrm%par%dt_beta(2))
 
-        end if 
+            case("sia")
+                ! Calculate strain heating from SIA approximation
+
+                call calc_strain_heating_sia(thrm%now%Q_strn,dyn%now%ux,dyn%now%uy,tpo%now%dzsdx,tpo%now%dzsdy, &
+                                      thrm%now%cp,tpo%now%H_ice_dyn,bnd%c%rho_ice,bnd%c%g,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac, &
+                                      thrm%par%dt_beta(1),thrm%par%dt_beta(2))
+
+            case("none")
+                ! No internal strain heating
+
+                thrm%now%Q_strn = 0.0_wp
+
+        end select
         
         ! Diagnose rate of change of strain heating w.r.t. temperature (dQsdT)
         if (calculate_Q_strn_derivative) then
@@ -237,6 +244,13 @@ contains
 
                 case("fixed") 
                     ! Pass - do nothing, use the enth/temp/omega fields as they are defined
+
+                case("prescribed")
+                    ! T_ice has been set externally (yelmo_init_state only):
+                    ! cap at the melting point, omega = 0, consistent enthalpy
+
+                    call define_temp_prescribed_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp, &
+                                                   bnd%c%L_ice,enth_integral=thrm%par%enth_integral)
 
                 case DEFAULT 
 
@@ -746,7 +760,7 @@ end if
         call nml_read(filename,group,"advecxy_cfl",     par%advecxy_cfl,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"advecxy_nmax",    par%advecxy_nmax,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"gamma",          par%gamma,            init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
-        call nml_read(filename,group,"use_strain_sia", par%use_strain_sia,   init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call nml_read(filename,group,"strain_heating", par%strain_heating,   init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"use_const_cp",   par%use_const_cp,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"const_cp",       par%const_cp,         init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"use_const_kt",   par%use_const_kt,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
@@ -811,6 +825,7 @@ end if
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
         call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
+        call yelmo_check_enum(group,"strain_heating",  par%strain_heating,  "full|sia|none")
 
         if (par%nzr_aa .lt. 2) then
             write(io_unit_err,*) "ytherm_par_load:: error: nzr_aa must be >= 2; got ", par%nzr_aa

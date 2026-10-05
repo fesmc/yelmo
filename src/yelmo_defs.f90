@@ -792,7 +792,7 @@ module yelmo_defs
         integer             :: nzr_aa    ! Number of vertical points in bedrock (layer centers, plus base and surface)
         integer             :: nzr_ac    ! Number of vertical points in bedrock (layer boundaries)
         real(wp)            :: gamma  
-        logical             :: use_strain_sia 
+        character(len=56)   :: strain_heating   ! "full" | "sia" | "none"
         logical             :: use_const_cp 
         real(wp)            :: const_cp 
         logical             :: use_const_kt 

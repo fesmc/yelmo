@@ -165,7 +165,7 @@ Compile Yelmo as a static library:
 
 ```bash
 make clean    # This step is very important to avoid errors!!
-make yelmo-static [debug=1] [openmp=1]
+make yelmo-static [debug=1] [openmp=0]
 ```
 
 This compiles the static libraries of FastHydrology, elsa and tracer, then all
@@ -201,8 +201,8 @@ make initmip       # libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP
 
 `make usage` lists all targets. The option `debug=1` compiles with debugging
 flags (e.g., `make benchmarks debug=1`); the code then runs much slower, so this
-option is not recommended unless necessary. The option `openmp=1` compiles with
-OpenMP.
+option is not recommended unless necessary. Yelmo is compiled with OpenMP by
+default; `openmp=0` compiles without it.
 
 ### 2. Run the model
 

@@ -11,9 +11,10 @@ module yelmo_io
     
     use variable_io
     use interp2D
-    use coords, only : grid_class, grid_init
-    use mapping,     only : map_class, map_read, map_init
+    use coords, only : grid_class
+    use mapping,     only : map_class, map_read
     use ncio_interp, only : nc_read_interp
+    use yelmo_remapping, only : yelmo_load_map
 
     implicit none
 
@@ -588,7 +589,7 @@ contains
             ! Restart grid is different than Yelmo grid 
 
             ! Build the source->target conservative map (cdo file or in-package)
-            call yelmo_restart_load_map(mp,grd,filename,restart_grid_name)
+            call yelmo_load_map(mp,grd,filename,restart_grid_name,gen=restart_interp_gen)
 
             ! Load the data with interpolation
             call yelmo_restart_read_topo_bnd_internal(tpo,bnd,tme,filename,time,mp)
@@ -657,7 +658,7 @@ contains
             ! Restart grid is different than Yelmo grid 
 
             ! Build the source->target conservative map (cdo file or in-package)
-            call yelmo_restart_load_map(mp,dom%grd,filename,restart_grid_name)
+            call yelmo_load_map(mp,dom%grd,filename,restart_grid_name,gen=restart_interp_gen)
 
             call yelmo_restart_read_internal(dom,filename,time,mp)
 
@@ -666,70 +667,6 @@ contains
         return
 
     end subroutine yelmo_restart_read
-
-    subroutine yelmo_restart_load_map(mp,grd,filename,restart_grid_name)
-        ! Build the conservative source(restart)->target(model) map used to
-        ! interpolate a restart file onto a different-resolution grid. The
-        ! generator is selected by the module switch `restart_interp_gen`:
-        !   "cdo"    - load a pre-generated cdo SCRIP map from maps/.
-        !   "coords" - generate the conservative weights in-package via map_init,
-        !              with no cdo dependency and no map file. Source and target
-        !              share the model projection (same domain), so the source
-        !              grid is built from the restart file's axes plus the model
-        !              grid's projection parameters.
-
-        implicit none
-
-        type(map_class),   intent(OUT) :: mp
-        type(grid_class),  intent(IN)  :: grd                 ! target (model) grid
-        character(len=*),  intent(IN)  :: filename            ! restart file
-        character(len=*),  intent(IN)  :: restart_grid_name   ! source grid name
-
-        ! Local variables
-        type(grid_class)      :: grid_src
-        real(wp), allocatable :: xc_src(:), yc_src(:)
-        character(len=56)     :: units
-        integer               :: nx_src, ny_src
-
-        select case(trim(restart_interp_gen))
-
-            case("cdo")
-                ! Load a pre-generated cdo SCRIP map (made offline with cdo).
-                call map_read(mp,restart_grid_name,grd%name,"maps","con")
-                write(*,*) "Loaded con SCRIP map (cdo): "//trim(restart_grid_name)//" => "//trim(grd%name)
-
-            case("coords")
-                ! Read the source grid axes from the restart file (units -> [m])
-                nx_src = nc_size(filename,"xc")
-                ny_src = nc_size(filename,"yc")
-                allocate(xc_src(nx_src),yc_src(ny_src))
-                call nc_read(filename,"xc",xc_src)
-                call nc_read(filename,"yc",yc_src)
-                call nc_read_attr(filename,"xc","units",units)
-                if (trim(units) .eq. "kilometers" .or. trim(units) .eq. "km") then
-                    xc_src = xc_src*1e3
-                    yc_src = yc_src*1e3
-                end if
-
-                ! Source grid inherits the model grid's projection; only the
-                ! axes differ. The model grid (grd) is already the target.
-                call grid_init(grid_src,grd,name=restart_grid_name, &
-                               x=real(xc_src,dp),y=real(yc_src,dp))
-
-                call map_init(mp,grid_src,grd,method="con",gen="coords")
-                write(*,*) "Generated con coords map (in-package): " &
-                            //trim(restart_grid_name)//" => "//trim(grd%name)
-
-            case default
-                write(*,*) "yelmo_restart_load_map:: Error: unknown restart_interp_gen '" &
-                            //trim(restart_interp_gen)//"'. Expected 'cdo' or 'coords'."
-                error stop 1
-
-        end select
-
-        return
-
-    end subroutine yelmo_restart_load_map
 
     subroutine yelmo_restart_read_topo_bnd_internal(tpo,bnd,tme,filename,time,mp)
         ! Load yelmo variables from restart file: [tpo]
