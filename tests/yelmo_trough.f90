@@ -11,7 +11,6 @@ program yelmo_trough
     use lsf_module, only : LSFinit
     use timestepping
     use yelmo_tools, only : integrate_trapezoid1D_pt
-    use thermodynamics, only : convert_to_enthalpy_ice
     use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
@@ -50,6 +49,7 @@ program yelmo_trough
     real(wp), allocatable :: tau_c_ref(:,:)
     real(wp), allocatable :: H_init(:,:)            ! [m] Analytic initial ice thickness
     real(wp), allocatable :: z_srf_init(:,:)        ! [m] Analytic initial surface elevation
+    real(wp), allocatable :: T_state(:,:,:)         ! [K] Initial ice temperature from state_file
 
     real(wp) :: xmax, ymin, ymax, x0, y0 
     integer  :: i, j, nx, ny 
@@ -320,7 +320,7 @@ program yelmo_trough
             end if
 
             ! Optionally take the bed and ice thickness of a state from file (same grid);
-            ! T_ice and hyd_W_til are set after yelmo_init_state below
+            ! T_ice is prescribed in yelmo_init_state, hyd_W_til is set after it below
             if (trim(state_file) .ne. "None") then
                 call nc_read(state_file,"z_bed",yelmo1%bnd%z_bed)
                 call nc_read(state_file,"H_ice",H_init)
@@ -381,18 +381,17 @@ program yelmo_trough
     end if
 
     ! Initialize the yelmo state (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=thrm_init)
-
-    ! Optionally impose the ice temperature and till water of a state from file
-    ! (cold ice, omega = 0; with ytherm.method = "fixed" and ytopo.topo_fixed, the
-    ! following steps only update the material, hydrology and dynamics)
     if (trim(state_file) .ne. "None") then
-        call nc_read(state_file,"T_ice",yelmo1%thrm%now%T_ice)
-        yelmo1%thrm%now%omega = 0.0_wp
-        call convert_to_enthalpy_ice(yelmo1%thrm%now%enth,yelmo1%thrm%now%T_ice,yelmo1%thrm%now%omega, &
-                                     yelmo1%thrm%now%T_pmp,yelmo1%bnd%c%L_ice,yelmo1%thrm%par%enth_integral)
+        ! Ice temperature and till water of a state from file (with ytherm.method = "fixed"
+        ! and ytopo.topo_fixed, the following steps only update the material, hydrology
+        ! and dynamics)
+        allocate(T_state, mold=yelmo1%thrm%now%T_ice)
+        call nc_read(state_file,"T_ice",T_state)
+        call yelmo_init_state(yelmo1,time=ts%time,thrm_method="prescribed",T_ice=T_state)
         call nc_read(state_file,"hyd_W_til",yelmo1%hyd%now%W_til)
         write(*,*) "TROUGH-F17: T_ice and hyd_W_til read from ", trim(state_file)
+    else
+        call yelmo_init_state(yelmo1,time=ts%time,thrm_method=thrm_init)
     end if
 
     ! Write initial state 
