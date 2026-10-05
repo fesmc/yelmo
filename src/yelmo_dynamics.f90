@@ -267,6 +267,11 @@ contains
                 call calc_uz_3D_jac(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,dyn%now%jvel,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                                     tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c, &
                                     dzbdy_c,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
+            case(4)     ! "uz_flux" == layer mass budget closed against the applied thickness step
+                call calc_uz_3D_flux(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,dyn%now%ux_bar,dyn%now%uy_bar, &
+                                    tpo%now%H_ice,tpo%now%f_ice_dyn,bnd%smb,tpo%now%bmb,tpo%now%dHidt_dyn,tpo%now%mask_kin, &
+                                    tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c,dzbdy_c, &
+                                    dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
             case DEFAULT
                 write(io_unit_err,*) "Error: calc_ydyn:: vertical velocity integration method not recognized."
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method

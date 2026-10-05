@@ -550,8 +550,8 @@ end if
         ! conditions of the vertical velocity: vertical column change plus the
         ! bedrock and sea-level rates (no vertical change when the ice is not advanced)
         if (topo_fixed .or. dt .le. 0.0) tpo%now%dHidt_vert = 0.0_wp
-        call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%dHidt_vert, &
-                    tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
+        call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%mask_kin,tpo%now%dHidt_vert, &
+                    (.not. topo_fixed .and. dt .gt. 0.0),tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
                     tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! When the ice is not advanced this step -- initialization (pc_step="none")
@@ -1834,6 +1834,7 @@ end if
         allocate(now%dHidt_vert(nx,ny))
         allocate(now%dzsdt_kin(nx,ny))
         allocate(now%dzbdt_kin(nx,ny))
+        allocate(now%mask_kin(nx,ny))
         allocate(now%H_ice_n(nx,ny))
         allocate(now%H_ice_dyn_n(nx,ny))
         allocate(now%z_srf_n(nx,ny))
@@ -1932,6 +1933,7 @@ end if
         now%dHidt_vert      = 0.0
         now%dzsdt_kin       = 0.0
         now%dzbdt_kin       = 0.0
+        now%mask_kin        = 0
         now%H_ice_n     = 0.0
         now%H_ice_dyn_n = 0.0
         now%z_srf_n     = 0.0
@@ -2050,6 +2052,7 @@ end if
         if (allocated(now%dHidt_vert))      deallocate(now%dHidt_vert)
         if (allocated(now%dzsdt_kin))       deallocate(now%dzsdt_kin)
         if (allocated(now%dzbdt_kin))       deallocate(now%dzbdt_kin)
+        if (allocated(now%mask_kin))        deallocate(now%mask_kin)
         if (allocated(now%H_ice_n))     deallocate(now%H_ice_n)
         if (allocated(now%H_ice_dyn_n)) deallocate(now%H_ice_dyn_n)
         if (allocated(now%z_srf_n))     deallocate(now%z_srf_n)

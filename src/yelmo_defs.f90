@@ -277,6 +277,7 @@ module yelmo_defs
         real(wp), allocatable   :: dHidt_vert(:,:)  ! [m/a] Vertical thickness change of the ice column (advection, smb, bmb, relaxation)
         real(wp), allocatable   :: dzsdt_kin(:,:)   ! [m/a] Kinematic rate of the column surface (vertical-velocity boundary condition)
         real(wp), allocatable   :: dzbdt_kin(:,:)   ! [m/a] Kinematic rate of the column base (vertical-velocity boundary condition)
+        integer,  allocatable   :: mask_kin(:,:)    ! 1: column rate given by the applied thickness step (dHidt_vert), 0: otherwise
 
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
