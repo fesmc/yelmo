@@ -231,6 +231,8 @@ Fixtures are written to `input/bench/` (not tracked), which runme links into eve
 
 ### Status
 
+The ISLAND4 fixture holds the initial ice temperature (`T_ice` on 51 uniform ζ levels) from the stationary column solution of IceColumnSolutions.jl, with w0 = max(SMB, 0) for grounded columns and a linear profile from T_shlf for floating columns. The driver maps it onto the Yelmo levels with `yelmo_read_remap` and initializes with `thrm_method = "prescribed"`.
+
 First A3 run (2026-10-05, ISLAND4, 16 km, Vialov thickness, Robin temperature):
 
 - H_ice and z_srf are exactly D4-symmetric, and the velocity components are symmetric to ~1e-7, which is the precision of the single-precision output.
@@ -241,7 +243,8 @@ First A2 run (2026-10-05, 10 km, H = 400 m, R_s = 300 km, A = 1e-18, β_reg = 1e
 
 - The velocity is D4-symmetric to output precision, but does not reproduce the analytical solution. With the default energy assembler, the interior speed is ~13–33 % of the exact value (rms error 44 %); with `ssa_solver = "residual"` the rms error is ~15 %. DIVA and SSA give the same result.
 - The viscosity agrees with Glen's law for the simulated strain rates, so A and n are applied correctly. The membrane stress N_rr diagnosed from the output is ~1.2 H S near the front and ~0.5 H S at the centre, which implies a distributed resistance of ~190 Pa inside the shelf (β_reg u is ~0.1 Pa).
-- The result does not change with `front_subgrid`, with a linear-solver tolerance of 1e-10, or with `ssa_lat_bc` ("all", "floating", "marine", "none") for the energy assembler. Under investigation.
+- The result does not change with `front_subgrid`, with a linear-solver tolerance of 1e-10, or with `ssa_lat_bc` ("all", "floating", "marine", "none") for the energy assembler.
+- Cause: the corner (shear) viscosity on the ice margin coupled the front faces to the u = 0 faces of the ice-free cells, a drag on the velocity along the front. With zero corner viscosity on the margin (dev eb2879de), both assemblers match the analytical solution to ~0.07 % (rms).
 
 ### Model changes
 
@@ -250,12 +253,10 @@ First A2 run (2026-10-05, 10 km, H = 400 m, R_s = 300 km, A = 1e-18, β_reg = 1e
 
 ## Open items
 
-1. **Initial temperature for A3, B1 and C0.** The driver uses the Yelmo Robin initialization. The column solution of IceColumnSolutions.jl, read from the fixture, is still to be added.
-2. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied.
-3. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
-4. **Fully floating domain for A2.** Whether Yelmo accepts a domain without grounded ice and a uniform friction β_reg on floating ice. To be checked when A2 is implemented.
-5. **ISLAND4 parameters.** Tuning of r_ela, Ω and the trough geometry in the first C0 runs.
-6. **Pass thresholds.** To be set after the first round of runs.
+1. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
+2. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
+3. **ISLAND4 parameters.** Tuning of r_ela, Ω and the trough geometry in the first C0 runs.
+4. **Pass thresholds.** To be set after the first round of runs.
 
 ## Scripts and figures
 

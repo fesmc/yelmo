@@ -219,11 +219,20 @@ function state(b::Island4Benchmark, t::Real)
     T_srf    = island4_tsrf.(z_srf)
     bmb_shlf = island4_bmb.(H_ice, z_bed, z_sl)
 
-    return (xc = b.xc, yc = b.yc,
+    # Initial ice temperature (stationary column solution)
+    zeta  = collect(range(0.0, 1.0; length = 51))
+    flt   = H_ice .* 910.0 ./ 1028.0 .< z_sl .- z_bed
+    T_ice = zeros(Nx, Ny, length(zeta))
+    for j in 1:Ny, i in 1:Nx
+        T_ice[i, j, :] = column_temperature(zeta, H_ice[i, j], T_srf[i, j], smb[i, j], b.Q_geo;
+                                            floating = flt[i, j], T_shlf = b.T_shlf)
+    end
+
+    return (xc = b.xc, yc = b.yc, zeta = zeta,
             H_ice = H_ice, z_bed = z_bed, z_sl = z_sl,
             smb_ref = smb, T_srf = T_srf, Q_geo = fill(b.Q_geo, Nx, Ny),
             bmb_shlf = bmb_shlf, T_shlf = fill(b.T_shlf, Nx, Ny),
-            H_sed = zeros(Nx, Ny), mask_ice = mask_ice)
+            H_sed = zeros(Nx, Ny), mask_ice = mask_ice, T_ice = T_ice)
 end
 
 """
@@ -240,6 +249,6 @@ function write_fixture!(b::Island4Benchmark, path::AbstractString;
     attrs = Dict("benchmark" => island4_name(b), "exp" => String(b.exp),
                  "dx_km" => b.dx_km, "B_od" => b.B_od, "rot" => b.rot,
                  "init" => String(b.init))
-    write_fixture_nc(path, s, FIELDS_2D; attrs)
+    write_fixture_nc(path, s, FIELDS_2D; fields3D = FIELDS_3D, attrs)
     return [path]
 end

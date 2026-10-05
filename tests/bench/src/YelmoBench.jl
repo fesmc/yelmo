@@ -6,6 +6,7 @@ module YelmoBench
 # `state` and `write_fixture!`), so that they can move there unchanged.
 
 using NCDatasets
+using IceColumnSolutions: IceColumnPar, solve_stationary
 using IceSheetBenchmarks: AbstractBenchmark
 import IceSheetBenchmarks: state, write_fixture!, analytical_velocity
 
@@ -25,13 +26,19 @@ const FIELDS_2D = (
     ("mask_ice", "1",       "Ice mask (0: no ice, 1: fixed, 2: dynamic)"),
 )
 
+# Optional 3D fixture fields on the levels zeta (0 at the base, 1 at the surface)
+const FIELDS_3D = (
+    ("T_ice", "K", "Ice temperature"),
+)
+
 """
-    write_fixture_nc(path, s, fields; attrs = Dict())
+    write_fixture_nc(path, s, fields; fields3D = (), attrs = Dict())
 
 Write the 2D fields `fields` of the state NamedTuple `s` to a NetCDF fixture
-with axes xc, yc in km. Integer fields (mask_ice) are written as Int32.
+with axes xc, yc in km. Integer fields (mask_ice) are written as Int32. The 3D
+fields `fields3D` are written on the levels `s.zeta`.
 """
-function write_fixture_nc(path::AbstractString, s, fields; attrs = Dict())
+function write_fixture_nc(path::AbstractString, s, fields; fields3D = (), attrs = Dict())
     mkpath(dirname(abspath(path)))
     isfile(path) && rm(path)
     NCDataset(path, "c") do ds
@@ -47,6 +54,17 @@ function write_fixture_nc(path::AbstractString, s, fields; attrs = Dict())
             v.attrib["units"]     = units
             v.attrib["long_name"] = longname
         end
+        if !isempty(fields3D)
+            defDim(ds, "zeta", length(s.zeta))
+            zv = defVar(ds, "zeta", Float64, ("zeta",)); zv[:] = s.zeta; zv.attrib["units"] = "1"
+            zv.attrib["long_name"] = "Normalized height (0: base, 1: surface)"
+            for (name, units, longname) in fields3D
+                v = defVar(ds, name, Float64, ("xc", "yc", "zeta"))
+                v[:, :, :] = getproperty(s, Symbol(name))
+                v.attrib["units"]     = units
+                v.attrib["long_name"] = longname
+            end
+        end
         for (k, v) in attrs
             ds.attrib[k] = v
         end
@@ -54,6 +72,7 @@ function write_fixture_nc(path::AbstractString, s, fields; attrs = Dict())
     return path
 end
 
+include("column.jl")
 include("island4.jl")
 include("shelf.jl")
 include("symmetry.jl")

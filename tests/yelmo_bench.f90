@@ -6,6 +6,8 @@ program yelmo_bench
     ! boundary fields and the initial ice thickness, and runs Yelmo with the
     ! parameters of the parameter file. Forcing that depends on the evolving
     ! state is computed online (tests/bench_forcing.f90), selected in &bench.
+    ! An optional fixture field T_ice (on its own zeta levels) sets the
+    ! initial ice temperature.
     ! A run with time_end = time_init is diagnostic: it writes the initial
     ! state, including the initial velocity solution, and stops.
 
@@ -44,6 +46,7 @@ program yelmo_bench
     character(len=56)  :: domain, grid_name
     real(wp), allocatable :: xc(:), yc(:)
     integer,  allocatable :: mask_ice(:,:)
+    real(wp), allocatable :: T_ice(:,:,:)
     real(wp) :: time
     integer  :: n, nx, ny
 
@@ -116,8 +119,16 @@ program yelmo_bench
     call yelmo_print_bound(yelmo1%bnd)
 
     ! The fixture holds the online forcing evaluated on the initial geometry
-    ! (Julia counterparts), which initializes the thermodynamics.
-    call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="robin")
+    ! (Julia counterparts), which initializes the thermodynamics. The initial
+    ! ice temperature comes from the fixture if it holds T_ice (mapped onto
+    ! the Yelmo vertical grid), otherwise from the Robin solution.
+    if (nc_exists_var(bch%fixture,"T_ice")) then
+        allocate(T_ice(nx,ny,size(yelmo1%thrm%par%z%zeta_aa)))
+        call yelmo_read_remap(T_ice,yelmo1%grd,bch%fixture,"T_ice",yelmo1%thrm%par%z%zeta_aa,"zeta")
+        call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="prescribed",T_ice=T_ice)
+    else
+        call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="robin")
+    end if
 
     ! Compare the online forcing with the fixture values (fresh start only)
     if (.not. yelmo1%par%use_restart) call bench_check_forcing(yelmo1,bch)
