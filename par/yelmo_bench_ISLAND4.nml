@@ -17,9 +17,9 @@
     bmb_method      = "mismip+"         ! "fixed" | "mismip+"
     T_sl            = -10.0             ! [degC] lapse: temperature at sea level
     lapse           = 8e-3              ! [K m-1] lapse: lapse rate
-    Omega           = 0.2               ! [yr-1] mismip+: melt-rate factor
+    Omega           = 0.01              ! [yr-1] mismip+: melt-rate factor
     Hc0             = 75.0              ! [m] mismip+: water-column scale
-    z0              = -100.0            ! [m] mismip+: depth above which melt is zero
+    z0              = -200.0            ! [m] mismip+: depth above which melt is zero
 /
 
 &yelmo

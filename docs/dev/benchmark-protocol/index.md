@@ -1,6 +1,6 @@
 # Yelmo benchmark protocol (draft)
 
-*Status: draft for iteration, 2026-10-04. Nothing here is implemented yet unless marked "exists".*
+*Status: draft for iteration, 2026-10-05. Nothing here is implemented yet unless marked "exists".*
 
 ## Purpose
 
@@ -130,7 +130,7 @@ where (ξ_k, η_k) are the coordinates along and across the k-th diagonal, and T
 | r_od | 350 km | Radius of the deepest point of the overdeepening |
 | w_od | 60 km | Half-width of the overdeepening |
 
-The island forms a four-pointed star (Fig. 1a). The coast reaches r ≈ 556 km along the axes and r ≈ 278 km along the diagonals. The peninsulas carry land-terminating margins, while ice in the troughs grounds below sea level and feeds the shelves in the embayments. The wide opening angle gives smooth, concave coastlines, so that the geometry does not favor the onset of instabilities. With B_od = 0, the trough beds deepen monotonically seaward, so the steady state is unique, which a regression test needs. Setting B_od > 0 adds an overdeepening with a retrograde bed between r ≈ 360 and 448 km (Fig. 1b, d), which tests marine ice-sheet instability. A single parameter thus switches the instability test on and off.
+The island forms a four-pointed star (Fig. 1a). The coast reaches r ≈ 556 km along the axes and r ≈ 278 km along the diagonals. Ice in the troughs grounds below sea level and feeds the shelves. With the control forcing, the ice also grounds beyond the coast of the peninsulas, so a continuous shelf surrounds the island out to r_lim. Land-terminating margins are therefore tested in ISLAND4-L (B1). The wide opening angle gives smooth, concave coastlines, so that the geometry does not favor the onset of instabilities. With B_od = 0, the trough beds deepen monotonically seaward, so the steady state is unique, which a regression test needs. Setting B_od > 0 adds an overdeepening with a retrograde bed between r ≈ 360 and 448 km (Fig. 1b, d), which tests marine ice-sheet instability. A single parameter thus switches the instability test on and off.
 
 Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1c). The base profile and the forcing are radial, so ISLAND4-R has the same solution as ISLAND4 in the continuum, rotated by 45°. Differences between the two runs measure the dependence of the discrete solution on grid orientation.
 
@@ -140,14 +140,14 @@ Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1
 
 The forcing is radial or depends on the local state only, so it preserves the D4 symmetry. Fixed fields are generated in Julia with the geometry. Forcing that depends on the evolving ice geometry is computed during the run by a Fortran function in the driver. Each online function has a Julia counterpart, so that the forcing written by the model can be checked against the specification.
 
-- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 450 km. Ablation beyond r_ela makes the peninsula margins land-terminating. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
+- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 650 km (450 km for ISLAND4-L). For a linear profile, the net SMB of a disc of radius R vanishes at R = 1.5 r_ela. With r_ela = 650 km, this radius lies beyond r_lim, so the marine margins are set by melt and calving, and the SMB on the shelves stays between about −0.1 and +0.1 m a⁻¹. ISLAND4-L keeps r_ela = 450 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
 - **Surface temperature (online).** T_srf = T_sl − Γ z_s, with T_sl = −10 °C and Γ = 8 K km⁻¹. The temperature follows the evolving surface, which keeps it consistent with the ice geometry. Its feedback on the dynamics acts through the thermodynamics only and is weak.
 - **Geothermal heat flux (fixed).** Q_geo = 50 mW m⁻², uniform.
-- **Sub-shelf melt (online).** The MISMIP+ Ice1 parameterization (Asay-Davis et al., 2016), m = Ω tanh(H_c/H_c0) max(z_0 − z_d, 0), with Ω = 0.2 a⁻¹, H_c0 = 75 m and z_0 = −100 m, where z_d is the depth of the ice base and H_c the water-column thickness. We chose it because it is a community standard, and the tanh term reduces the melt smoothly toward the grounding line.
+- **Sub-shelf melt (online).** The MISMIP+ Ice1 parameterization (Asay-Davis et al., 2016), m = Ω tanh(H_c/H_c0) max(z_0 − z_d, 0), with Ω = 0.01 a⁻¹, H_c0 = 75 m and z_0 = −200 m, where z_d is the depth of the ice base and H_c the water-column thickness. We chose it because it is a community standard, and the tanh term reduces the melt smoothly toward the grounding line. The MISMIP+ values (Ω = 0.2 a⁻¹, z_0 = −100 m) are sized for the ice flux of MISMIP+, and on ISLAND4 they remove about 30 times more ice than the island supplies (about 3e10 m³ a⁻¹ per trough with r_ela = 450 km). The values used here give no melt below shelves thinner than about 225 m, about 1.5 m a⁻¹ below 400 m of ice and about 7 m a⁻¹ at a grounding line 1 km deep.
 - **Calving.** The calving law of the default parameter file, together with a fixed calving mask that removes all ice at r ≥ r_lim = 750 km. The mask keeps ice away from the domain border.
 - **Friction.** The friction law of the default parameter file with spatially uniform parameters.
 
-The parameters r_ela, Ω and the trough geometry will be tuned in the first C0 runs so that all three margin types are present in the steady state.
+The values of r_ela, Ω and z_0 come from a sweep of 5-kyr runs at 32 km (2026-10-05). With the original values (r_ela = 450 km and the MISMIP+ melt), the shelves were about 50–65 m thick on average and ended inside r_lim. With the values above, the shelves reach r_lim, with a mean thickness of about 150 m and about 90 m at the front. Weaker melt or more accumulation increases this only slightly. The shelf thickness is limited by the geometry: beyond the coast the shelves are unconfined and spread under their own weight (strain rate ∝ H^n), so they thin to a few hundred meters within one or two cells of the grounding line. Raising B_l to −840 m extends the peninsulas to about 660 km, but the troughs then form 90° sectors between narrow spurs and give little lateral support (mean shelf thickness about 165 m, about 110 m at the front). We therefore kept B_l = −2000 m. Thin unconfined shelves are the physical solution of this geometry, and they still test the floating momentum balance, calving at r_lim and sub-shelf melt.
 
 ## Tier B: one margin type at a time
 
@@ -176,7 +176,7 @@ Tier C runs the production setup on ISLAND4. It is the main target of the protoc
 - **C2 Perturbations.** 500 yr from the C0 restart.
   - C2a Ocean: Ω × 2.
   - C2b Shelf removal: all floating ice removed at each time step (as in ABUMIP).
-  - C2c Surface: SMB − 0.1 m a⁻¹ everywhere (r_ela moves to 360 km).
+  - C2c Surface: SMB − 0.1 m a⁻¹ everywhere (r_ela moves to 520 km).
   - C2d Reversibility (optional): C2a followed by 500 yr of control forcing.
 
   The references are resolution convergence (32, 16, 8 km) and a regression envelope against the previous model version. The run length of 500 yr will be shortened if the signals become clear earlier.
@@ -252,7 +252,20 @@ Prognostic symmetry (2026-10-05, ISLAND4, 32 km, 20–100 yr). With the default 
 - The Vialov initial state puts up to ~3 km of floating ice in the troughs, with speeds at the velocity limit and fast-moving fronts, which amplify round-off.
 - A cell holding a round-off amount of ice became a front cell with the full reference thickness, so the front force jumped by one cell (fixed with `H_ice_eps = 1 mm`, as CISM's `eps11`).
 
-The ISLAND4 parameter file therefore uses tight solver tolerances (Picard 1e-5, linear 1e-8), and prognostic runs start from `init = :vialov_grounded` (Vialov profile where grounded, no initial floating ice; A3 keeps `init = vialov`). With these, the symmetry error stays at ~1e-5 (H) and ~7e-5 (velocity) over 100 yr with `dtt = 10`, which is round-off growth in single precision. A double-precision build (docs/numerics-precision.md) separates round-off from real asymmetry.
+The ISLAND4 parameter file therefore uses tight solver tolerances (Picard 1e-5, linear 1e-8), and prognostic runs start from `init = :vialov_grounded` (Vialov profile where grounded, no initial floating ice; A3 keeps `init = vialov`). With these, the symmetry error stays at ~1e-5 (H) and ~7e-5 (velocity) over 100 yr with `dtt = 10`, which is round-off growth in single precision.
+
+A double-precision build (docs/numerics-precision.md) separates round-off from real asymmetry: any error above about 1e-12 points to the code. It showed a deterministic asymmetry of about 1e-5 after 100 yr, which was traced through the level-set calving and the principal stress to the 3D strain rates. At a front with ice on the low-index side, the one-sided stencil in `calc_jacobian_vel_3D_uxyterms` tested `f_ice` of cell i−2 instead of i−1, while the mirror case tests i+1 (fixed in dev 987f3a8c). The strain rates near fronts were thus not mirror-symmetric, which switched the calving rate of single front cells.
+
+Symmetry after the fix (2026-10-05, ISLAND4, 32 km, 1 kyr, `dtt = 10`, albedo):
+
+| Run | 100 yr | 300 yr | 500 yr | 1000 yr |
+|---|---|---|---|---|
+| Double, tight tolerances | 3e-14 / 1e-12 | 1e-13 / 6e-13 | 2e-12 / 4e-12 | 6e-13 / 1e-11 |
+| Double, default tolerances | 7e-15 / 7e-14 | 3e-10 / 6e-10 | 4e-11 / 6e-11 | 1e-8 / 7e-8 |
+| Single, tight tolerances | 4e-6 / 4e-5 | 9e-7 / 1e-5 | 6e-3 / 3e-3 | 3e-3 / 0.9 |
+| Single, default tolerances | 4e-7 / 6e-6 | 2e-5 / 1e-4 | 1e-3 / 7e-3 | 3e-2 / 1.0 |
+
+The values are the maximum D4 errors of H and velocity. In double precision the solution stays symmetric to round-off over 1 kyr. In single precision the error stays at round-off level for about 300 yr and then jumps at isolated cells, where round-off differences switch a threshold (front cells, calving) in the thin outer shelf. These runs used the original forcing, so the single-precision test must be repeated with the tuned forcing. The H_ice_eps floor and the Jacobian fix change the final states of CalvingMIP Exp1, MISMIP+, MISMIP3D, TROUGH-F17 and A2 by less than 3e-5 in volume, with identical grounded and floating areas.
 
 ### Model changes
 
@@ -263,8 +276,9 @@ The ISLAND4 parameter file therefore uses tight solver tolerances (Picard 1e-5, 
 
 1. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
 2. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
-3. **ISLAND4 parameters.** Tuning of r_ela, Ω and the trough geometry in the first C0 runs.
-4. **Pass thresholds.** To be set after the first round of runs.
+3. **Symmetry in single precision.** Round-off differences switch front and calving thresholds after about 300 yr. To be repeated with the tuned forcing, and then either accepted with a time-limited criterion or traced to the threshold involved.
+4. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
+5. **Pass thresholds.** To be set after the first round of runs.
 
 ## Scripts and figures
 

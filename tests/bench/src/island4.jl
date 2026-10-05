@@ -14,6 +14,7 @@
 #
 # Forcing:
 #   smb_ref   radial, SMB0 (1 − r/r_ela)                      (fixed)
+#             r_ela = 650 km (ISLAND4), 450 km (ISLAND4-L)
 #   Q_geo     uniform                                          (fixed)
 #   mask_ice  no ice for r ≥ r_lim                             (fixed)
 #   T_srf     lapse rate on the evolving surface               (online)
@@ -51,14 +52,15 @@ function island4_trough(ξ, η; r_h = 250e3, alpha = 120.0, ell = 50e3, D0 = 150
 end
 
 """
-    island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, kw...) -> Float64
+    island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, Bl = -2000.0, kw...) -> Float64
 
 ISLAND4 bed elevation [m] at (x, y) [m]. Troughs lie along the diagonals for
 rot = 0 and along the axes for rot = 45 (ISLAND4-R). `dz` raises the whole bed
-(ISLAND4-L uses dz = 2500 m). Further keywords go to `island4_trough`.
+(ISLAND4-L uses dz = 2500 m). `Bl` is the base-profile elevation at R0 (`island4_base`).
+Further keywords go to `island4_trough`.
 """
-function island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, kw...)
-    z = island4_base(hypot(x, y)) + dz
+function island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, Bl = -2000.0, kw...)
+    z = island4_base(hypot(x, y); Bl) + dz
     for ψ in deg2rad.((45.0, 135.0, 225.0, 315.0) .+ rot)
         ξ =  x * cos(ψ) + y * sin(ψ)
         η = -x * sin(ψ) + y * cos(ψ)
@@ -68,7 +70,7 @@ function island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, kw...)
 end
 
 "Radial surface mass balance [m/a ice eq.]."
-island4_smb(r; smb0 = 0.5, r_ela = 450e3) = smb0 * (1 - r / r_ela)
+island4_smb(r; smb0 = 0.5, r_ela = 650e3) = smb0 * (1 - r / r_ela)
 
 """
     island4_vialov(r; H0 = 3500.0, R_i = 650e3, n = 3) -> Float64
@@ -93,7 +95,7 @@ Mirrors `bench_tsrf_lapse` in tests/bench_forcing.f90.
 island4_tsrf(z_srf; T_sl = -10.0, lapse = 8e-3, T0 = 273.15) = T0 + T_sl - lapse * z_srf
 
 """
-    island4_bmb(H_ice, z_bed, z_sl; rho_ice, rho_sw, Omega = 0.2, Hc0 = 75.0, z0 = -100.0)
+    island4_bmb(H_ice, z_bed, z_sl; rho_ice, rho_sw, Omega = 0.01, Hc0 = 75.0, z0 = -200.0)
 
 Basal mass balance below floating ice [m/a ice eq., negative for melt], from the
 MISMIP+ Ice1 parameterization m = Ω tanh(H_c/H_c0) max(z0 − z_d, 0), where z_d
@@ -102,7 +104,7 @@ grounded ice and ice-free points. Mirrors `bench_bmb_mismipplus` in
 tests/bench_forcing.f90.
 """
 function island4_bmb(H_ice, z_bed, z_sl; rho_ice = 910.0, rho_sw = 1028.0,
-                     Omega = 0.2, Hc0 = 75.0, z0 = -100.0)
+                     Omega = 0.01, Hc0 = 75.0, z0 = -200.0)
     z_d = max(z_bed, z_sl - H_ice * rho_ice / rho_sw)
     H_c = z_d - z_bed
     return -Omega * tanh(H_c / Hc0) * max(z0 - z_d, 0.0)
@@ -124,8 +126,11 @@ use the `:ctrl` fixture.
 Keywords:
   - `dx_km`  grid resolution [km]; the axes are cell-centred on [-800, 800] km.
   - `B_od`   depth of the trough overdeepening [m] (0: off).
+  - `Bl`     base-profile elevation at R0 = 1000 km [m]; sets the coast radius.
   - `rot`    rotation of the troughs [deg]: 0 (diagonals) or 45 (axes, ISLAND4-R).
   - `land`   true: ISLAND4-L, bed raised by 2500 m (B1).
+  - `r_ela`  radius of the equilibrium line [m]; default 650 km, or 450 km for
+             ISLAND4-L, where ablation sets the land margin inside r_lim.
   - `init`   initial thickness: `:vialov_grounded` (Vialov profile where it is
              grounded, no initial floating ice; prognostic runs), `:vialov` (Vialov
              profile everywhere, including thick floating ice; A3) or `:zero`.
@@ -136,6 +141,7 @@ struct Island4Benchmark <: AbstractBenchmark
     yc       ::Vector{Float64}
     dx_km    ::Float64
     B_od     ::Float64
+    Bl       ::Float64
     rot      ::Float64
     land     ::Bool
     init     ::Symbol
@@ -150,11 +156,12 @@ end
 function Island4Benchmark(exp::Symbol = :ctrl;
                           dx_km::Real  = 16.0,
                           B_od::Real   = 0.0,
+                          Bl::Real     = -2000.0,
                           rot::Real    = 0.0,
                           land::Bool   = false,
                           init::Symbol = :vialov_grounded,
                           smb0::Real   = 0.5,
-                          r_ela::Real  = 450e3,
+                          r_ela::Union{Real,Nothing} = nothing,
                           r_lim::Real  = 750e3,
                           Q_geo::Real  = 50.0,
                           T_shlf::Real = 271.15)
@@ -172,8 +179,9 @@ function Island4Benchmark(exp::Symbol = :ctrl;
     xc = collect(range(-extent_m/2 + dx_m/2, extent_m/2 - dx_m/2; length = N))
 
     dsmb = exp == :smb ? -0.1 : 0.0
+    r_ela = something(r_ela, land ? 450e3 : 650e3)
 
-    return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(rot),
+    return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(Bl), Float64(rot),
                             land, init, Float64(smb0), Float64(r_ela), dsmb,
                             Float64(r_lim), Float64(Q_geo), Float64(T_shlf))
 end
@@ -209,7 +217,7 @@ function state(b::Island4Benchmark, t::Real)
     r(i, j)   = hypot(oct(i, j)...)
     dz = b.land ? 2500.0 : 0.0
 
-    z_bed = [island4_bed(oct(i, j)...; B_od = b.B_od, rot = b.rot, dz) for i in 1:Nx, j in 1:Ny]
+    z_bed = [island4_bed(oct(i, j)...; B_od = b.B_od, rot = b.rot, dz, Bl = b.Bl) for i in 1:Nx, j in 1:Ny]
     smb   = [island4_smb(r(i, j); smb0 = b.smb0, r_ela = b.r_ela) + b.dsmb for i in 1:Nx, j in 1:Ny]
     mask_ice = [r(i, j) < b.r_lim ? MASK_ICE_DYNAMIC : MASK_ICE_NONE for i in 1:Nx, j in 1:Ny]
 
@@ -253,7 +261,7 @@ function write_fixture!(b::Island4Benchmark, path::AbstractString;
 
     s = state(b, 0.0)
     attrs = Dict("benchmark" => island4_name(b), "exp" => String(b.exp),
-                 "dx_km" => b.dx_km, "B_od" => b.B_od, "rot" => b.rot,
+                 "dx_km" => b.dx_km, "B_od" => b.B_od, "Bl" => b.Bl, "rot" => b.rot,
                  "init" => String(b.init))
     write_fixture_nc(path, s, FIELDS_2D; fields3D = FIELDS_3D, attrs)
     return [path]

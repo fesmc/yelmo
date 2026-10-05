@@ -15,7 +15,7 @@ mkpath(FIGDIR)
 using YelmoBench: island4_bed, island4_base, island4_smb
 
 const B_od  = 700.0   # [m]  overdeepening used in panels (b), (d), (e)
-const r_ela = 450e3   # [m]  radius of the equilibrium line (SMB = 0)
+const r_ela = 650e3   # [m]  radius of the equilibrium line (SMB = 0), ISLAND4
 const r_lim = 750e3   # [m]  no ice for r >= r_lim
 
 z_bed(x, y; B_od = B_od, rot = 0.0) = island4_bed(x, y; B_od, rot)
