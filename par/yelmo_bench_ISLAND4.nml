@@ -1,0 +1,39 @@
+! Benchmark protocol: ISLAND4 (docs/dev/benchmark-protocol).
+! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
+! Fixture: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/island4-16km.nc island4 dx_km=16
+! All parameters not listed here come from input/yelmo_defaults.nml.
+
+&ctrl
+    time_init       = 0.0               ! [yr] Starting time
+    time_end        = 0.0               ! [yr] Ending time (= time_init: diagnostic, initial state only)
+    dtt             = 10.0              ! [yr] Main loop time step
+    dt2D_out        = 100.0             ! [yr] Frequency of 2D output
+/
+
+&bench
+    fixture         = "input/bench/island4-16km.nc"
+    tsrf_method     = "lapse"           ! "fixed" | "lapse"
+    bmb_method      = "mismip+"         ! "fixed" | "mismip+"
+    T_sl            = -10.0             ! [degC] lapse: temperature at sea level
+    lapse           = 8e-3              ! [K m-1] lapse: lapse rate
+    Omega           = 0.2               ! [yr-1] mismip+: melt-rate factor
+    Hc0             = 75.0              ! [m] mismip+: water-column scale
+    z0              = -100.0            ! [m] mismip+: depth above which melt is zero
+/
+
+&yelmo
+    domain          = "ISLAND4"
+    grid_name       = "ISLAND4-16KM"
+/
+
+&yelmo_masks
+    basins_load     = False
+    regions_load    = False
+/
+
+&yelmo_data
+    pd_topo_load    = False
+    pd_tsrf_load    = False
+    pd_smb_load     = False
+    pd_vel_load     = False
+/

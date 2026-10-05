@@ -217,6 +217,26 @@ The existing slab (A1) and CalvingMIP Exp1 (B3) tests move into the same driver 
 
 Each test is a Julia type that subtypes `AbstractBenchmark` from IceSheetBenchmarks.jl and implements `state(b, t)` and `write_fixture!(b, path)`, e.g., `Island4Benchmark(:ctrl; dx_km = 16, B_od = 0, rot = 0)`. Helper functions for the geometry (`island4_bed`) and the forcing are exported, as for the existing benchmarks. These include the Julia counterparts of the online Fortran forcing functions, which the scorecard applies to the model state to check the forcing written by the model. The code lives in `tests/bench/` as a Julia project that depends on IceSheetBenchmarks.jl. The types can thus move to IceSheetBenchmarks.jl without changes.
 
+### Running
+
+```bash
+make bench
+julia --project=tests/bench -e 'import Pkg; Pkg.instantiate()'
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/island4-16km.nc island4 dx_km=16
+runme -r -e bench -n par/yelmo_bench_ISLAND4.nml -o output/bench/a3-16km
+julia --project=tests/bench tests/bench/check_symmetry.jl output/bench/a3-16km
+```
+
+Fixtures are written to `input/bench/` (not tracked), which runme links into every run directory. Keyword arguments of the benchmark constructor are passed as `key=value` (e.g., `B_od=700`, `rot=45`, `land=true`, `exp=smb`). With `time_end = time_init`, the run is diagnostic (A3). At the start of a fresh run, the driver prints the difference between its online forcing and the fixture values computed by the Julia counterparts. Partially ice-covered front cells are excluded from this check, since Yelmo defines their surface elevation with the effective front thickness.
+
+### Status
+
+First A3 run (2026-10-05, ISLAND4, 16 km, Vialov thickness, Robin temperature):
+
+- H_ice and z_srf are exactly D4-symmetric, and the velocity components are symmetric to ~1e-7, which is the precision of the single-precision output.
+- The online T_srf and bmb_shlf agree with the Julia counterparts to ~3e-5 K and ~2e-4 m a⁻¹ (100 front cells excluded).
+- The initial SSA solve needs 21 Picard iterations, one more than the default `ydyn.ssa_iter_max = 20`.
+
 ### Model changes
 
 - `ytherm.strain_heating = "full" | "sia" | "none"` replaces `ytherm.use_strain_sia` (done). A4 needs strain heating switched off.
@@ -224,9 +244,12 @@ Each test is a Julia type that subtypes `AbstractBenchmark` from IceSheetBenchma
 
 ## Open items
 
-1. **Fully floating domain for A2.** Whether Yelmo accepts a domain without grounded ice and a uniform friction β_reg on floating ice. To be checked when A2 is implemented.
-2. **ISLAND4 parameters.** Tuning of r_ela, Ω and the trough geometry in the first C0 runs.
-3. **Pass thresholds.** To be set after the first round of runs.
+1. **Initial temperature for A3, B1 and C0.** The driver uses the Yelmo Robin initialization. The column solution of IceColumnSolutions.jl, read from the fixture, is still to be added.
+2. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied.
+3. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
+4. **Fully floating domain for A2.** Whether Yelmo accepts a domain without grounded ice and a uniform friction β_reg on floating ice. To be checked when A2 is implemented.
+5. **ISLAND4 parameters.** Tuning of r_ela, Ω and the trough geometry in the first C0 runs.
+6. **Pass thresholds.** To be set after the first round of runs.
 
 ## Scripts and figures
 

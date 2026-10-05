@@ -1,5 +1,6 @@
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 YelmoBench = "5b0c7e8a-3f2d-4c61-9a8e-2d7f1b4c6e90"
 
 [sources]
