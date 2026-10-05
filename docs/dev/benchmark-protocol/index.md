@@ -265,7 +265,7 @@ Symmetry after the fix (2026-10-05, ISLAND4, 32 km, 1 kyr, `dtt = 10`, albedo):
 | Single, tight tolerances | 4e-6 / 4e-5 | 9e-7 / 1e-5 | 6e-3 / 3e-3 | 3e-3 / 0.9 |
 | Single, default tolerances | 4e-7 / 6e-6 | 2e-5 / 1e-4 | 1e-3 / 7e-3 | 3e-2 / 1.0 |
 
-The values are the maximum D4 errors of H and velocity. In double precision the solution stays symmetric to round-off over 1 kyr. In single precision the error stays at round-off level for about 300 yr and then jumps at isolated cells, where round-off differences switch a threshold (front cells, calving) in the thin outer shelf. These runs used the original forcing, so the single-precision test must be repeated with the tuned forcing. The H_ice_eps floor and the Jacobian fix change the final states of CalvingMIP Exp1, MISMIP+, MISMIP3D, TROUGH-F17 and A2 by less than 3e-5 in volume, with identical grounded and floating areas.
+The values are the maximum D4 errors of H and velocity. In double precision the solution stays symmetric to round-off over 1 kyr. In single precision the error stays at round-off level for about 300 yr and then jumps at isolated cells, where round-off differences switch a threshold (front cells, calving) in the thin outer shelf. These runs used the original forcing. With the tuned forcing (thicker shelves ending at r_lim), the single-precision error stays below about 2e-6 (H) and 4e-6 (velocity) over 1 kyr with tight tolerances, which is round-off level. With default tolerances it stays bounded at about 1e-3, the precision to which these tolerances determine the velocity. The single-precision breakdown was thus caused by the thin fronts of the original forcing. The H_ice_eps floor and the Jacobian fix change the final states of CalvingMIP Exp1, MISMIP+, MISMIP3D, TROUGH-F17 and A2 by less than 3e-5 in volume, with identical grounded and floating areas.
 
 ### Model changes
 
@@ -276,9 +276,8 @@ The values are the maximum D4 errors of H and velocity. In double precision the 
 
 1. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
 2. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
-3. **Symmetry in single precision.** Round-off differences switch front and calving thresholds after about 300 yr. To be repeated with the tuned forcing, and then either accepted with a time-limited criterion or traced to the threshold involved.
-4. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
-5. **Pass thresholds.** To be set after the first round of runs.
+3. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
+4. **Pass thresholds.** To be set after the first round of runs. Single precision with tight tolerances stays at about 1e-6 over 1 kyr on ISLAND4 at 32 km.
 
 ## Scripts and figures
 
