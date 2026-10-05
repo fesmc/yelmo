@@ -11,6 +11,7 @@ program yelmo_trough
     use lsf_module, only : LSFinit
     use timestepping
     use yelmo_tools, only : integrate_trapezoid1D_pt
+    use thermodynamics, only : convert_to_enthalpy_ice
     use, intrinsic :: iso_fortran_env, only : int64
 
     implicit none 
@@ -29,6 +30,7 @@ program yelmo_trough
     real(wp) :: sec_x                               ! [km] Position of the cross-section (y-transect)
     real(wp) :: H0_init                             ! [m] Initial ice thickness of the slab (TROUGH-F17)
     character(len=512) :: H0_file                   ! TROUGH-F17: file with the initial H_ice on the model grid ("None": slab)
+    character(len=512) :: state_file                ! TROUGH-F17: file with a state (H_ice, z_bed, T_ice, hyd_W_til) on the model grid ("None": not used)
     character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
     logical  :: full_domain                         ! TROUGH-F17: full symmetric domain x = [-lx,lx] (divide inside)?
     real(wp) :: dtt
@@ -94,11 +96,13 @@ program yelmo_trough
     write_ts  = (trim(domain) .eq. "TROUGH-F17")
     H0_init   = 50.0_wp
     H0_file   = "None"
+    state_file = "None"
     thrm_init = "robin-cold"
     full_domain = .FALSE.
     if (trim(domain) .eq. "TROUGH-F17") then
         call nml_read(path_par,"ctrl","H0_init",  H0_init)           ! [m] Initial ice thickness of the slab
         call nml_read(path_par,"ctrl","H0_file",  H0_file)           ! Initial H_ice from file ("None": slab of H0_init)
+        call nml_read(path_par,"ctrl","state_file",state_file)       ! Initial state from file ("None": not used)
         call nml_read(path_par,"ctrl","thrm_init",thrm_init)         ! Initial ice temperature
         call nml_read(path_par,"ctrl","full_domain",full_domain)     ! Full symmetric domain x = [-lx,lx]?
         call nml_read(path_par,"ctrl","dtts_out", dtts_out)          ! [yr] Frequency of time-series output
@@ -314,6 +318,15 @@ program yelmo_trough
                 z_srf_init = yelmo1%bnd%z_bed + H_init
                 write(*,*) "TROUGH-F17: initial H_ice read from ", trim(H0_file)
             end if
+
+            ! Optionally take the bed and ice thickness of a state from file (same grid);
+            ! T_ice and hyd_W_til are set after yelmo_init_state below
+            if (trim(state_file) .ne. "None") then
+                call nc_read(state_file,"z_bed",yelmo1%bnd%z_bed)
+                call nc_read(state_file,"H_ice",H_init)
+                z_srf_init = yelmo1%bnd%z_bed + H_init
+                write(*,*) "TROUGH-F17: z_bed and H_ice read from ", trim(state_file)
+            end if
         
         case("FRONT-SLAB")
             ! Grounded marine slab with ice fronts at |x| = x_cf (front-stress benchmark)
@@ -369,6 +382,18 @@ program yelmo_trough
 
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=ts%time,thrm_method=thrm_init)
+
+    ! Optionally impose the ice temperature and till water of a state from file
+    ! (cold ice, omega = 0; with ytherm.method = "fixed" and ytopo.topo_fixed, the
+    ! following steps only update the material, hydrology and dynamics)
+    if (trim(state_file) .ne. "None") then
+        call nc_read(state_file,"T_ice",yelmo1%thrm%now%T_ice)
+        yelmo1%thrm%now%omega = 0.0_wp
+        call convert_to_enthalpy_ice(yelmo1%thrm%now%enth,yelmo1%thrm%now%T_ice,yelmo1%thrm%now%omega, &
+                                     yelmo1%thrm%now%T_pmp,yelmo1%bnd%c%L_ice,yelmo1%thrm%par%enth_integral)
+        call nc_read(state_file,"hyd_W_til",yelmo1%hyd%now%W_til)
+        write(*,*) "TROUGH-F17: T_ice and hyd_W_til read from ", trim(state_file)
+    end if
 
     ! Write initial state 
     call write_step_2D(yelmo1,file2D,time=ts%time) 
