@@ -17,14 +17,16 @@ const COLUMN_KAPPA = 2.1 / (910.0 * 2009.0) # [m2 s-1] Heat diffusivity (rho_ice
 Temperature [K] on the levels `zeta` of a column of thickness H [m], surface
 temperature T_srf [K], surface mass balance smb [m/yr] and geothermal heat flux
 Q_geo [mW m-2]. Grounded columns use the stationary solution with the vertical
-velocity w0 = max(smb, 0) (no upward flow in ablation zones). Floating columns
+velocity w0 = −max(smb, 0) (downward; no upward flow in ablation zones; w0 < 0
+is downward in IceColumnSolutions.jl, which needs the consistent Pe convention of
+fesmc/IceColumnSolutions.jl#7). Floating columns
 use a linear profile from T_shlf at the base to T_srf. Columns thinner than
 1 m are at T_srf.
 """
 function column_temperature(zeta, H, T_srf, smb, Q_geo; floating = false, T_shlf = 271.15)
     H < 1.0 && return fill(T_srf, length(zeta))
     floating && return T_shlf .+ (T_srf - T_shlf) .* zeta
-    par = IceColumnPar(H, T_srf, COLUMN_KAPPA, COLUMN_K, 0.0, Q_geo * 1e-3; w0 = max(smb, 0.0))
+    par = IceColumnPar(H, T_srf, COLUMN_KAPPA, COLUMN_K, 0.0, Q_geo * 1e-3; w0 = -max(smb, 0.0))
     sol = solve_stationary(par; nz = length(zeta))
     sol.zeta ≈ zeta || error("column_temperature: zeta must be uniform on [0, 1] (got $(zeta)).")
     return sol.T_eq

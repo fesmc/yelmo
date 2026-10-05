@@ -43,6 +43,7 @@
 ! mirror images, which the default tolerances (Picard 1e-2, linear 1e-2)
 ! determine only to ~1e-3 (docs/dev/benchmark-protocol, "Status").
 &ydyn
+    uz_method           = 3                 ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian (default)
     ssa_iter_max        = 200
     ssa_iter_conv       = 1e-5
     ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 5000 -tol 1.0e-8 -initx_zeros false"

@@ -105,7 +105,7 @@ with zero basal mass balance. The horizontal divergence equals SMB/H, so continu
 - **A4b Transient.** Start from the stationary state of parameter set P1 and switch to P2 (T_srf − 10 K, or SMB × 2). Compare with the transient solution (Moreno-Parada et al., 2024, Appendix A) at t = 1, 5, 10 and 50 kyr.
 - **A4c Strain heating (optional).** With a constant rate factor, plug flow gives depth-uniform strain heating, which the stationary solution includes through the Brinkman number. This tests the strain-heating term.
 
-The strip is symmetric under x → −x, and a transposed run tests the y-direction.
+Each parameter set occupies three identical rows, and only the middle row is compared, in the columns at least two cells from the x-borders. The default vertical velocity (`ydyn.uz_method = 3`) averages the divergence over neighbouring cells, with weights 1/4, 1/2, 1/4 across rows, so a single row per set would mix the parameter sets of adjacent rows (see Status). The strip is symmetric under x → −x, and a transposed run tests the y-direction.
 
 ## ISLAND4 domain
 
@@ -267,6 +267,12 @@ Symmetry after the fix (2026-10-05, ISLAND4, 32 km, 1 kyr, `dtt = 10`, albedo):
 
 The values are the maximum D4 errors of H and velocity. In double precision the solution stays symmetric to round-off over 1 kyr. In single precision the error stays at round-off level for about 300 yr and then jumps at isolated cells, where round-off differences switch a threshold (front cells, calving) in the thin outer shelf. These runs used the original forcing. With the tuned forcing (thicker shelves ending at r_lim), the single-precision error stays below about 2e-6 (H) and 4e-6 (velocity) over 1 kyr with tight tolerances, which is round-off level. With default tolerances it stays bounded at about 1e-3, the precision to which these tolerances determine the velocity. The single-precision breakdown was thus caused by the thin fronts of the original forcing. The H_ice_eps floor and the Jacobian fix change the final states of CalvingMIP Exp1, MISMIP+, MISMIP3D, TROUGH-F17 and A2 by less than 3e-5 in volume, with identical grounded and floating areas.
 
+A4 (2026-10-05, 10 km, 7 × 38 cells, 12 parameter sets with Pe ≈ 0.5–33, T_srf = −40 °C, Q_geo = 50 mW m⁻²):
+
+- With a single row per parameter set, the default vertical velocity (`uz_method = 3`) gave a surface uz of up to 5 times −SMB next to a jump in SMB/H between rows, and temperature errors of ~7 K after 5 kyr. Methods 2 and 3 average the divergence over the neighbouring cells; method 1 uses the face differences of the thickness equation and is exact here. In realistic flow the averaging is an advantage: method 3 gives a 1.5–4 times smaller surface mismatch `uz_srf_err` and a 2–5 times smoother uz than method 1 in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr). Both methods leave a mismatch of several m a⁻¹ at grounding lines and outlet margins, since neither is the discrete flux divergence of the thickness equation. The method also changes the ISLAND4 state after 1 kyr considerably (temperate basal fraction 0.17 with method 1 and 0.08 with method 3, volume difference 9 %), which shows the thermomechanical sensitivity of the early spin-up. We kept method 3 and use three rows per parameter set.
+- Stationary test (A4a), 50 kyr from the analytic profile: the maximum error is 0.45, 0.14 and 0.03 K for nz = 10, 20 and 40, i.e., second-order convergence to the analytic solution, and the columns of a row agree to output precision (~1e-4 K).
+- Transient tests (A4b), 50 kyr from the stationary P1 profile: IceColumnSolutions.jl used opposite sign conventions for Pe in its stationary and transient solutions (inherited from Moreno-Parada et al., 2024), and the wrong sign of the heat source for Pe ≠ 0; both are fixed in fesmc/IceColumnSolutions.jl#7, with finite-difference tests. With the corrected reference, SMB × 2 gives a maximum error of 0.44 K at nz = 10 at all times. The step T_srf − 10 K gives 0.3–2.3 K after 1 kyr and less than 0.9 K from 10 kyr on, dominated by the surface boundary layer, which the vertical grid resolves poorly at early times; the errors converge with nz (row maxima at 5 kyr of 1.4, 0.65 and 0.25 K for nz = 10, 20 and 40). The step itself cannot be compared at t = 0, and the 10-mode series is not converged at 1 kyr for the highest Péclet number (Pe = 33).
+
 ### Model changes
 
 - `ytherm.strain_heating = "full" | "sia" | "none"` replaces `ytherm.use_strain_sia` (done). A4 needs strain heating switched off.
@@ -276,8 +282,9 @@ The values are the maximum D4 errors of H and velocity. In double precision the 
 
 1. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
 2. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
-3. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
-4. **Pass thresholds.** To be set after the first round of runs. Single precision with tight tolerances stays at about 1e-6 over 1 kyr on ISLAND4 at 32 km.
+3. **Flux-consistent vertical velocity.** A vertical velocity computed from the discrete layer fluxes of the thickness equation would be exact in A4 and remove the mismatch at grounding lines and margins (design: [`docs/dev/uz-flux-consistent.md`](../uz-flux-consistent.md)).
+4. **ISLAND4 spin-up.** The 5-kyr tuning runs are not in equilibrium (volume still falls by about 3 % per kyr from the Vialov start), and the bed is temperate only in the troughs. The forcing must be confirmed by the first C0 run.
+5. **Pass thresholds.** To be set after the first round of runs. Single precision with tight tolerances stays at about 1e-6 over 1 kyr on ISLAND4 at 32 km.
 
 ## Scripts and figures
 

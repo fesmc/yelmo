@@ -6,7 +6,7 @@ module YelmoBench
 # `state` and `write_fixture!`), so that they can move there unchanged.
 
 using NCDatasets
-using IceColumnSolutions: IceColumnPar, solve_stationary
+using IceColumnSolutions: IceColumnPar, solve_stationary, solve
 using IceSheetBenchmarks: AbstractBenchmark
 import IceSheetBenchmarks: state, write_fixture!, analytical_velocity
 
@@ -75,6 +75,7 @@ end
 include("column.jl")
 include("island4.jl")
 include("shelf.jl")
+include("strip.jl")
 include("symmetry.jl")
 include("compare.jl")
 

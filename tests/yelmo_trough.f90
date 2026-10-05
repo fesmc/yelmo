@@ -764,6 +764,8 @@ if (.FALSE.) then
         ! call nc_write(filename,"advecxy",ylmo%thrm%now%advecxy,units="m/a",long_name="Horizontal advection", &
         !               dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
 end if
+        call yelmo_write_var(filename,"uz",ylmo,n,ncid)
+        call yelmo_write_var(filename,"uz_srf_err",ylmo,n,ncid)
 
 !         call nc_write(filename,"f_vbvs",ylmo%dyn%now%f_vbvs,units="1",long_name="Basal to surface velocity fraction", &
 !                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

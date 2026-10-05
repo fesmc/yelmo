@@ -7,7 +7,8 @@ program yelmo_bench
     ! parameters of the parameter file. Forcing that depends on the evolving
     ! state is computed online (tests/bench_forcing.f90), selected in &bench.
     ! An optional fixture field T_ice (on its own zeta levels) sets the
-    ! initial ice temperature.
+    ! initial ice temperature, and optional fields ux_bar, uy_bar prescribe
+    ! the velocity (plug flow, with ydyn.solver = "fixed").
     ! A run with time_end = time_init is diagnostic: it writes the initial
     ! state, including the initial velocity solution, and stops.
 
@@ -23,7 +24,7 @@ program yelmo_bench
 
     type ctrl_type
         character(len=512) :: path_par
-        character(len=256) :: file2D, file1D, file_restart
+        character(len=256) :: file2D, file3D, file1D, file_restart
         real(wp) :: time_init, time_end, dtt
         real(wp) :: dt2D_out, dt1D_out
     end type
@@ -44,6 +45,11 @@ program yelmo_bench
     type(bench_type)  :: bch
 
     character(len=56)  :: domain, grid_name
+    ! 3D fields for the comparisons with analytic columns (A4) and the
+    ! symmetry check of the enthalpy, with the vertical-velocity diagnostics,
+    ! written to file3D with the 2D output
+    character(len=56), parameter :: names3D(6) = [character(len=56) :: "T_ice","enth","omega", &
+                                                                       "uz","uz_star","uz_srf_err"]
     real(wp), allocatable :: xc(:), yc(:)
     integer,  allocatable :: mask_ice(:,:)
     real(wp), allocatable :: T_ice(:,:,:)
@@ -60,6 +66,7 @@ program yelmo_bench
 
     ctl%file1D       = "yelmo_ts.nc"
     ctl%file2D       = "yelmo.nc"
+    ctl%file3D       = "yelmo3D.nc"
     ctl%file_restart = "yelmo_restart.nc"
 
     call nml_read(ctl%path_par,"ctrl","time_init",  ctl%time_init)     ! [yr] Starting time
@@ -111,6 +118,10 @@ program yelmo_bench
     ! Optional imposed basal friction (A2)
     if (nc_exists_var(bch%fixture,"beta")) call bench_set_beta(yelmo1,bch%fixture)
 
+    ! Optional prescribed velocity (A4), set before the initial state so that
+    ! the vertical velocity is computed from it
+    if (nc_exists_var(bch%fixture,"ux_bar")) call bench_set_velocity(yelmo1,bch%fixture)
+
     if (.not. yelmo1%par%use_restart) then
         call nc_read(bch%fixture,"H_ice",yelmo1%tpo%now%H_ice)
         call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
@@ -140,6 +151,9 @@ program yelmo_bench
     call yelmo_write_init(yelmo1,ctl%file2D,time_init=ctl%time_init,units="years")
     call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
 
+    call yelmo_write_init(yelmo1,ctl%file3D,time_init=ctl%time_init,units="years")
+    call yelmo_write_step(yelmo1,ctl%file3D,time=ctl%time_init,nms=names3D)
+
     call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years", &
                                                 mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
     call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init)
@@ -157,6 +171,7 @@ program yelmo_bench
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
         if (mod(nint(time*100,int64),nint(ctl%dt2D_out*100,int64))==0) then
             call yelmo_write_step(yelmo1,ctl%file2D,time=time)
+            call yelmo_write_step(yelmo1,ctl%file3D,time=time,nms=names3D)
         end if
 
         if (mod(nint(time*100,int64),nint(ctl%dt1D_out*100,int64))==0) then
@@ -239,6 +254,43 @@ contains
         return
 
     end subroutine bench_set_beta
+
+    subroutine bench_set_velocity(ylmo,filename)
+        ! Prescribe the horizontal velocity from the fixture fields ux_bar and
+        ! uy_bar (C-grid faces) as plug flow: the same velocity at every level,
+        ! at the surface and at the base. Yelmo keeps it unchanged only with
+        ! ydyn.solver = "fixed", which also leaves the basal stress at zero
+        ! (no frictional heating). The vertical velocity is still computed
+        ! from continuity.
+
+        implicit none
+
+        type(yelmo_class), intent(INOUT) :: ylmo
+        character(len=*),  intent(IN)    :: filename
+
+        integer :: k
+
+        if (trim(ylmo%dyn%par%solver) .ne. "fixed") then
+            write(*,*) "bench_set_velocity:: Error: the fixture prescribes the velocity, which requires &
+                       &ydyn.solver = 'fixed'."
+            error stop 1
+        end if
+
+        call nc_read(filename,"ux_bar",ylmo%dyn%now%ux_bar)
+        call nc_read(filename,"uy_bar",ylmo%dyn%now%uy_bar)
+
+        ylmo%dyn%now%ux_b = ylmo%dyn%now%ux_bar
+        ylmo%dyn%now%uy_b = ylmo%dyn%now%uy_bar
+        ylmo%dyn%now%ux_s = ylmo%dyn%now%ux_bar
+        ylmo%dyn%now%uy_s = ylmo%dyn%now%uy_bar
+        do k = 1, size(ylmo%dyn%now%ux,3)
+            ylmo%dyn%now%ux(:,:,k) = ylmo%dyn%now%ux_bar
+            ylmo%dyn%now%uy(:,:,k) = ylmo%dyn%now%uy_bar
+        end do
+
+        return
+
+    end subroutine bench_set_velocity
 
     subroutine bench_check_forcing(ylmo,bch)
         ! Print the maximum difference between the online forcing on the
