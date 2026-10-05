@@ -105,6 +105,9 @@ program yelmo_bench
     call nc_read(bch%fixture,"T_shlf",   yelmo1%bnd%T_shlf)
     call nc_read(bch%fixture,"H_sed",    yelmo1%bnd%H_sed)
 
+    ! Optional imposed basal friction (A2)
+    if (nc_exists_var(bch%fixture,"beta")) call bench_set_beta(yelmo1,bch%fixture)
+
     if (.not. yelmo1%par%use_restart) then
         call nc_read(bch%fixture,"H_ice",yelmo1%tpo%now%H_ice)
         call LSFinit(yelmo1%tpo%now%lsf,yelmo1%tpo%now%H_ice,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%tpo%par%dx)
@@ -192,6 +195,39 @@ contains
         return
 
     end subroutine bench_update_forcing
+
+    subroutine bench_set_beta(ylmo,filename)
+        ! Impose the basal friction coefficient from the fixture on aa-nodes
+        ! and, by simple averaging, on the cell faces. Yelmo keeps both
+        ! unchanged (also under floating ice) only with ydyn.beta_method = -1
+        ! and ydyn.beta_gl_stag = -1.
+
+        implicit none
+
+        type(yelmo_class), intent(INOUT) :: ylmo
+        character(len=*),  intent(IN)    :: filename
+
+        integer :: nx, ny
+
+        if (ylmo%dyn%par%beta_method .ne. -1 .or. ylmo%dyn%par%beta_gl_stag .ne. -1) then
+            write(*,*) "bench_set_beta:: Error: the fixture prescribes beta, which requires &
+                       &ydyn.beta_method = -1 and ydyn.beta_gl_stag = -1."
+            error stop 1
+        end if
+
+        nx = size(ylmo%dyn%now%beta,1)
+        ny = size(ylmo%dyn%now%beta,2)
+
+        call nc_read(filename,"beta",ylmo%dyn%now%beta)
+
+        ylmo%dyn%now%beta_acx(1:nx-1,:) = 0.5_wp*(ylmo%dyn%now%beta(1:nx-1,:)+ylmo%dyn%now%beta(2:nx,:))
+        ylmo%dyn%now%beta_acx(nx,:)     = ylmo%dyn%now%beta(nx,:)
+        ylmo%dyn%now%beta_acy(:,1:ny-1) = 0.5_wp*(ylmo%dyn%now%beta(:,1:ny-1)+ylmo%dyn%now%beta(:,2:ny))
+        ylmo%dyn%now%beta_acy(:,ny)     = ylmo%dyn%now%beta(:,ny)
+
+        return
+
+    end subroutine bench_set_beta
 
     subroutine bench_check_forcing(ylmo,bch)
         ! Print the maximum difference between the online forcing on the

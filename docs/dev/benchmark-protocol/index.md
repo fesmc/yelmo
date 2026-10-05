@@ -237,6 +237,12 @@ First A3 run (2026-10-05, ISLAND4, 16 km, Vialov thickness, Robin temperature):
 - The online T_srf and bmb_shlf agree with the Julia counterparts to ~3e-5 K and ~2e-4 m a⁻¹ (100 front cells excluded).
 - The initial SSA solve needs 21 Picard iterations, one more than the default `ydyn.ssa_iter_max = 20`.
 
+First A2 run (2026-10-05, 10 km, H = 400 m, R_s = 300 km, A = 1e-18, β_reg = 1e-3, Picard converged to 1e-5):
+
+- The velocity is D4-symmetric to output precision, but does not reproduce the analytical solution. With the default energy assembler, the interior speed is ~13–33 % of the exact value (rms error 44 %); with `ssa_solver = "residual"` the rms error is ~15 %. DIVA and SSA give the same result.
+- The viscosity agrees with Glen's law for the simulated strain rates, so A and n are applied correctly. The membrane stress N_rr diagnosed from the output is ~1.2 H S near the front and ~0.5 H S at the centre, which implies a distributed resistance of ~190 Pa inside the shelf (β_reg u is ~0.1 Pa).
+- The result does not change with `front_subgrid`, with a linear-solver tolerance of 1e-10, or with `ssa_lat_bc` ("all", "floating", "marine", "none") for the energy assembler. Under investigation.
+
 ### Model changes
 
 - `ytherm.strain_heating = "full" | "sia" | "none"` replaces `ytherm.use_strain_sia` (done). A4 needs strain heating switched off.

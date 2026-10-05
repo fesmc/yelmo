@@ -7,9 +7,9 @@ module YelmoBench
 
 using NCDatasets
 using IceSheetBenchmarks: AbstractBenchmark
-import IceSheetBenchmarks: state, write_fixture!
+import IceSheetBenchmarks: state, write_fixture!, analytical_velocity
 
-export state, write_fixture!
+export state, write_fixture!, analytical_velocity
 
 # Fixture fields: (name, units, long name). xc and yc are written in km.
 const FIELDS_2D = (
@@ -55,6 +55,8 @@ function write_fixture_nc(path::AbstractString, s, fields; attrs = Dict())
 end
 
 include("island4.jl")
+include("shelf.jl")
 include("symmetry.jl")
+include("compare.jl")
 
 end # module
