@@ -37,9 +37,3 @@
     pd_smb_load     = False
     pd_vel_load     = False
 /
-
-! Parameters that are varied in the benchmark runs are listed here with their
-! default values, since runme -p can only change parameters present in this file.
-&ydyn
-    ssa_iter_max    = 20                ! Maximum number of Picard iterations
-/

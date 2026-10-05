@@ -31,6 +31,9 @@
     },
 
     "links" : 
-        ["input","ice_data","maps"]
+        ["input","ice_data","maps"],
+
+    "par_defaults" :
+        ["input/yelmo_defaults.nml","input/elsa_defaults.nml","input/tracer_defaults.nml"]
 
 }
