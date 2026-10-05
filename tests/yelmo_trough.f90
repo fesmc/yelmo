@@ -42,6 +42,7 @@ program yelmo_trough
 
     real(wp) :: s06_alpha, s06_H0, s06_W, s06_m
     real(wp) :: fs_H0, fs_dHdx, fs_zb               ! FRONT-SLAB: divide thickness, thickness gradient, bed elevation
+    real(wp) :: col_H0, col_zb                      ! COLUMN-SLAB: initial ice thickness, bed elevation
     real(wp) :: B, L  
     real(wp), allocatable :: ux_ref(:,:) 
     real(wp), allocatable :: tau_c_ref(:,:)
@@ -117,6 +118,9 @@ program yelmo_trough
             call nml_read(path_par,"ctrl_front","dHdx", fs_dHdx)     ! [m/km] Thickness decrease with |x|
             call nml_read(path_par,"ctrl_front","zb",   fs_zb)       ! [m]    Flat bed elevation
             full_domain = .TRUE.
+        case("COLUMN-SLAB")
+            call nml_read(path_par,"ctrl_column","H0",  col_H0)      ! [m]    Initial ice thickness
+            call nml_read(path_par,"ctrl_column","zb",  col_zb)      ! [m]    Flat bed elevation
     end select
 
     ! Simulation parameters 
@@ -162,7 +166,7 @@ program yelmo_trough
             ny = periodic_npts(ly,dx,"ly")
             y0 = -real(ny/2,wp)*dx
 
-        case("SLAB-S06","RAYMOND")
+        case("SLAB-S06","RAYMOND","COLUMN-SLAB")
             ! Slab periodic in x and y (experiment "SLAB"): x_i = (i-1)*dx with
             ! period exactly lx (no duplicated end column), and the same centred
             ! y-grid as the channel above, with period exactly ly.
@@ -316,6 +320,14 @@ program yelmo_trough
 
             call front_slab_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                                     yelmo1%grd%G%x*1e-3,fs_H0,fs_dHdx,fs_zb,x_cf)
+
+        case("COLUMN-SLAB")
+            ! Flat, periodic slab of uniform thickness: no flow, so each column
+            ! only thickens by smb (thermodynamics benchmark)
+
+            yelmo1%bnd%z_bed = col_zb
+            H_init           = col_H0
+            z_srf_init       = yelmo1%bnd%z_bed + H_init
 
         case("MISMIP+") 
             ! MISMIP+ domain 
