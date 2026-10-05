@@ -13,6 +13,7 @@ module yelmo_dynamics
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
     use fast_hydrology, only : hydro_calc_N, hydro_N_responds_to_ub, hydro_N_from_ub
+    use, intrinsic :: iso_c_binding, only : c_associated, c_f_procpointer, c_double, c_int
 
     use velocity_general
 
@@ -215,7 +216,7 @@ contains
                 case("diva","diva-noslip") 
                     ! Depth-integrated variational approximation (DIVA) - Goldberg (2011); Lipscomb et al. (2019)
 
-                    if (hydro_N_responds_to_ub(hyd)) then
+                    if (hydro_N_responds_to_ub(hyd) .or. c_associated(dyn%neff_cb)) then
                         ! N depends on u_b (steady hydrology, e.g. K24): solve them together
                         call calc_ydyn_diva(dyn,tpo,mat,thrm,bnd,neff_hook=neff_from_hydrology)
                     else
@@ -379,8 +380,33 @@ contains
             real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
 
             real(wp), allocatable :: uxy_b(:,:), mask(:,:)
+            real(c_double), allocatable :: uxy_b_dp(:,:), N_dp(:,:)
+            interface
+                subroutine neff_cb_iface(tag, uxy_b, N_eff, nx, ny) bind(C)
+                    use iso_c_binding, only : c_int, c_double
+                    integer(c_int), value :: tag, nx, ny
+                    real(c_double), intent(in)    :: uxy_b(nx,ny)
+                    real(c_double), intent(inout) :: N_eff(nx,ny)
+                end subroutine neff_cb_iface
+            end interface
+            procedure(neff_cb_iface), pointer :: cb
 
             uxy_b = calc_magnitude_from_staggered(ux_b,uy_b,tpo%now%f_ice_dyn,dyn%par%boundaries)
+
+            if (c_associated(dyn%neff_cb)) then
+                ! A host owns the hydrology: hand it the basal speed [m/yr], take N [Pa] back
+                ! into the hydrology state, where calc_ydyn_neff reads it (external N).
+                call c_f_procpointer(dyn%neff_cb, cb)
+                allocate(uxy_b_dp(size(uxy_b,1),size(uxy_b,2)), N_dp(size(uxy_b,1),size(uxy_b,2)))
+                uxy_b_dp = real(uxy_b,c_double)
+                N_dp     = real(hyd%now%N,c_double)
+                call cb(dyn%neff_cb_tag, uxy_b_dp, N_dp, int(size(uxy_b,1),c_int), int(size(uxy_b,2),c_int))
+                hyd%now%N = real(N_dp,wp)
+
+                call calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
+                call calc_c_bed(c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
+                return
+            end if
 
             allocate(mask(size(uxy_b,1),size(uxy_b,2)))
             where (tpo%now%f_ice .ge. 0.5_wp .and. tpo%now%f_grnd .gt. 0.0_wp)
