@@ -218,6 +218,9 @@ $(objdir)/calving_benchmarks.o: $(testdir)/calving_benchmarks.f90 $(objdir)/yelm
 $(objdir)/mismip3D.o: $(testdir)/mismip3D.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
+$(objdir)/bench_forcing.o: $(testdir)/bench_forcing.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
+
 #############################################################
 ##							
 ## List of yelmo files
@@ -273,7 +276,8 @@ yelmo_base =		   $(objdir)/yelmo_defs.o \
 
 yelmo_tests = 		   $(objdir)/ice_benchmarks.o \
 					   $(objdir)/calving_benchmarks.o \
-					   $(objdir)/mismip3D.o
+					   $(objdir)/mismip3D.o \
+					   $(objdir)/bench_forcing.o
 
 # Extras for testing 
 yelmo_thermo =         $(objdir)/yelmo_defs.o \
