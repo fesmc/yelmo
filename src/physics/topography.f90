@@ -21,6 +21,13 @@ module topography
     ! CISM limits of the effective surface at marine-grounded fronts
     ! ("AIS testing showed that values of 25 m and 0.001 prevent large
     ! ice speeds that can lead to instability")
+    ! Ice thinner than H_ice_eps is ice free for the area fraction (f_ice = 0)
+    ! and the front classification. A cell holding round-off amounts of ice
+    ! would otherwise become a front cell with the full reference thickness
+    ! H_eff >= front_H_eff_min, so that the front force would jump by one cell
+    ! on round-off (CISM uses thck > eps11 for the same masks, in double
+    ! precision).
+    real(wp), parameter :: H_ice_eps     = 1e-3_wp  ! [m]
     real(wp), parameter :: dz_srf_max    = 25.0_wp  ! [m]   z_srf_eff - z_srf
     real(wp), parameter :: dz_srf_dx_max = 0.001_wp ! [m/m] upward surface slope at the front
 
@@ -214,7 +221,7 @@ contains
         ! so they are full (H_eff = H_ice, above H_eff_min).
         ! H_eff >= H_eff_min in all eligible cells, and <= flotation in
         ! floating front cells ("floating"). f_ice = min(H_ice/H_eff,1) in front
-        ! cells, 1 in other ice cells, 0 elsewhere.
+        ! cells, 1 in other ice cells (H_ice > H_ice_eps), 0 elsewhere.
 
         implicit none 
 
@@ -257,7 +264,7 @@ contains
         !$omp parallel do collapse(2) private(i,j)
         do j = 1, ny
         do i = 1, nx
-            if (H_ice(i,j) .gt. 0.0_wp) then
+            if (H_ice(i,j) .gt. H_ice_eps) then
                 f_ice(i,j) = 1.0_wp
                 H_eff(i,j) = H_ice(i,j)
             else
@@ -484,12 +491,12 @@ contains
         !$omp parallel do collapse(2) private(i,j)
         do j = 1, ny
         do i = 1, nx
-            mask_ocn(i,j) = H_ice(i,j) .eq. 0.0_wp .and. z_bed(i,j) .lt. z_sl(i,j)
+            mask_ocn(i,j) = H_ice(i,j) .le. H_ice_eps .and. z_bed(i,j) .lt. z_sl(i,j)
             select case(elig)
                 case(1)
-                    mask_elig(i,j) = H_ice(i,j) .gt. 0.0_wp .and. H_ice(i,j)*rho_ice/rho_sw .le. (z_sl(i,j)-z_bed(i,j))
+                    mask_elig(i,j) = H_ice(i,j) .gt. H_ice_eps .and. H_ice(i,j)*rho_ice/rho_sw .le. (z_sl(i,j)-z_bed(i,j))
                 case(2)
-                    mask_elig(i,j) = H_ice(i,j) .gt. 0.0_wp .and. z_bed(i,j) .lt. z_sl(i,j)
+                    mask_elig(i,j) = H_ice(i,j) .gt. H_ice_eps .and. z_bed(i,j) .lt. z_sl(i,j)
                 case DEFAULT
                     mask_elig(i,j) = .FALSE.
             end select

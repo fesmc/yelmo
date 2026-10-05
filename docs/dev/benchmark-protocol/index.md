@@ -87,7 +87,7 @@ Proposed values: H = 400 m, R_s = 300 km, domain ±400 km, dx = 20, 10 and 5 km,
 
 ### A3 ISLAND4 diagnostic
 
-A3 runs a single velocity solve with the full production solver on the ISLAND4 geometry (see below), with prescribed thickness and enthalpy. The thickness is a Vialov profile, H(r) = H_0 [1 − (r/R_i)^{(n+1)/n}]^{n/(2n+2)}, with H_0 = 3500 m and R_i = 650 km. Ice floats wherever the flotation criterion is met. This produces grounded ice on land and below sea level, a grounding line and small shelves in the embayments. The enthalpy field is the stationary column solution of IceColumnSolutions.jl in each column, computed from the local H, SMB, T_srf and Q_geo. It is written to an input file.
+A3 runs a single velocity solve with the full production solver on the ISLAND4 geometry (see below), with prescribed thickness and enthalpy. The thickness is a Vialov profile, H(r) = H_0 [1 − (r/R_i)^{(n+1)/n}]^{n/(2n+2)}, with H_0 = 3500 m and R_i = 650 km. Ice floats wherever the flotation criterion is met. Prognostic runs (B1, C0) start from the same profile without the floating part (`init = :vialov_grounded`), so that the shelves form during the run. This produces grounded ice on land and below sea level, a grounding line and small shelves in the embayments. The enthalpy field is the stationary column solution of IceColumnSolutions.jl in each column, computed from the local H, SMB, T_srf and Q_geo. It is written to an input file.
 
 The test passes if all D4 symmetry errors are at round-off level. The same solve on ISLAND4-R (rotated by 45°) gives the dependence on grid orientation, measured by the integrated speed and the grounding-line flux.
 
@@ -245,6 +245,14 @@ First A2 run (2026-10-05, 10 km, H = 400 m, R_s = 300 km, A = 1e-18, β_reg = 1e
 - The viscosity agrees with Glen's law for the simulated strain rates, so A and n are applied correctly. The membrane stress N_rr diagnosed from the output is ~1.2 H S near the front and ~0.5 H S at the centre, which implies a distributed resistance of ~190 Pa inside the shelf (β_reg u is ~0.1 Pa).
 - The result does not change with `front_subgrid`, with a linear-solver tolerance of 1e-10, or with `ssa_lat_bc` ("all", "floating", "marine", "none") for the energy assembler.
 - Cause: the corner (shear) viscosity on the ice margin coupled the front faces to the u = 0 faces of the ice-free cells, a drag on the velocity along the front. With zero corner viscosity on the margin (dev eb2879de), both assemblers match the analytical solution to ~0.07 % (rms).
+
+Prognostic symmetry (2026-10-05, ISLAND4, 32 km, 20–100 yr). With the default solver tolerances and the Vialov initial state including floating ice, the symmetry error reached 2.6 % after 20 yr with a driver step `dtt = 10` (1e-5 with `dtt = 1`). The diagnosis found three contributions:
+
+- The default tolerances (Picard `ssa_iter_conv = 1e-2`, linear solver `-tol 1.0e-2`) determine the velocity only to ~1 %, so a single solve can turn a round-off asymmetry of 1e-6 into 1e-3, with symmetric masks and inputs.
+- The Vialov initial state puts up to ~3 km of floating ice in the troughs, with speeds at the velocity limit and fast-moving fronts, which amplify round-off.
+- A cell holding a round-off amount of ice became a front cell with the full reference thickness, so the front force jumped by one cell (fixed with `H_ice_eps = 1 mm`, as CISM's `eps11`).
+
+The ISLAND4 parameter file therefore uses tight solver tolerances (Picard 1e-5, linear 1e-8), and prognostic runs start from `init = :vialov_grounded` (Vialov profile where grounded, no initial floating ice; A3 keeps `init = vialov`). With these, the symmetry error stays at ~1e-5 (H) and ~7e-5 (velocity) over 100 yr with `dtt = 10`, which is round-off growth in single precision. A double-precision build (docs/numerics-precision.md) separates round-off from real asymmetry.
 
 ### Model changes
 

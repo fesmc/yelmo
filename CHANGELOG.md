@@ -7,6 +7,23 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Mirror-symmetric one-sided strain rates at ice fronts** (`calc_jacobian_vel_3D_uxyterms`,
+  `jvel%dxx`/`dyy`). At a front with ice on the low-index side, the second-order
+  one-sided stencil on the faces i, i-1, i-2 tested `f_ice` of cell i-2 instead of
+  cell i-1 (the cell between faces i-2 and i-1), unlike the mirror case and
+  `calc_strain_rate_horizontal_2D`. The strain rates, viscosity and principal stresses
+  near fronts were not mirror symmetric; in the ISLAND4 benchmark this switched the
+  calving rate at single front cells (in double precision, symmetry error 3e-6 → <1e-13
+  over 100 yr).
+
+- **Ice thinner than 1 mm is ice free for the subgrid front scheme** (`H_ice_eps` in
+  `calc_ice_fraction` and `calc_front_cells`, was `H_ice > 0`). A cell holding a round-off
+  amount of ice became a front cell with the full reference thickness (`H_eff >=
+  front_H_eff_min`), so the front force jumped by one cell on round-off and broke the
+  symmetry of the ISLAND4 benchmark (CISM uses `thck > eps11` for the same masks, in double
+  precision). CalvingMIP Exp1, MISMIP+ Ice0, MISMIP3D Stnd and A2: unchanged (volume
+  differences <= 2e-5).
+
 - **No shear stress at ice-margin corners in the SSA solvers** (`stagger_visc_aa_ab`,
   both assemblers). The corner viscosity was the mean over the ice-covered cells around
   the corner, so corners on a calving front coupled the front faces to the u = 0 faces of

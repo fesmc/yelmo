@@ -126,7 +126,9 @@ Keywords:
   - `B_od`   depth of the trough overdeepening [m] (0: off).
   - `rot`    rotation of the troughs [deg]: 0 (diagonals) or 45 (axes, ISLAND4-R).
   - `land`   true: ISLAND4-L, bed raised by 2500 m (B1).
-  - `init`   initial thickness: `:vialov` or `:zero`.
+  - `init`   initial thickness: `:vialov_grounded` (Vialov profile where it is
+             grounded, no initial floating ice; prognostic runs), `:vialov` (Vialov
+             profile everywhere, including thick floating ice; A3) or `:zero`.
 """
 struct Island4Benchmark <: AbstractBenchmark
     exp      ::Symbol
@@ -150,7 +152,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
                           B_od::Real   = 0.0,
                           rot::Real    = 0.0,
                           land::Bool   = false,
-                          init::Symbol = :vialov,
+                          init::Symbol = :vialov_grounded,
                           smb0::Real   = 0.5,
                           r_ela::Real  = 450e3,
                           r_lim::Real  = 750e3,
@@ -158,8 +160,8 @@ function Island4Benchmark(exp::Symbol = :ctrl;
                           T_shlf::Real = 271.15)
     exp in (:ctrl, :smb) ||
         error("Island4Benchmark: unsupported exp = $exp. Supported: :ctrl, :smb.")
-    init in (:vialov, :zero) ||
-        error("Island4Benchmark: unsupported init = $init. Supported: :vialov, :zero.")
+    init in (:vialov_grounded, :vialov, :zero) ||
+        error("Island4Benchmark: unsupported init = $init. Supported: :vialov_grounded, :vialov, :zero.")
     rot in (0.0, 45.0) ||
         error("Island4Benchmark: rot must be 0 or 45 to keep the D4 symmetry (got $rot).")
 
@@ -211,8 +213,12 @@ function state(b::Island4Benchmark, t::Real)
     smb   = [island4_smb(r(i, j); smb0 = b.smb0, r_ela = b.r_ela) + b.dsmb for i in 1:Nx, j in 1:Ny]
     mask_ice = [r(i, j) < b.r_lim ? MASK_ICE_DYNAMIC : MASK_ICE_NONE for i in 1:Nx, j in 1:Ny]
 
-    H_ice = b.init == :vialov ? [island4_vialov(r(i, j)) for i in 1:Nx, j in 1:Ny] : zeros(Nx, Ny)
+    H_ice = b.init == :zero ? zeros(Nx, Ny) : [island4_vialov(r(i, j)) for i in 1:Nx, j in 1:Ny]
     H_ice[mask_ice .== MASK_ICE_NONE] .= 0.0
+    if b.init == :vialov_grounded
+        # Remove the ice that would float (z_sl = 0): the shelves form during the run
+        H_ice[H_ice .* 910.0 ./ 1028.0 .< -z_bed] .= 0.0
+    end
 
     z_sl  = zeros(Nx, Ny)
     z_srf = max.(z_bed .+ H_ice, z_sl .+ H_ice .* (1 - 910.0 / 1028.0))
