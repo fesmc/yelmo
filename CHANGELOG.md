@@ -43,6 +43,20 @@ little. MISMIP3D and DIVA runs change more.
   With the RMS pc norm, pc_eta stays at 1e-3 - 5e-2 in GRL/ANT runs, so pc_eps >= 0.2 never
   limited dt; 0.02 removes the 8-km outlet checkerboard (GRL-8: 0 persistent cells) and lets
   GRL-8/GRL-4 run where pc_eps 1 was killed. Benchmark par files (<= 1e-2) are unchanged.
+- **`ymat.de_max` default 2 → 100 a⁻¹, removed from the par files except the trough ones**
+  (`input/yelmo_defaults.nml`). The cap on the effective strain rate dates from a less stable
+  version. It only enters strain heating and the material viscosity and stresses (`mat%now`),
+  not the DIVA/SSA viscosity, but it can reduce strain heating in fast-stream shear margins
+  (1–2 a⁻¹). TROUGH-F17 at 4 km with `de_max` = 100 vs 0.5: surge peaks 11.6–22 vs 11–26 km/yr.
+
+- **`yhyd.bkt_floating_mode` default 1 → 0** (input/yelmo_defaults.nml and all par files).
+  MARGIN_FILL (1) saturated W_til on grounded cells next to floating ice, so newly grounded
+  ice near the grounding line kept N ≈ 0.03–0.5 P0 for centuries. In TROUGH-F17 this
+  ungrounded the trough flanks near the front and moved the grounding line ~80 km upstream
+  of PISM. ZERO (0) only zeroes W_til on floating cells; the till of newly grounded ice then
+  refreezes or drains, as in PISM.
+- **TROUGH-F17: `ssa_vel_max = 5e4` m/yr** (par/yelmo_TROUGH-F17.nml, was 1e4), so that
+  the surge peak (about 24 000 m/yr at 4 km) is not set by the limit.
 - **Smooth velocity limit is the default** (`ydyn.ssa_vel_lim_method = "drag"`,
   `ssa_vel_max = 1e4` m/yr in the defaults and all par files, was a per-component
   clip at 5000 m/yr). A drag τ_c·x², x = (s − 0.8·u_max)/(0.2·u_max), acts on all free

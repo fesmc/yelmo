@@ -1,37 +1,51 @@
 &ctrl
     symmetry_check = .FALSE.            ! only read by yelmo_benchmarks.x; not a symmetric case
+    ! FRONT-SLAB: diagnostic front-stress benchmark (grounded marine slab, constant A, N = P0, SSA)
 
-    domain       = "MISMIP+"            ! "TROUGH-F17", "MISMIP+"
+    domain       = "FRONT-SLAB"         ! "TROUGH-F17", "FRONT-SLAB"
     
     ! Timing parameters 
     time_init    = 0.0                  ! [yr] Starting time 
-    time_end     = 20e3                 ! [yr] Ending time 
-    dtt          = 10.0                 ! [yr] Main loop timestep 
-    dt1D_out     = 100.0                ! [yr] Frequency of writing 1D output files 
-    dt2D_out     = 200.0                ! [yr] Frequency of writing 2D output files 
+    time_end     = 10.0  ! [yr] Ending time
+    dtt          = 1.0  ! [yr] Main loop timestep
+    dt1D_out     = 1.0  ! [yr] Frequency of writing 1D output files
+    dt2D_out     = 1.0  ! [yr] Frequency of writing 2D output files
+    dtts_out     = 5.0                  ! [yr] Frequency of writing the point/transect time series (yelmo_trough_ts.nc), multiple of dtt
+    pts_x        = 100.0 300.0 400.0    ! [km] Points on the centreline (y=0) for the time series (100, 400: Feldmann and Levermann, 2017)
+    sec_x        = 350.0                ! [km] Position of the cross-section (y-transect) for the time series
+    H0_init      = 50.0                 ! [m] Initial ice thickness of the slab (Feldmann and Levermann, 2017: 500 m)
+    H0_file      = "None"               ! File with the initial H_ice on the model grid; "None": slab of H0_init
+    thrm_init    = "robin-cold"         ! Initial ice temperature: "robin-cold", "robin", "linear"
+    full_domain  = False                ! Full symmetric domain x = [-lx,lx] with the divide inside (Feldmann and Levermann, 2017)
 
     ! Domain parameters 
-    dx           =   5.0                ! [km] Grid resolution
-    lx           = 700.0                ! [km] Grid length, x-direction 
-    ly           =  80.0                ! [km] Grid width,  y-direction 
-    fc           = 4.0                  ! [km] Characteristic width of channel side walls
+    dx           = 4.0                  ! [km] Grid resolution
+    lx           = 120.0  ! [km] Grid length, x-direction
+    ly           = 16.0  ! [km] Grid width,  y-direction
+    fc           = 16.0                 ! [km] Characteristic width of channel side walls
     dc           = 500.0                ! [m] Depth of bed trough compared with side walls
     wc           = 24.0                 ! [km] Half-width of bed trough
-    x_cf         = 640.0                ! [km] Position of fixed calving front in right-hand half of domain 
+    x_cf         = 100.0  ! [km] Position of fixed calving front in right-hand half of domain
 
     ! Simulation parameters
     Tsrf_const   = -20.0                ! [degC]  Surface temperature 
     smb_const    = 0.3                  ! [m/yr]  Surface mass balance 
-    Qgeo_const   = 50.0                 ! [mW/m2] Geothermal heat flux 
+    Qgeo_const   = 70.0                 ! [mW/m2] Geothermal heat flux 
 
 /
 
+&ctrl_front
+    H0           = 400.0                ! [m]    Ice thickness at the divide (x=0)
+    dHdx         = 1.5                  ! [m/km] Thickness decrease with |x|
+    zb           = -150.0               ! [m]    Flat bed elevation
+/
+
 &yelmo
-    domain          = "MISMIP+"
-    grid_name       = "MISMIP+"
+    domain          = "TROUGH-F17"
+    grid_name       = "TROUGH-F17"
     grid_path       = "none"
-    phys_const      = "MISMIP+"
-    experiment      = "MISMIP+"         ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "infinite"; "MASK_ICE"
+    phys_const      = "TROUGH"
+    experiment      = "TROUGH-F17"         ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "infinite"; "MASK_ICE"
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"
@@ -46,12 +60,12 @@
     restart_z_bed   = False             ! Take z_bed (and z_bed_sd) from restart file
     restart_H_ice   = False             ! Take H_ice from restart file
     restart_relax   = 1e3               ! [yrs] Years to relax from restart=>input topography
-    log_timestep    = True 
+    log_timestep    = False 
     log_mb_check    = False
     disable_kill    = False             ! Disable automatic kill if unstable
     zeta_scale      = "exp"             ! "linear", "exp", "tanh"
     zeta_exp        = 2.0  
-    nz_aa           = 10                ! Vertical resolution in ice
+    nz_aa           = 20                ! Vertical resolution in ice
     dt_method       = 2                 ! 0: no internal timestep, 1: adaptive, cfl, 2: adaptive, pc
     dt_min          = 0.01              ! [a] Minimum timestep 
     cfl_max         = 0.1               ! Maximum value is 1.0, lower will be more stable
@@ -60,7 +74,7 @@
     pc_use_H_pred   = True              ! Use predicted H_ice instead of corrected H_ice 
     pc_filter_vel   = True              ! Advect H_ice with mean of current and previous vel. solutions (vel. fields stay unfiltered)
     pc_n_redo       = 5                 ! How many times can the same iteration be repeated (when high error exists)
-    pc_tol          = 1.5               ! [1/a] Redo the timestep when pc_eta > pc_tol; pc_eta = RMS of tau/(1 m + 0.01 H) over the pc mask without the pc_eta_trim largest, tau = pc truncation error [m/a]
+    pc_tol          = 5.0               ! [1/a] Redo the timestep when pc_eta > pc_tol; pc_eta = RMS of tau/(1 m + 0.01 H) over the pc mask without the pc_eta_trim largest, tau = pc truncation error [m/a]
     pc_eps          = 1e-2              ! [1/a] Target pc_eta of the adaptive timestep (dt_method=2), must be <= pc_tol
     pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
     pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
@@ -77,7 +91,7 @@
     front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)
     front_dHdx          = 0.0               ! [m/m] Thickness gradient assumed at a full front (front_subgrid)
     use_bmb             = False             ! Use basal mass balance in mass conservation equation
-    topo_fixed          = False             ! Keep ice thickness fixed, perform other ytopo calculations
+    topo_fixed          = True  ! Keep ice thickness fixed, perform other ytopo calculations
     topo_rel            = 0                 ! 0: No relaxation; 1: relax shelf; 2: relax shelf + gl; 3: all points 
     topo_rel_tau        = 10.0              ! [a] Time scale for relaxation 
     topo_rel_field      = "H_ref"           ! "H_ref" or "H_ice_n"
@@ -116,8 +130,8 @@
     calv_grnd_method    = "zero"            ! use_lsf=F: "zero"/"none","stress-b12" | use_lsf=T: "zero"/"none","equil","threshold","vm-m16","ismip7"
     
     ! === numeric noise === 
-    H_min_grnd          = 0.0               ! [m] Minimum ice thickness at grounded margin (thinner ice is ablated) - helps with stability, smaller value will lead to more precise summit
-    H_min_flt           = 0.0               ! [m] Minimum ice thickness at floating margin (thinner ice is ablated) - helps with stability
+    H_min_grnd          = 5.0               ! [m] Minimum ice thickness at grounded margin (thinner ice is ablated) - helps with stability, smaller value will lead to more precise summit
+    H_min_flt           = 5.0               ! [m] Minimum ice thickness at floating margin (thinner ice is ablated) - helps with stability
     H_min_tau           = 10.0              ! [yr] Timescale for removing margin ice thinner than H_min_grnd/H_min_flt and isolated partial cells
     sd_min              = 100.0             ! [m] calv_grnd(z_bed_sd <= sd_min) = 0.0 
     sd_max              = 500.0             ! [m] calv_grnd(z_bed_sd >= sd_max) = calv_max  
@@ -144,14 +158,14 @@
 /
 
 &ydyn
-    solver              = "diva"          ! "fixed", "sia", "ssa", "hybrid", "diva", "diva-noslip"
+    solver              = "ssa"           ! "fixed", "sia", "ssa", "hybrid", "diva", "diva-noslip"
     uz_method           = 3               ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian
     visc_method         = 1               ! 0: constant visc=visc_const, 1: dynamic viscosity (quadrature points), 2: dynamic viscosity (aa-nodes)
     visc_const          = 1e7             ! [Pa a] Constant value for viscosity (if visc_method=0)
     beta_method         = 2               ! -1: imposed externally; 0: constant beta; 1: linear (beta=cb/u0); 2: pseudo-plastic power; 3: regularized Coulomb; 4, 5: as 2, 3 with c_bed and u_b at the cell centre (no quadrature)
     beta_const          = 1e3             ! [Pa a m-1] Constant value of basal friction coefficient to be used
     beta_q              = 0.3333333       ! Dragging law exponent 
-    beta_u0             = 1.0             ! [m/a] Speed scale of the friction law (beta_method=1-5)
+    beta_u0             = 31556926.0      ! [m/a] Speed scale of the friction law (beta_method=1-5)
     beta_gl_scale       = 0               ! 0: beta*beta_gl_f, 1: H_grnd linear scaling, 2: Zstar scaling, 3: beta*f_grnd on aa-nodes (with simple staggering)
     beta_gl_stag        = 3               ! -1: beta_acx/acy imposed externally; 0: simple staggering, 1: upstream beta at gl, 2: downstream, 3: f_grnd_ac scaling, 4: weighted by the grounded share of the velocity across the face (Gladstone et al., 2010, B2)
     beta_gl_f           = 1.0             ! [-] Scaling of beta at the grounding line (for beta_gl_scale=0)
@@ -163,16 +177,18 @@
     gamma_T             = 1.0             ! [K] e-folding temperature of sub-temperate sliding (slide_T=True)
     lambda_min          = 1e-6            ! [-] Minimum sub-temperate sliding factor (slide_T=True)
     ssa_solver          = "energy"      ! "residual" | "energy"
-    ssa_lis_opt_residual= "-i bicgsafe -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"  ! See Lis library
-    ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"       ! SPD => CG (matches Yelmo.jl default)
+    ssa_lis_opt_residual= "-i minres -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"  ! See Lis library
+    ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 2000 -tol 1.0e-6 -initx_zeros false"       ! SPD => CG; tight tol: 1e-2 lets surge peaks vary +-30 %
     ssa_lat_bc          = "marine"        ! "all","marine","floating","float","none"
-    ssa_vel_max         = 10000.0          ! [m a-1] Velocity limit: clip value ("clip"), or speed at which the limit drag reaches ssa_vel_lim_tau ("drag")
-    ssa_iter_max        = 10              ! Number of maximum allowed iterations over ssa to converge on vel. solution
+    ssa_vel_lim_method  = "drag"          ! "clip": clip each velocity component at ssa_vel_max; "drag": smooth speed-limit drag on all free faces, tau = ssa_vel_lim_tau at ssa_vel_max
+    ssa_vel_max         = 50000.0          ! [m a-1] Velocity limit: clip value ("clip"), or speed at which the limit drag reaches ssa_vel_lim_tau ("drag")
+    ssa_vel_lim_tau     = 1e5             ! [Pa] Speed-limit drag at ssa_vel_max (ssa_vel_lim_method="drag")
+    ssa_iter_max        = 20              ! Number of maximum allowed iterations over ssa to converge on vel. solution
     ssa_iter_rel        = 0.7             ! [--] Relaxation fraction [0:1] to stabilize ssa iterations
-    ssa_iter_conv       = 1e-2            ! [--] L2 relative error convergence limit to exit ssa iterations
-    taud_lim            = 1e6             ! [Pa] Maximum allowed driving stress 
+    ssa_iter_conv       = 1e-3            ! [--] L2 relative error convergence limit to exit ssa iterations
+    taud_lim            = 2e5             ! [Pa] Maximum allowed driving stress 
 
-    neff_nxi            = 0               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
+    neff_nxi            = 5               ! Subgrid interpolation of hyd%N onto dyn%N_eff. 0: none, 1: Gaussian quadrature, >1: nxi x nxi subgrid.
 
 /
 
@@ -180,15 +196,15 @@
     method          = 1                 ! -1: set externally; 1: calculate cb_ref online  
     scale_zb        = 0                 ! 0: none, 1: lin, 2: exp : scaling with elevation
     scale_sed       = 0                 ! 0: none, 1: min(cb_zb,cb_sed), 2: cb_zb*(lambda_sed*f_sed), 3: 2 but no lower limit
-    is_angle        = False             ! cf_ref/cf_min are till strength angle?
+    is_angle        = True              ! cf_ref/cf_min are till strength angle?
     n_sd            = 1                 ! Number of samples over z_bed_sd field
     f_sed           = 1.0               ! Scaling reduction for thick sediments 
     sed_min         = 5.0               ! [m] Sediment thickness for no reduction in friction
     sed_max         = 15.0              ! [m] Sediment thickness for maximum reduction in friction
     z0              = -300.0            ! [m] Bedrock rel. to sea level, lower limit
     z1              =  200.0            ! [m] Bedrock rel. to sea level, upper limit
-    cf_min          =  0.1              ! [-- or deg] Minimum value of cf
-    cf_ref          =  0.8              ! [-- or deg] Reference/const/max value of cf
+    cf_min          =  5.0              ! [-- or deg] Minimum value of cf
+    cf_ref          =  10.0             ! [-- or deg] Reference/const/max value of cf
 /
 
 &yhyd
@@ -201,7 +217,7 @@
     W_til_bc         = 0.0 ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 1      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL
+    bkt_N_closure     = 1  ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
     bkt_floating_mode = 0      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
 
@@ -210,7 +226,7 @@
     marine_p        = 1.0
     marine_rho_sw   = 1028.0
     till_N0         = 1000.0 ! legacy yneff.N0
-    till_delta      = 0.04   ! legacy yneff.delta
+    till_delta      = 0.02   ! legacy yneff.delta
     till_e0         = 0.69   ! legacy yneff.e0
     till_Cc         = 0.12   ! legacy yneff.Cc
     two_value_delta = 0.02
@@ -237,12 +253,13 @@
 
 &ymat
     flow_law                = "glen"        ! Only "glen" is possible right now
-    rf_method               = 1             ! -1: set externally; 0: rf_const everywhere; 1: standard function 
-    rf_const                = 2.0e-17       ! [Pa^-3 a^-1]
+    rf_method               = 0  ! -1: set externally; 0: rf_const everywhere; 1: standard function
+    rf_const                = 3.1536e-18    ! 1e-25 [Pa^-3 s^-1] ==> 3.1536e-18 [Pa^-3 a^-1]
     rf_use_eismint2         = False         ! Only applied for rf_method=1
     rf_with_water           = False         ! Only applied for rf_method=1, scale rf by water content?
     n_glen                  = 3.0           ! Glen flow law exponent
     visc_min                = 1e3           ! [Pa a] Minimum allowed viscosity 
+    de_max                  = 100.0          ! [a-1]  Maximum allowed effective strain rate (high: no cap in most cases; only limits strain heating and mat viscosity)
     enh_method              = "shear3D"     ! "simple","shear2D","shear3D" (+ "-tracer" variants) 
     enh_shear               = 1.0
     enh_stream              = 1.0
@@ -271,7 +288,7 @@
 /
 
 &ytherm
-    method          = "enth"            ! "enth","temp","robin","robin-cold","linear","fixed"
+    method          = "fixed"            ! "enth","temp","robin","robin-cold","linear","fixed"
     qb_method       = 2                 ! 1: faces, 2: faces to quadrature nodes, 3: simple-stagger, 4: quadrature (1, 2: energy-consistent)
     dt_method       = "FE"              ! "FE", "AB", "SAM"
     solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
@@ -288,6 +305,10 @@
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
     enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
+    basal_bc_method = "capacity"        ! Grounded basal BC: "capacity" (bmb_grnd* vs freeze-on capacity C) or "wtil" (till-water predictor, deprecated)
+    cap_source      = "auto"            ! [capacity] C from: "auto" ("hyd" with water transport, else "till"), "hyd" (hydrology model), "till" (bucket W_til), "water" (water thickness W), "none" (C=0)
+    cap_W_floor     = 0.0               ! [m] [capacity, "till"/"water"] floor subtracted from the water thickness
+    cap_eps         = 1e-4              ! [m/a ice equiv.] [capacity] C below this counts as a dry bed
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock), "active", or "fixed"

@@ -345,7 +345,7 @@ gives a longer, weaker surge with less thinning, and a shorter cycle
 velocity is held at the limit, since ice keeps arriving from upstream.
 This does not occur with `"drag"`, which shows that the clip also changes
 the thickness evolution of the surge. The TROUGH-F17 parameter file uses
-`ssa_vel_max` = 10 000 m/yr. The scripts and run list are in
+`ssa_vel_max` = 50 000 m/yr, so that the surge is not limited. The scripts and run list are in
 `analysis/vel-lim/`.
 
 [resid_src]: https://github.com/fesmc/yelmo/blob/main/src/physics/solver_ssa_ac.f90
