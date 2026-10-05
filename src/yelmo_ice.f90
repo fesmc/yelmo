@@ -1449,7 +1449,7 @@ contains
 
     end subroutine yelmo_update_z_bed_restart_rate
 
-    subroutine yelmo_init_state(dom,time,thrm_method)
+    subroutine yelmo_init_state(dom,time,thrm_method,T_ice)
         ! This subroutine is the second step to intializing 
         ! the state variables. It initializes ice temperatures,
         ! material properties and dynamics. It is called after the topography
@@ -1457,12 +1457,17 @@ contains
         ! are already initialized externally.
         ! The state variables are either calculated directly or
         ! loaded from a restart file. 
+        ! thrm_method: "linear", "robin", "robin-cold", or "prescribed", which
+        ! takes the ice temperature from T_ice (on the Yelmo grid, see
+        ! yelmo_remap / yelmo_read_remap to map a field from another source),
+        ! capped at the pressure melting point.
             
         implicit none 
 
         type(yelmo_class), intent(INOUT) :: dom
         real(wp),          intent(IN)    :: time  
         character(len=*),  intent(IN)    :: thrm_method 
+        real(wp),          intent(IN), optional :: T_ice(:,:,:)    ! [K] thrm_method="prescribed"
 
         ! Local variables 
         integer :: q 
@@ -1485,11 +1490,24 @@ contains
 
             ! Consistency check 
             if (trim(thrm_method) .ne. "linear" .and. trim(thrm_method) .ne. "robin" &
-                .and. trim(thrm_method) .ne. "robin-cold") then 
+                .and. trim(thrm_method) .ne. "robin-cold" .and. trim(thrm_method) .ne. "prescribed") then 
                 write(io_unit_err,*) "yelmo_init_state:: Error: temperature initialization must be &
-                           &'linear', 'robin' or 'robin-cold' in order to properly prescribe &
+                           &'linear', 'robin', 'robin-cold' or 'prescribed' in order to properly prescribe &
                            &initial temperatures."
                 error stop 1
+            end if
+
+            if (trim(thrm_method) .eq. "prescribed") then
+                if (.not. present(T_ice)) then
+                    write(io_unit_err,*) "yelmo_init_state:: Error: thrm_method='prescribed' requires T_ice."
+                    error stop 1
+                end if
+                if (any(shape(T_ice) .ne. shape(dom%thrm%now%T_ice))) then
+                    write(io_unit_err,*) "yelmo_init_state:: Error: T_ice must be on the Yelmo grid &
+                               &(nx,ny,nz_aa): ", shape(dom%thrm%now%T_ice), ", got: ", shape(T_ice)
+                    error stop 1
+                end if
+                dom%thrm%now%T_ice = T_ice
             end if
             
             ! Store original model choices locally 

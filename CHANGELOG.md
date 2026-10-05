@@ -667,6 +667,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- New module `yelmo_remapping` (`src/yelmo_remapping.f90`, re-exported by `use yelmo`):
+  `yelmo_remap` (2D: horizontal with a coords map; 3D: vertical interpolation onto a
+  Yelmo axis, then horizontal), `yelmo_load_map` (map from a file's axes; replaces
+  `yelmo_restart_load_map` in the restart reader) and `yelmo_read_remap` (read and map a
+  2D or 3D field from NetCDF). See docs/remapping.md.
+- `yelmo_init_state(..., thrm_method="prescribed", T_ice=T_ice)`: initial ice temperature
+  from an external field on the Yelmo grid, capped at the pressure melting point, with
+  the consistent enthalpy.
 - `yelmo_opt.x` (`tests/yelmo_opt.f90`, `make opt`, runme alias `opt`) removed:
   basal friction optimization is the initmip spin-up option
   `ctrl.equil_method = "opt"`.

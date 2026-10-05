@@ -58,6 +58,7 @@ module thermodynamics
     public :: calc_T_base_shlf_approx
     public :: calc_T_freeze_sw
     public :: define_temp_linear_3D
+    public :: define_temp_prescribed_3D
     public :: define_temp_robin_3D
     public :: define_temp_linear_column
     public :: define_temp_robin_column
@@ -1417,6 +1418,35 @@ contains
         return
 
     end subroutine define_temp_linear_3D
+
+    subroutine define_temp_prescribed_3D(enth,T_ice,omega,T_pmp,L_ice,enth_integral)
+        ! Complete a temperature field that has been prescribed externally
+        ! (yelmo_init_state with thrm_method="prescribed"): cap T_ice at the
+        ! pressure melting point, set the water content to zero and compute
+        ! the consistent enthalpy.
+
+        implicit none
+
+        real(wp), intent(OUT)   :: enth(:,:,:)          ! [J kg-1] Enthalpy
+        real(wp), intent(INOUT) :: T_ice(:,:,:)         ! [K] Temperature
+        real(wp), intent(OUT)   :: omega(:,:,:)         ! [--] Water content
+        real(wp), intent(IN)    :: T_pmp(:,:,:)         ! [K] Pressure melting point
+        real(wp), intent(IN)    :: L_ice
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
+
+        logical :: use_int
+
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
+
+        T_ice = min(T_ice,T_pmp)
+        omega = 0.0_wp
+
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+
+        return
+
+    end subroutine define_temp_prescribed_3D
 
     function define_temp_linear_column(T_srf,T_base,T0,zeta_aa) result(T_ice)
 

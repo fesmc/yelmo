@@ -245,6 +245,13 @@ contains
                 case("fixed") 
                     ! Pass - do nothing, use the enth/temp/omega fields as they are defined
 
+                case("prescribed")
+                    ! T_ice has been set externally (yelmo_init_state only):
+                    ! cap at the melting point, omega = 0, consistent enthalpy
+
+                    call define_temp_prescribed_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp, &
+                                                   bnd%c%L_ice,enth_integral=thrm%par%enth_integral)
+
                 case DEFAULT 
 
                     write(*,*) "ytherm:: Error: thermodynamics option not recognized: method = ", trim(thrm%par%method)

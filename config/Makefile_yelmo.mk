@@ -183,7 +183,10 @@ $(objdir)/yelmo_data.o: $(srcdir)/yelmo_data.f90 $(objdir)/yelmo_defs.o $(objdir
 $(objdir)/yelmo_regions.o: $(srcdir)/yelmo_regions.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o
+$(objdir)/yelmo_remapping.o: $(srcdir)/yelmo_remapping.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o $(objdir)/yelmo_remapping.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/control.o: control.f90
@@ -271,6 +274,7 @@ yelmo_base =		   $(objdir)/yelmo_defs.o \
 	         		   $(objdir)/yelmo_boundaries.o \
 	                   $(objdir)/yelmo_data.o \
 	                   $(objdir)/yelmo_regions.o \
+	                   $(objdir)/yelmo_remapping.o \
 	                   $(objdir)/yelmo_io.o \
 	         		   $(objdir)/yelmo.o
 
