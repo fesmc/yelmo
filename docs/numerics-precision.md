@@ -59,13 +59,12 @@ Build a separate copy; do not modify the shared checkouts.
    as is.
 2. Set `wp = dp` in yelmo, fesm-utils, FastHydrology and tracer (table above),
    and also `prec_time = dp` in tracer.
-3. Add `-fdefault-real-8 -fdefault-double-8` (gfortran) to `FFLAGS_BASE` in
-   the yelmo `Makefile`. This is required because some calls pass default-real
-   literals to `wp` dummy arguments (e.g. in `solver_ssa_ac.f90`), which fail
-   to compile with `wp = dp` otherwise.
-4. Build fesm-utils (`make openmp=0 all` in `fesm-utils`), then
-   `make yelmo-static benchmarks` in yelmo, which also builds FastHydrology,
-   elsa and tracer.
+3. Build fesm-utils (`make fesmutils-static openmp=0` in `fesm-utils`), then
+   `make yelmo-static benchmarks openmp=0` in yelmo, which also builds
+   FastHydrology, elsa and tracer. Start from a tree without object or module
+   files. No extra compiler flags are needed; `-fdefault-real-8` makes
+   `sp = kind(1.0)` equal to `dp` and breaks the `sp`/`dp` generic interfaces
+   (e.g. `is_finite` in `yelmo_tools.f90`).
 
 Run the check with, for example:
 
