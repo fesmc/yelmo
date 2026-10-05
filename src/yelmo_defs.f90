@@ -3,6 +3,7 @@ module yelmo_defs
     
     use, intrinsic :: iso_fortran_env, only : input_unit, output_unit, error_unit
     use omp_lib
+    use, intrinsic :: iso_c_binding, only : c_funptr, c_null_funptr, c_int
 
     use nml, only : nml_replace
     use variable_io, only : var_io_type
@@ -603,6 +604,12 @@ module yelmo_defs
 
         type(ydyn_param_class)    :: par        ! physical parameters
         type(ydyn_state_class)    :: now
+
+        ! Effective-pressure callback of a host that owns the hydrology (e.g. Julia FastHydrology
+        ! through the C API, yelmo_set_neff_callback): called in every DIVA Picard iteration with
+        ! the basal speed [m/yr] on aa-nodes, returns N [Pa]. Unset: c_null_funptr.
+        type(c_funptr)            :: neff_cb    = c_null_funptr
+        integer(c_int)            :: neff_cb_tag = 0   ! handed back to the host with every call
 
     end type
 
