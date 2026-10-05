@@ -11,55 +11,16 @@ using CairoMakie
 const FIGDIR = normpath(joinpath(@__DIR__, "..", "figures"))
 mkpath(FIGDIR)
 
-# Island base profile
-const Bc = 900.0      # [m]  bed elevation at the centre
-const Bl = -2000.0    # [m]  bed elevation at r = R0
-const R0 = 1000e3     # [m]  radius where the base profile reaches Bl
+# Geometry and forcing from YelmoBench (tests/bench/src/island4.jl)
+using YelmoBench: island4_bed, island4_base, island4_smb
 
-# Troughs (one per diagonal)
-const r_h   = 250e3   # [m]  radius of the trough head (apex of the V)
-const alpha = 120.0   # [deg] opening angle of the trough
-const ell   = 50e3    # [m]  width of the trough walls and head
-const D0    = 1500.0  # [m]  trough depth below the base profile
-const B_od  = 700.0   # [m]  depth of the overdeepening (0: off)
-const r_od  = 350e3   # [m]  radius of the deepest point of the overdeepening
-const w_od  = 60e3    # [m]  half-width of the overdeepening
+const B_od  = 700.0   # [m]  overdeepening used in panels (b), (d), (e)
+const r_ela = 450e3   # [m]  radius of the equilibrium line (SMB = 0)
+const r_lim = 750e3   # [m]  no ice for r >= r_lim
 
-# Forcing
-const smb0  = 0.5     # [m/a] SMB at the centre
-const r_ela = 450e3   # [m]   radius of the equilibrium line (SMB = 0)
-const r_lim = 750e3   # [m]   calving mask: no ice for r >= r_lim
-
-"Radial base profile of the island."
-bed_base(r) = Bc - (Bc - Bl) * r^2 / R0^2
-
-"""
-Depth of one V-shaped trough in local coordinates (ξ along, η across the trough
-axis). The walls are straight lines from the apex at ξ = r_h, smoothed over ell.
-"""
-function trough(ξ, η; alpha = alpha, B_od = B_od)
-    φ = deg2rad(alpha / 2)
-    T = 0.5 * (1 + tanh(((ξ - r_h) * tan(φ) - sqrt(η^2 + ell^2)) / ell))
-    D = D0 + B_od * exp(-((ξ - r_od) / w_od)^2)
-    return D * T
-end
-
-"""
-ISLAND4 bed elevation [m]. Troughs lie along the diagonals (rot = 0) or along
-the axes (rot = 45, ISLAND4-R). Invariant under the D4 group of the grid.
-"""
-function z_bed(x, y; alpha = alpha, B_od = B_od, rot = 0.0)
-    z = bed_base(hypot(x, y))
-    for ψ in deg2rad.((45.0, 135.0, 225.0, 315.0) .+ rot)
-        ξ =  x * cos(ψ) + y * sin(ψ)
-        η = -x * sin(ψ) + y * cos(ψ)
-        z -= trough(ξ, η; alpha, B_od)
-    end
-    return z
-end
-
-"Radial surface mass balance [m/a]."
-smb(r) = smb0 * (1 - r / r_ela)
+z_bed(x, y; B_od = B_od, rot = 0.0) = island4_bed(x, y; B_od, rot)
+smb(r) = island4_smb(r; r_ela)
+bed_base(r) = island4_base(r)
 
 function main()
     xs = range(-800e3, 800e3, length = 401)
