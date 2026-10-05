@@ -1,6 +1,7 @@
 ! Benchmark protocol: ISLAND4 (docs/dev/benchmark-protocol).
 ! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
 ! Fixture: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/island4-16km.nc island4 dx_km=16
+!          (A3 diagnostic with initial floating ice: add init=vialov)
 ! All parameters not listed here come from input/yelmo_defaults.nml.
 
 &ctrl
@@ -36,4 +37,13 @@
     pd_tsrf_load    = False
     pd_smb_load     = False
     pd_vel_load     = False
+/
+
+! Tight solver tolerances: the symmetry tests compare the solution with its
+! mirror images, which the default tolerances (Picard 1e-2, linear 1e-2)
+! determine only to ~1e-3 (docs/dev/benchmark-protocol, "Status").
+&ydyn
+    ssa_iter_max        = 200
+    ssa_iter_conv       = 1e-5
+    ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 5000 -tol 1.0e-8 -initx_zeros false"
 /
