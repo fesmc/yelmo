@@ -46,8 +46,12 @@ for k in eachindex(b.rows)
     Ta = strip_solution(b, k, zeta, t; n_modes)
     err = [maximum(abs.(T_ice[i, j, :, n] .- Ta[:, n])) for i in ic, n in eachindex(t)]
     e   = vec(maximum(err; dims = 1))
-    global emax   = max(emax, maximum(e))
+    # For the transient experiments the forcing changes at t = 0, which the
+    # series cannot represent at t = 0 (step in the surface condition)
+    nmax = b.exp == :stationary ? eachindex(t) : findall(>(0), t)
+    global emax   = max(emax, maximum(e[nmax]))
     global spread = max(spread, maximum(maximum(T_ice[ic, j, :, :]; dims = 1) .- minimum(T_ice[ic, j, :, :]; dims = 1)))
-    @printf("%4d %7.0f %6.2f %6.2f  %s\n", k, H, p.w0, p.Pe, join([@sprintf("%9.3g", e[n]) for n in tsel], " "))
+    @printf("%4d %7.0f %6.2f %6.2f  %s\n", k, H, -p.w0, p.Pe, join([@sprintf("%9.3g", e[n]) for n in tsel], " "))
 end
-@printf("max |T - T_analytic| = %.3g K,  max spread across columns = %.3g K\n", emax, spread)
+@printf("max |T - T_analytic| = %.3g K%s,  max spread across columns = %.3g K\n", emax,
+        b.exp == :stationary ? "" : " (t > 0)", spread)

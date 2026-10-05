@@ -104,7 +104,8 @@ function strip_params(b::StripThermoBenchmark, k; forcing::Symbol = :P2)
         b.exp == :tsrf && (T_srf += b.dT)
         b.exp == :smb  && (smb *= b.fsmb)
     end
-    return IceColumnPar(H, T_srf, COLUMN_KAPPA, COLUMN_K, 0.0, b.Q_geo * 1e-3; w0 = smb)
+    # Downward surface velocity w0 = −SMB (w0 < 0 is downward in IceColumnSolutions.jl)
+    return IceColumnPar(H, T_srf, COLUMN_KAPPA, COLUMN_K, 0.0, b.Q_geo * 1e-3; w0 = -smb)
 end
 
 """
@@ -163,9 +164,9 @@ function state(b::StripThermoBenchmark, t::Real)
         T1 = strip_column(b, k, zeta)
         for i in 1:Nx
             H_ice[i, j]  = p2.L
-            smb[i, j]    = p2.w0
+            smb[i, j]    = -p2.w0
             T_srf[i, j]  = p2.T_air
-            ux_bar[i, j] = p2.w0 / p2.L * (b.xc[i] + dx / 2)
+            ux_bar[i, j] = -p2.w0 / p2.L * (b.xc[i] + dx / 2)
             T_ice[i, j, :] = T1
         end
     end
