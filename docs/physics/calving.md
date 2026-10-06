@@ -95,7 +95,8 @@ classification. Front cells with `a_lsf` < 1 are trimmed to `a_lsf`·`H_ref`,
 with `H_ref` the reference thickness from the interior neighbours, so `f_ice`
 is approximately `a_lsf`. In the momentum balance, partial front cells use
 `H_eff` as their thickness and the front boundary condition is applied on
-their ocean faces.
+their ocean faces. Cells with `f_ice` < 0.1 keep their ice and fill by transport,
+but are ice-free in the momentum balance until they reach 0.1.
 
 ## Mass-balance calving path
 

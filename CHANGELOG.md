@@ -376,6 +376,19 @@ little. MISMIP3D and DIVA runs change more.
   there made a 50-m (`front_H_eff_min`) column in the SSA that closed the front
   cell's ocean face: GRL-8KM (108,55) moved sideways at ~8 km/yr (velocity-limit
   drag active in 86 % of steps, dt 0.43 yr).
+- **Front cells with `f_ice` < `A_FRONT_MIN` (0.1) are ice-free in the momentum
+  balance** (`calc_ytopo_diagnostic`: `H_ice_dyn` = `f_ice_dyn` = 0). They keep
+  their ice and fill by transport. Every cell with ice was active, and partial cells
+  take part with `H_eff` ≥ `front_H_eff_min`, so a few millimetres of ice (e.g. land
+  ice spilling into the ocean, slivers next to a front cell) were 50-m columns that
+  closed the ocean face of the neighbouring front cell. With `front_subgrid = "none"`
+  only cells with H ≤ 1 mm change (`f_ice` = 0 there). Both calving paths. With both
+  changes above (1 kyr): GRL-16 velocity-limit drag active in 2 % of steps (was 12 %),
+  GRL-8 restart case dt 0.43 → 0.76 yr; GRL-8 from PD dt 0.97 → 0.73 yr, since Rink
+  Isbræ no longer advances into a land-walled fjord bend and flows at ~2.8 km/yr.
+  Benchmarks: EISMINT/HALFAR round-off (≤ 1 mm cells), MISMIP3D transient ≤ 3 m
+  (final GL unchanged), TROUGH-F17 one inactive cell beyond the front gains snow
+  (0 → 68 m in 2 kyr, volume +0.02 %).
 - **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
   methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
   which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
