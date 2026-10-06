@@ -3,7 +3,7 @@ program test_enthalpy
     !
     ! Purpose: exercise and validate the enthalpy solver (calc_enth_column)
     ! against the temperature solver (calc_temp_column) and the Kleiner et al.
-    ! (2015) enthalpy benchmarks. See docs/physics/enthalpy-transition-plan.md.
+    ! (2015) enthalpy benchmarks. See docs/physics/thermodynamics.md.
     !
     ! Experiments (1st cmdline arg, default "cold-limit"):
     !   cold-limit : identical cold column solved by both solvers; asserts that

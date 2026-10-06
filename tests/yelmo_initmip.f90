@@ -559,6 +559,7 @@ contains
         call yelmo_write_var(filename,"uxy_s",ylmo,n,ncid)
         call yelmo_write_var(filename,"uz",ylmo,n,ncid)
         call yelmo_write_var(filename,"uz_star",ylmo,n,ncid)
+        call yelmo_write_var(filename,"uz_srf_err",ylmo,n,ncid)
         
         ! == yelmo_material ==
         call yelmo_write_var(filename,"enh_bar",ylmo,n,ncid)

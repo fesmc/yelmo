@@ -30,3 +30,6 @@ git_yelmo.txt
 docs/_site/
 docs/.quarto/
 .local/
+
+# Benchmark fixtures (tests/bench/make_fixture.jl)
+input/bench/

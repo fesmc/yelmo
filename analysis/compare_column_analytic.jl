@@ -4,7 +4,7 @@
 # against the exact 1D advection-diffusion solutions of IceColumnSolutions.jl
 # (Moreno-Parada et al., 2024) in the constant-property limit.
 #
-# Companion to docs/physics/enth-temp-discretization.md. In the constant-cp/kt
+# Companion to docs/dev/enth-temp-discretization.md. In the constant-cp/kt
 # regime both Yelmo solvers *should* reproduce the analytic column exactly; this
 # script confirms that, measures each scheme's order of accuracy on an nz
 # refinement sweep, and repeats across a (Pe, gamma) parameter grid. (The

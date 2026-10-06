@@ -85,7 +85,8 @@ $$
 \;+\; \frac{\partial \zeta}{\partial x}\,\frac{\partial u}{\partial \zeta} .
 $$
 
-The code applies exactly this correction. In `calc_uz_3D`:
+The code applies exactly this correction. In `calc_uz_3D` (`uz_method = 2`;
+`calc_uz_3D_aa` is analogous):
 
 ```fortran
 c_x = -H_inv * ( (1.0-zeta_now)*dzbdx_aa + zeta_now*dzsdx_aa )   ! = dzeta/dx
@@ -107,53 +108,127 @@ uz(i,j,k) = uz(i,j,k-1) - H_now*(zeta_ac(k)-zeta_ac(k-1))*(dudx_aa+dvdy_aa)
 ```
 
 with `dzbdt_now = tpo%now%dzbdt_kin`, the kinematic rate of the column base
-(`dzsdt_kin` for the surface), computed in `calc_ytopo_pc` from the tendencies:
+(`dzsdt_kin` for the surface), computed by `calc_column_kinematic_rates` from
+the tendencies of the topography step:
 
-- vertical thickness change of the column, `dHidt_vert` = advection + smb + bmb
-  (+ relaxation). Calving, frontal melt, discharge, front advance and removals are
-  lateral and do not move the column surface or base;
+- vertical thickness change of the column, `dHidt_vert` = advection (including
+  `mb_clip`) + smb + bmb (+ relaxation). Calving, frontal melt, discharge, front
+  advance and removals are lateral and do not move the column surface or base;
 - grounded ice: the base follows the bedrock, `dzbdt_kin = dz_bed/dt`;
 - floating ice: the column floats, `dzbdt_kin = dz_sl/dt - (rho_ice/rho_sw)*dHidt_vert`;
 - blended by the grounded fraction; `dzsdt_kin = dzbdt_kin + dHidt_vert`;
-- partial front cells (column from `H_eff`) and ice-free cells: zero.
+- zero in partial front cells (column from `H_eff`), cells on the `H_eff`
+  floor, cells that became ice covered during the step, and ice-free cells.
 
 The bedrock and sea-level rates are the changes since the previous call of
-`yelmo_update` (`ybound_update_rates`), zero on the first call after
-initialisation or a restart. Before, the base rate was the difference
-`dzsdt - dHidt`, which mixed the `H_eff`-based surface with the true thickness at
-subgrid fronts and counted lateral removals as vertical motion (basal `uz` of
-several km/yr in the first steps).
+`yelmo_update` (`ybound_update_rates`). They are written to the restart file,
+so a continued run uses the same rates; they are zero on the first call after
+initialisation or after a restart that does not continue the run.
 
 **The sigma-ness is removed, not embedded.** The coordinate corrections are
 applied to the *horizontal derivatives* precisely so that what gets integrated
 is the true constant-$z$ divergence. What comes out, `uz`, is honest physical
 $w$ in a fixed frame.
 
-### The three methods
+### The four methods
 
-`ydyn.uz_method` selects among three implementations that differ only in how
-the horizontal derivatives are evaluated — all three produce the same
-quantity:
+`ydyn.uz_method` selects among four implementations. Methods 1–3 integrate the
+horizontal divergence as above and differ in how it is discretized. They use
+the column of the dynamics (`H_ice_dyn`), so partial front cells are full
+columns with the effective thickness. Method 4 integrates the layer mass budget
+instead (see [below](#uz-flux)):
 
 | `uz_method` | Routine | Notes |
 |---|---|---|
-| 1 (`uz_aa`) | `calc_uz_3D_aa` | simplest; plain finite differences on `aa`-nodes |
-| 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging |
-| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)). Most stable and most correct. |
+| 1 (`uz_aa`) | `calc_uz_3D_aa` | divergence from the two faces of each cell, $(u_{i+1/2}-u_{i-1/2})/\Delta x$, the same face differences as the thickness equation |
+| 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging (same effective stencil as method 3) |
+| 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)), with 3D quadrature. The constant-$z$ correction is applied in the Jacobian, so `uz` is integrated from the corrected divergence directly. |
+| 4 (`uz_flux`) | `calc_uz_3D_flux` | `uz_star` from the layer mass budget, with the layer fluxes closed against the applied thickness step; `uz` recovered from `uz_star` |
+
+Methods 2 and 3 average the divergence over neighbouring cells. Along the
+flow, the centred face derivatives $(u_{i+3/2}-u_{i-1/2})/(2\Delta x)$ averaged
+to the cell centre give a four-face stencil, which does not see a 2$\Delta x$
+oscillation of the velocity; across the flow, the corner and quadrature
+averaging weights the neighbouring rows by 1/4, 1/2, 1/4. This smooths grid-scale
+noise in the divergence: in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and
+TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatch
+`uz_srf_err` and a 2–5 times smoother `uz` than method 1. However, where the
+divergence changes from one cell to the next, the vertical velocity of a column
+is mixed with that of its neighbours: in the A4 benchmark (plug flow with
+uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a
+surface `uz` off by up to a factor of 5 next to a jump in the divergence, while
+method 1 is exact.
+
+### Flux-consistent vertical velocity (`uz_method = 4`) {#uz-flux}
+
+Method 4 computes `uz_star` directly from the mass budget of each layer $k$
+between $\zeta_{k-1/2}$ and $\zeta_{k+1/2}$,
+
+$$
+w^\star_{k+1/2} \;=\; w^\star_{k-1/2} \;-\; \Delta\zeta_k\,\frac{\partial H}{\partial t} \;-\; D_k,
+\qquad w^\star_{1/2} = \dot b ,
+$$
+
+where $D_k = \nabla\cdot(H\,\Delta\zeta_k\,\mathbf{u}_k)$ is the flux divergence of
+layer $k$ and $\partial H/\partial t$ = `dzsdt_kin` − `dzbdt_kin` is the vertical
+thickness change of the column. $D_k$ is formed with the stencil of the
+thickness solver (face thickness of `H_ice` upwind by the sign of the
+depth-averaged velocity). Since the trapezoid weights of `zeta_aa` are the layer
+thicknesses $\Delta\zeta_k$, the sum of the layer fluxes is the flux divergence
+$\nabla\cdot(H\bar{\mathbf{u}})$ of the current velocity. Where the column rate is
+given by the applied thickness step (`tpo%now%mask_kin` = 1), the layer fluxes
+are corrected additively,
+
+$$
+D_k \;\leftarrow\; D_k + \Delta\zeta_k\Bigl(-\dot H_\mathrm{dyn} - \sum_m D_m\Bigr),
+$$
+
+so that they sum to the applied transport $-\dot H_\mathrm{dyn}$ (`dHidt_dyn`).
+The correction absorbs the differences between the thickness step and the
+current velocity solution (time-filtered velocity, implicit face thickness,
+predictor–corrector weighting) and is distributed over the column like the
+layer thickness. The surface value is then
+
+$$
+w^\star_s \;=\; -\dot a \;-\; \dot H_\mathrm{clip} \;-\; \dot H_\mathrm{relax},
+$$
+
+the kinematic condition, with the clip of negative thickness (`mb_clip`) and the
+relaxation (`mb_relax`) as additional surface terms. The physical `uz` is
+recovered from `uz_star` with the coordinate terms of the next section, so the
+two fields stay consistent.
+
+`mask_kin` is 0 where the column is re-derived (partial front cells, cells on
+the `H_eff` floor, cells that became fully ice covered during the step) and
+wherever the thickness is not advanced (`topo_fixed`, initialization). There
+the layer fluxes are those of the current velocity and $\partial H/\partial t = 0$,
+so the surface condition holds only if the ice is in balance. For uniform
+thickness along the flow (benchmark A4), the uncorrected layer fluxes are exact
+and do not mix neighbouring columns.
+
+The vertical velocity is computed in the dynamics, after the predictor step.
+With `pc_use_H_pred = True` (default), the predictor is the applied thickness
+step and the closure is exact. With `pc_use_H_pred = False`, the corrected
+thickness is applied, and the closure differs from it by the
+predictor–corrector truncation error.
 
 ### Practical caveats
 
-- **The surface kinematic BC is not enforced.** `uz` is anchored at the *base*
-  and integrated upward. The corresponding surface condition
+- **The surface kinematic BC is not enforced (methods 1–3).** `uz` is anchored at the *base*
+  and integrated upward, and the surface condition
   $w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a$
-  is computed but the redistribution correction is commented out in all three
-  routines. So `uz` is *exactly divergence-consistent and exactly satisfies the
-  basal BC*; any mismatch with the surface BC accumulates as a residual at the
-  top rather than being spread through the column. "Consistent with mass
-  conservation" should be read in that precise sense.
-- **No clamps.** `uz` and `uz_star` are not limited (the former ±10 m/yr clamps
-  cut the physical $w$ in fast outlets, where it reaches tens of m/yr). Values
-  below `TOL_UNDERFLOW` are zeroed.
+  is not imposed. So `uz` *exactly satisfies the basal BC*, and any mismatch
+  with the surface BC accumulates as a residual at the top rather than being
+  spread through the column. The mismatch is diagnosed as `uz_srf_err` =
+  $w^\star_s + \dot a$ in fully ice-covered cells. It is not zero, since the
+  integrated divergence ($H\,\nabla\cdot\mathbf{u}$ plus the basal and
+  coordinate terms) is not the discrete flux divergence of the thickness
+  equation, which uses face thicknesses and the time-filtered velocity
+  (`pc_filter_vel`). It is largest at grounding lines and outlet margins
+  (several m/yr in Greenland at 16 km) for all three methods. Method 4 closes
+  it by construction where `mask_kin` = 1.
+- **No clamps.** `uz` and `uz_star` are not limited; in fast outlets $w$ reaches
+  tens of m/yr. Values below `TOL_UNDERFLOW` are zeroed.
 - **Ice-free points** get `uz = dzbdt - max(smb,0)` and `uz_star = uz`.
 
 ## `uz_star` — the sigma-relative advective velocity
@@ -244,8 +319,8 @@ nothing to do with numerics.
 
 ## The two `c_x` are not the same {#the-two-c_x-are-not-the-same}
 
-Within the *same subroutine*, `c_x` is defined twice with different
-normalisations. This trips people up:
+In `calc_uz_3D` and `calc_uz_3D_aa`, `c_x` is defined twice with different
+normalisations within the *same subroutine*. This trips people up:
 
 | Context | Code | Value | Multiplies |
 |---|---|---|---|
@@ -293,8 +368,10 @@ $\dot x = u,\ \dot y = v,\ \dot z = w$, pass `ux`, `uy`, `uz` — never
 | Consumer | Field | Location |
 |---|---|---|
 | Enthalpy/temperature vertical advection | `uz_star` | [`yelmo_thermodynamics.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_thermodynamics.f90) → `calc_ytherm_enthalpy_3D` |
-| Age (`dep_time`) and `enh_bnd` tracer advection | `uz_star` | [`yelmo_material.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90) → `calc_tracer_3D` ([`ice_tracer.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90)) |
-| Velocity Jacobian `jvel` | `uz` | [`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90) → `calc_jacobian_vel_3D_*` |
+| Eulerian deposition-time tracer (`t_dep`) | `uz_star` | [`yelmo_tracers.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90) → `calc_tracer_3D` ([`ice_tracer.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/ice_tracer.f90)) |
+| Lagrangian particle tracer (`tracer` backend) | `uz` | [`yelmo_tracers.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_tracers.f90) |
+| `enh_bnd` tracer advection (`*-tracer` enhancement methods) | `uz_star` | [`yelmo_material.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_material.f90) → `calc_tracer_3D` |
+| Velocity Jacobian `jvel` | `uz` | [`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90) → `calc_jacobian_vel_3D_uzterms` |
 | `uz_b`, `uz_s` diagnostics | `uz` | `yelmo_dynamics.f90` |
 | Output / restart / C API | both | `yelmo_io.f90`, `yelmo_c_api.f90` |
 
@@ -305,11 +382,12 @@ to the restart file.
 ::: {.callout-note}
 ## 3D CFL timestep
 
-There is no 3D advective CFL limit: `set_adaptive_timestep` in
-[`yelmo_timesteps.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_timesteps.f90)
-only applies the 2D (depth-averaged) advective CFL. Should a 3D constraint ever
-be added, it must be driven by `uz_star`, since that is the velocity at which
-scalars actually cross model layers.
+There is no 3D advective CFL limit: the adaptive time step
+([Time stepping](timestepping.md)) only applies the 2D (depth-averaged)
+advective CFL. The vertical advection of the thermodynamics is implicit, and
+its horizontal advection is sub-cycled internally. A 3D constraint would have
+to be driven by `uz_star`, since that is the velocity at which scalars actually
+cross model layers.
 :::
 
 ## References

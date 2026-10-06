@@ -1,0 +1,54 @@
+! Benchmark protocol: A2 radial floating shelf (docs/dev/benchmark-protocol).
+! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
+! Fixture: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/shelf-r-10km.nc shelf-r dx_km=10
+! Check:   julia --project=tests/bench tests/bench/check_shelf.jl input/bench/shelf-r-10km.nc <run-dir>
+! All parameters not listed here come from input/yelmo_defaults.nml.
+
+&ctrl
+    time_init       = 0.0               ! [yr] Starting time
+    time_end        = 0.0               ! [yr] Ending time (= time_init: diagnostic)
+    dtt             = 10.0              ! [yr] Main loop time step
+    dt2D_out        = 100.0             ! [yr] Frequency of 2D output
+/
+
+&bench
+    fixture         = "input/bench/shelf-r-10km.nc"
+    tsrf_method     = "fixed"           ! "fixed" | "lapse"
+    bmb_method      = "fixed"           ! "fixed" | "mismip+"
+    T_sl            = -10.0             ! [degC] lapse: temperature at sea level
+    lapse           = 8e-3              ! [K m-1] lapse: lapse rate
+    Omega           = 0.2               ! [yr-1] mismip+: melt-rate factor
+    Hc0             = 75.0              ! [m] mismip+: water-column scale
+    z0              = -100.0            ! [m] mismip+: depth above which melt is zero
+/
+
+&yelmo
+    domain          = "SHELF-R"
+    grid_name       = "SHELF-R-10KM"
+/
+
+&yelmo_masks
+    basins_load     = False
+    regions_load    = False
+/
+
+&yelmo_data
+    pd_topo_load    = False
+    pd_tsrf_load    = False
+    pd_smb_load     = False
+    pd_vel_load     = False
+/
+
+! Imposed uniform friction beta_reg from the fixture (removes the nullspace)
+&ydyn
+    beta_method     = -1
+    beta_gl_stag    = -1
+    ssa_iter_max    = 20                ! Maximum number of Picard iterations
+/
+
+! Constant rate factor A = rf_const (the analytical solution uses the fixture value)
+&ymat
+    rf_method       = 0
+    rf_const        = 1e-18             ! [Pa^-3 yr^-1]
+    enh_shlf        = 1.0
+/

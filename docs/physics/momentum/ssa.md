@@ -7,15 +7,19 @@ the horizontal velocity is independent of $z$, so $\bar{\mathbf u}$
 implementation is in
 [`src/physics/velocity_ssa.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_ssa.f90).
 
-Yelmo uses the same depth-integrated 2D solver as DIVA — the difference
-is purely in the closure. SSA is the appropriate model for floating ice
-shelves (no basal drag, no vertical shear) and the right physical limit
-in fast-streaming grounded ice.
+The SSA is solved by its own Picard loop (`calc_velocity_ssa`) with the same
+linear-system assemblers as DIVA (`ydyn.ssa_solver`, see
+[Numerical solution](solvers.md)); the difference is in the closure. SSA is
+the appropriate model for floating ice shelves (no basal drag, no vertical
+shear) and the physical limit in fast-streaming grounded ice. It is used with
+`ydyn.solver = "ssa"`, where $\bar{\mathbf u} = \mathbf u_b$, and in the hybrid
+mode (`"hybrid"`), where the SSA basal velocity is added to the SIA shear
+velocity, $\bar{\mathbf u} = \bar{\mathbf u}^{(\mathrm{SIA})} + \mathbf u_b$.
 
 ## Continuum equations
 
 The depth-integrated stress balance has the same shape as the DIVA
-equation but with the **raw** friction $\beta$ instead of
+equation but with the friction coefficient $\beta$ instead of
 $\beta_\mathrm{eff}$:
 
 $$
@@ -46,11 +50,12 @@ $$
 \;=\; \dot\varepsilon_{xx}^{\,2}
    + \dot\varepsilon_{yy}^{\,2}
    + \dot\varepsilon_{xx}\,\dot\varepsilon_{yy}
-   + \tfrac{1}{4}\,\dot\varepsilon_{xy}^{\,2}
+   + \dot\varepsilon_{xy}^{\,2}
    + \varepsilon_0^{\,2},
 $$
 
-so the Glen viscosity $\mu$ depends only on horizontal strain rates.
+so the Glen viscosity $\mu$ depends only on the horizontal strain rates (and,
+through $A(T'(z))$, still varies with depth before it is depth-integrated).
 There is no F-integral closure: $F_2 \to 0$, so
 
 $$
@@ -58,7 +63,9 @@ $$
 $$
 
 The basal stress diagnosed after the solve is simply
-$\boldsymbol\tau_b = \beta\,\bar{\mathbf u}$.
+$\boldsymbol\tau_b = \beta\,\bar{\mathbf u}$. $\beta$ is the friction
+coefficient after the grounding-line scaling, staggering and `beta_min` limit
+(see [Basal friction](../basal-friction.md)).
 
 For ice shelves $\beta = 0$ identically and only the membrane terms and
 $\boldsymbol\tau_d$ remain — this is the SSA in its purest form.

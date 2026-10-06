@@ -7,6 +7,102 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **`ydyn.slide_T`, `gamma_T`, `lambda_min` replaced by `ydyn.frz_scale`, `frz_efold`,
+  `frz_min`** (`calc_f_slide`, `calc_beta`). β was divided by `f_slide`, which scales
+  the sliding speed by `f_slide**(1/q)`: with q = 1/3 (TROUGH) `gamma_T` = 1 K was a
+  0.33 K e-fold and `lambda_min` = 1e-6 a speed floor of 1e-18. β is now multiplied by
+  `f_slide**(-q)` (q = `beta_q`, 1 for `beta_method` 0, 1), with
+  `f_slide = frz_min + (1-frz_min)*exp(T_prime_b/frz_efold)`, so `frz_efold` is the
+  e-folding temperature of the sliding speed for any friction law. `f_slide = 1` also at
+  partially floating cells (`f_grnd < 1`),
+  which inherited the sub-shelf base temperature (T'_b ~ -1.9 K) and froze, and where the
+  bed is wet (`hyd_W > 0` or `hyd_W_til > 0`). Defaults and initmip: `frz_scale = True`,
+  `frz_efold = 3`, `frz_min = 1e-3` (was effectively 1 K and 1e-6 for the linear law); a
+  1 K speed e-fold was too sharp at 4 km in TROUGH-F17 (purges at the velocity limit,
+  irregular cycles, 1.4-1.8x cost). Off in the benchmarks. Replace the old keys in
+  external par files (`nml_validate` stops).
+- **New `ytherm.gl_temperate`** (default True; False in COLUMN-SLAB and FRONT-SLAB). Holds the base of fully grounded
+  cells next to floating ice or open ocean at the pressure melting point (ocean-wetted
+  bed), in `calc_enth_column` and `calc_temp_column`; freeze-on there is not limited by
+  the capacity rule. Otherwise newly grounded cells keep the sub-shelf base temperature
+  (T'_b ~ -1.9 K) and count as frozen.
+- **Mirror-symmetric one-sided strain rates at ice fronts** (`calc_jacobian_vel_3D_uxyterms`,
+  `jvel%dxx`/`dyy`). At a front with ice on the low-index side, the second-order
+  one-sided stencil on the faces i, i-1, i-2 tested `f_ice` of cell i-2 instead of
+  cell i-1 (the cell between faces i-2 and i-1), unlike the mirror case and
+  `calc_strain_rate_horizontal_2D`. The strain rates, viscosity and principal stresses
+  near fronts were not mirror symmetric; in the ISLAND4 benchmark this switched the
+  calving rate at single front cells (in double precision, symmetry error 3e-6 → <1e-13
+  over 100 yr).
+
+- **Ice thinner than 1 mm is ice free for the subgrid front scheme** (`H_ice_eps` in
+  `calc_ice_fraction` and `calc_front_cells`, was `H_ice > 0`). A cell holding a round-off
+  amount of ice became a front cell with the full reference thickness (`H_eff >=
+  front_H_eff_min`), so the front force jumped by one cell on round-off and broke the
+  symmetry of the ISLAND4 benchmark (CISM uses `thck > eps11` for the same masks, in double
+  precision). CalvingMIP Exp1, MISMIP+ Ice0, MISMIP3D Stnd and A2: unchanged (volume
+  differences <= 2e-5).
+
+- **No shear stress at ice-margin corners in the SSA solvers** (`stagger_visc_aa_ab`,
+  both assemblers). The corner viscosity was the mean over the ice-covered cells around
+  the corner, so corners on a calving front coupled the front faces to the u = 0 faces of
+  the ice-free cells: a drag on the velocity along the front. It is now the mean over the
+  four cells when all are fully ice covered, and zero otherwise (traction-free margin).
+  Found with benchmark A2 (radial floating shelf, docs/dev/benchmark-protocol): rms error
+  44 % (energy) / 15 % (residual) → 0.07 %. CalvingMIP Exp1 (25 km, 10 kyr): grounding-line
+  radius 573 → 539 km, axis-to-diagonal spread 39 → 28 km (no orientation trend), volume
+  −15 %. TROUGH-F17: volume −1.5 %, max speed 971 → 781 m/yr. MISMIP+ Ice0 and MISMIP3D
+  Stnd unchanged (straight fronts).
+
+- **`ytherm.use_strain_sia` replaced by `ytherm.strain_heating = "full" | "sia" | "none"`**
+  (default `"full"`, same as `use_strain_sia = False`). `"none"` switches strain heating
+  off, which the analytic thermodynamics benchmarks need. Par files using
+  `use_strain_sia` must be updated (all files in `par/` are).
+- **`yelmo.pc_eps` default 1.0 → 0.02** (input/yelmo_defaults.nml, par/yelmo_initmip.nml).
+  With the RMS pc norm, pc_eta stays at 1e-3 - 5e-2 in GRL/ANT runs, so pc_eps >= 0.2 never
+  limited dt; 0.02 removes the 8-km outlet checkerboard (GRL-8: 0 persistent cells) and lets
+  GRL-8/GRL-4 run where pc_eps 1 was killed. Benchmark par files (<= 1e-2) are unchanged.
+- **`ymat.de_max` default 2 → 100 a⁻¹, removed from the par files except the trough ones**
+  (`input/yelmo_defaults.nml`). The cap on the effective strain rate dates from a less stable
+  version. It only enters strain heating and the material viscosity and stresses (`mat%now`),
+  not the DIVA/SSA viscosity, but it can reduce strain heating in fast-stream shear margins
+  (1–2 a⁻¹). TROUGH-F17 at 4 km with `de_max` = 100 vs 0.5: surge peaks 11.6–22 vs 11–26 km/yr.
+
+- **`yhyd.bkt_floating_mode` default 1 → 0** (input/yelmo_defaults.nml and all par files).
+  MARGIN_FILL (1) saturated W_til on grounded cells next to floating ice, so newly grounded
+  ice near the grounding line kept N ≈ 0.03–0.5 P0 for centuries. In TROUGH-F17 this
+  ungrounded the trough flanks near the front and moved the grounding line ~80 km upstream
+  of PISM. ZERO (0) only zeroes W_til on floating cells; the till of newly grounded ice then
+  refreezes or drains, as in PISM.
+- **TROUGH-F17: `ssa_vel_max = 5e4` m/yr** (par/yelmo_TROUGH-F17.nml, was 1e4), so that
+  the surge peak (about 24 000 m/yr at 4 km) is not set by the limit.
+- **Smooth velocity limit is the default** (`ydyn.ssa_vel_lim_method = "drag"`,
+  `ssa_vel_max = 1e4` m/yr in the defaults and all par files, was a per-component
+  clip at 5000 m/yr). A drag τ_c·x², x = (s − 0.8·u_max)/(0.2·u_max), acts on all free
+  faces above 0.8·u_max (see below); it is Newton-linearised in the matrix and does not
+  enter τ_b or the frictional heating. The speed settles near 0.8–0.85·u_max. New parameter `ssa_vel_lim_tau` (1e5 Pa, drag at u_max).
+  `"clip"` is kept. TROUGH-F17 activations (clip vs drag at 5000 m/yr, 0–8 kyr):
+  9957 steps / 1161 at dt_min → 4802 / 5, Picard at `ssa_iter_max` in about 50 % of
+  activation solves → 0 %. Runs whose speed stays below 4000 m/yr (grounded) and
+  5000 m/yr (floating) are unchanged; faster runs change. Details:
+  `docs/physics/momentum/solvers.md`, scripts in `analysis/vel-lim/`.
+- **The velocity-limit drag acts on all free faces** (grounded, floating and ice-front
+  faces, `ssa_mask` 1–4, no f_grnd weight), with half weight at front faces as for
+  the friction. It is passed to both assemblers as a separate linearised term (k, r)
+  instead of through copies of β and τ_d, which the energy assembler ignored at front
+  faces. With `ssa_solver="residual"`, lateral-bc front faces are clipped at
+  `ssa_vel_max` instead. Grounded-only drag let front faces run away: ANT-32 killed
+  at t = 0.1 yr, GRL-8 (Helheim cliff) at 89 yr, GRL-4 (Jakobshavn) at 41 yr.
+- **pc error norm switch** (`pc_norm_L8` in yelmo_timesteps.f90, hard-coded `.FALSE.`):
+  the L8 norm of the scaled pc error is kept next to the RMS (default, unchanged results).
+  L8 removes the outlet 2Δx checkerboard at pc_eps ~0.03 but costs more steps; see the
+  comment there for the 2026-10-02 tests.
+- **Velocity-limit diagnostic**: `ssa_lim_n` in timesteps.nc (faces where the limit acts
+  after the last Picard iteration: drag onset 0.8·u_max, or clipped), and a log line per
+  `yelmo_update` call with the number of affected steps and the maximum face count.
+- **`yelmo_check_kill` velocity limit is 2·`ssa_vel_max`** (was a fixed 1e4 m/yr);
+  `ssa_vel_max` must be > 0.
+
 - **Capacity basal boundary condition is the default** (`ytherm.basal_bc_method =
   "capacity"`); the till-water rule `"wtil"` still works but is deprecated. A grounded
   base is held at the pressure melting point if the freezing it needs is at most the
@@ -272,6 +368,12 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
+  methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
+  which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
+  The basal gradient was then G/9.83 instead of G/k, and the profile far too
+  diffusive (TROUGH-F17, H = 500 m, G = 70 mW m-2, a = 0.3 m/yr: T_b = -16.5 °C,
+  should be about -10 °C).
 - **Gaps in the topography files are filled** (`yelmo_init_topo`, `ydata_load`):
   where a dataset has missing values (e.g. outside its coverage, as in the ISMIP7
   obs files), there is no ice, the bed comes from the nearest valid cell (fesm-utils
@@ -615,6 +717,21 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- New module `yelmo_remapping` (`src/yelmo_remapping.f90`, re-exported by `use yelmo`):
+  `yelmo_remap` (2D: horizontal with a coords map; 3D: vertical interpolation onto a
+  Yelmo axis, then horizontal), `yelmo_load_map` (map from a file's axes; replaces
+  `yelmo_restart_load_map` in the restart reader) and `yelmo_read_remap` (read and map a
+  2D or 3D field from NetCDF). See docs/remapping.md.
+- `yelmo_init_state(..., thrm_method="prescribed", T_ice=T_ice)`: initial ice temperature
+  from an external field on the Yelmo grid, capped at the pressure melting point, with
+  the consistent enthalpy.
+- `yelmo_opt.x` (`tests/yelmo_opt.f90`, `make opt`, runme alias `opt`) removed:
+  basal friction optimization is the initmip spin-up option
+  `ctrl.equil_method = "opt"`.
+- `restart_interpolated` compares the restart grid spacing in m (restart `xc` is in
+  km); before, every interpolated restart counted as coarser than the model grid.
+  With `yelmo.restart_z_bed = True`, a restart from a finer grid now uses the
+  interpolated restart bedrock.
 - `make clean` also cleans elsa and tracer (like FastHydrology), so switching
   between `openmp=0` and `openmp=1` no longer links stale sub-library objects.
 - New public `yelmo_restart_init(dom, filename, time)`: the restart branch of

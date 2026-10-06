@@ -183,7 +183,10 @@ $(objdir)/yelmo_data.o: $(srcdir)/yelmo_data.f90 $(objdir)/yelmo_defs.o $(objdir
 $(objdir)/yelmo_regions.o: $(srcdir)/yelmo_regions.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o
+$(objdir)/yelmo_remapping.o: $(srcdir)/yelmo_remapping.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o $(objdir)/yelmo_remapping.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/control.o: control.f90
@@ -217,6 +220,9 @@ $(objdir)/calving_benchmarks.o: $(testdir)/calving_benchmarks.f90 $(objdir)/yelm
 
 $(objdir)/mismip3D.o: $(testdir)/mismip3D.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/bench_forcing.o: $(testdir)/bench_forcing.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 #############################################################
 ##							
@@ -268,12 +274,14 @@ yelmo_base =		   $(objdir)/yelmo_defs.o \
 	         		   $(objdir)/yelmo_boundaries.o \
 	                   $(objdir)/yelmo_data.o \
 	                   $(objdir)/yelmo_regions.o \
+	                   $(objdir)/yelmo_remapping.o \
 	                   $(objdir)/yelmo_io.o \
 	         		   $(objdir)/yelmo.o
 
 yelmo_tests = 		   $(objdir)/ice_benchmarks.o \
 					   $(objdir)/calving_benchmarks.o \
-					   $(objdir)/mismip3D.o
+					   $(objdir)/mismip3D.o \
+					   $(objdir)/bench_forcing.o
 
 # Extras for testing 
 yelmo_thermo =         $(objdir)/yelmo_defs.o \

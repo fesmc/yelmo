@@ -21,6 +21,7 @@ module velocity_general
     public :: calc_uz_3D_jac
     public :: calc_uz_3D
     public :: calc_uz_3D_aa
+    public :: calc_uz_3D_flux
     public :: calc_driving_stress
     public :: calc_driving_stress_gl
     public :: calc_lateral_bc_stress_2D
@@ -973,6 +974,177 @@ end if
         return 
 
     end subroutine calc_uz_3D_aa
+
+    subroutine calc_uz_3D_flux(uz,uz_star,ux,uy,ux_bar,uy_bar,H_ice,f_ice,smb,bmb,dHidt_dyn,mask_kin, &
+                                dzbdt,dzsdt,dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
+        ! Flux-consistent vertical velocity (see docs/dev/uz-flux-consistent.md).
+        ! The sigma-coordinate vertical velocity uz_star = H*dzeta/dt follows from
+        ! the mass budget of each layer k between zeta_ac(k) and zeta_ac(k+1):
+        !   uz_star(k+1) = uz_star(k) - dzeta_k*dHdt - D_k,
+        ! with D_k = div(H dzeta_k u_k) and uz_star(1) = bmb. D_k is formed with the
+        ! stencil of the thickness solver (upwind face thickness of H_ice by the sign
+        ! of the depth-averaged velocity), so that sum_k D_k = div(H u_bar), since
+        ! the trapezoid weights of zeta_aa are dzeta_k. Where the column rate is
+        ! given by the applied thickness step (mask_kin == 1), D_k is corrected
+        ! additively so that sum_k D_k equals the applied transport -dHidt_dyn. The
+        ! surface value is then uz_star = -smb (plus clip and relaxation terms), as
+        ! required by the kinematic condition. Elsewhere (topo_fixed, initialization,
+        ! re-derived columns) D_k is the flux of the current velocity.
+        ! uz is recovered from uz_star with the coordinate terms of calc_uz_3D_aa.
+
+        implicit none
+
+        real(wp), intent(OUT) :: uz(:,:,:)          ! nx,ny,nz_ac
+        real(wp), intent(OUT) :: uz_star(:,:,:)     ! nx,ny,nz_ac
+        real(wp), intent(IN)  :: ux(:,:,:)          ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: uy(:,:,:)          ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: ux_bar(:,:)
+        real(wp), intent(IN)  :: uy_bar(:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)         ! [m] Thickness advected by the thickness solver
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: smb(:,:)
+        real(wp), intent(IN)  :: bmb(:,:)
+        real(wp), intent(IN)  :: dHidt_dyn(:,:)     ! [m/a] Applied transport rate of the thickness step
+        integer,  intent(IN)  :: mask_kin(:,:)      ! 1: column rate given by the applied thickness step
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
+        real(wp), intent(IN)  :: dzsdt(:,:)         ! [m/a] Kinematic rate of the column surface
+        real(wp), intent(IN)  :: dzsdx(:,:)
+        real(wp), intent(IN)  :: dzsdy(:,:)
+        real(wp), intent(IN)  :: dzbdx(:,:)
+        real(wp), intent(IN)  :: dzbdy(:,:)
+        real(wp), intent(IN)  :: zeta_aa(:)
+        real(wp), intent(IN)  :: zeta_ac(:)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy
+        logical,  intent(IN)  :: use_bmb
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, nz_aa, nz_ac
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: f_bmb
+        real(wp) :: Hx_w, Hx_e, Hy_s, Hy_n
+        real(wp) :: dHdt, D_raw_tot, D_corr
+        real(wp) :: dzbdx_aa, dzbdy_aa, dzsdx_aa, dzsdy_aa
+        real(wp) :: ux_aa, uy_aa, zeta_now, c_x, c_y, c_t
+        real(wp), allocatable :: dzeta(:)
+        real(wp), allocatable :: D_k(:)
+
+        nx    = size(ux,1)
+        ny    = size(ux,2)
+        nz_aa = size(zeta_aa,1)
+        nz_ac = size(zeta_ac,1)
+
+        allocate(dzeta(nz_aa))
+        allocate(D_k(nz_aa))
+
+        ! Layer thicknesses (layer k contains zeta_aa(k))
+        do k = 1, nz_aa
+            dzeta(k) = zeta_ac(k+1) - zeta_ac(k)
+        end do
+
+        if (use_bmb) then
+            f_bmb = 1.0_wp
+        else
+            f_bmb = 0.0_wp
+        end if
+
+        BC = boundary_code(boundaries)
+
+        uz      = 0.0_wp
+        uz_star = 0.0_wp
+
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,Hx_w,Hx_e,Hy_s,Hy_n) &
+        !$omp& private(dHdt,D_raw_tot,D_corr,D_k,dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa) &
+        !$omp& private(ux_aa,uy_aa,zeta_now,c_x,c_y,c_t)
+        do j = 1, ny
+        do i = 1, nx
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (f_ice(i,j) .eq. 1.0_wp) then
+
+                ! Upwind face thicknesses by the sign of the depth-averaged velocity
+                ! (as in the thickness solver)
+                Hx_w = merge(H_ice(im1,j), H_ice(i,j),   ux_bar(im1,j) .ge. 0.0_wp)
+                Hx_e = merge(H_ice(i,j),   H_ice(ip1,j), ux_bar(i,j)   .ge. 0.0_wp)
+                Hy_s = merge(H_ice(i,jm1), H_ice(i,j),   uy_bar(i,jm1) .ge. 0.0_wp)
+                Hy_n = merge(H_ice(i,j),   H_ice(i,jp1), uy_bar(i,j)   .ge. 0.0_wp)
+
+                ! Layer flux divergences of the current velocity
+                do k = 1, nz_aa
+                    D_k(k) = dzeta(k) * ( (Hx_e*ux(i,j,k) - Hx_w*ux(im1,j,k))/dx &
+                                        + (Hy_n*uy(i,j,k) - Hy_s*uy(i,jm1,k))/dy )
+                end do
+
+                ! Additive correction to the applied transport of the thickness step
+                if (mask_kin(i,j) .eq. 1) then
+                    D_raw_tot = sum(D_k)
+                    D_corr    = -dHidt_dyn(i,j) - D_raw_tot
+                    D_k       = D_k + dzeta*D_corr
+                end if
+
+                ! Vertical thickness change of the column
+                dHdt = dzsdt(i,j) - dzbdt(i,j)
+
+                ! Integrate the layer mass budget upward from the base
+                uz_star(i,j,1) = f_bmb*bmb(i,j)
+                do k = 1, nz_aa
+                    uz_star(i,j,k+1) = uz_star(i,j,k) - dzeta(k)*dHdt - D_k(k)
+                end do
+
+                ! Physical vertical velocity: remove the coordinate terms of uz_star
+                ! (same terms as in calc_uz_3D_aa)
+                dzbdx_aa = 0.5_wp*(dzbdx(i,j)+dzbdx(im1,j))
+                dzbdy_aa = 0.5_wp*(dzbdy(i,j)+dzbdy(i,jm1))
+                dzsdx_aa = 0.5_wp*(dzsdx(i,j)+dzsdx(im1,j))
+                dzsdy_aa = 0.5_wp*(dzsdy(i,j)+dzsdy(i,jm1))
+
+                do k = 1, nz_ac
+
+                    if (k .eq. 1) then
+                        ux_aa = 0.5_wp*(ux(im1,j,k) + ux(i,j,k))
+                        uy_aa = 0.5_wp*(uy(i,jm1,k) + uy(i,j,k))
+                    else if (k .eq. nz_ac) then
+                        ux_aa = 0.5_wp*(ux(im1,j,k-1) + ux(i,j,k-1))
+                        uy_aa = 0.5_wp*(uy(i,jm1,k-1) + uy(i,j,k-1))
+                    else
+                        ux_aa = 0.25_wp*(ux(im1,j,k) + ux(i,j,k) + ux(im1,j,k-1) + ux(i,j,k-1))
+                        uy_aa = 0.25_wp*(uy(i,jm1,k) + uy(i,j,k) + uy(i,jm1,k-1) + uy(i,j,k-1))
+                    end if
+
+                    zeta_now = zeta_ac(k)
+                    c_x = -ux_aa * ( (1.0_wp-zeta_now)*dzbdx_aa  + zeta_now*dzsdx_aa )
+                    c_y = -uy_aa * ( (1.0_wp-zeta_now)*dzbdy_aa  + zeta_now*dzsdy_aa )
+                    c_t =         -( (1.0_wp-zeta_now)*dzbdt(i,j) + zeta_now*dzsdt(i,j) )
+
+                    uz(i,j,k) = uz_star(i,j,k) - (c_x + c_y + c_t)
+
+                    if (abs(uz(i,j,k))      .lt. TOL_UNDERFLOW) uz(i,j,k)      = 0.0_wp
+                    if (abs(uz_star(i,j,k)) .lt. TOL_UNDERFLOW) uz_star(i,j,k) = 0.0_wp
+
+                end do
+
+            else
+                ! No ice here, set vertical velocity equal to negative accum and bedrock change
+                ! (as in calc_uz_3D_aa)
+
+                do k = 1, nz_ac
+                    uz(i,j,k) = dzbdt(i,j) - max(smb(i,j),0.0_wp)
+                    if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp
+                    uz_star(i,j,k) = uz(i,j,k)
+                end do
+
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_uz_3D_flux
 
     subroutine calc_driving_stress(taud_acx,taud_acy,H_ice,f_ice,dzsdx,dzsdy,dx,taud_lim,rho_ice,g,boundaries)
         ! Calculate driving stress on staggered grid points

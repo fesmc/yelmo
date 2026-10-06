@@ -10,7 +10,7 @@ testdir = tests
 
 # Command-line options at make call
 debug  ?= 0
-openmp ?= 0 
+openmp ?= 1
 petsc  ?= 0 
 
 ## COMPILER CONFIGURATION ##
@@ -110,6 +110,13 @@ calving : yelmo-static
 		@echo "    yelmo_calving.x is ready."
 		@echo " "
 
+bench : yelmo-static
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_bench.x tests/yelmo_bench.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    yelmo_bench.x is ready."
+		@echo " "
+
 symmetry : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_symmetry.x tests/test_symmetry.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -194,13 +201,6 @@ ssa_energy_lr_sym : yelmo-static tests/test_ssa_energy_lr_sym.f90
 		@echo "    test_ssa_energy_lr_sym.x is ready."
 		@echo " "
 
-opt : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_opt.x tests/yelmo_opt.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_opt.x is ready."
-		@echo " "
-
 trough : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_trough.x tests/yelmo_trough.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -233,9 +233,9 @@ usage:
 	@echo " make mismip      : yelmo_mismip.x      [mismip]     MISMIP3D"
 	@echo " make trough      : yelmo_trough.x      [trough]     TROUGH-F17, MISMIP+, SLAB-S06"
 	@echo " make calving     : yelmo_calving.x     [calving]    CalvingMIP"
+	@echo " make bench       : yelmo_bench.x       [bench]      benchmark protocol (fixtures from tests/bench)"
 	@echo " make ismiphom    : yelmo_ismiphom.x    [ismiphom]   ISMIP-HOM"
 	@echo " make mask_ice    : yelmo_mask_ice.x    [mask_ice]   MASK_ICE test"
-	@echo " make opt         : yelmo_opt.x         [opt]        basal friction optimisation"
 	@echo " make regridding  : yelmo_test_regridding.x [regridding] placeholder (empty program)"
 	@echo ""
 	@echo " Tests:"

@@ -173,7 +173,7 @@ Now you are ready to compile Yelmo as a static library:
 
 ```bash
 make clean    # This step is very important to avoid errors!!
-make yelmo-static [debug=1] [openmp=1]
+make yelmo-static [debug=1] [openmp=0]
 ```
 This compiles the static libraries of FastHydrology, elsa and tracer, then all of the
 Yelmo modules (as defined in `config/Makefile_yelmo.mk`), and links them in the static
@@ -202,7 +202,8 @@ make initmip       # libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP
 
 `make usage` lists all targets. The option `debug=1` compiles with debugging flags
 (e.g., `make benchmarks debug=1`); the code then runs much slower, so this option
-is not recommended unless necessary. The option `openmp=1` compiles with OpenMP.
+is not recommended unless necessary. Yelmo is compiled with OpenMP by default;
+`openmp=0` compiles without it.
 
 ### 4. Run the model.
 
@@ -224,14 +225,13 @@ To run a benchmark simulation, for example, use the following command:
 runme -r -e benchmarks -o output/test -n par/yelmo_EISMINT_moving.nml
 ```
 
-where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead will submit the simulation to the cluster queue system (`-q` selects the queue alias, see `runme queues`). The option `-e` lets you specify the executable. For the standard programs, shortcuts are defined in `.runme/info.json`:
+where the option `-r` implies that the model should be run as a background process. If this is omitted, then the output directory will be populated, but no executable will be run, while `-s` instead prepares a job script for the cluster queue system and `-rs` also submits it (`-q` selects the queue alias, see `runme queues`). The option `-e` lets you specify the executable. For the standard programs, shortcuts are defined in `.runme/info.json`:
 
 ```
 benchmarks = libyelmo/bin/yelmo_benchmarks.x
 calving    = libyelmo/bin/yelmo_calving.x
 mismip     = libyelmo/bin/yelmo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x
-opt        = libyelmo/bin/yelmo_opt.x
 trough     = libyelmo/bin/yelmo_trough.x
 ismiphom   = libyelmo/bin/yelmo_ismiphom.x
 mask_ice   = libyelmo/bin/yelmo_mask_ice.x

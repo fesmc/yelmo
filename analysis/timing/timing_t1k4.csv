@@ -1,0 +1,8 @@
+domain,dx_km,steps,time_end_yr,loop_min,omp_threads,git_hash
+Greenland,32,259,1000.0,0.295,16,6d0b30d6
+Greenland,16,756,1000.0,1.242,16,6d0b30d6
+Greenland,8,987,1000.0,4.393,16,6d0b30d6
+Greenland,4,2571,1000.0,40.595,16,6d0b30d6
+Antarctica,32,369,1000.0,1.541,16,6d0b30d6
+Antarctica,16,498,1000.0,6.924,16,6d0b30d6
+Antarctica,8,902,1000.0,35.134,16,6d0b30d6

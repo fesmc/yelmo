@@ -27,7 +27,8 @@ runme -r -e <alias> -n <namelist> -o <ens-dir> -p key=val1,val2,val3
 
 This is built into `runme` — no separate package or `jobrun` wrapper is needed.
 
-The sections below cover each benchmark in the current Yelmo test suite.
+The sections below cover each benchmark in the current Yelmo test suite, and
+the single-column tests of the thermodynamics at the end.
 For additional variants (alternative solvers, basal-friction sweeps, OpenMP
 scaling tests, and benchmarks not yet documented here such as HALFAR,
 ISMIP-HOM A and C, MISMIP+, and CalvingMIP), see
@@ -65,8 +66,8 @@ runme -r -e benchmarks -n par/yelmo_EISMINT_expa.nml -o output/benchmarks/eismin
 
 Marine Ice Sheet Model Intercomparison Project, 3D version
 ([Pattyn et al., 2013](https://doi.org/10.3189/2013JoG12J129)). Tests
-grounding-line dynamics on a marine bed with retrograde slope, using a SSA
-or DIVA momentum balance. Two experiments are defined in the namelist via
+grounding-line dynamics on a marine bed, with the SSA momentum balance
+(`ydyn.solver = "ssa"` in the parameter file). Two experiments are defined in the namelist via
 the `ctrl.experiment` field: `Stnd` (standard, advance to steady state) and
 `RF` (reverse forcing, to test reversibility).
 
@@ -91,7 +92,7 @@ ensembles over `ctrl.dx` with different basal-stress scaling /
 staggering options at the grounding line:
 
 ```bash
-# Default grounding-line treatment
+# Simple staggering of beta (beta_gl_stag=0)
 runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0
 
@@ -188,14 +189,20 @@ runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-c
     -p ydyn.beta_u0=100 ytill.cf_ref=5.0,10.0,20.0
 ```
 
+The TROUGH-F17 parameter file uses a pseudo-plastic law (`ydyn.beta_method = 2`)
+with `ytill.is_angle = True`, so `cf_ref` is a till friction angle in degrees.
+Its `beta_u0` is very large (one year in seconds), so `beta_u0 = 100` above
+changes the friction law substantially.
+
 ## initmip-grl
 
 Greenland initialization benchmark following the
 initMIP-Greenland protocol ([Goelzer et al., 2018](https://doi.org/10.5194/tc-12-1433-2018)).
 Spins the ice sheet up toward a present-day steady state using the
-optimization-based initialization scheme (`equil_method = "opt"`) with
-present-day boundary conditions. Default settings: 5-yr outer timestep,
-1000-yr simulation, steady-state forcing.
+optimization-based initialization scheme (`ctrl.equil_method = "opt"`, see
+[Basal friction optimization](optimization.md)) with present-day boundary
+conditions. Default settings: 10-yr outer timestep, 1000-yr simulation,
+steady-state forcing.
 
 Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid
 by uncommenting the desired line:
@@ -209,20 +216,33 @@ grid=GRL-32KM
 make clean
 make initmip
 runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-$grid \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Greenland yelmo.grid_name=$grid
+    -p ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
+       yelmo.domain=Greenland yelmo.grid_name=$grid
 ```
 
 To run all four resolutions as an ensemble:
 
 ```bash
 runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Greenland \
+    -p ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
+       yelmo.domain=Greenland \
        yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
 ```
+
+### Performance {#initmip-grl-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
+Levante shared node). Grey: DIVA in Robinson et al. (2022), Fig. 3, on
+one processor. The lines are fits of $\Delta t \propto \Delta x^p$.](img/timing-resolution-grl.png)
+
+The runs use `par/yelmo_initmip.nml` with `ctrl.time_end=1000 ctrl.time_equil=0`.
+The mean time step is the simulated time divided by the number of time steps, and
+the model speed is the simulated time per hour of wall time of the main loop. The
+time step is set by the predictor-corrector controller (`yelmo.pc_eps = 0.02`)
+and the Courant cap (`yelmo.pc_cfl_max`). It scales as $\Delta x^{1.0}$, against
+$\Delta x^{1.8}$ in Robinson et al. (2022), so the high-resolution grids gain the
+most. Data and plotting script: `analysis/timing/`.
 
 ## initmip-ant
 
@@ -242,17 +262,50 @@ grid=ANT-32KM
 make clean
 make initmip
 runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-$grid \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Antarctica yelmo.grid_name=$grid
+    -p ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
+       yelmo.domain=Antarctica yelmo.grid_name=$grid
 ```
 
 To run all three resolutions as an ensemble:
 
 ```bash
 runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Antarctica \
+    -p ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
+       yelmo.domain=Antarctica \
        yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
 ```
+
+### Performance {#initmip-ant-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-ant runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
+Levante shared node). The line is a fit of $\Delta t \propto \Delta x^p$.](img/timing-resolution-ant.png)
+
+Same setup as for [initmip-grl](#initmip-grl-performance). Data and plotting script:
+`analysis/timing/`.
+
+## Enthalpy column tests
+
+The standalone column driver `tests/test_enthalpy.f90` (`make enthalpy`) tests
+the [thermodynamics](physics/thermodynamics.md) solvers in a single ice
+column, with reference data in `tests/data/Kleiner2015/`:
+
+| Experiment | Test |
+|---|---|
+| `cold-limit` | The enthalpy solver reduces to the temperature solver for cold ice |
+| `kleiner-a` | Kleiner et al. (2015) Experiment A: transient basal melt and refreezing under a time-varying surface temperature, compared with the analytic steady melt rates |
+| `kleiner-a-cap` | As `kleiner-a`, with the capacity basal boundary condition |
+| `kleiner-b` | Kleiner et al. (2015) Experiment B: steady polythermal column, CTS height and basal water content compared with the analytic solution |
+| `thin-margin` | Stability of a thin polythermal margin column, over a range of thickness and horizontal advection |
+| `robin-column` | Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers |
+
+```bash
+make enthalpy
+./libyelmo/bin/test_enthalpy.x kleiner-b enth 201 1e-4
+```
+
+The arguments are the experiment, the solver (`temp`, `enth` or `both`), the
+number of vertical points (default 51) and optionally the conductivity ratio
+of temperate ice (`enth_cr`). Output is written to
+`output/test_enthalpy_<experiment>_<solver>.nc`, and the program reports
+whether the comparison with the reference passes.

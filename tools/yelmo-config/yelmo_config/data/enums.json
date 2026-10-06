@@ -117,6 +117,15 @@
     "conditions": []
   },
   {
+    "group": "ydyn",
+    "name": "ssa_vel_lim_method",
+    "allowed": [
+      "clip",
+      "drag"
+    ],
+    "conditions": []
+  },
+  {
     "group": "yelmo",
     "name": "experiment",
     "allowed": [
@@ -246,6 +255,16 @@
     "allowed": [
       "expl",
       "impl-upwind"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "strain_heating",
+    "allowed": [
+      "full",
+      "sia",
+      "none"
     ],
     "conditions": []
   },

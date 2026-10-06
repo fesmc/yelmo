@@ -16,14 +16,22 @@ module solver_ssa_ac
 
     ! Routines that make use of the linear_solver_class object defined in the module solver_linear.F90:
     public :: linear_solver_save_velocity
+    public :: ssa_vel_clip
+    public :: calc_vel_lim_drag
+    public :: ssa_vel_clip_front
+    public :: count_vel_lim_faces
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
     ! Helper used by alternative SSA assemblers (e.g. solver_ssa_ac_energy):
     public :: stagger_visc_aa_ab
 
+
+    ! Onset of the speed-limit drag, s0 = vel_lim_f_s0*u_max (ssa_vel_lim_method="drag")
+    real(wp), parameter :: vel_lim_f_s0 = 0.8_wp
+
 contains
     
-    subroutine linear_solver_save_velocity(ux,uy,lgs,ulim)
+    subroutine linear_solver_save_velocity(ux,uy,lgs)
         ! Extract velocity solution from lgs object. 
 
         implicit none 
@@ -31,10 +39,11 @@ contains
         real(wp), intent(OUT) :: ux(:,:)                ! [m yr^-1] Horizontal velocity x
         real(wp), intent(OUT) :: uy(:,:)                ! [m yr^-1] Horizontal velocity y
         type(linear_solver_class), intent(IN) :: lgs 
-        real(wp), intent(IN)    :: ulim 
 
         ! Local variables 
         integer :: i, j, n, nr 
+
+        real(wp), parameter :: tol = TOL_UNDERFLOW
 
         !$omp parallel do private(n,i,j,nr)
         do n = 1, lgs%nmax-1, 2
@@ -54,15 +63,9 @@ contains
         end do
         !$omp end parallel do
 
-        ! Limit the velocity generally =====================
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, size(ux,2)
-        do i = 1, size(ux,1)
-            call limit_vel(ux(i,j),ulim)
-            call limit_vel(uy(i,j),ulim)
-        end do
-        end do
-        !$omp end parallel do
+        ! Avoid underflow errors 
+        where (abs(ux) .lt. tol) ux = 0.0_wp 
+        where (abs(uy) .lt. tol) uy = 0.0_wp 
 
         return
 
@@ -70,7 +73,8 @@ contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D(lgs,ux,uy,beta_acx,beta_acy, &
                             N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries)
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries, &
+                            lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for the SSA momentum balance equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -95,6 +99,14 @@ contains
         real(wp), intent(IN) :: dx, dy
 
         character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN), optional :: lim_k_acx(:,:)    ! [Pa yr m^-1] Linearised speed-limit drag, friction (acx-nodes)
+        real(wp), intent(IN), optional :: lim_k_acy(:,:)    ! [Pa yr m^-1] Linearised speed-limit drag, friction (acy-nodes)
+        real(wp), intent(IN), optional :: lim_r_acx(:,:)    ! [Pa] Linearised speed-limit drag, offset (acx-nodes)
+        real(wp), intent(IN), optional :: lim_r_acy(:,:)    ! [Pa] Linearised speed-limit drag, offset (acy-nodes)
+        ! The limit drag (calc_vel_lim_drag) enters the inner rows like beta,
+        ! with the offset on the RHS. Lateral-bc rows (ssa_mask = 3) impose the
+        ! front stress condition and have no drag term: the Picard loop clips
+        ! the velocity there instead (ssa_vel_clip_front).
 
         ! Local variables
         integer  :: nx, ny
@@ -103,7 +115,8 @@ contains
         real(wp) :: inv_dx, inv_dxdx 
         real(wp) :: inv_dy, inv_dydy 
         real(wp) :: inv_dxdy, inv_2dxdy, inv_4dxdy 
-        real(wp) :: beta_now 
+        real(wp) :: beta_now, w_face, lim_r_now
+        logical  :: use_lim
         
         real(wp), allocatable :: N_ab(:,:)
 
@@ -120,6 +133,9 @@ contains
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
+
+        use_lim = present(lim_k_acx) .and. present(lim_k_acy) .and. &
+                  present(lim_r_acx) .and. present(lim_r_acy)
 
         ! Safety check for initialization
         if (.not. allocated(lgs%x_value)) then 
@@ -457,10 +473,16 @@ contains
                 ! === Inner SSA solution === 
 
                 ! beta_min at grounded faces with beta=0 is set before the call (set_beta_min_grounded)
-                beta_now = beta_acx(i,j)
                 ! Front treated as inner ssa: only the ice half of the face's
                 ! control area has drag (as in the energy assembler)
-                if (ssa_mask_acx(i,j) .eq. 4) beta_now = 0.5_wp*beta_now
+                w_face = 1.0_wp
+                if (ssa_mask_acx(i,j) .eq. 4) w_face = 0.5_wp
+                beta_now  = w_face*beta_acx(i,j)
+                lim_r_now = 0.0_wp
+                if (use_lim) then
+                    beta_now  = beta_now + w_face*lim_k_acx(i,j)
+                    lim_r_now = w_face*lim_r_acx(i,j)
+                end if
 
                 ! -- vx terms -- 
 
@@ -518,7 +540,7 @@ contains
                 lgs%a_index(k) = nc
                 
 
-                lgs%b_value(nr) = taud_acx(i,j)
+                lgs%b_value(nr) = taud_acx(i,j) - lim_r_now
                 lgs%x_value(nr) = ux(i,j)
 
             end if
@@ -742,10 +764,16 @@ contains
             else
                 ! === Inner SSA solution === 
 
-                beta_now = beta_acy(i,j)
                 ! Front treated as inner ssa: only the ice half of the face's
                 ! control area has drag (as in the energy assembler)
-                if (ssa_mask_acy(i,j) .eq. 4) beta_now = 0.5_wp*beta_now
+                w_face = 1.0_wp
+                if (ssa_mask_acy(i,j) .eq. 4) w_face = 0.5_wp
+                beta_now  = w_face*beta_acy(i,j)
+                lim_r_now = 0.0_wp
+                if (use_lim) then
+                    beta_now  = beta_now + w_face*lim_k_acy(i,j)
+                    lim_r_now = w_face*lim_r_acy(i,j)
+                end if
 
                 ! -- vy terms -- 
 
@@ -802,7 +830,7 @@ contains
                                  +1.0_wp*inv_dxdy*N_ab(im1,j)
                 lgs%a_index(k) = nc
 
-                lgs%b_value(nr) = taud_acy(i,j)
+                lgs%b_value(nr) = taud_acy(i,j) - lim_r_now
                 lgs%x_value(nr) = uy(i,j)
 
             end if
@@ -983,6 +1011,15 @@ contains
 ! === INTERNAL ROUTINES ==== 
 
     subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,boundaries)
+        ! Stagger the (depth-integrated) viscosity from cell centres to the
+        ! corners (ab-nodes), where it multiplies the shear strain rate.
+        ! The corner value is the mean over the four surrounding cells when
+        ! all of them are fully ice covered, and zero otherwise. A corner
+        ! touching an ice-free or partially covered cell lies on the ice
+        ! margin, which is traction free: there is no shear stress along the
+        ! front. A nonzero value there couples the front faces to the u = 0
+        ! faces of the ice-free cells and acts as a drag on the velocity along
+        ! the front (benchmark A2, docs/dev/benchmark-protocol).
 
         implicit none 
 
@@ -992,7 +1029,7 @@ contains
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: i, j, k
+        integer :: i, j
         integer :: im1, ip1, jm1, jp1 
         integer :: nx, ny 
         integer :: BC
@@ -1003,41 +1040,19 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Initialisation
-        visc_ab = 0.0_wp 
-
-        ! Stagger viscosity only using contributions from neighbors that have ice  
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            visc_ab(i,j) = 0.0_wp
-            k=0
-
-            if (f_ice(i,j) .eq. 1.0_wp) then
-                k = k+1                              ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,j)
+            if (f_ice(i,j)   .eq. 1.0_wp .and. f_ice(ip1,j)   .eq. 1.0_wp .and. &
+                f_ice(i,jp1) .eq. 1.0_wp .and. f_ice(ip1,jp1) .eq. 1.0_wp) then
+                visc_ab(i,j) = 0.25_wp*(visc(i,j)+visc(ip1,j)+visc(i,jp1)+visc(ip1,jp1))
+            else
+                visc_ab(i,j) = 0.0_wp
             end if
-
-            if (f_ice(ip1,j) .eq. 1.0_wp) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,j)
-            end if
-
-            if (f_ice(i,jp1) .eq. 1.0_wp) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,jp1)
-            end if
-
-            if (f_ice(ip1,jp1) .eq. 1.0_wp) then
-                k = k+1                                      ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,jp1)
-            end if
-
-            if (k .gt. 0) visc_ab(i,j) = visc_ab(i,j)/real(k,wp)
 
         end do
         end do
@@ -1047,6 +1062,231 @@ contains
 
     end subroutine stagger_visc_aa_ab
 
+    subroutine ssa_vel_clip(ux,uy,u_lim)
+        ! Clip each velocity component to [-u_lim,u_lim]
+        ! (ssa_vel_lim_method="clip")
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: ux(:,:)              ! [m yr^-1] Horizontal velocity x
+        real(wp), intent(INOUT) :: uy(:,:)              ! [m yr^-1] Horizontal velocity y
+        real(wp), intent(IN)    :: u_lim                ! [m yr^-1] Velocity limit
+
+        ! Local variables 
+        integer :: i, j 
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            call limit_vel(ux(i,j),u_lim)
+            call limit_vel(uy(i,j),u_lim)
+        end do
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end subroutine ssa_vel_clip
+
+    subroutine ssa_vel_clip_front(ux,uy,ssa_mask_acx,ssa_mask_acy,u_lim)
+        ! Clip each velocity component to [-u_lim,u_lim] at lateral-bc front
+        ! faces (ssa_mask = 3) only. With the residual assembler these rows
+        ! impose the front stress condition, where the limit drag cannot act
+        ! (ssa_vel_lim_method="drag", ssa_solver="residual").
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: ux(:,:)              ! [m yr^-1] Horizontal velocity x
+        real(wp), intent(INOUT) :: uy(:,:)              ! [m yr^-1] Horizontal velocity y
+        integer,  intent(IN)    :: ssa_mask_acx(:,:)    ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN)    :: ssa_mask_acy(:,:)    ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN)    :: u_lim                ! [m yr^-1] Velocity limit
+
+        ! Local variables 
+        integer :: i, j 
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            if (ssa_mask_acx(i,j) .eq. 3) call limit_vel(ux(i,j),u_lim)
+            if (ssa_mask_acy(i,j) .eq. 3) call limit_vel(uy(i,j),u_lim)
+        end do
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end subroutine ssa_vel_clip_front
+
+    subroutine calc_vel_lim_drag(lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy, &
+                                    ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,tau_c,boundaries)
+        ! Speed-limit drag (ssa_vel_lim_method="drag"). An extra drag acts on
+        ! all free ssa faces (ssa_mask = 1-4: grounded, floating and front
+        ! faces) once the speed s exceeds s0 = 0.8*u_max:
+        !
+        !     tau_lim(s) = tau_c * x^2,   x = max(0, (s-s0)/(u_max-s0))
+        !
+        ! so tau_lim(u_max) = tau_c, and tau_lim and its derivative vanish at s0.
+        ! The drag is Newton-linearised around the current iterate u0 for the
+        ! face's own component (the cross component interpolated to the face
+        ! is held fixed):
+        !
+        !     tau_lim_x(u) ~ k*u - r,   r = (k - b)*u0,
+        !     k = dtau_lim_x/du_x = b*(1 - ux^2/s^2) + tau_lim'(s)*ux^2/s^2,  b = tau_lim/s
+        !
+        ! k >= 0, so the matrix stays symmetric positive definite. The
+        ! assemblers add k to the matrix friction and r to the right-hand side,
+        ! with the same face weight as beta (1/2 at front faces). The drag is
+        ! kept out of beta and taud, so that taub and taud do not include it.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: lim_k_acx(:,:)         ! [Pa yr m^-1] Linearised limit drag, friction (acx-nodes)
+        real(wp), intent(OUT) :: lim_k_acy(:,:)         ! [Pa yr m^-1] Linearised limit drag, friction (acy-nodes)
+        real(wp), intent(OUT) :: lim_r_acx(:,:)         ! [Pa] Linearised limit drag, offset (acx-nodes)
+        real(wp), intent(OUT) :: lim_r_acy(:,:)         ! [Pa] Linearised limit drag, offset (acy-nodes)
+        real(wp), intent(IN)  :: ux(:,:)                ! [m yr^-1] Current velocity iterate x (acx-nodes)
+        real(wp), intent(IN)  :: uy(:,:)                ! [m yr^-1] Current velocity iterate y (acy-nodes)
+        integer,  intent(IN)  :: ssa_mask_acx(:,:)      ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN)  :: ssa_mask_acy(:,:)      ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN)  :: u_max                  ! [m yr^-1] Speed at which tau_lim = tau_c
+        real(wp), intent(IN)  :: tau_c                  ! [Pa] Limit drag at u_max
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, inv_du, u_cross 
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        s0     = vel_lim_f_s0*u_max
+        inv_du = 1.0_wp / (u_max - s0)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! acx-node: uy interpolated from the four surrounding acy-nodes
+            u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+            call lim_drag_face(lim_k_acx(i,j),lim_r_acx(i,j),ux(i,j),u_cross,ssa_mask_acx(i,j))
+
+            ! acy-node: ux interpolated from the four surrounding acx-nodes
+            u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+            call lim_drag_face(lim_k_acy(i,j),lim_r_acy(i,j),uy(i,j),u_cross,ssa_mask_acy(i,j))
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    contains
+
+        subroutine lim_drag_face(k,r,u,u_cross,mask)
+
+            implicit none
+
+            real(wp), intent(OUT) :: k
+            real(wp), intent(OUT) :: r
+            real(wp), intent(IN)  :: u
+            real(wp), intent(IN)  :: u_cross
+            integer,  intent(IN)  :: mask
+
+            real(wp) :: s, x, tau, dtauds, b, w
+
+            k = 0.0_wp
+            r = 0.0_wp
+
+            ! Free ssa faces only (not Dirichlet faces: wall or prescribed velocity)
+            if (mask .lt. 1) return
+
+            s = sqrt(u*u + u_cross*u_cross)
+            if (s .le. s0) return
+
+            x      = (s-s0)*inv_du
+            tau    = tau_c*x*x
+            dtauds = 2.0_wp*tau_c*x*inv_du
+            b      = tau/s
+            w      = (u/s)**2
+
+            k = b*(1.0_wp-w) + dtauds*w
+            r = (k-b)*u
+
+            return
+
+        end subroutine lim_drag_face
+
+    end subroutine calc_vel_lim_drag
+
+    integer function count_vel_lim_faces(ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,method,boundaries) result(n_lim)
+        ! Number of free ssa faces (ssa_mask >= 1) where the velocity limit acts:
+        ! "drag": face speed above the drag onset vel_lim_f_s0*u_max (speed as in
+        ! calc_vel_lim_drag); "clip": a component at the clip value u_max.
+
+        implicit none 
+
+        real(wp), intent(IN) :: ux(:,:)                 ! [m yr^-1] Velocity x (acx-nodes)
+        real(wp), intent(IN) :: uy(:,:)                 ! [m yr^-1] Velocity y (acy-nodes)
+        integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN) :: u_max                   ! [m yr^-1] ssa_vel_max
+        character(len=*), intent(IN) :: method          ! ssa_vel_lim_method: "drag" | "clip"
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, u_cross 
+        logical  :: use_drag
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        use_drag = trim(method) .eq. "drag"
+        s0       = vel_lim_f_s0*u_max
+
+        n_lim = 0
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross) reduction(+:n_lim)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (ssa_mask_acx(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+                    if (ux(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(ux(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+            if (ssa_mask_acy(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+                    if (uy(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(uy(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end function count_vel_lim_faces
+
     elemental subroutine limit_vel(u,u_lim)
         ! Apply a velocity limit (for stability)
 
@@ -1055,16 +1295,11 @@ contains
         real(wp), intent(INOUT) :: u  
         real(wp), intent(IN)    :: u_lim
 
-        real(wp), parameter :: tol = TOL_UNDERFLOW
-
         ! Explicit comparisons (not min/max) so that a NaN passes through
         ! unchanged and is caught by yelmo_check_kill, instead of being
         ! silently mapped to +u_lim.
         if (u .gt.  u_lim) u =  u_lim
         if (u .lt. -u_lim) u = -u_lim
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
 
         return 
 

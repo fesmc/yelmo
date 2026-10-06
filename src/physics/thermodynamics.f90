@@ -58,6 +58,7 @@ module thermodynamics
     public :: calc_T_base_shlf_approx
     public :: calc_T_freeze_sw
     public :: define_temp_linear_3D
+    public :: define_temp_prescribed_3D
     public :: define_temp_robin_3D
     public :: define_temp_linear_column
     public :: define_temp_robin_column
@@ -1418,6 +1419,35 @@ contains
 
     end subroutine define_temp_linear_3D
 
+    subroutine define_temp_prescribed_3D(enth,T_ice,omega,T_pmp,L_ice,enth_integral)
+        ! Complete a temperature field that has been prescribed externally
+        ! (yelmo_init_state with thrm_method="prescribed"): cap T_ice at the
+        ! pressure melting point, set the water content to zero and compute
+        ! the consistent enthalpy.
+
+        implicit none
+
+        real(wp), intent(OUT)   :: enth(:,:,:)          ! [J kg-1] Enthalpy
+        real(wp), intent(INOUT) :: T_ice(:,:,:)         ! [K] Temperature
+        real(wp), intent(OUT)   :: omega(:,:,:)         ! [--] Water content
+        real(wp), intent(IN)    :: T_pmp(:,:,:)         ! [K] Pressure melting point
+        real(wp), intent(IN)    :: L_ice
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
+
+        logical :: use_int
+
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
+
+        T_ice = min(T_ice,T_pmp)
+        omega = 0.0_wp
+
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+
+        return
+
+    end subroutine define_temp_prescribed_3D
+
     function define_temp_linear_column(T_srf,T_base,T0,zeta_aa) result(T_ice)
 
         implicit none 
@@ -1444,10 +1474,13 @@ contains
 
     end function define_temp_linear_column
 
-    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
+    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,kt,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
                                                                     f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral)
         ! Robin solution for thermodynamics for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface
+        ! The analytical solution assumes constant material properties, so
+        ! cp and kt are scalars (e.g. ytherm const_cp, const_kt), independent
+        ! of the current (possibly uninitialised) ice temperature.
 
         implicit none
 
@@ -1455,8 +1488,8 @@ contains
         real(wp), intent(OUT) :: T_ice(:,:,:)     ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)     ! [--] Water content
         real(wp), intent(IN)  :: T_pmp(:,:,:)     ! [K] Pressure melting point temp.
-        real(wp), intent(IN)  :: cp(:,:,:)        ! [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)  :: ct(:,:,:)        ! [J a-1 m-1 K-1] Heat conductivity 
+        real(wp), intent(IN)  :: cp               ! [J kg-1 K-1] Specific heat capacity (constant)
+        real(wp), intent(IN)  :: kt               ! [J a-1 m-1 K-1] Heat conductivity (constant)
         real(wp), intent(IN)  :: Q_rock(:,:)      ! [mW m-2] Bedrock surface heat flux 
         real(wp), intent(IN)  :: T_srf(:,:)       ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_ice(:,:)       ! [m] Ice thickness 
@@ -1492,7 +1525,7 @@ contains
 
             is_float = (f_grnd(i,j) .eq. 0.0)
 
-            T_ice(i,j,:) = define_temp_robin_column(zeta_aa,T_pmp(i,j,:),ct(i,j,:),cp(i,j,:),rho_ice,H_ice(i,j), &
+            T_ice(i,j,:) = define_temp_robin_column(zeta_aa,T_pmp(i,j,:),kt,cp,rho_ice,H_ice(i,j), &
                                                   T_srf(i,j),smb(i,j)+bmb(i,j),Q_rock(i,j),is_float,sec_year)
 
             if (cold) then 
@@ -1534,8 +1567,8 @@ contains
 
         real(wp), intent(IN) :: zeta_aa(:) 
         real(wp), intent(IN) :: T_pmp(:)
-        real(wp), intent(IN) :: kt(:) 
-        real(wp), intent(IN) :: cp(:) 
+        real(wp), intent(IN) :: kt              ! [J a-1 m-1 K-1] Heat conductivity (constant)
+        real(wp), intent(IN) :: cp              ! [J kg-1 K-1] Specific heat capacity (constant)
         real(wp), intent(IN) :: rho_ice 
         real(wp), intent(IN) :: H_ice 
         real(wp), intent(IN) :: T_srf 
@@ -1561,7 +1594,10 @@ contains
         Q_rock_now = Q_rock *1e-3*sec_year    ! [mW m-2] => [J a-1 m-2]
 
         ! Calculate temperature gradient at base 
-        dTdz_b = -Q_rock_now/kt(1) 
+        dTdz_b = -Q_rock_now/kt 
+
+        ! Thermal diffusivity
+        kappa = kt/(cp*rho_ice)
 
         if (.not. is_float .and. H_ice .gt. H_ice_min .and. mb_net .gt. 0.0) then 
             ! Impose Robin solution 
@@ -1571,7 +1607,6 @@ contains
 
             do k = 1, nz_aa 
                 z     = zeta_aa(k)*H_ice              ! Ice thickness up to this layer from base 
-                kappa = kt(k)/(cp(k)*rho_ice)       ! Thermal diffusivity 
                 ll    = sqrt(2*kappa*H_ice/mb_now)  ! Thermal_length_scale
 
                 ! Calculate ice temperature for this layer 

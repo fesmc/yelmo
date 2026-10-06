@@ -66,6 +66,7 @@ contains
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
         integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
+        integer  :: n_lim_steps, n_lim_max             ! Steps with faces at the velocity limit, and max faces (this call)
         logical, allocatable :: pc_mask(:,:) 
 
         character(len=1012) :: kill_txt
@@ -116,6 +117,8 @@ contains
         iter_redo_tot = 0   ! Number of times total this loop 
         n_ssa_fail    = 0
         n_adv_fail    = 0
+        n_lim_steps   = 0
+        n_lim_max     = 0
         allocate(dt_save(nstep))
         dt_save = missing_value 
 
@@ -471,6 +474,8 @@ contains
 
             n_ssa_fail = n_ssa_fail + dom%dyn%par%ssa_lin_fail
             n_adv_fail = n_adv_fail + dom%tpo%par%adv_lin_fail
+            if (dom%dyn%par%ssa_lim_n .gt. 0) n_lim_steps = n_lim_steps + 1
+            n_lim_max  = max(n_lim_max,dom%dyn%par%ssa_lim_n)
             
             ! Extra diagnostic field, not necessary for normal runs
             call yelmo_calc_running_stats_2D(dom%time%pc_tau_max,dom%time%pc_taus,dom%time%pc_tau_masked,stat="max")
@@ -481,7 +486,7 @@ contains
                 call yelmo_timestep_write(dom%time%log_timestep_file,time_now,dt_now,dt_adv_min,dt_pi, &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,speed,dom%tpo%par%speed,dom%dyn%par%speed, &
                             dom%dyn%par%ssa_iter_now,iter_redo-1,dom%dyn%par%ssa_lin_iter,dom%dyn%par%ssa_lin_fail, &
-                            dom%tpo%par%adv_lin_iter,dom%tpo%par%adv_lin_fail)
+                            dom%dyn%par%ssa_lim_n,dom%tpo%par%adv_lin_iter,dom%tpo%par%adv_lin_fail)
             
             end if 
 
@@ -575,6 +580,12 @@ contains
             write(*,"(a,f15.3,a,i0,a,i0,a,i0,a)") "yelmo_update: time = ", time_now, &
                 ": linear solves not converged (breakdown or iteration limit): ssa ", n_ssa_fail, &
                 ", advection ", n_adv_fail, " in ", n_now, " steps"
+        end if
+
+        ! Accepted steps whose velocity solution is at the velocity limit (ssa_vel_max)
+        if (n_lim_steps .gt. 0) then
+            write(*,"(a,f15.3,a,i0,a,i0,a,i0,a)") "yelmo_update: time = ", time_now, &
+                ": velocity limit active in ", n_lim_steps, " of ", n_now, " steps (max ", n_lim_max, " faces)"
         end if
 
         ! Finally, update z_bed relaxation rate to high resolution bedrock topography
@@ -1022,7 +1033,7 @@ contains
             call yelmo_timestep_write_init(dom%time%log_timestep_file,time,real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
             call yelmo_timestep_write(dom%time%log_timestep_file,time,0.0_wp,0.0_wp,dom%time%pc_dt(1), &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0, &
-                            0,0,0,0)
+                            0,0,dom%dyn%par%ssa_lim_n,0,0)
         end if 
 
         return
@@ -1438,7 +1449,7 @@ contains
 
     end subroutine yelmo_update_z_bed_restart_rate
 
-    subroutine yelmo_init_state(dom,time,thrm_method)
+    subroutine yelmo_init_state(dom,time,thrm_method,T_ice)
         ! This subroutine is the second step to intializing 
         ! the state variables. It initializes ice temperatures,
         ! material properties and dynamics. It is called after the topography
@@ -1446,12 +1457,17 @@ contains
         ! are already initialized externally.
         ! The state variables are either calculated directly or
         ! loaded from a restart file. 
+        ! thrm_method: "linear", "robin", "robin-cold", or "prescribed", which
+        ! takes the ice temperature from T_ice (on the Yelmo grid, see
+        ! yelmo_remap / yelmo_read_remap to map a field from another source),
+        ! capped at the pressure melting point.
             
         implicit none 
 
         type(yelmo_class), intent(INOUT) :: dom
         real(wp),          intent(IN)    :: time  
         character(len=*),  intent(IN)    :: thrm_method 
+        real(wp),          intent(IN), optional :: T_ice(:,:,:)    ! [K] thrm_method="prescribed"
 
         ! Local variables 
         integer :: q 
@@ -1474,11 +1490,24 @@ contains
 
             ! Consistency check 
             if (trim(thrm_method) .ne. "linear" .and. trim(thrm_method) .ne. "robin" &
-                .and. trim(thrm_method) .ne. "robin-cold") then 
+                .and. trim(thrm_method) .ne. "robin-cold" .and. trim(thrm_method) .ne. "prescribed") then 
                 write(io_unit_err,*) "yelmo_init_state:: Error: temperature initialization must be &
-                           &'linear', 'robin' or 'robin-cold' in order to properly prescribe &
+                           &'linear', 'robin', 'robin-cold' or 'prescribed' in order to properly prescribe &
                            &initial temperatures."
                 error stop 1
+            end if
+
+            if (trim(thrm_method) .eq. "prescribed") then
+                if (.not. present(T_ice)) then
+                    write(io_unit_err,*) "yelmo_init_state:: Error: thrm_method='prescribed' requires T_ice."
+                    error stop 1
+                end if
+                if (any(shape(T_ice) .ne. shape(dom%thrm%now%T_ice))) then
+                    write(io_unit_err,*) "yelmo_init_state:: Error: T_ice must be on the Yelmo grid &
+                               &(nx,ny,nz_aa): ", shape(dom%thrm%now%T_ice), ", got: ", shape(T_ice)
+                    error stop 1
+                end if
+                dom%thrm%now%T_ice = T_ice
             end if
             
             ! Store original model choices locally 
@@ -1676,7 +1705,7 @@ contains
         end if 
 
         if (par%pc_eps .gt. par%pc_tol) then
-            write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must be less than pc_tol."
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_eps must not exceed pc_tol."
             write(io_unit_err,*) trim(filename), " : ", trim(group)
             write(io_unit_err,*) "pc_eps, pc_tol: ", par%pc_eps, par%pc_tol
             error stop 1
@@ -1806,7 +1835,7 @@ contains
         character(len=3) :: pc_iter_str(10) 
 
         real(wp), parameter :: H_lim = 1e4   ! [m] 
-        real(wp), parameter :: u_lim = 1e4   ! [m/a]
+        real(wp) :: u_lim                    ! [m/a]
 
         kill_it_H    = .FALSE.
         kill_it_vel  = .FALSE.
@@ -1829,6 +1858,8 @@ contains
             kill_it_H = .TRUE. 
             kill_msg  = "Ice thickness too high."
         end if 
+
+        u_lim = 2.0_wp*dom%dyn%par%ssa_vel_max
 
         if ( maxval(abs(dom%dyn%now%uxy_bar)) .ge. u_lim ) then 
             kill_it_vel = .TRUE. 

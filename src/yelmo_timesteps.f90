@@ -9,6 +9,32 @@ module yelmo_timesteps
 
     implicit none 
 
+    ! Norm of the pc error, pc_eta (calc_pc_eta): RMS (default) or L8.
+    !
+    ! Context (2026-10-02, Levante tests, output/audit/review-2026-10-01:
+    ! grl-checkerboard.md, pc-norm-validation.md, res-sweep-scripts/):
+    ! - With the velocity diagnosed from the old H and only the advection
+    !   implicit, fast-sliding outlet trunks develop a 2dx limit cycle in
+    !   H and u (checkerboard) once dt exceeds a fraction of the local
+    !   drag time scale. It appears at GRL-8, ANT-8 and GRL-16 with weak
+    !   calving, and at GRL-4 it can end in a single-cell H blow-up.
+    ! - The unstable cells carry the largest scaled errors, but the RMS
+    !   over the whole pc mask dilutes a few dozen cells over 10^4-10^5,
+    !   so pc_eta stays ~1e-3 - 5e-2 and the controller does not act at
+    !   pc_eps ~ 0.2-1. The RMS only removes the checkerboard at
+    !   pc_eps ~ 0.02 (GRL-8: 0 persistent cells, +10 % steps vs 0.2).
+    ! - The L8 norm, (mean e^8)^(1/8), is set by a localised patch almost
+    !   independently of the domain size, while all points still
+    !   contribute (unlike the max). With pc_eps ~ 0.03 it removes the
+    !   checkerboard everywhere tested (GRL-8: background level), but costs
+    !   more steps (GRL-8: +55 % vs RMS 0.02; ANT-16: +26-68 %), and stiff
+    !   episodes whose error does not fall with dt (TROUGH-F17 at 4 km)
+    !   reach dt_min and are killed at pc_eps < 0.1.
+    ! RMS is kept as the default for speed; L8 is kept here for testing.
+    ! Note that pc_eps must be chosen for the norm: about 0.02 (RMS) vs
+    ! 0.03-0.1 (L8).
+    logical, parameter :: pc_norm_L8 = .FALSE.
+
     private
 
     public :: set_pc_beta_coefficients
@@ -276,6 +302,11 @@ end if
     end subroutine set_pc_mask
 
     function calc_pc_eta(tau,H_ice,mask,frac_trim) result(eta)
+        ! Error norm of the pc truncation error over the checked points, for
+        ! the scaled errors e = tau/(a_tol + r_tol*H):
+        !   RMS (default):          eta = (mean e^2)^(1/2)
+        !   L8 (pc_norm_L8=.TRUE.): eta = (mean e^8)^(1/8)
+        ! See the comment at pc_norm_L8 (module header) for the choice.
 
         implicit none 
 
@@ -288,53 +319,55 @@ end if
         ! Local variables
         integer :: i, j, nx, ny
         integer :: npts, k, n_trim
-        real(wp) :: s_now
-        real(wp), allocatable :: e2(:)
+        real(wp) :: e_max
+        real(wp), allocatable :: e(:)
         real(wp), parameter :: eta_tol = 1e-8 
         real(wp), parameter :: a_tol = 1.0 ! [m]
         real(wp), parameter :: r_tol = 1e-2 ! [--] r_tol*H = [m]
+        real(wp), parameter :: p_norm = 8.0_wp ! [--] Order of the L_p norm (pc_norm_L8)
         
-if (.FALSE.) then
-        ! Calculate eta 
-        eta = maxval(abs(tau),mask=mask)
-
-        ! Limit to non-zero value
-        ! Note: Limiting minimum to above eg 1e-8 is very 
-        ! important for reducing fluctuations in dt 
-        eta = max(eta,eta_tol)
-
-else
-    ! ajr: testing rmse(tau) instead of max(tau)
-    ! So far, this works, but leads to large areas of Antarctica on the coast with large tau values.
         npts = count(mask)
         if (npts .gt. 0) then 
-            ! eta = sqrt(sum(tau**2,mask=mask)/real(npts,wp))
-            ! eta = max(eta,eta_tol)
 
             nx = size(tau,1)
             ny = size(tau,2)
 
-            ! Scaled squared errors of the checked points
-            allocate(e2(npts))
+            ! Scaled errors of the checked points (squared for the RMS)
+            allocate(e(npts))
             k = 0
             do i = 1, nx
             do j = 1, ny
                 if (.not. mask(i,j)) cycle
                 k = k + 1
-                s_now = a_tol + r_tol*H_ice(i,j)
-                e2(k) = (tau(i,j) / s_now)**2
+                e(k) = abs(tau(i,j)) / (a_tol + r_tol*H_ice(i,j))
             end do
             end do
+            if (.not. pc_norm_L8) e = e**2
 
             ! Leave out the n_trim largest errors, so that a few points
             ! (eg, a flickering thin cell) cannot set the timestep alone
             n_trim = min(int(frac_trim*real(npts,wp)),npts-1)
             do k = 1, n_trim
-                e2(maxloc(e2,dim=1)) = -1.0_wp
+                e(maxloc(e,dim=1)) = -1.0_wp
             end do
 
-            eta = sqrt(sum(e2,mask=e2 .ge. 0.0_wp)/real(npts-n_trim,wp))
+            if (pc_norm_L8) then
+                ! L_p norm, scaled by the largest error so that e^p cannot overflow
+                e_max = maxval(e)
+                if (e_max .gt. 0.0_wp) then
+                    eta = e_max * (sum((e/e_max)**p_norm,mask=e .ge. 0.0_wp) &
+                                            / real(npts-n_trim,wp))**(1.0_wp/p_norm)
+                else
+                    eta = 0.0_wp
+                end if
+            else
+                ! RMS
+                eta = sqrt(sum(e,mask=e .ge. 0.0_wp)/real(npts-n_trim,wp))
+            end if
 
+            ! Limit to non-zero value
+            ! Note: Limiting minimum to above eg 1e-8 is very 
+            ! important for reducing fluctuations in dt 
             eta = max(eta,eta_tol)
 
         else    ! npts == 0
@@ -342,7 +375,6 @@ else
             eta = eta_tol
 
         end if
-end if 
 
         return 
 
@@ -1002,7 +1034,7 @@ end if
 
     subroutine yelmo_timestep_write(filename,time,dt_now,dt_adv,dt_pi,pc_eta,pc_tau, &
                                                 speed,speed_tpo,speed_dyn,ssa_iter,iter_redo, &
-                                                ssa_lin_iter,ssa_lin_fail,adv_lin_iter,adv_lin_fail)
+                                                ssa_lin_iter,ssa_lin_fail,ssa_lim_n,adv_lin_iter,adv_lin_fail)
 
         implicit none 
 
@@ -1020,6 +1052,7 @@ end if
         integer,    intent(IN) :: iter_redo 
         integer,    intent(IN) :: ssa_lin_iter
         integer,    intent(IN) :: ssa_lin_fail
+        integer,    intent(IN) :: ssa_lim_n
         integer,    intent(IN) :: adv_lin_iter
         integer,    intent(IN) :: adv_lin_fail
 
@@ -1048,7 +1081,11 @@ end if
         call nc_write(filename, "dt_adv",dt_adv,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (CFL criterion)",ncid=ncid)
         
         call nc_write(filename,  "dt_pi", dt_pi,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (PI controller)",ncid=ncid)
-        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        if (pc_norm_L8) then
+            call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: L8 norm of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        else
+            call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        end if
         
         if (write_pc_tau_field) then 
             call nc_write(filename, "pc_tau",pc_tau,dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],units="m a**-1", &
@@ -1061,6 +1098,8 @@ end if
                         long_name="Linear solver iterations of the SSA solve (summed over Picard iterations)",ncid=ncid)
         call nc_write(filename, "ssa_lin_fail",ssa_lin_fail,dim1="time",start=[n],count=[1],units="", &
                         long_name="SSA linear solves at breakdown or the iteration limit",ncid=ncid)
+        call nc_write(filename, "ssa_lim_n",ssa_lim_n,dim1="time",start=[n],count=[1],units="", &
+                        long_name="SSA faces at the velocity limit (drag active or clipped)",ncid=ncid)
         call nc_write(filename, "adv_lin_iter",adv_lin_iter,dim1="time",start=[n],count=[1],units="", &
                         long_name="Linear solver iterations of the thickness advection (predictor + corrector)",ncid=ncid)
         call nc_write(filename, "adv_lin_fail",adv_lin_fail,dim1="time",start=[n],count=[1],units="", &

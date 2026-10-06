@@ -137,7 +137,7 @@
     beta_method         = 2               ! -1: imposed externally; 0: constant beta; 1: linear (beta=cb/u0); 2: pseudo-plastic power; 3: regularized Coulomb; 4, 5: as 2, 3 with c_bed and u_b at the cell centre (no quadrature)
     beta_const          = 1e3             ! [Pa a m-1] Constant value of basal friction coefficient to be used
     beta_q              = 0.33333333      ! Dragging law exponent 
-    beta_u0             = 1.0             ! [m/a] Regularization term for regularized Coulomb law (beta_method=3)
+    beta_u0             = 1.0             ! [m/a] Speed scale of the friction law (beta_method=1-5)
     beta_gl_scale       = 0               ! 0: beta*beta_gl_f, 1: H_grnd linear scaling, 2: Zstar scaling, 3: beta*f_grnd on aa-nodes (with simple staggering)
     beta_gl_stag        = 1               ! -1: beta_acx/acy imposed externally; 0: simple staggering, 1: upstream beta at gl, 2: downstream, 3: f_grnd_ac scaling, 4: weighted by the grounded share of the velocity across the face (Gladstone et al., 2010, B2)
     beta_gl_f           = 1.0             ! [-] Scaling of beta at the grounding line (for beta_gl_scale=0)
@@ -145,14 +145,14 @@
     H_grnd_lim          = 500.0           ! [m] For beta_gl_scale=1, reduce beta linearly between H_grnd=0 and H_grnd_lim
     beta_min            = 0.0             ! [Pa a m-1] Minimum value of beta allowed for grounded ice (for stability)
     eps_0               = 1e-6            ! [1/a] Regularization term for effective viscosity - minimum strain rate
-    slide_T             = False           ! Reduce sliding below pressure melting point: beta/f_slide, f_slide=max(lambda_min,exp(T_prime_b/gamma_T))
-    gamma_T             = 1.0             ! [K] e-folding temperature of sub-temperate sliding (slide_T=True)
-    lambda_min          = 1e-6            ! [-] Minimum sub-temperate sliding factor (slide_T=True)
+    frz_scale           = False           ! Reduce sliding where the bed is below the pressure melting point: beta*f**(-q), f=frz_min+(1-frz_min)*exp(T_prime_b/frz_efold)
+    frz_efold           = 3.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
+    frz_min             = 1e-3            ! [-] Minimum sliding-speed factor for frozen beds
     ssa_solver          = "energy"      ! "residual" | "energy"
     ssa_lis_opt_residual= "-i minres -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"  ! See Lis library
     ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"       ! SPD => CG (matches Yelmo.jl default)
     ssa_lat_bc          = "marine"             ! "all","marine","floating","float","none"
-    ssa_vel_max         = 5000.0          ! [m a-1] SSA velocity limit to avoid spurious results 
+    ssa_vel_max         = 10000.0          ! [m a-1] Velocity limit: clip value ("clip"), or speed at which the limit drag reaches ssa_vel_lim_tau ("drag")
     ssa_iter_max        = 100             ! Number of maximum allowed iterations over ssa to converge on vel. solution
     ssa_iter_rel        = 0.7             ! [--] Relaxation fraction [0:1] to stabilize ssa iterations
     ssa_iter_conv       = 1e-4            ! [--] L2 relative error convergence limit to exit ssa iterations
@@ -187,9 +187,9 @@
     W_til_bc         = 0.0 ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 0      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_N_closure     = 0      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
-    bkt_floating_mode = 1      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
+    bkt_floating_mode = 0      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
 
     ! ---- closures (no prefix) ----
     const_N         = 1.0    ! [Pa] N_CLOSURE_CONST (legacy yneff.const)
@@ -230,7 +230,6 @@
     rf_with_water           = False         ! Only applied for rf_method=1, scale rf by water content?
     n_glen                  = 3.0           ! Glen flow law exponent
     visc_min                = 1e3           ! [Pa a] Minimum allowed viscosity 
-    de_max                  = 2.0           ! [a-1]  Maximum allowed effective strain rate
     enh_method              = "shear3D"     ! "simple","shear2D","shear3D" (+ "-tracer" variants) 
     enh_shear               = 1.0
     enh_stream              = 1.0
@@ -267,7 +266,7 @@
     advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
     gamma           = 1.0               ! [K] Scalar for the pressure melting point decay function 
-    use_strain_sia  = False             ! True: calculate strain heating from SIA approx.
+    strain_heating  = "full"          ! "full": from 3D viscosity and strain rate, "sia": SIA approx., "none": no strain heating
     use_const_cp    = True              ! Use specified constant value of heat capacity?
     const_cp        = 2009.0            ! [J kg-1 K-1] Specific heat capacity 
     use_const_kt    = True              ! Use specified constant value of heat conductivity?

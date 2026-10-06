@@ -1,0 +1,67 @@
+! Benchmark protocol: A4 3D thermodynamics strip (docs/dev/benchmark-protocol).
+! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
+! Fixture: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/strip-a4.nc strip
+!          (transient experiments: add exp=tsrf or exp=smb, and set ctrl.time_end = 50e3)
+! Check:   julia --project=tests/bench tests/bench/check_strip.jl input/bench/strip-a4.nc <run>
+! All parameters not listed here come from input/yelmo_defaults.nml.
+
+&ctrl
+    time_init       = 0.0               ! [yr] Starting time
+    time_end        = 5e3               ! [yr] Ending time
+    dtt             = 10.0              ! [yr] Main loop time step
+    dt2D_out        = 500.0             ! [yr] Frequency of 2D output
+/
+
+&bench
+    fixture         = "input/bench/strip-a4.nc"
+    tsrf_method     = "fixed"           ! "fixed" | "lapse"
+    bmb_method      = "fixed"           ! "fixed" | "mismip+"
+    T_sl            = -10.0             ! [degC] lapse: temperature at sea level (unused)
+    lapse           = 8e-3              ! [K m-1] lapse: lapse rate (unused)
+    Omega           = 0.01              ! [yr-1] mismip+: melt-rate factor (unused)
+    Hc0             = 75.0              ! [m] mismip+: water-column scale (unused)
+    z0              = -200.0            ! [m] mismip+: depth above which melt is zero (unused)
+/
+
+! Border points repeat their interior neighbours; the strip has no ice margin.
+&yelmo
+    domain          = "STRIP"
+    grid_name       = "STRIP-10KM"
+    experiment      = "infinite"
+    mask_border     = "dynamic"
+    nz_aa           = 10                ! Vertical resolution in ice (production default)
+/
+
+&yelmo_masks
+    basins_load     = False
+    regions_load    = False
+/
+
+&yelmo_data
+    pd_topo_load    = False
+    pd_tsrf_load    = False
+    pd_smb_load     = False
+    pd_vel_load     = False
+/
+
+! Thickness and velocity are prescribed by the fixture.
+&ytopo
+    topo_fixed      = True
+/
+
+&ydyn
+    solver          = "fixed"
+    uz_method       = 3                 ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian (default)
+/
+
+! Constant properties as in the analytic solution (k = 2.1 W m-1 K-1,
+! cp = 2009 J kg-1 K-1), no strain heating, bedrock in equilibrium with Q_geo.
+&ytherm
+    strain_heating  = "none"
+    use_const_cp    = True
+    const_cp        = 2009.0            ! [J kg-1 K-1]
+    use_const_kt    = True
+    const_kt        = 6.62695e7         ! [J a-1 m-1 K-1] = 2.1 W m-1 K-1 * 31556926 s a-1
+    enth_cp_method  = "const"
+    rock_method     = "equil"
+/

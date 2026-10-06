@@ -155,10 +155,10 @@ contains
         ! Finally calculate c_bed, which is simply c_bed = f(N_eff,cb_ref)
         call calc_c_bed(dyn%now%c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
 
-        ! Sub-temperate sliding factor (beta is divided by f_slide in calc_beta)
-        if (dyn%par%slide_T) then
+        ! Frozen-bed sliding factor (calc_beta applies beta*f_slide**(-q))
+        if (dyn%par%frz_scale) then
             call calc_f_slide(dyn%now%f_slide,thrm%now%T_prime_b,tpo%now%f_ice_dyn,tpo%now%f_grnd, &
-                                                        dyn%par%gamma_T,dyn%par%lambda_min)
+                              hyd%now%W,hyd%now%W_til,dyn%par%frz_efold,dyn%par%frz_min)
         else
             dyn%now%f_slide = 1.0_wp
         end if
@@ -225,7 +225,7 @@ contains
                 case DEFAULT
 
                     write(*,*) "calc_ydyn:: Error: ydyn solver not recognized." 
-                    write(*,*) "solver should be one of: ['fixed','hybrid','diva']"
+                    write(*,*) "solver should be one of: ['fixed','sia','ssa','hybrid','diva','diva-noslip']"
                     write(*,*) "solver = ", trim(dyn%par%solver) 
                     error stop 1
 
@@ -272,6 +272,11 @@ contains
                 call calc_uz_3D_jac(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,dyn%now%jvel,tpo%now%H_ice_dyn,tpo%now%f_ice_dyn, &
                                     tpo%now%f_grnd,bnd%smb,tpo%now%bmb,tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c, &
                                     dzbdy_c,dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
+            case(4)     ! "uz_flux" == layer mass budget closed against the applied thickness step
+                call calc_uz_3D_flux(dyn%now%uz,dyn%now%uz_star,dyn%now%ux,dyn%now%uy,dyn%now%ux_bar,dyn%now%uy_bar, &
+                                    tpo%now%H_ice,tpo%now%f_ice_dyn,bnd%smb,tpo%now%bmb,tpo%now%dHidt_dyn,tpo%now%mask_kin, &
+                                    tpo%now%dzbdt_kin,tpo%now%dzsdt_kin,dzsdx_c,dzsdy_c,dzbdx_c,dzbdy_c, &
+                                    dyn%par%zeta_aa,dyn%par%zeta_ac,dyn%par%dx,dyn%par%dy,dyn%par%use_bmb,dyn%par%boundaries)
             case DEFAULT
                 write(io_unit_err,*) "Error: calc_ydyn:: vertical velocity integration method not recognized."
                 write(io_unit_err,*) "ydyn.uz_method = ", dyn%par%uz_method
@@ -471,6 +476,8 @@ contains
             ssa_par%H_grnd_lim     = dyn%par%H_grnd_lim 
             ssa_par%beta_min       = dyn%par%beta_min
             ssa_par%eps_0          = dyn%par%eps_0  
+            ssa_par%ssa_vel_lim_method = dyn%par%ssa_vel_lim_method
+            ssa_par%ssa_vel_lim_tau = dyn%par%ssa_vel_lim_tau
             ssa_par%ssa_vel_max    = dyn%par%ssa_vel_max 
             ssa_par%ssa_iter_max   = dyn%par%ssa_iter_max 
             ssa_par%ssa_iter_rel   = dyn%par%ssa_iter_rel 
@@ -483,7 +490,7 @@ contains
             
             call calc_velocity_ssa(dyn%now%ux_b,dyn%now%uy_b,dyn%now%taub_acx,dyn%now%taub_acy, &
                                       dyn%now%visc_eff,dyn%now%visc_eff_int,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy, &
-                                      dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%beta, &
+                                      dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%par%ssa_lim_n,dyn%now%beta, &
                                       dyn%now%beta_acx,dyn%now%beta_acy,dyn%now%c_bed,dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy, &
                                       dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                       tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
@@ -600,6 +607,8 @@ contains
         diva_par%H_grnd_lim     = dyn%par%H_grnd_lim 
         diva_par%beta_min       = dyn%par%beta_min 
         diva_par%eps_0          = dyn%par%eps_0 
+        diva_par%ssa_vel_lim_method = dyn%par%ssa_vel_lim_method
+        diva_par%ssa_vel_lim_tau = dyn%par%ssa_vel_lim_tau
         diva_par%ssa_vel_max    = dyn%par%ssa_vel_max 
         diva_par%ssa_iter_max   = dyn%par%ssa_iter_max 
         diva_par%ssa_iter_rel   = dyn%par%ssa_iter_rel 
@@ -616,7 +625,7 @@ contains
                                 dyn%now%beta_acy,dyn%now%beta_eff,dyn%now%de_eff,dyn%now%visc_eff, &
                                 dyn%now%visc_eff_int,    &
                                 dyn%now%duxdz,dyn%now%duydz,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,      &
-                                dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%now%c_bed, &
+                                dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%par%ssa_lim_n,dyn%now%c_bed, &
                                 dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                 tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,   &
                                 tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,mat%now%ATT, &
@@ -758,9 +767,9 @@ contains
         call nml_read(filename,group_ydyn,"H_grnd_lim",         par%H_grnd_lim,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"beta_min",           par%beta_min,           init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"eps_0",              par%eps_0,              init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"slide_T",            par%slide_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"gamma_T",            par%gamma_T,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-        call nml_read(filename,group_ydyn,"lambda_min",         par%lambda_min,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_scale",          par%frz_scale,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_efold",          par%frz_efold,          init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"frz_min",            par%frz_min,            init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_solver",         par%ssa_solver,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -768,7 +777,9 @@ contains
 
         ! Apply default for ssa_solver if not set in namelist
         if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "energy"
+        call nml_read(filename,group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
+        call nml_read(filename,group_ydyn,"ssa_vel_lim_tau",    par%ssa_vel_lim_tau,    init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_max",       par%ssa_iter_max,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_rel",       par%ssa_iter_rel,       init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_iter_conv",      par%ssa_iter_conv,      init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -799,11 +810,23 @@ contains
                               "fixed|sia|ssa|hybrid|diva|diva-noslip")
         call yelmo_check_enum(group_ydyn,"ssa_solver", par%ssa_solver, "residual|energy")
         call yelmo_check_enum(group_ydyn,"ssa_lat_bc", par%ssa_lat_bc, "all|marine|floating|float|none")
+        call yelmo_check_enum(group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, "clip|drag")
 
-        if (par%slide_T .and. (par%gamma_T .le. 0.0_wp .or. par%lambda_min .le. 0.0_wp &
-                                                        .or. par%lambda_min .gt. 1.0_wp)) then
-            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.slide_T requires gamma_T > 0 and 0 < lambda_min <= 1; got ", &
-                                 par%gamma_T, par%lambda_min
+        if (par%ssa_vel_max .le. 0.0_wp) then
+            ! (also sets the kill limit in yelmo_check_kill: 2*ssa_vel_max)
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.ssa_vel_max must be > 0; got ", par%ssa_vel_max
+            error stop 1
+        end if
+        if (trim(par%ssa_vel_lim_method) .eq. "drag" .and. par%ssa_vel_lim_tau .le. 0.0_wp) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.ssa_vel_lim_method='drag' requires ssa_vel_lim_tau > 0; got ", &
+                                 par%ssa_vel_lim_tau
+            error stop 1
+        end if
+
+        if (par%frz_scale .and. (par%frz_efold .le. 0.0_wp .or. par%frz_min .le. 0.0_wp &
+                                                          .or. par%frz_min .gt. 1.0_wp)) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ydyn.frz_scale requires frz_efold > 0 and 0 < frz_min <= 1; got ", &
+                                 par%frz_efold, par%frz_min
             error stop 1
         end if
         if (par%till_z0 .ge. par%till_z1) then
@@ -853,6 +876,7 @@ contains
         par%ssa_iter_now = 1 
         par%ssa_lin_iter = 0
         par%ssa_lin_fail = 0
+        par%ssa_lim_n    = 0
 
         return
 
@@ -1294,7 +1318,7 @@ contains
 
         call nc_write(filename,"c_bed",dyn%now%c_bed,units="Pa",long_name="Dragging coefficient", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Sub-temperate sliding factor", &
+        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Frozen-bed sliding-speed factor", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"N_eff",dyn%now%N_eff,units="Pa",long_name="Effective pressure", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

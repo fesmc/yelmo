@@ -4,6 +4,7 @@ module yelmo
     use yelmo_defs 
     use yelmo_grid, only : yelmo_init_grid, yelmo_grid_write
     use yelmo_io 
+    use yelmo_remapping
     use yelmo_ice 
 
 !     use yelmo_timesteps 
