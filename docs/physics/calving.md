@@ -109,8 +109,10 @@ front cells:
     with `zb_sigma`);
   - `"vm-l19"`: von Mises effective stress (Lipscomb et al., 2019), below;
   - `"eigen"`: eigen calving (Levermann et al., 2012), scaling factor `k2`;
-  - `"kill"`: all floating ice is removed with the time scale `calv_tau`;
+  - `"kill"`: all floating ice is removed;
   - `"kill-pos"`: floating ice is removed where `bnd%calv_mask` is set;
+  - both kill methods act at the end of the calving step, after the front
+    advance, so no floating ice remains in the kill region after each step;
 - grounded ice (`calv_grnd_method`): `"zero"` / `"none"` or `"stress-b12"`
   (Bassis and Walker, 2012). Any grounded law also adds calving of grounded
   ice where the sub-grid bed roughness `z_bed_sd` is large, rising from zero at
