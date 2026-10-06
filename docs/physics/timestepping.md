@@ -30,7 +30,7 @@ is (`yelmo_update`):
    (`calc_ytopo_pc(..., "corrector")`).
 4. **Error estimate**: truncation error $\tau$ [m a$^{-1}$] from $H^{n+1}$ and
    $H^\ast$, and its norm $\eta$ (`pc_eta`, below).
-5. **Redo**: if $\eta >$ `pc_tol` (default 5 a$^{-1}$) and $\Delta t >$ `dt_min`,
+5. **Redo**: if $\eta >$ `pc_tol` (default 1 a$^{-1}$) and $\Delta t >$ `dt_min`,
    the step is rejected and repeated with
    $\Delta t \cdot 0.7/(1 + (\eta - \mathrm{pc\_tol})/10)$ (at least `dt_min`).
    At most `pc_n_redo` (default 5) attempts are made; the last one is accepted.

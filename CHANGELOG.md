@@ -14,6 +14,9 @@ little. MISMIP3D and DIVA runs change more.
   AB-SAM predictor extrapolated with weights ~±1250 and the run blew up. Only steps where
   the controller asks for more than `pc_rho_max` change (TROUGH-F17 8 km: 5 steps in the
   first 8 a; GRL-16: 9 steps in 1 kyr, up to 2.3x).
+- **`yelmo.pc_tol` 5 -> 1** in the defaults and in the par files that had 5. A step is
+  redone if `pc_eta` > `pc_tol`; with `pc_eps` = 0.01-0.02, a bad step with `pc_eta`
+  ~0.4 was accepted before. The instability kill (mean `pc_eta` > 10 `pc_tol`) now acts at 10.
 - **`ydyn.slide_T`, `gamma_T`, `lambda_min` replaced by `ydyn.frz_scale`, `frz_efold`,
   `frz_min`** (`calc_f_slide`, `calc_beta`). β was divided by `f_slide`, which scales
   the sliding speed by `f_slide**(1/q)`: with q = 1/3 (TROUGH) `gamma_T` = 1 K was a
