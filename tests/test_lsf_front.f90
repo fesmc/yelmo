@@ -14,6 +14,9 @@ program test_lsf_front
     !   6. marine-grounded front cell on a deeper bed, entirely behind the
     !      level set (a_lsf = 1): full; without the level set, partial from
     !      the neighbour reference
+    !   7. ocean cell beyond the front with ice-free land on three sides
+    !      (lsf pinned to -1 there): a_lsf = 0; land neighbours holding ice
+    !      still count as ice side
 
     use yelmo_defs,        only : wp, A_FRONT_MIN
     use topography,        only : calc_lsf_area_fraction, calc_ice_fraction
@@ -42,6 +45,7 @@ program test_lsf_front
     call test_tongue_trim()
     call test_gate()
     call test_behind_front()
+    call test_land_neighbours()
 
     write(*,*)
     if (n_fail .eq. 0) then
@@ -64,27 +68,29 @@ contains
     subroutine test_tongue_area()
         ! 1-cell-wide tongue along x (row j = 4) in the ocean
         integer,  parameter :: nx = 9, ny = 7
-        real(wp) :: lsf(nx,ny), a(nx,ny)
+        real(wp) :: lsf(nx,ny), a(nx,ny), H(nx,ny), z_bed(nx,ny), z_sl(nx,ny)
 
+        H = 0.0_wp; z_bed = -1000.0_wp; z_sl = 0.0_wp
         lsf = 1.0_wp
         lsf(3:7,4) = -0.5_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
         call check("1 1-wide tongue a_lsf, lsf=-0.5",abs(a(5,4)-2.0_wp/3.0_wp) .lt. tol,a(5,4),2.0_wp/3.0_wp)
 
         lsf(3:7,4) = -0.99_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
         call check("1 1-wide tongue a_lsf, lsf=-0.99",a(5,4) .gt. 0.99_wp,a(5,4),0.995_wp)
     end subroutine test_tongue_area
 
     subroutine test_half_cell()
         ! Straight front through the centre of column i = 4
         integer,  parameter :: nx = 8, ny = 5
-        real(wp) :: lsf(nx,ny), a(nx,ny)
+        real(wp) :: lsf(nx,ny), a(nx,ny), H(nx,ny), z_bed(nx,ny), z_sl(nx,ny)
 
+        H = 0.0_wp; z_bed = -1000.0_wp; z_sl = 0.0_wp
         lsf = 1.0_wp
         lsf(1:3,:) = -1.0_wp
         lsf(4,:)   =  0.0_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
         call check("2 half-covered cell a_lsf",abs(a(4,3)-0.5_wp) .lt. tol,a(4,3),0.5_wp)
     end subroutine test_half_cell
 
@@ -102,7 +108,7 @@ contains
         lsf   = 1.0_wp
         lsf(1:5,:) = -1.0_wp
         lsf(6,:)   = -0.4_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
 
         do n = 1, n_steps
             H(6,:) = H(6,:) + 5.0_wp*dt
@@ -129,7 +135,7 @@ contains
         H(4:7,6:7) = 400.0_wp
         lsf   = 1.0_wp
         lsf(4:7,6:7) = -0.9_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
 
         do n = 1, n_steps
             call calc_G_lsf_front(cmb,H,a,z_bed,z_sl,rho_ice,rho_sw,"marine",H_eff_min,dHdx,dx,dt,"infinite")
@@ -182,7 +188,7 @@ contains
         H(6,:)   = 800.0_wp
         lsf   = 1.0_wp
         lsf(1:7,:) = -1.0_wp
-        call calc_lsf_area_fraction(a,lsf,"infinite")
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
 
         call calc_ice_fraction(f_ice,H_eff,H,z_bed,z_sl,rho_ice,rho_sw,"marine",H_eff_min,dHdx,dx,"infinite",a)
         call check("6 behind level set: a_lsf",a(6,2) .eq. 1.0_wp,a(6,2),1.0_wp)
@@ -191,5 +197,29 @@ contains
         call calc_ice_fraction(f_ice,H_eff,H,z_bed,z_sl,rho_ice,rho_sw,"marine",H_eff_min,dHdx,dx,"infinite")
         call check("6 no level set: partial",f_ice(6,2) .lt. 1.0_wp,f_ice(6,2),1.0_wp)
     end subroutine test_behind_front
+
+    subroutine test_land_neighbours()
+        ! Ocean cell (4,3) beyond the front (lsf > 0) with land to the west,
+        ! south and south-west, ocean or a front cell (lsf > 0) elsewhere
+        integer,  parameter :: nx = 7, ny = 6
+        real(wp) :: H(nx,ny), lsf(nx,ny), a(nx,ny), z_bed(nx,ny), z_sl(nx,ny)
+
+        z_bed = -500.0_wp
+        z_bed(1:3,:) = 50.0_wp
+        z_bed(:,1:2) = 50.0_wp
+        z_sl  = 0.0_wp
+        H     = 0.0_wp
+        lsf   = 1.0_wp
+        where (z_bed .ge. z_sl) lsf = -1.0_wp
+        lsf(4,3) = 0.27_wp
+        lsf(4,4) = 0.2_wp
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
+        call check("7 ocean cell next to ice-free land",a(4,3) .lt. A_FRONT_MIN,a(4,3),0.0_wp)
+
+        H(1:3,:) = 100.0_wp
+        H(:,1:2) = 100.0_wp
+        call calc_lsf_area_fraction(a,lsf,H,z_bed,z_sl,"infinite")
+        call check("7 ocean cell next to ice on land",a(4,3) .ge. A_FRONT_MIN,a(4,3),A_FRONT_MIN)
+    end subroutine test_land_neighbours
 
 end program test_lsf_front

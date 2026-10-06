@@ -144,7 +144,7 @@ if (use_rk4) then
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
-                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
+                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                  a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
@@ -188,7 +188,7 @@ if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
-                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%par%boundaries)
+                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                 a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
@@ -1157,7 +1157,7 @@ end if
             ! Subgrid front: front-cell thickness follows the level set
             ! (at most a_lsf*H_eff), so f_ice = H_ice/H_eff is the area
             ! behind the front
-            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%par%boundaries)
+            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
             call calc_G_lsf_front(mbal_now,tpo%now%H_ice,a_lsf,bnd%z_bed,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw, &
                                   tpo%par%front_subgrid,tpo%par%front_H_eff_min,tpo%par%front_dHdx, &
                                   tpo%par%dx,dt_kill,tpo%par%boundaries)
@@ -1265,15 +1265,22 @@ end if
         call update_ice_fraction(tpo,bnd)
 
         ! Geometry of the active ice column, used for the surface and the
-        ! dynamics: every ice-covered cell is active, and partial front cells
-        ! (ytopo.front_subgrid) take part as full cells with thickness H_eff.
-        ! A full front cell holding more ice than its reference H_eff keeps its
-        ! own column (H_eff remains the reference of the front advance and trim).
-        ! With front_subgrid="none", H_ice_dyn == H_ice and f_ice_dyn == f_ice.
-        tpo%now%H_ice_dyn = max(tpo%now%H_eff,tpo%now%H_ice)
-        where (tpo%now%H_ice .gt. 0.0_wp)
+        ! dynamics: cells with at least A_FRONT_MIN of their area ice covered
+        ! are active, and partial front cells (ytopo.front_subgrid) take part
+        ! as full cells with thickness H_eff. A full front cell holding more
+        ! ice than its reference H_eff keeps its own column (H_eff remains the
+        ! reference of the front advance and trim). Cells below A_FRONT_MIN
+        ! keep their ice (they fill by transport) but are ice free for the
+        ! dynamics: otherwise a film of a few millimetres would be a full
+        ! H_eff column (front_H_eff_min at least) and turn the ocean face of
+        ! the neighbouring front cell into an interior face (GRL-8KM: such
+        ! cells moved at ~8 km/yr). With front_subgrid="none", f_ice is
+        ! binary, H_ice_dyn == H_ice and f_ice_dyn == f_ice.
+        where (tpo%now%f_ice .ge. A_FRONT_MIN)
+            tpo%now%H_ice_dyn = max(tpo%now%H_eff,tpo%now%H_ice)
             tpo%now%f_ice_dyn = 1.0_wp
         elsewhere
+            tpo%now%H_ice_dyn = 0.0_wp
             tpo%now%f_ice_dyn = 0.0_wp
         end where
 
@@ -2197,7 +2204,7 @@ end if
 
         if (tpo%par%use_lsf .and. trim(tpo%par%front_subgrid) .ne. "none") then
             allocate(a_lsf(size(tpo%now%H_ice,1),size(tpo%now%H_ice,2)))
-            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%par%boundaries)
+            call calc_lsf_area_fraction(a_lsf,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
             call calc_ice_fraction(tpo%now%f_ice,tpo%now%H_eff,tpo%now%H_ice,bnd%z_bed,bnd%z_sl, &
                                    bnd%c%rho_ice,bnd%c%rho_sw,tpo%par%front_subgrid, &
                                    tpo%par%front_H_eff_min,tpo%par%front_dHdx,tpo%par%dx,tpo%par%boundaries,a_lsf)

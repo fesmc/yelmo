@@ -539,7 +539,7 @@ contains
 
     end subroutine calc_front_cells
 
-    subroutine calc_lsf_area_fraction(a_lsf,lsf,boundaries)
+    subroutine calc_lsf_area_fraction(a_lsf,lsf,H_ice,z_bed,z_sl,boundaries)
         ! Area fraction of each cell behind the level-set front (lsf < 0).
         ! The cell is split into four quadrants with vertices at the cell
         ! centre, two edge midpoints and a corner (edge midpoints: mean of two
@@ -547,41 +547,65 @@ contains
         ! quadrant is computed via marching squares. Including the centre value
         ! keeps the fraction continuous for 1-cell-wide features, where all
         ! four corner means are >= 0.
+        ! Ice-free land neighbours take the value of the cell itself: their
+        ! lsf is pinned to -1 to keep the level set off land, which says
+        ! nothing about the front position in the cell. Counted as ice side,
+        ! they gave an ocean cell (lsf > 0) between land cells an area fraction
+        ! of ~0.4, so that it filled from a neighbouring front cell.
 
         implicit none
 
         real(wp), intent(OUT) :: a_lsf(:,:)             ! [--] Area fraction behind the front
         real(wp), intent(IN)  :: lsf(:,:)               ! [--] Level-set function (< 0: ice side)
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
         character(len=*), intent(IN) :: boundaries
 
         integer  :: i, j, nx, ny, BC
         integer  :: im1, ip1, jm1, jp1
+        real(wp) :: l_c, l_W, l_E, l_S, l_N, l_SW, l_SE, l_NE, l_NW
         real(wp) :: phi_c, phi_W, phi_E, phi_S, phi_N
         real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
+        logical, allocatable :: is_land(:,:)            ! Ice-free land cells
 
         nx = size(lsf,1)
         ny = size(lsf,2)
         BC = boundary_code(boundaries)
 
+        allocate(is_land(nx,ny))
+        is_land = z_bed .ge. z_sl .and. H_ice .le. H_ice_eps
+
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_c,phi_W,phi_E,phi_S,phi_N) &
-        !$omp& private(phi_BL,phi_BR,phi_TR,phi_TL)
+        !$omp& private(phi_BL,phi_BR,phi_TR,phi_TL,l_c,l_W,l_E,l_S,l_N,l_SW,l_SE,l_NE,l_NW)
         do j = 1, ny
         do i = 1, nx
 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
+            ! Neighbour values (ice-free land: the cell's own value)
+            l_c  = lsf(i,j)
+            l_W  = merge(l_c, lsf(im1,j),   is_land(im1,j))
+            l_E  = merge(l_c, lsf(ip1,j),   is_land(ip1,j))
+            l_S  = merge(l_c, lsf(i,jm1),   is_land(i,jm1))
+            l_N  = merge(l_c, lsf(i,jp1),   is_land(i,jp1))
+            l_SW = merge(l_c, lsf(im1,jm1), is_land(im1,jm1))
+            l_SE = merge(l_c, lsf(ip1,jm1), is_land(ip1,jm1))
+            l_NE = merge(l_c, lsf(ip1,jp1), is_land(ip1,jp1))
+            l_NW = merge(l_c, lsf(im1,jp1), is_land(im1,jp1))
+
             ! Centre and edge midpoints
-            phi_c = lsf(i,j)
-            phi_W = 0.5_wp*(lsf(im1,j) + lsf(i,j))
-            phi_E = 0.5_wp*(lsf(i,j)   + lsf(ip1,j))
-            phi_S = 0.5_wp*(lsf(i,jm1) + lsf(i,j))
-            phi_N = 0.5_wp*(lsf(i,j)   + lsf(i,jp1))
+            phi_c = l_c
+            phi_W = 0.5_wp*(l_W + l_c)
+            phi_E = 0.5_wp*(l_c + l_E)
+            phi_S = 0.5_wp*(l_S + l_c)
+            phi_N = 0.5_wp*(l_c + l_N)
 
             ! Corners
-            phi_BL = 0.25_wp*(lsf(im1,jm1) + lsf(i,jm1) + lsf(im1,j) + lsf(i,j))
-            phi_BR = 0.25_wp*(lsf(i,jm1)   + lsf(ip1,jm1) + lsf(i,j)   + lsf(ip1,j))
-            phi_TR = 0.25_wp*(lsf(i,j)     + lsf(ip1,j)   + lsf(i,jp1) + lsf(ip1,jp1))
-            phi_TL = 0.25_wp*(lsf(im1,j)   + lsf(i,j)     + lsf(im1,jp1) + lsf(i,jp1))
+            phi_BL = 0.25_wp*(l_SW + l_S + l_W + l_c)
+            phi_BR = 0.25_wp*(l_S  + l_SE + l_c + l_E)
+            phi_TR = 0.25_wp*(l_c  + l_E + l_N + l_NE)
+            phi_TL = 0.25_wp*(l_W  + l_c + l_NW + l_N)
 
             ! Quadrants (BL, BR, TR, TL vertices of each)
             a_lsf(i,j) = 0.25_wp*( lsf_negative_area_fraction(phi_BL,phi_S, phi_c, phi_W ) &
