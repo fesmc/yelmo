@@ -8,12 +8,14 @@
 # ydyn.solver = "fixed" and ytopo.topo_fixed = True.
 #
 # Domain: x ∈ [−nx dx/2, nx dx/2] (cell-centred, x = 0 on a cell centre),
-# three identical rows per parameter set along y, plus one border row at each
-# end that repeats its neighbour. Only the middle row of each set and the
-# columns two or more cells from the x-borders are compared: the default
-# vertical velocity (ydyn.uz_method = 3) averages the divergence over the
-# neighbouring cells (weights 1/4, 1/2, 1/4), which mixes parameter sets in
-# adjacent rows and reaches one cell in from the borders.
+# nrep identical rows per parameter set along y (default 3), plus one border
+# row at each end that repeats its neighbour. Only the middle row of each set
+# and the columns two or more cells from the x-borders are compared: the
+# default vertical velocity (ydyn.uz_method = 3) averages the divergence over
+# the neighbouring cells (weights 1/4, 1/2, 1/4), which mixes parameter sets in
+# adjacent rows and reaches one cell in from the borders. The flux-consistent
+# vertical velocity (ydyn.uz_method = 4) does not mix rows, so nrep = 1 can be
+# used with it.
 #
 # Velocity (plug flow, uniform with depth):
 #   u = c(y) x,  v = 0,  c = SMB/H.
@@ -41,11 +43,12 @@ const STRIP_ROWS = [(1000.0, 0.02), (1000.0, 0.05), (1000.0, 0.1), (1000.0, 0.2)
 """
     StripThermoBenchmark(exp::Symbol = :stationary; dx_km = 10.0, nx = 7,
                          rows = STRIP_ROWS, T_srf = 233.15, Q_geo = 50.0,
-                         dT = -10.0, fsmb = 2.0, z_bed = 500.0)
+                         dT = -10.0, fsmb = 2.0, z_bed = 500.0, nrep = 3)
 
 Thermodynamics strip (A4). `rows` holds one (H, SMB) pair per row. `T_srf` [K]
 and `Q_geo` [mW m⁻²] are uniform. `dT` [K] and `fsmb` define the step change
-of the transient experiments `:tsrf` and `:smb`.
+of the transient experiments `:tsrf` and `:smb`. `nrep` (odd) is the number of
+identical rows per parameter set; the middle one is compared.
 """
 struct StripThermoBenchmark <: AbstractBenchmark
     exp    ::Symbol
@@ -58,20 +61,23 @@ struct StripThermoBenchmark <: AbstractBenchmark
     dT     ::Float64
     fsmb   ::Float64
     z_bed  ::Float64
+    nrep   ::Int
 end
 
 function StripThermoBenchmark(exp::Symbol = :stationary;
                               dx_km::Real = 10.0, nx::Integer = 7,
                               rows = STRIP_ROWS, T_srf::Real = 233.15, Q_geo::Real = 50.0,
-                              dT::Real = -10.0, fsmb::Real = 2.0, z_bed::Real = 500.0)
+                              dT::Real = -10.0, fsmb::Real = 2.0, z_bed::Real = 500.0, nrep::Real = 3)
     exp in (:stationary, :tsrf, :smb) ||
         error("StripThermoBenchmark: unsupported exp = $exp. Supported: :stationary, :tsrf, :smb.")
     isodd(nx) || error("StripThermoBenchmark: nx must be odd, so that x = 0 is a cell centre (got $nx).")
+    (isinteger(nrep) && isodd(Int(nrep))) || error("StripThermoBenchmark: nrep must be an odd integer (got $nrep).")
+    nrep = Int(nrep)
     dx = Float64(dx_km) * 1e3
     xc = collect((-(nx ÷ 2):(nx ÷ 2)) .* dx)
-    yc = collect(((0:STRIP_NREP*length(rows)+1) .+ 0.5) .* dx)
+    yc = collect(((0:nrep*length(rows)+1) .+ 0.5) .* dx)
     b = StripThermoBenchmark(exp, xc, yc, Float64(dx_km), [Tuple(Float64.(r)) for r in rows],
-                             Float64(T_srf), Float64(Q_geo), Float64(dT), Float64(fsmb), Float64(z_bed))
+                             Float64(T_srf), Float64(Q_geo), Float64(dT), Float64(fsmb), Float64(z_bed), nrep)
     for (k, (H, smb)) in enumerate(b.rows)
         Tb   = strip_column(b, k, [0.0])[1]
         Tpmp = 273.15 - 9.8e-8 * 910.0 * 9.81 * H
@@ -82,14 +88,11 @@ function StripThermoBenchmark(exp::Symbol = :stationary;
     return b
 end
 
-"Rows per parameter set (the middle one is compared)."
-const STRIP_NREP = 3
-
 "Parameter set of grid row j (border rows repeat their neighbour)."
-strip_row(b::StripThermoBenchmark, j) = clamp(cld(j - 1, STRIP_NREP), 1, length(b.rows))
+strip_row(b::StripThermoBenchmark, j) = clamp(cld(j - 1, b.nrep), 1, length(b.rows))
 
 "Grid row compared for parameter set k (the middle row of its block)."
-strip_check_row(b::StripThermoBenchmark, k) = STRIP_NREP * k
+strip_check_row(b::StripThermoBenchmark, k) = b.nrep * (k - 1) + 2 + b.nrep ÷ 2
 
 """
     strip_params(b, k; forcing = :P2) -> IceColumnPar
@@ -189,7 +192,7 @@ function write_fixture!(b::StripThermoBenchmark, path::AbstractString;
     attrs = Dict("benchmark" => "STRIP-A4", "exp" => String(b.exp), "dx_km" => b.dx_km,
                  "nx" => length(b.xc), "rows_H" => first.(b.rows), "rows_smb" => last.(b.rows),
                  "T_srf" => b.T_srf, "Q_geo" => b.Q_geo, "dT" => b.dT, "fsmb" => b.fsmb,
-                 "z_bed" => b.z_bed)
+                 "z_bed" => b.z_bed, "nrep" => b.nrep)
     write_fixture_nc(path, state(b, 0.0), fields; fields3D = FIELDS_3D, attrs)
     return [path]
 end

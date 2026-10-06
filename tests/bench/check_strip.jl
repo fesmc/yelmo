@@ -21,7 +21,7 @@ b = NCDataset(fixture) do ds
     StripThermoBenchmark(Symbol(a["exp"]); dx_km = a["dx_km"], nx = Int(a["nx"]),
                          rows = collect(zip(Float64.(a["rows_H"]), Float64.(a["rows_smb"]))),
                          T_srf = a["T_srf"], Q_geo = a["Q_geo"], dT = a["dT"], fsmb = a["fsmb"],
-                         z_bed = a["z_bed"])
+                         z_bed = a["z_bed"], nrep = get(a, "nrep", 3))
 end
 
 ds    = NCDataset(file)

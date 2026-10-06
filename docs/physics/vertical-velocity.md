@@ -130,18 +130,20 @@ applied to the *horizontal derivatives* precisely so that what gets integrated
 is the true constant-$z$ divergence. What comes out, `uz`, is honest physical
 $w$ in a fixed frame.
 
-### The three methods
+### The four methods
 
-`ydyn.uz_method` selects among three implementations that differ in how the
-horizontal divergence is discretized. They use the column of the dynamics
-(`H_ice_dyn`), so partial front cells are full columns with the effective
-thickness:
+`ydyn.uz_method` selects among four implementations. Methods 1–3 integrate the
+horizontal divergence as above and differ in how it is discretized. They use
+the column of the dynamics (`H_ice_dyn`), so partial front cells are full
+columns with the effective thickness. Method 4 integrates the layer mass budget
+instead (see [below](#uz-flux)):
 
 | `uz_method` | Routine | Notes |
 |---|---|---|
 | 1 (`uz_aa`) | `calc_uz_3D_aa` | divergence from the two faces of each cell, $(u_{i+1/2}-u_{i-1/2})/\Delta x$, the same face differences as the thickness equation |
 | 2 (`uz_nodes`) | `calc_uz_3D` | Gaussian-quadrature sub-node averaging (same effective stencil as method 3) |
 | 3 (`uz_jac`) | `calc_uz_3D_jac` | **default**; uses the precomputed 3D velocity Jacobian `jvel` from `calc_jacobian_vel_3D_uxyterms` ([`deformation.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90)), with 3D quadrature. The constant-$z$ correction is applied in the Jacobian, so `uz` is integrated from the corrected divergence directly. |
+| 4 (`uz_flux`) | `calc_uz_3D_flux` | `uz_star` from the layer mass budget, with the layer fluxes closed against the applied thickness step; `uz` recovered from `uz_star` |
 
 Methods 2 and 3 average the divergence over neighbouring cells. Along the
 flow, the centred face derivatives $(u_{i+3/2}-u_{i-1/2})/(2\Delta x)$ averaged
@@ -157,9 +159,62 @@ uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a
 surface `uz` off by up to a factor of 5 next to a jump in the divergence, while
 method 1 is exact.
 
+### Flux-consistent vertical velocity (`uz_method = 4`) {#uz-flux}
+
+Method 4 computes `uz_star` directly from the mass budget of each layer $k$
+between $\zeta_{k-1/2}$ and $\zeta_{k+1/2}$,
+
+$$
+w^\star_{k+1/2} \;=\; w^\star_{k-1/2} \;-\; \Delta\zeta_k\,\frac{\partial H}{\partial t} \;-\; D_k,
+\qquad w^\star_{1/2} = \dot b ,
+$$
+
+where $D_k = \nabla\cdot(H\,\Delta\zeta_k\,\mathbf{u}_k)$ is the flux divergence of
+layer $k$ and $\partial H/\partial t$ = `dzsdt_kin` − `dzbdt_kin` is the vertical
+thickness change of the column. $D_k$ is formed with the stencil of the
+thickness solver (face thickness of `H_ice` upwind by the sign of the
+depth-averaged velocity). Since the trapezoid weights of `zeta_aa` are the layer
+thicknesses $\Delta\zeta_k$, the sum of the layer fluxes is the flux divergence
+$\nabla\cdot(H\bar{\mathbf{u}})$ of the current velocity. Where the column rate is
+given by the applied thickness step (`tpo%now%mask_kin` = 1), the layer fluxes
+are corrected additively,
+
+$$
+D_k \;\leftarrow\; D_k + \Delta\zeta_k\Bigl(-\dot H_\mathrm{dyn} - \sum_m D_m\Bigr),
+$$
+
+so that they sum to the applied transport $-\dot H_\mathrm{dyn}$ (`dHidt_dyn`).
+The correction absorbs the differences between the thickness step and the
+current velocity solution (time-filtered velocity, implicit face thickness,
+predictor–corrector weighting) and is distributed over the column like the
+layer thickness. The surface value is then
+
+$$
+w^\star_s \;=\; -\dot a \;-\; \dot H_\mathrm{clip} \;-\; \dot H_\mathrm{relax},
+$$
+
+the kinematic condition, with the clip of negative thickness (`mb_clip`) and the
+relaxation (`mb_relax`) as additional surface terms. The physical `uz` is
+recovered from `uz_star` with the coordinate terms of the next section, so the
+two fields stay consistent.
+
+`mask_kin` is 0 where the column is re-derived (partial front cells, cells on
+the `H_eff` floor, cells that became fully ice covered during the step) and
+wherever the thickness is not advanced (`topo_fixed`, initialization). There
+the layer fluxes are those of the current velocity and $\partial H/\partial t = 0$,
+so the surface condition holds only if the ice is in balance. For uniform
+thickness along the flow (benchmark A4), the uncorrected layer fluxes are exact
+and do not mix neighbouring columns.
+
+The vertical velocity is computed in the dynamics, after the predictor step.
+With `pc_use_H_pred = True` (default), the predictor is the applied thickness
+step and the closure is exact. With `pc_use_H_pred = False`, the corrected
+thickness is applied, and the closure differs from it by the
+predictor–corrector truncation error.
+
 ### Practical caveats
 
-- **The surface kinematic BC is not enforced.** `uz` is anchored at the *base*
+- **The surface kinematic BC is not enforced (methods 1–3).** `uz` is anchored at the *base*
   and integrated upward, and the surface condition
   $w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a$
   is not imposed. So `uz` *exactly satisfies the basal BC*, and any mismatch
@@ -170,7 +225,8 @@ method 1 is exact.
   coordinate terms) is not the discrete flux divergence of the thickness
   equation, which uses face thicknesses and the time-filtered velocity
   (`pc_filter_vel`). It is largest at grounding lines and outlet margins
-  (several m/yr in Greenland at 16 km) for all three methods.
+  (several m/yr in Greenland at 16 km) for all three methods. Method 4 closes
+  it by construction where `mask_kin` = 1.
 - **No clamps.** `uz` and `uz_star` are not limited; in fast outlets $w$ reaches
   tens of m/yr. Values below `TOL_UNDERFLOW` are zeroed.
 - **Ice-free points** get `uz = dzbdt - max(smb,0)` and `uz_star = uz`.
