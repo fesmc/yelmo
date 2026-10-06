@@ -459,7 +459,7 @@ end if
 
     end subroutine calc_pc_tau_heun
 
-    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,cfl_max,boundaries)
+    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,cfl_max,rho_max,boundaries)
         ! Calculate the timestep following algorithm for 
         ! a general predictor-corrector (pc) method.
         ! Implemented followig Cheng et al (2017, GMD)
@@ -478,20 +478,16 @@ end if
         integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
         real(wp), intent(IN)  :: cfl_max              ! [--]   Courant-number backstop on dt (yelmo.pc_cfl_max)
+        real(wp), intent(IN)  :: rho_max              ! [--]   Maximum growth factor dt_new/dt_n (yelmo.pc_rho_max)
         character(len=*), intent(IN) :: boundaries      ! Boundary conditions of the advection (ytopo)
 
         ! Local variables
         real(wp) :: dt_n, dt_nm1, dt_nm2          ! [yr]   Timesteps (n:n-2)
         real(wp) :: eta_n, eta_nm1, eta_nm2       ! [X/yr] Maximum truncation error (n:n-2)
         real(wp) :: rho_n, rho_nm1, rho_nm2
-        real(wp) :: rhohat_n 
         real(wp) :: dt_adv 
         real(wp) :: k_i 
         real(wp) :: k_p, k_d 
-
-        ! Smoothing parameter; Söderlind and Wang (2006) method, Eq. 10
-        ! Values on the order of [0.7,2.0] are reasonable. Higher kappa slows variation in dt
-        real(wp), parameter :: kappa = 2.0_wp 
         
         ! Step 1: Save information needed for adapative controller algorithms 
 
@@ -574,13 +570,21 @@ end if
 
         end select 
 
-        ! Scale rho_n for smoothness 
-        rhohat_n = rho_n
-        !rhohat_n = min(rho_n,1.1)
-        !rhohat_n = 1.0_wp + kappa * atan((rho_n-1.0_wp)/kappa) ! Söderlind and Wang, 2006, Eq. 10
-        
+        ! Limit the growth of dt per step. The controllers have no upper bound on
+        ! rho_n: when eta_n is tiny (eg, at the eta_tol floor of calc_pc_eta
+        ! after a step in which the ice hardly moved), PI42 gives rho_n ~ 1e3.
+        ! A large step ratio also enters the AB-SAM predictor weights
+        ! (dt_zeta = rho_n), which then extrapolate with beta(1) ~ rho_n/2.
+        ! In TROUGH-F17 (4 km, nearly static start at dt_min = 1e-3) a jump
+        ! of x2500 blew up the run, while FE-SBE survived the same jump.
+        ! The cap only acts where rho_n > rho_max, so dt sequences that
+        ! grow slower are unchanged. The smooth limiter of Söderlind and
+        ! Wang (2006, Eq. 10), rho = 1 + kappa*atan((rho-1)/kappa), also
+        ! works, but alters every step and also slows the reduction of dt.
+        rho_n = min(rho_n,rho_max)
+
         ! Step 3: calculate the next time timestep (dt,n+1)
-        dt_new = rhohat_n * dt_n
+        dt_new = rho_n * dt_n
 
         ! Step 4: Modify timestep to fit within prescribed limits 
 

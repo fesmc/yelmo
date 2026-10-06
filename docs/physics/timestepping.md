@@ -87,6 +87,11 @@ with $k_I = 2/(5k)$, $k_P = 1/(5k)$, $k$ the order of the scheme, and the target
 error $\varepsilon$ = `pc_eps` (default 0.02 a$^{-1}$, which must not exceed
 `pc_tol`). The step is then limited:
 
+- to at most `pc_rho_max` (default 2) times the previous step. The controller
+  itself has no upper bound: after a step in which the ice hardly moves,
+  $\eta_n$ is tiny and PI42 can ask for a step 10$^3$ times longer. The step
+  ratio also sets the weights of the AB-SAM predictor, which then extrapolates
+  far beyond the last two rates;
 - by the Courant number $C$ = `pc_cfl_max` (default 0.5) of the depth-averaged
   advection (`calc_adv2D_timestep1`),
   $\Delta t \le \min_{i,j} C/(u_c/\Delta x + v_c/\Delta y + 0.1/\Delta x)$, with $u_c$
