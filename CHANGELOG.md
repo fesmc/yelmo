@@ -394,8 +394,9 @@ little. MISMIP3D and DIVA runs change more.
   GRL-8 restart case dt 0.43 → 0.76 yr; GRL-8 from PD dt 0.97 → 0.73 yr, since Rink
   Isbræ no longer advances into a land-walled fjord bend and flows at ~2.8 km/yr.
   Benchmarks: EISMINT/HALFAR round-off (≤ 1 mm cells), MISMIP3D transient ≤ 3 m
-  (final GL unchanged), TROUGH-F17 one inactive cell beyond the front gains snow
-  (0 → 68 m in 2 kyr, volume +0.02 %).
+  (final GL unchanged). TROUGH-F17: without the kill-after-advance change above,
+  one inactive cell beyond the front gained snow (0 → 68 m in 2 kyr); with it, the
+  cell stays empty.
 - **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
   methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
   which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
