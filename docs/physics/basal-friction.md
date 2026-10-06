@@ -72,8 +72,10 @@ the linear and power-plastic laws, so $\gamma_T$ is the e-folding temperature of
 the sliding speed for any friction law. For the regularized Coulomb law this
 holds for $u_b \ll u_0$; for $u_b \gg u_0$ the yield stress becomes
 $c_b f_\mathrm{slide}^{-q}$. $f_\mathrm{slide} = 1$ where the base is temperate,
-not grounded, in contact with the ocean (partially floating, or next to floating
-ice) or wet (`hyd_W` > 0 or `hyd_W_til` > 0). It is output as `f_slide`.
+not fully grounded (partially floating cells) or wet (`hyd_W` > 0 or
+`hyd_W_til` > 0). With `ytherm.gl_temperate = True`, grounded bases next to
+floating ice or open ocean are held at the pressure melting point, so they also
+have $f_\mathrm{slide} = 1$. It is output as `f_slide`.
 
 ## Bed coefficient
 

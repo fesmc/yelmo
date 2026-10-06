@@ -158,7 +158,7 @@ contains
         ! Frozen-bed sliding factor (calc_beta applies beta*f_slide**(-q))
         if (dyn%par%frz_scale) then
             call calc_f_slide(dyn%now%f_slide,thrm%now%T_prime_b,tpo%now%f_ice_dyn,tpo%now%f_grnd, &
-                              hyd%now%W,hyd%now%W_til,dyn%par%frz_efold,dyn%par%frz_min,dyn%par%boundaries)
+                              hyd%now%W,hyd%now%W_til,dyn%par%frz_efold,dyn%par%frz_min)
         else
             dyn%now%f_slide = 1.0_wp
         end if

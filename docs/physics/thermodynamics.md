@@ -242,6 +242,11 @@ constants (Payne et al., 2000). With `rf_with_water = True`, $A$ is multiplied
 by $1 + 181.25\,\omega$ (Lliboutry and Duval, 1985). $E_f$ is the enhancement
 factor (`enh_method`, `enh_shear`, `enh_stream`, `enh_shlf`).
 
+With `gl_temperate = True`, a fully grounded column next to floating ice or open
+ocean (`f_grnd` = 0 in one of its four neighbours) has its base held at the
+pressure melting point (the bed is wetted by the ocean); freeze-on there is not
+limited by the bed's water (capacity rule).
+
 The basal temperature enters the basal friction through the frozen-bed
 sliding factor (`ydyn.frz_scale`, see [Basal friction](basal-friction.md)), with
 the basal homologous temperature $T'_b = T_b - T_\mathrm{pmp}$ (`T_prime_b`).

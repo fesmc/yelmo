@@ -301,15 +301,16 @@ contains
 
     end subroutine calc_c_bed
 
-    subroutine calc_f_slide(f_slide,T_prime_b,f_ice,f_grnd,W,W_til,frz_efold,frz_min,boundaries)
+    subroutine calc_f_slide(f_slide,T_prime_b,f_ice,f_grnd,W,W_til,frz_efold,frz_min)
         ! Frozen-bed sliding factor (ydyn.frz_scale): the factor on the sliding
         ! speed at fixed basal stress, f = frz_min + (1-frz_min)*exp(T'_b/frz_efold),
         ! following e.g. Fowler (1986); Hindmarsh and Le Meur (2001).
         ! calc_beta applies it as beta*f**(-q), so frz_efold is the e-folding
         ! temperature of the sliding speed for any friction law.
-        ! f_slide=1 where the base is not grounded ice, is in contact with the
-        ! ocean (partially floating, or next to floating ice), or is wet
-        ! (W > 0 or W_til > 0).
+        ! f_slide=1 where the base is not fully grounded ice (partially floating
+        ! cells have a base partly at the ocean temperature) or is wet (W > 0 or
+        ! W_til > 0). Grounded bases next to the ocean can be held temperate in
+        ! the thermodynamics (ytherm.gl_temperate).
 
         implicit none 
 
@@ -321,30 +322,18 @@ contains
         real(wp), intent(IN)  :: W_til(:,:)         ! [m] Till water (hyd%now%W_til)
         real(wp), intent(IN)  :: frz_efold          ! [K] e-folding temperature of the sliding speed
         real(wp), intent(IN)  :: frz_min            ! [-] Minimum sliding-speed factor
-        character(len=*), intent(IN) :: boundaries 
 
         ! Local variables
         integer :: i, j, nx, ny 
-        integer :: im1, ip1, jm1, jp1 
-        integer :: BC 
-        logical :: is_marine
 
         nx = size(f_slide,1)
         ny = size(f_slide,2)
 
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,is_marine)
+        !$omp parallel do collapse(2) private(i,j)
         do j = 1, ny 
         do i = 1, nx 
 
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            is_marine = f_grnd(i,j) .lt. 1.0_wp .or. &
-                        f_grnd(im1,j) .eq. 0.0_wp .or. f_grnd(ip1,j) .eq. 0.0_wp .or. &
-                        f_grnd(i,jm1) .eq. 0.0_wp .or. f_grnd(i,jp1) .eq. 0.0_wp
-
-            if (f_ice(i,j) .gt. 0.0_wp .and. f_grnd(i,j) .gt. 0.0_wp .and. .not. is_marine &
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_grnd(i,j) .eq. 1.0_wp &
                         .and. W(i,j) .le. 0.0_wp .and. W_til(i,j) .le. 0.0_wp) then 
                 f_slide(i,j) = frz_min + (1.0_wp-frz_min)*exp(min(T_prime_b(i,j),0.0_wp)/frz_efold)
             else 
@@ -450,7 +439,7 @@ contains
         ! beta*f**(-q) scales the sliding speed by f at fixed basal stress for the
         ! linear and power-plastic laws (and for the regularized Coulomb law at
         ! u_b << u0; at u_b >> u0 its yield stress becomes c_bed*f**(-q)).
-        ! Grounding-line cells have f_slide=1 (calc_f_slide).
+        ! Partially floating cells have f_slide=1 (calc_f_slide).
         select case(beta_method)
             case(0,1)
                 q_frz = 1.0_wp

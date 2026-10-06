@@ -14,12 +14,18 @@ little. MISMIP3D and DIVA runs change more.
   `f_slide**(-q)` (q = `beta_q`, 1 for `beta_method` 0, 1), with
   `f_slide = frz_min + (1-frz_min)*exp(T_prime_b/frz_efold)`, so `frz_efold` is the
   e-folding temperature of the sliding speed for any friction law. `f_slide = 1` also at
-  grounded cells in contact with the ocean (`f_grnd < 1` or next to a floating cell),
+  partially floating cells (`f_grnd < 1`),
   which inherited the sub-shelf base temperature (T'_b ~ -1.9 K) and froze, and where the
   bed is wet (`hyd_W > 0` or `hyd_W_til > 0`). Defaults and initmip: `frz_scale = True`,
   `frz_efold = 3`, `frz_min = 1e-3` (was effectively 1 K and 1e-6 for the linear law); a
   1 K speed e-fold was too sharp at 4 km in TROUGH-F17 (purges at the velocity limit,
-  irregular cycles, 1.4-1.8x cost). Off in the benchmarks. Replace the old keys in external par files (`nml_validate` stops).
+  irregular cycles, 1.4-1.8x cost). Off in the benchmarks. Replace the old keys in
+  external par files (`nml_validate` stops).
+- **New `ytherm.gl_temperate`** (default False). Holds the base of fully grounded
+  cells next to floating ice or open ocean at the pressure melting point (ocean-wetted
+  bed), in `calc_enth_column` and `calc_temp_column`; freeze-on there is not limited by
+  the capacity rule. Otherwise newly grounded cells keep the sub-shelf base temperature
+  (T'_b ~ -1.9 K) and count as frozen.
 - **Mirror-symmetric one-sided strain rates at ice fronts** (`calc_jacobian_vel_3D_uxyterms`,
   `jvel%dxx`/`dyy`). At a front with ice on the low-index side, the second-order
   one-sided stencil on the faces i, i-1, i-2 tested `f_ice` of cell i-2 instead of

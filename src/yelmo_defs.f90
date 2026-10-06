@@ -807,6 +807,7 @@ module yelmo_defs
         character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
         character(len=56)   :: cap_source       ! "auto", "hyd" (hyd%now%C_frz), "till" (bucket W_til), "water" (water thickness W) or "none" (C=0)
         real(wp)            :: cap_W_floor      ! [m] floor subtracted from the water thickness in the "water" fallback
+        logical             :: gl_temperate     ! Hold grounded bases next to floating ice / open ocean at T_pmp
         real(wp)            :: cap_eps          ! [m/a ice equiv.] capacity below which the bed counts as dry
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)

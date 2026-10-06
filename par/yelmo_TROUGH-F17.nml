@@ -303,6 +303,7 @@
     cap_source      = "auto"            ! [capacity] C from: "auto" ("hyd" with water transport, else "till"), "hyd" (hydrology model), "till" (bucket W_til), "water" (water thickness W), "none" (C=0)
     cap_W_floor     = 0.0               ! [m] [capacity, "till"/"water"] floor subtracted from the water thickness
     cap_eps         = 1e-4              ! [m/a ice equiv.] [capacity] C below this counts as a dry bed
+    gl_temperate    = False             ! Hold grounded bases next to floating ice or open ocean at the pressure melting point (ocean-wetted bed)
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"           ! "equil" (not active bedrock), "active", or "fixed"
