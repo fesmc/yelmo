@@ -70,3 +70,13 @@ Tests, in order:
 
 - **Method 3 with a compact divergence.** Replacing the averaged divergence of method 3 by the face differences of method 1 removes the mixing between neighbouring cells, but keeps the mismatch at grounding lines and margins, which comes from the different discretization of the thickness equation.
 - **Correcting w to the surface condition.** Scaling or shifting w in each column so that it meets the surface condition (the commented-out line in `calc_uz_3D_aa`) enforces the closure, but distributes the error through the column without a physical basis and leaves the layer mass budget inconsistent.
+
+## Results (2026-10-06, single precision, method 3 → method 4)
+
+- **A4.** With one row per parameter set (`nrep = 1`), method 4 gives the same errors as the three-row design: 0.271 K (stationary, 5 kyr), 0.44 K (SMB step), below 1.4 K from 5 kyr (surface-temperature step). Method 3 with one row reaches 6.6 K.
+- **Closure.** `uz_srf_err` is at round-off where `mask_kin` = 1: 1e-7 m a⁻¹ (ISLAND4, 1 kyr), 2e-8 m a⁻¹ (TROUGH-F17, 5 kyr). In the Greenland spin-up it equals −`mb_relax` (relaxation as a surface term), with a residual of 0.006 m a⁻¹ rms (up to 0.2 m a⁻¹ in 177 margin cells, not yet explained). The remaining mismatch is in the 15–40 columns that are re-derived in the step.
+- **Effect on w\* and temperature.** From a common state (method-3 run at 1 kyr), method 4 gives a less downward w\* where method 3 has a large negative mismatch (ISLAND4 flanks of the trough flow, Greenland margins and outlets), and the base warms there. In the ISLAND4 interior, the mean w\* at ζ = 0.9 changes by +0.063 m a⁻¹, equal to minus the mean mismatch of method 3. The difference builds up in the lower quarter of the column. Over a 1-kyr spin-up from the initial ISLAND4 state (method-3 mismatch −35 m a⁻¹ mean at the start), the temperate basal fraction rises from 0.61 to 0.75 and the grounded ice thins by more than 100 m.
+- **Roughness.** w is 2–5 times rougher with method 4 (it carries the noise of the thickness transport); w\* is smoother in Greenland and rougher in ISLAND4.
+- **Regression.** CalvingMIP exp1 and MISMIP3D are identical (no thermomechanical coupling). EISMINT moving margin: identical geometry, symmetric to 3e-7. TROUGH-F17 (5 kyr): volume −0.5 %, grounding line unchanged. MISMIP+ (20 kyr): volume +1 %, grounding line one cell downstream (550 → 555 km), through the w terms of the strain rate (εxz, εyz) in the viscosity.
+- **Symmetry (Linf/Hmax).** EXPA 7.5e-5 → 4.6e-4 (tolerance 1e-3), EXPF 4.6e-3 → 5.2e-3 (tolerance 2e-2), moving 3.2e-7 → 3.2e-7. All pass.
+- **Cost.** No measurable increase in run time.
