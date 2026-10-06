@@ -21,7 +21,7 @@ little. MISMIP3D and DIVA runs change more.
   1 K speed e-fold was too sharp at 4 km in TROUGH-F17 (purges at the velocity limit,
   irregular cycles, 1.4-1.8x cost). Off in the benchmarks. Replace the old keys in
   external par files (`nml_validate` stops).
-- **New `ytherm.gl_temperate`** (default True; False in COLUMN-SLAB, FRONT-SLAB and TROUGH-F17). Holds the base of fully grounded
+- **New `ytherm.gl_temperate`** (default True; False in COLUMN-SLAB and FRONT-SLAB). Holds the base of fully grounded
   cells next to floating ice or open ocean at the pressure melting point (ocean-wetted
   bed), in `calc_enth_column` and `calc_temp_column`; freeze-on there is not limited by
   the capacity rule. Otherwise newly grounded cells keep the sub-shelf base temperature
