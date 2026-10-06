@@ -368,6 +368,13 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **`calv_flt_method = "kill"` / `"kill-pos"` act after the front advance**
+  (`calc_ytopo_calving`). The kill ran before `calc_G_front_advance`
+  (`front_subgrid`), so ice the advance pushed into the kill region survived the
+  step and was removed in the next one: the first cell beyond the front filled
+  and emptied on alternate steps, and the SSA front moved by one cell each step
+  (TROUGH-F17: SSA-active points 12805/12837, first Picard change 1400-2600 m/yr).
+  Now no floating ice remains in the kill region after each step.
 - **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
   methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
   which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.

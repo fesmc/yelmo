@@ -656,12 +656,14 @@ end if
         real(wp), allocatable :: cmb_sd(:,:)
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
+        logical,  allocatable :: mask_kill(:,:)
 
         nx = size(tpo%now%H_ice,1) 
         ny = size(tpo%now%H_ice,2) 
 
         allocate(mbal_now(nx,ny)) 
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
+        allocate(mask_kill(nx,ny))
         allocate(cmb_sd(nx,ny)) 
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
 
@@ -733,20 +735,10 @@ end if
                     call apply_calving_rate_thin(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%par%calv_thin,tpo%par%Hc_ref_thin,tpo%par%boundaries)
                 end if
 
-            case("kill")
-                ! Delete all floating ice (using characteristic time parameter)
-                ! Make sure dt is a postive number
+            case("kill","kill-pos")
+                ! Floating ice is removed at the end of the calving step (below)
 
-                call calc_calving_rate_kill(tpo%now%cmb_flt,tpo%now%H_ice,tpo%now%f_grnd.eq.0.0_wp, &
-                                                                                    tpo%par%calv_tau,dt)
-
-            case("kill-pos")
-                ! Delete all floating ice beyond a given location (using characteristic time parameter)
-
-                call calc_calving_rate_kill(tpo%now%cmb_flt,tpo%now%H_ice, &
-                                                ( tpo%now%f_grnd .eq. 0.0_wp .and. &
-                                                  tpo%now%H_ice  .gt. 0.0_wp .and. &
-                                                  bnd%calv_mask ), tau=0.0_wp, dt=dt )
+                tpo%now%cmb_flt = 0.0 
 
             case DEFAULT 
 
@@ -862,6 +854,28 @@ end if
         tpo%now%cmb = tpo%now%cmb + mbal_now
 
         call update_ice_fraction(tpo,bnd)
+
+        ! Kill methods: no floating ice may remain in the kill region ("kill": all
+        ! floating ice, "kill-pos": floating ice where bnd%calv_mask). Applied last,
+        ! after the front advance: otherwise ice the advance moves into the region
+        ! survives the step and is removed in the next one, so the front cell fills
+        ! and empties on alternate steps.
+        select case(trim(tpo%par%calv_flt_method))
+
+            case("kill","kill-pos")
+
+                mask_kill = tpo%now%f_grnd .eq. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
+                if (trim(tpo%par%calv_flt_method) .eq. "kill-pos") mask_kill = mask_kill .and. bnd%calv_mask
+
+                call calc_calving_rate_kill(mbal_now,tpo%now%H_ice,mask_kill,tau=0.0_wp,dt=dt)
+                call apply_tendency(tpo%now%H_ice,mbal_now,dt,"calv_kill",adjust_mb=.TRUE.)
+
+                tpo%now%cmb_flt = tpo%now%cmb_flt + mbal_now
+                tpo%now%cmb     = tpo%now%cmb     + mbal_now
+
+                call update_ice_fraction(tpo,bnd)
+
+        end select
 
         return
 
