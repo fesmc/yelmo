@@ -549,7 +549,7 @@ end if
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
-                                basal_bc_method,C_cap,Q_wat,cap_eps,cap_cold_tol,bmb_star_out,bc_b_out,bmb_clamp_out, &
+                                basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
                                 melt_int_out,gl_temp)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -598,7 +598,6 @@ end if
         real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (either rule)
         real(wp), intent(OUT), optional :: melt_int_out  ! [m/a ice equiv.] Englacial water drained to the bed (included in bmb_grnd)
         real(wp), intent(IN), optional :: cap_eps        ! [m/a ice equiv.] Capacity below which the bed counts as dry
-        real(wp), intent(IN), optional :: cap_cold_tol   ! [K] Base counts as cold below T_pmp minus this (default 0.01)
         real(wp), intent(OUT), optional :: bmb_star_out  ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
         real(wp), intent(OUT), optional :: bc_b_out      ! [--] basal BC used: 0 not grounded, 1 held at T_pmp, 2 flux
         real(wp), intent(OUT), optional :: bmb_clamp_out ! [m/a] freeze-on removed by the capacity safety clamp
@@ -611,10 +610,8 @@ end if
         real(wp) :: W_til_predicted
         logical  :: use_capacity
         logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
-        logical  :: is_cold_base   ! capacity rule: base below T_pmp at the start of the step
-        real(wp) :: cold_base_tol  ! [K] base counts as cold below T_pmp - this (cap_cold_tol)
         real(wp) :: C_now, Q_wat_now, eps_now
-        real(wp) :: q_up_star, net_enth_b, bmb_star, bmb_clamp
+        real(wp) :: q_up_star, q_warm_star, net_enth_b, bmb_star, bmb_clamp
         real(wp) :: dz
         real(wp) :: omega_excess
         real(wp) :: melt_internal
@@ -721,8 +718,6 @@ end if
         if (use_capacity) then
             if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
             if (present(cap_eps)) eps_now   = cap_eps
-            cold_base_tol = 0.01_wp
-            if (present(cap_cold_tol)) cold_base_tol = cap_cold_tol
             if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
         end if
 
@@ -758,7 +753,7 @@ end if
 
             else if (use_capacity) then
                 ! == Capacity rule ==
-                ! Compare the freezing the base would need to stay at the pressure
+                ! Compare the freezing the base would need to reach and stay at the pressure
                 ! melting point (bmb_star, the basal mass balance of a base held at
                 ! T_pmp, from the start-of-step profile; positive = freeze-on) with
                 ! the rate at which the water at the bed can be frozen (C_cap).
@@ -767,27 +762,27 @@ end if
                 dz = H_ice * (zeta_aa(2) - zeta_aa(1))
                 q_up_star = kt(1) * (T_pmp(1) - T_ice(2)) / dz
 
+                ! Heat to warm a base below T_pmp up to it within the step [J m-2 a-1].
+                ! The base node has no volume, so a base held at T_pmp would otherwise
+                ! jump there for free; the water must also supply this sensible heat,
+                ! taken over the same distance dz as q_up_star. Zero for a base at T_pmp,
+                ! small for the drift of T_pmp with ice thickness.
+                q_warm_star = rho_ice * max(enth_pmp(1) - enth(1), 0.0_wp) * dz / dt
+
                 ! Latent heat reduced by water already stored in the basal ice,
                 ! as in calc_bmb_grounded_enth
                 net_enth_b = max(enth(1) - enth_pmp(1), 0.0_wp)
-                bmb_star   = (q_up_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
+                bmb_star   = (q_up_star + q_warm_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
                                 / (rho_ice*(L_ice - net_enth_b))             ! [m/a ice equiv.]
 
-                ! A base below the pressure melting point cannot simply be held there:
-                ! warming it to T_pmp takes sensible heat that bmb_star does not include
-                ! (e.g. 1 mm of refrozen water warms only ~3 cm of ice by 5 K). Such a base
-                ! takes the flux branch, where any water present freezes and its latent heat
-                ! warms the base gradually; it is held at T_pmp once it gets there.
-                is_cold_base = enth(1) .lt. enth_pmp(1) - cold_base_tol*cp(1)
-
-                if (.not. is_cold_base .and. (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now)) then
+                if (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now) then
                     ! The base would melt, or the water can supply the freezing:
                     ! hold the base at the pressure melting point
                     val_base = enth_pmp(1)
                     is_basal_flux = .FALSE.
                 else
-                    ! Cold base, or not enough water: freeze all of it (freeze-on = C_now)
-                    ! and let the base evolve under the flux condition. The interface balance then fixes the upward
+                    ! Not enough water: freeze all of it (freeze-on = C_now) and let
+                    ! the base cool. The interface balance then fixes the upward
                     ! conductive flux, q_up = G + Q_b + Q_wat + rho_ice*L*C.
                     val_base = (Q_b_now + Q_lith_now + Q_wat_now + rho_ice*L_ice*C_now) / kt(1) * cp_eff(1)
                     is_basal_flux = .TRUE.

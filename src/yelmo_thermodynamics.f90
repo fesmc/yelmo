@@ -213,7 +213,7 @@ contains
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
                                 bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
-                                thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps,thrm%par%cap_cold_tol, &
+                                thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
                                 thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp,thrm%now%melt_int, &
                                 thrm%par%gl_temperate)
 
@@ -327,7 +327,7 @@ contains
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
                                         cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
-                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,cap_cold_tol,bmb_grnd_star,bc_b,bmb_clamp,melt_int, &
+                                        boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp,melt_int, &
                                         gl_temperate)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
         ! which are solved independently by calling calc_enth_column.
@@ -387,7 +387,6 @@ contains
         real(wp),         intent(IN) :: Q_wat(:,:)      ! [mW m-2] Water-side basal heat, Q_diss + Q_sens
         character(len=*), intent(IN) :: basal_bc_method ! "wtil" or "capacity"
         real(wp),         intent(IN) :: cap_eps         ! [m/a ice equiv.] Capacity below which the bed counts as dry
-        real(wp),         intent(IN) :: cap_cold_tol    ! [K] Base counts as cold below T_pmp minus this
         real(wp),         intent(OUT) :: bmb_grnd_star(:,:) ! [m/a] bmb of a base held at T_pmp (capacity rule)
         real(wp),         intent(OUT) :: bc_b(:,:)          ! [--] basal BC used: 0 not grounded/solved, 1 held at T_pmp, 2 flux
         logical,          intent(IN)  :: gl_temperate       ! Hold grounded bases next to the ocean (f_grnd=0 neighbour) at T_pmp
@@ -476,7 +475,7 @@ contains
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
                             zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
-                            basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps,cap_cold_tol, &
+                            basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps, &
                             bmb_grnd_star(i,j),bc_b(i,j),bmb_clamp(i,j),melt_int_out=melt_int(i,j),gl_temp=gl_temp)
 
                 else
@@ -790,7 +789,6 @@ end if
         call nml_read(filename,group,"cap_source",     par%cap_source,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"cap_W_floor",    par%cap_W_floor,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"cap_eps",        par%cap_eps,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
-        call nml_read(filename,group,"cap_cold_tol",   par%cap_cold_tol,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"gl_temperate",   par%gl_temperate,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
 
         select case(trim(par%basal_bc_method))
@@ -819,8 +817,8 @@ end if
             par%basal_bc_method = "wtil"
         end if
 
-        if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp .or. par%cap_cold_tol .lt. 0.0_wp) then
-            write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor, cap_eps and cap_cold_tol must be >= 0; got ", par%cap_W_floor, par%cap_eps, par%cap_cold_tol
+        if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
+            write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps
             stop
         end if
 
