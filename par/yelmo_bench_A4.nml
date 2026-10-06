@@ -10,6 +10,7 @@
     time_end        = 5e3               ! [yr] Ending time
     dtt             = 10.0              ! [yr] Main loop time step
     dt2D_out        = 500.0             ! [yr] Frequency of 2D output
+    dt_restart      = 0.0                 ! [yr] Frequency of intermediate restarts yelmo_restart_<time>.nc (0: only at time_end)
 /
 
 &bench

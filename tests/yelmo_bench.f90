@@ -27,6 +27,7 @@ program yelmo_bench
         character(len=256) :: file2D, file3D, file1D, file_restart
         real(wp) :: time_init, time_end, dtt
         real(wp) :: dt2D_out, dt1D_out
+        real(wp) :: dt_restart
     end type
 
     type bench_type
@@ -55,6 +56,7 @@ program yelmo_bench
     real(wp), allocatable :: T_ice(:,:,:)
     real(wp) :: time
     integer  :: n, nx, ny
+    character(len=256) :: file_restart_now
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime
 
@@ -73,6 +75,7 @@ program yelmo_bench
     call nml_read(ctl%path_par,"ctrl","time_end",   ctl%time_end)      ! [yr] Ending time
     call nml_read(ctl%path_par,"ctrl","dtt",        ctl%dtt)           ! [yr] Main loop time step
     call nml_read(ctl%path_par,"ctrl","dt2D_out",   ctl%dt2D_out)      ! [yr] Frequency of 2D output
+    call nml_read(ctl%path_par,"ctrl","dt_restart", ctl%dt_restart)    ! [yr] Frequency of intermediate restarts (0: only at time_end)
     ctl%dt1D_out = ctl%dtt
 
     call nml_read(ctl%path_par,"bench","fixture",     bch%fixture)
@@ -176,6 +179,14 @@ program yelmo_bench
 
         if (mod(nint(time*100,int64),nint(ctl%dt1D_out*100,int64))==0) then
             call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time)
+        end if
+
+        ! Intermediate restarts, named by time (the final restart is written below)
+        if (ctl%dt_restart .gt. 0.0_wp .and. time .lt. ctl%time_end) then
+            if (mod(nint(time*100,int64),nint(ctl%dt_restart*100,int64))==0) then
+                write(file_restart_now,"(a,i0,a)") "yelmo_restart_", nint(time,int64), ".nc"
+                call yelmo_restart_write(yelmo1,file_restart_now,time=time)
+            end if
         end if
 
     end do
