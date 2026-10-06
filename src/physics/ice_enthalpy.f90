@@ -22,7 +22,7 @@ contains
     
     subroutine calc_temp_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,gl_temp)
         ! Thermodynamics solver for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -64,11 +64,13 @@ contains
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy for the enth output field?
+        logical,  intent(IN), optional :: gl_temp         ! Grounded base next to the ocean: hold at T_pmp (ytherm.gl_temperate)
 
         ! Local variables
         logical :: use_int
         integer  :: k, nz_aa, nz_ac
         real(wp) :: W_til_predicted
+        logical  :: is_gl_temp
         real(wp) :: dz, dz1, dz2, d2Tdz2 
         real(wp) :: T00, T01, T02, zeta_now  
         real(wp) :: T_excess
@@ -130,7 +132,17 @@ contains
             
             ! == Assign grounded basal boundary conditions ==
 
-            if (W_til_predicted .gt. 0.0_wp) then 
+            is_gl_temp = .FALSE.
+            if (present(gl_temp)) is_gl_temp = gl_temp
+
+            if (is_gl_temp) then
+                ! Next to the ocean (ytherm.gl_temperate): bed wetted by the ocean,
+                ! hold basal temperature at pressure melting point
+
+                val_base      = T_pmp(1)
+                is_basal_flux = .FALSE.
+
+            else if (W_til_predicted .gt. 0.0_wp) then 
                 ! Temperate at bed 
                 ! Hold basal temperature at pressure melting point
 
@@ -538,7 +550,7 @@ end if
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
                                 basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
-                                melt_int_out)
+                                melt_int_out,gl_temp)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -589,10 +601,12 @@ end if
         real(wp), intent(OUT), optional :: bmb_star_out  ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
         real(wp), intent(OUT), optional :: bc_b_out      ! [--] basal BC used: 0 not grounded, 1 held at T_pmp, 2 flux
         real(wp), intent(OUT), optional :: bmb_clamp_out ! [m/a] freeze-on removed by the capacity safety clamp
+        logical,  intent(IN),  optional :: gl_temp       ! Grounded base next to the ocean: hold at T_pmp (ytherm.gl_temperate)
 
         ! Local variables
         integer  :: k, nz_aa, nz_ac
         integer  :: k_cts
+        logical  :: is_gl_temp     ! base held temperate by the ocean (gl_temp)
         real(wp) :: W_til_predicted
         logical  :: use_capacity
         logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
@@ -691,6 +705,7 @@ end if
         ! uses them in every cell with grounded ice, including partially grounded ones.
         use_capacity = .FALSE.
         if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
+        is_gl_temp   = .FALSE.
         cap_flux  = .FALSE.
         bmb_star  = 0.0_wp
         bmb_clamp = 0.0_wp
@@ -726,7 +741,17 @@ end if
         else 
             ! Grounded ice 
 
-            if (use_capacity) then
+            is_gl_temp = .FALSE.
+            if (present(gl_temp)) is_gl_temp = gl_temp
+
+            if (is_gl_temp) then
+                ! == Next to the ocean (ytherm.gl_temperate) ==
+                ! The bed is wetted by the ocean: hold the base at the pressure
+                ! melting point. Freeze-on is not limited by the bed's water.
+                val_base = enth_pmp(1)
+                is_basal_flux = .FALSE.
+
+            else if (use_capacity) then
                 ! == Capacity rule ==
                 ! Compare the freezing the base would need to stay at the pressure
                 ! melting point (bmb_star, the basal mass balance of a base held at
@@ -889,7 +914,7 @@ end if
                                             Q_ice_b_now,Q_b_now+Q_wat_now,Q_lith_now,rho_ice,L_ice)
                 ! Safety clamp: never freeze more water than the bed holds. Can
                 ! bind when the start-of-step bmb_grnd* underestimated the freezing.
-                if (use_capacity .and. bmb_grnd .gt. C_now) then
+                if (use_capacity .and. .not. is_gl_temp .and. bmb_grnd .gt. C_now) then
                     bmb_clamp = bmb_grnd - C_now
                     bmb_grnd  = C_now
                 end if

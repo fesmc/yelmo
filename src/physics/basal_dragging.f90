@@ -301,25 +301,48 @@ contains
 
     end subroutine calc_c_bed
 
-    elemental subroutine calc_f_slide(f_slide,T_prime_b,f_ice,f_grnd,gamma_T,lambda_min)
-        ! Sub-temperate sliding factor f_slide = exp(T'_b/gamma_T), in [lambda_min,1],
+    subroutine calc_f_slide(f_slide,T_prime_b,f_ice,f_grnd,W,W_til,frz_efold,frz_min)
+        ! Frozen-bed sliding factor (ydyn.frz_scale): the factor on the sliding
+        ! speed at fixed basal stress, f = frz_min + (1-frz_min)*exp(T'_b/frz_efold),
         ! following e.g. Fowler (1986); Hindmarsh and Le Meur (2001).
-        ! f_slide=1 where the base is not grounded ice.
+        ! calc_beta applies it as beta*f**(-q), so frz_efold is the e-folding
+        ! temperature of the sliding speed for any friction law.
+        ! f_slide=1 where the base is not fully grounded ice (partially floating
+        ! cells have a base partly at the ocean temperature) or is wet (W > 0 or
+        ! W_til > 0). Grounded bases next to the ocean can be held temperate in
+        ! the thermodynamics (ytherm.gl_temperate).
 
         implicit none 
 
-        real(wp), intent(OUT) :: f_slide            ! [-]
-        real(wp), intent(IN)  :: T_prime_b          ! [degC] Basal homologous temperature
-        real(wp), intent(IN)  :: f_ice              ! [-]
-        real(wp), intent(IN)  :: f_grnd             ! [-]
-        real(wp), intent(IN)  :: gamma_T            ! [K] e-folding temperature
-        real(wp), intent(IN)  :: lambda_min         ! [-] Minimum sliding factor
+        real(wp), intent(OUT) :: f_slide(:,:)       ! [-]
+        real(wp), intent(IN)  :: T_prime_b(:,:)     ! [degC] Basal homologous temperature
+        real(wp), intent(IN)  :: f_ice(:,:)         ! [-]
+        real(wp), intent(IN)  :: f_grnd(:,:)        ! [-]
+        real(wp), intent(IN)  :: W(:,:)             ! [m] Basal water layer (hyd%now%W)
+        real(wp), intent(IN)  :: W_til(:,:)         ! [m] Till water (hyd%now%W_til)
+        real(wp), intent(IN)  :: frz_efold          ! [K] e-folding temperature of the sliding speed
+        real(wp), intent(IN)  :: frz_min            ! [-] Minimum sliding-speed factor
 
-        if (f_ice .gt. 0.0_wp .and. f_grnd .gt. 0.0_wp) then 
-            f_slide = max(lambda_min, exp(min(T_prime_b,0.0_wp)/gamma_T))
-        else 
-            f_slide = 1.0_wp 
-        end if 
+        ! Local variables
+        integer :: i, j, nx, ny 
+
+        nx = size(f_slide,1)
+        ny = size(f_slide,2)
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_grnd(i,j) .eq. 1.0_wp &
+                        .and. W(i,j) .le. 0.0_wp .and. W_til(i,j) .le. 0.0_wp) then 
+                f_slide(i,j) = frz_min + (1.0_wp-frz_min)*exp(min(T_prime_b(i,j),0.0_wp)/frz_efold)
+            else 
+                f_slide(i,j) = 1.0_wp 
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
 
         return 
 
@@ -335,7 +358,7 @@ contains
         
         real(wp), intent(INOUT) :: beta(:,:) 
         real(wp), intent(IN)    :: c_bed(:,:)  
-        real(wp), intent(IN)    :: f_slide(:,:)         ! [-] Sub-temperate sliding factor (1 where not grounded ice)
+        real(wp), intent(IN)    :: f_slide(:,:)         ! [-] Frozen-bed sliding-speed factor (1 where not frozen grounded ice)
         real(wp), intent(IN)    :: ux_b(:,:) 
         real(wp), intent(IN)    :: uy_b(:,:)  
         real(wp), intent(IN)    :: H_ice(:,:) 
@@ -358,6 +381,7 @@ contains
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        real(wp) :: q_frz 
 
         nx = size(beta,1)
         ny = size(beta,2)
@@ -412,11 +436,17 @@ contains
 
         ! 2. Reduce sliding where the base is below the pressure melting point,
         ! on aa-nodes before staggering, like any other spatial variation of friction.
-        ! Note: a frozen grounded cell at the grounding line passes its beta/f_slide
-        ! (up to beta/lambda_min, effectively no slip) to its grounding-line faces.
-        ! This is rare; whether sliding should be imposed at the grounding line is
-        ! an open question (review 2026-10-01, DYN-1).
-        beta = beta / f_slide
+        ! beta*f**(-q) scales the sliding speed by f at fixed basal stress for the
+        ! linear and power-plastic laws (and for the regularized Coulomb law at
+        ! u_b << u0; at u_b >> u0 its yield stress becomes c_bed*f**(-q)).
+        ! Partially floating cells have f_slide=1 (calc_f_slide).
+        select case(beta_method)
+            case(0,1)
+                q_frz = 1.0_wp
+            case DEFAULT
+                q_frz = beta_q
+        end select
+        beta = beta * f_slide**(-q_frz)
 
         ! 3. Scale beta as it approaches grounding line 
         select case(beta_gl_scale) 

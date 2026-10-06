@@ -453,9 +453,9 @@ module yelmo_defs
         real(wp)   :: H_grnd_lim  
         real(wp)   :: beta_min              ! Minimum allowed value of beta
         real(wp)   :: eps_0                 ! Minimum assumed strain rate for effective viscosity regularization
-        logical    :: slide_T               ! Reduce sliding below the pressure melting point?
-        real(wp)   :: gamma_T               ! [K] e-folding temperature of sub-temperate sliding
-        real(wp)   :: lambda_min            ! [-] Minimum sub-temperate sliding factor
+        logical    :: frz_scale             ! Reduce sliding where the bed is below the pressure melting point?
+        real(wp)   :: frz_efold             ! [K] e-folding temperature of the sliding speed
+        real(wp)   :: frz_min               ! [-] Minimum sliding-speed factor for frozen beds
         character(len=56)  :: ssa_solver           ! "residual" | "energy" (default)
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
@@ -583,7 +583,7 @@ module yelmo_defs
         real(wp), allocatable :: cb_tgt(:,:)
         real(wp), allocatable :: cb_ref(:,:)
         real(wp), allocatable :: c_bed(:,:)  
-        real(wp), allocatable :: f_slide(:,:)      ! Sub-temperate sliding factor
+        real(wp), allocatable :: f_slide(:,:)      ! Frozen-bed sliding-speed factor
         real(wp), allocatable :: beta_acx(:,:) 
         real(wp), allocatable :: beta_acy(:,:) 
         real(wp), allocatable :: beta(:,:)         
@@ -808,6 +808,7 @@ module yelmo_defs
         character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
         character(len=56)   :: cap_source       ! "auto", "hyd" (hyd%now%C_frz), "till" (bucket W_til), "water" (water thickness W) or "none" (C=0)
         real(wp)            :: cap_W_floor      ! [m] floor subtracted from the water thickness in the "water" fallback
+        logical             :: gl_temperate     ! Hold grounded bases next to floating ice / open ocean at T_pmp
         real(wp)            :: cap_eps          ! [m/a ice equiv.] capacity below which the bed counts as dry
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
