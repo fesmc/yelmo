@@ -368,6 +368,14 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Ice-free land does not count as ice in the level-set area fraction**
+  (`calc_lsf_area_fraction`). The level set is held at −1 on land, and these values
+  entered `a_lsf` of the neighbouring cells as ice. An ocean cell beyond the front
+  (lsf > 0) with land on three sides had `a_lsf` ≈ 0.4, so it stayed open for
+  filling and the front cell next to it spread ice into it. A few millimetres
+  there made a 50-m (`front_H_eff_min`) column in the SSA that closed the front
+  cell's ocean face: GRL-8KM (108,55) moved sideways at ~8 km/yr (velocity-limit
+  drag active in 86 % of steps, dt 0.43 yr).
 - **Robin temperature profile uses `const_kt` and `const_cp`** (`define_temp_robin_3D`,
   methods `"robin"` and `"robin-cold"`). It used `kt` and `cp` from the current `T_ice`,
   which in `yelmo_init_state` is still 0 K: k = 9.83 W m-1 K-1 and c = 146 J kg-1 K-1.
