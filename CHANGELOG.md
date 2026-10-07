@@ -266,8 +266,10 @@ little. MISMIP3D and DIVA runs change more.
 - **CalvingMIP uses constant N_eff = 1 Pa again** (`bkt_N_closure = 0`,
   `const_N = 1`). Since the `neff_method` retirement it had been mapped to the
   overburden closure with `cf_ref = 1e4`, which froze the bed.
-- **`k24_eta_w` in the par files is now SI** (5.70e-11 Pa s). The old value was a
-  stale per-year one, about 3e7 times too large.
+- **`k24_eta_w` in the par files follows FastHydrology's default** (5.70e-11, KORI-ULB's
+  value, 1.8e-3 divided by seconds per year). It is not the physical viscosity of water
+  (1.8e-3 Pa s); see fesmc/FastHydrology#17. Used only with
+  `k24_water_thickness_algorithm = 1`.
 - **Removed parameters:** `yelmo.cfl_diff_max` (it was unused, and so was the
   placeholder `dt_diff` output) and `ydyn.cb_sia` (it was read, but its code block
   was empty). Delete them from external par files.
