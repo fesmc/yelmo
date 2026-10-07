@@ -14,6 +14,7 @@ module yelmo_topography
     use solver_linear, only : LGS_SUCCESS
     use topography 
     use discharge
+    use velocity_general, only : set_inactive_margins
 
     use runge_kutta 
     use distances
@@ -24,6 +25,7 @@ module yelmo_topography
     public :: calc_ytopo_pc 
     public :: calc_ytopo_diagnostic 
     public :: calc_ytopo_rates
+    public :: calc_transport_velocity
     public :: ytopo_par_load
     public :: ytopo_alloc
     public :: ytopo_dealloc
@@ -60,11 +62,11 @@ contains
         real(wp) :: dt  
         real(wp), allocatable :: dHidt_now(:,:) 
         real(wp), allocatable :: H_prev(:,:)
-        real(wp), allocatable :: ux_adv(:,:)
+        real(wp), allocatable :: ux_adv(:,:)            ! Transport velocity (calc_transport_velocity)
         real(wp), allocatable :: uy_adv(:,:)
-        real(wp), allocatable :: a_front(:,:)           ! Level-set area fraction (allocated with a subgrid LSF front)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         integer  :: lin_iter, lin_status                ! Linear solver iterations and status of the advection
+        logical  :: filt
 
         logical, parameter :: use_rk4 = .FALSE. 
 
@@ -82,10 +84,8 @@ contains
         allocate(uy_adv(nx,ny))
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
 
-        ! With a subgrid front following the level set, ice flows from partial
-        ! cells into ice-free cells the front covers (set_inactive_margins);
-        ! a_front stays unallocated (absent) otherwise
-        if (tpo%par%use_lsf .and. trim(tpo%par%front_subgrid) .ne. "none") allocate(a_front(nx,ny))
+        filt = .FALSE.
+        if (present(filter_vel)) filt = filter_vel
 
         ! Initialize time if necessary 
         if (tpo%par%time .gt. dble(time)) then 
@@ -104,18 +104,6 @@ contains
 
         ! Get ice thickness entering routine
         H_prev = tpo%now%H_ice 
-
-        ! Depth-averaged velocity used to advect ice thickness: the current
-        ! solution, or optionally the mean of the current and previous solutions.
-        ! Only the advection sees the mean; dyn%now fields remain the true solution.
-        ux_adv = dyn%now%ux_bar
-        uy_adv = dyn%now%uy_bar
-        if (present(filter_vel)) then
-            if (filter_vel) then
-                ux_adv = 0.5_wp*(dyn%now%ux_bar + dyn%now%ux_bar_prev)
-                uy_adv = 0.5_wp*(dyn%now%uy_bar + dyn%now%uy_bar_prev)
-            end if
-        end if
 
         ! Step 1: Go through predictor-corrector-advance steps
 
@@ -139,15 +127,16 @@ contains
                     ! Get ice-fraction mask for current ice thickness  
                     call update_ice_fraction(tpo,bnd)
 
+                    call calc_transport_velocity(ux_adv,uy_adv,tpo,dyn,bnd,filt)
+
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
-                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
-                                                 a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
+                                                 lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = lin_iter
                     tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
                  
@@ -184,14 +173,15 @@ end if
                     ! Get ice-fraction mask for predicted ice thickness  
                     call update_ice_fraction(tpo,bnd)
 
+                    call calc_transport_velocity(ux_adv,uy_adv,tpo,dyn,bnd,filt)
+
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
-                    if (allocated(a_front)) call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
-                                                a_front=a_front,lin_iter=lin_iter,lin_status=lin_status)
+                                                lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
                     tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
                  
@@ -2185,6 +2175,46 @@ end if
         return
 
     end subroutine ytopo_pc_dealloc
+
+    subroutine calc_transport_velocity(ux_t,uy_t,tpo,dyn,bnd,filter_vel)
+        ! Depth-averaged velocity that transports ice thickness: the current
+        ! solution, or with filter_vel the mean of the current and previous
+        ! solutions (dyn%now fields remain the true solution). Faces that
+        ! carry no ice are zero (set_inactive_margins, from the current
+        ! tpo%now%f_ice): faces from partial cells into ice-free cells, except,
+        ! with a subgrid front following the level set, into cells the front
+        ! covers by at least A_FRONT_MIN.
+
+        implicit none
+
+        real(wp),           intent(OUT) :: ux_t(:,:)
+        real(wp),           intent(OUT) :: uy_t(:,:)
+        type(ytopo_class),  intent(IN)  :: tpo
+        type(ydyn_class),   intent(IN)  :: dyn
+        type(ybound_class), intent(IN)  :: bnd
+        logical,            intent(IN)  :: filter_vel
+
+        real(wp), allocatable :: a_front(:,:)
+
+        if (filter_vel) then
+            ux_t = 0.5_wp*(dyn%now%ux_bar + dyn%now%ux_bar_prev)
+            uy_t = 0.5_wp*(dyn%now%uy_bar + dyn%now%uy_bar_prev)
+        else
+            ux_t = dyn%now%ux_bar
+            uy_t = dyn%now%uy_bar
+        end if
+
+        if (tpo%par%use_lsf .and. trim(tpo%par%front_subgrid) .ne. "none") then
+            allocate(a_front(size(tpo%now%H_ice,1),size(tpo%now%H_ice,2)))
+            call calc_lsf_area_fraction(a_front,tpo%now%lsf,tpo%now%H_ice,bnd%z_bed,bnd%z_sl,tpo%par%boundaries)
+            call set_inactive_margins(ux_t,uy_t,tpo%now%f_ice,tpo%par%boundaries,a_front)
+        else
+            call set_inactive_margins(ux_t,uy_t,tpo%now%f_ice,tpo%par%boundaries)
+        end if
+
+        return
+
+    end subroutine calc_transport_velocity
 
     subroutine update_ice_fraction(tpo,bnd)
         ! Update the ice area fraction tpo%now%f_ice and effective thickness
