@@ -135,6 +135,22 @@ little. MISMIP3D and DIVA runs change more.
   `hyd_Q_diss`; C-API getters `thrm_bmb_grnd_star`, `thrm_bc_b`, `thrm_bmb_clamp`,
   `thrm_melt_int` and setters `hyd_C_frz`, `hyd_Q_diss`, `hyd_Q_sens` for an external
   hydrology model.
+- **Capacity rule: a cold base must be warmed before it is held at T_pmp** (#12,
+  `calc_enth_column`). `bmb_star` did not check that the base was at T_pmp, so a cold
+  base with a little water jumped to T_pmp in one step for free (the base node has no
+  volume). `bmb_star` now includes the heat to warm the base to T_pmp within the step,
+  `rho_ice*max(enth_pmp - enth_b, 0)*dz/dt`, over the same `dz` as the conductive flux.
+  Zero for a base at T_pmp. A 0.01 K cold-base threshold was tried first; T_pmp drifts
+  past it with thinning ice and it broke D4 symmetry on ISLAND4.
+- **New `yhyd.k24_ub_hook`** (default True; #13): with a hydrology whose N depends on
+  u_b (`hydro_N_responds_to_ub`, K24 transport), DIVA recomputes N
+  (`hydro_N_from_ub`) and c_bed after each iteration, and converges only once c_bed
+  has settled. N computed once per step from the previous u_b alternated between two
+  states (GRL-16 with K24: 3215 cells; 95 with the hook and `k24_sliding_law = 4`).
+  Other hydrologies are unchanged. Requires FastHydrology dev (dd21a65).
+- **C API `yelmo_set_neff_callback(cb, tag, alias)`** (#14): a host (e.g. Julia K24 via
+  YelmoMirror) supplies N from |u_b| inside the DIVA iteration, through the same hook;
+  a null pointer unregisters. Rebuild `libyelmo_c_api.so`.
 
 - **`ytherm.qb_method` renumbered**: 1 = faces, 2 = faces to quadrature nodes
   (default), 3 = simple stagger (was 1), 4 = quadrature (was 2). A par file with
