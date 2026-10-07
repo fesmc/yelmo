@@ -76,6 +76,7 @@ include("column.jl")
 include("island4.jl")
 include("shelf.jl")
 include("strip.jl")
+include("flowline.jl")
 include("symmetry.jl")
 include("compare.jl")
 
