@@ -163,20 +163,26 @@ The run is not in thermal equilibrium after 5 kyr. However, symmetry and conserv
 
 ### B2 Marine flowline
 
-B2 tests grounding-line dynamics in a strip that is periodic in y (`yelmo.experiment = "periodic-y"`), with three cells across the flow. It follows the MISMIP experiment 1 setup (Pattyn et al., 2012): bed b(x) = 720 − 778.5 |x|/750 km, accumulation a = 0.3 m a⁻¹ everywhere, no basal melt, n = 3, ρ_i = 900 and ρ_w = 1000 kg m⁻³, g = 9.8 m s⁻² (`phys_const = "MISMIP3D"`). The domain is x ∈ [−1800, 1800] km with the ice divide at x = 0 on a cell centre, so the strip has neither lateral walls nor a divide boundary condition. A fixed calving front at |x| = 1700 km is set by `mask_ice`, with `calv_flt_method = "zero"`. The runs are isothermal (`rf_method = 0`, `ytherm.method = "fixed"`).
+B2 tests grounding-line dynamics in a strip that is periodic in y, with three cells across the flow. It follows the MISMIP experiment 1 setup (Pattyn et al., 2012): bed b(x) = 720 − 778.5 |x|/750 km, accumulation a = 0.3 m a⁻¹ everywhere, no basal melt, n = 3, ρ_i = 900 and ρ_w = 1000 kg m⁻³, g = 9.8 m s⁻² (`phys_const = "MISMIP3D"`). A fixed calving front at |x| = 1700 km (rounded to the nearest cell edge, 1696 km for the one-sided domain at 8 km) is set by `mask_ice`, with `calv_flt_method = "zero"`. The runs are isothermal (`rf_method = 0`, `ytherm.method = "fixed"`).
+
+The default domain is one-sided, x ∈ [0, 1800] km, with the ice divide at x = 0 on the face between the first two cells (cell centres at −dx/2, dx/2, …). It uses the existing MISMIP3D boundary treatment (`yelmo.experiment = "MISMIP3D"`): the first cell mirrors the second (H and β), the SSA has ux = 0 on the divide face (no-slip at the low-x border), the far x-border is ice-free and y is periodic. `yelmo.mask_border = "dynamic"` keeps the fixture mask on the borders, so that the mirror cell stays dynamic. No source change is needed. The symmetric domain, x ∈ [−1800, 1800] km with the divide on a cell centre and no divide boundary condition (`yelmo.experiment = "periodic-y"`), remains an option (`domain = :symmetric`); it costs twice as much and is needed for the transposed test (periodic-x), for which Yelmo has no one-sided counterpart.
 
 The friction law is the power law τ_b = C |u|^(m−1) u with C = 7.624e6 Pa m^(−1/3) s^(1/3) and m = 1/3. In Yelmo (`beta_method = 2`) β = c_bed (|u|/u_0)^q / |u|, so the power law follows with q = m, u_0 = 1 m a⁻¹ and c_bed = C sec_year^(−m) = 24126 Pa (m a⁻¹)^(−1/3), with c_bed = `cf_ref` × N_eff, a constant N_eff = 1 Pa (`yhyd.bkt_N_closure = 0`) and no frozen-bed scaling (`frz_scale = False`). We use A = 4.6416e-24, 4.6416e-25 and 4.6416e-26 Pa⁻³ s⁻¹ (MISMIP steps 1, 4 and 7), for which the reference grounding line lies at x_g = 1052.5, 1226.7 and 1492.8 km.
 
-The reference is the boundary-layer flux of Schoof (2007, Eq. 29), q_g = [A (ρ_i g)^(n+1) (1 − ρ_i/ρ_w)^n / (4^n C)]^(1/(m+1)) h_g^((m+n+3)/(m+1)), with the steady grounding line where q_g(x_g) = a x_g. For a Coulomb friction law it is the flux of Tsai et al. (2015) (not yet implemented). The run starts from the semi-analytic steady profile, computed in Julia (`FlowlineBenchmark`): the outer solution of Schoof (2007), C (a x/h)^m = −ρ_i g h d(h + b)/dx, integrated upstream from h(x_g) = h_g, and the unconfined shelf, d(uh)/dx = a and du/dx = A [ρ_i g (1 − ρ_i/ρ_w) h/4]^n, integrated downstream to the calving front. This shortens the run to the adjustment time, about 2–5 kyr, instead of a full spin-up from zero. The test reports the final grounding-line position against the reference, and dx_g/dt over the run, at dx = 1, 2, 4 and 8 km (8 km done). The grounding line is the zero of the thickness above flotation, interpolated linearly between cell centres (as `f_grnd_acx`). The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+The reference is the boundary-layer flux of Schoof (2007, Eq. 29), q_g = [A (ρ_i g)^(n+1) (1 − ρ_i/ρ_w)^n / (4^n C)]^(1/(m+1)) h_g^((m+n+3)/(m+1)), with the steady grounding line where q_g(x_g) = a x_g. For a Coulomb friction law it is the flux of Tsai et al. (2015) (not yet implemented). The run starts from the semi-analytic steady profile, computed in Julia (`FlowlineBenchmark`): the outer solution of Schoof (2007), C (a x/h)^m = −ρ_i g h d(h + b)/dx, integrated upstream from h(x_g) = h_g, and the unconfined shelf, d(uh)/dx = a and du/dx = A [ρ_i g (1 − ρ_i/ρ_w) h/4]^n, integrated downstream to the calving front. This shortens the run to the adjustment time instead of a full spin-up from zero.
+
+A start from the reference profile does not show whether the model has a unique steady grounding line. For each A and resolution, B2 therefore has three starts: the reference profile (`ref`), and the same construction with the grounding line shifted by +100 km (advanced, `adv`) and −100 km (retreated, `ret`), i.e., the outer solution integrated upstream from h_f(x_g ± 100 km) and the shelf downstream of it (keyword `dxg_start`). The resolutions are 8, 4 and 2 km. A run is stationary when |dx_g/dt| averaged over the last 2 kyr is below 1e-3 m a⁻¹ (one 2-km cell in 2 Myr); 20 kyr meet this for all runs. The test reports the final grounding line against the reference, dx_g/dt, and the model flux across the grounding line against q_g(h_g). The grounding line is the zero of the thickness above flotation, interpolated linearly between cell centres (as `f_grnd_acx`), and the flux is |ux_bar| H on the face between the last grounded and the first floating cell, with the upwind thickness as in the thickness advection, so that it equals a x_g in steady state. The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
 
 ```bash
-julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
-runme -r -e bench -n par/yelmo_bench_FLOWLINE.nml -o output/bench/b2-8km-a1 \
-      -p bench.fixture=input/bench/flowline-8km-a1.nc ymat.rf_const=1.464746277216e-16
-julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1.nc output/bench/b2-8km-a1
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1-ref.nc flowline A=4.6416e-24
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1-adv.nc flowline A=4.6416e-24 dxg_start=100e3
+runme -r -e bench -n par/yelmo_bench_FLOWLINE.nml -o output/b2/os-8km-a1-ref \
+      -p bench.fixture=input/bench/flowline-8km-a1-ref.nc ymat.rf_const=1.464746277216e-16 ctrl.time_end=20e3
+julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1-ref.nc output/b2/os-8km-a1-ref
+julia --project=docs/dev/benchmark-protocol/scripts docs/dev/benchmark-protocol/scripts/b2_plots.jl output/b2 input/bench
 ```
 
-The fixture attributes `rf_const` and `cf_ref` give the parameter values for its A and C; `check_flowline.jl` warns if the run used other values.
+The fixture attributes `rf_const` and `cf_ref` give the parameter values for its A and C, and `experiment` the value of `yelmo.experiment` for its domain; `check_flowline.jl` warns if the run used other values. For dx = 4 and 2 km add `dx_km=4` (`2`) to the fixture and `yelmo.grid_name=FLOWLINE-4KM` to the run.
 
 ### B3 CalvingMIP circular Exp1 (exists)
 
@@ -300,7 +306,7 @@ The coupled B1 thus does not test a land margin set by ablation: the initial tem
 
 ![B1 ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
 
-B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
+B2 (2026-10-07, symmetric domain, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
 
 - Periodic-y. The new `experiment = "periodic-y"` transposes `periodic-x` throughout the code. A periodic-y strip and the transposed periodic-x strip (`make_fixture.jl flowline transpose=true`, 32 km, 500 yr, tight tolerances) give identical H, z_srf, speed, β and viscosity in the single-precision output; the velocity components differ by 1e-14 relative to the speed (`tests/bench/check_transpose.jl`).
 - Friction. τ_b = β |u_b| from the output equals C |u_b|^(1/3) to 1e-4 at grounded cells.
@@ -312,7 +318,40 @@ B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, 
 | 4.6416e-25 | 1226.7 | 1230.9 | +4.1 km (0.3 %) | −0.017 | 9 |
 | 4.6416e-26 | 1492.8 | 1495.3 | +2.5 km (0.2 %) | −0.005 | 5 |
 
-- Hysteresis. Started from the steady profile of the neighbouring A values, the run with A = 4.6416e-25 does not reach the same grounding line. From the profile of 4.6416e-24 the grounding line advances in steps to 1184 km after 10 kyr (dx_g/dt = 0.006 m a⁻¹); from the profile of 4.6416e-26 it stays at 1491 km (−0.001 m a⁻¹), 264 km downstream of the reference. There, the model flux across the grounding line is 0.37e6 m² a⁻¹, below a x_g = 0.45e6 m² a⁻¹, while the boundary-layer flux at this thickness is 2.5e6 m² a⁻¹. The grounded ice is controlled by sliding and nearly independent of A, so A acts only through the boundary layer at the grounding line, which 8 km does not resolve. `beta_gl_stag = 3` or 4 instead of 1 gives the same result (1488 km after 5 kyr). At 8 km the start from the steady profile therefore does not constrain x_g: B2 needs runs from perturbed starts on both sides of the reference, and finer grids (1–4 km, not yet run).
+- Hysteresis. Started from the steady profile of the neighbouring A values, the run with A = 4.6416e-25 does not reach the same grounding line. From the profile of 4.6416e-24 the grounding line advances in steps to 1184 km after 10 kyr (dx_g/dt = 0.006 m a⁻¹); from the profile of 4.6416e-26 it stays at 1491 km (−0.001 m a⁻¹), 264 km downstream of the reference. There, the model flux across the grounding line was given as 0.37e6 m² a⁻¹, below a x_g = 0.45e6 m² a⁻¹ (with the upwind thickness of the advection, the flux equals a x_g in steady state, see the runs below), while the boundary-layer flux at this thickness is 2.5e6 m² a⁻¹. The grounded ice is controlled by sliding and nearly independent of A, so A acts only through the boundary layer at the grounding line, which 8 km does not resolve. `beta_gl_stag = 3` or 4 instead of 1 gives the same result (1488 km after 5 kyr). At 8 km the start from the steady profile therefore does not constrain x_g: B2 needs runs from perturbed starts on both sides of the reference, and finer grids (1–4 km, not yet run).
+
+B2 resolution and start series (2026-10-07, one-sided domain, 8, 4 and 2 km (226, 451 and 901 × 3 cells), 20 kyr, default solver tolerances, albedo, 4 threads, dev 76f79db). Starts from the reference profile (ref) and with the grounding line shifted by +100 km (adv) and −100 km (ret). Figures from `scripts/b2_plots.jl`.
+
+- Divide. One-sided and symmetric runs from the reference profile (8 km) end at 1066.2 / 1062.3, 1226.9 / 1230.8 and 1499.2 / 1495.3 km (one-sided / symmetric). The symmetric runs reproduce the laptop runs above to 0.1 km. The differences of ±3.9 km are half a cell: the cell centres of the two grids are shifted by dx/2 relative to the bed, and the grounding line locks to the grid (below).
+- All runs are stationary after 20 kyr: |dx_g/dt| over the last 2 kyr is below 4e-4 m a⁻¹. The retreated starts advance in steps for up to 10 kyr (A = 4.6416e-26), all others are stationary within 1–2 kyr.
+
+| A [Pa⁻³ s⁻¹] | dx [km] | x_g, ref [km] | x_g, adv [km] | x_g, ret [km] | max \|dx_g/dt\|, last 2 kyr [m a⁻¹] | Wall time ref / adv / ret [min] |
+|---|---|---|---|---|---|---|
+| 4.6416e-24 (x_g = 1052.5) | 8 | 1066.2 (+13.7, 1.3 %) | 1152.8 (+100.4) | 1019.1 (−33.4) | 2e-5 | 5 / 7 / 10 |
+| | 4 | 1084.7 (+32.3, 3.1 %) | 1152.0 (+99.6) | 1033.4 (−19.0) | 6e-5 | 15 / 22 / 13 |
+| | 2 | 1092.2 (+39.7, 3.8 %) | 1153.8 (+101.3) | 1042.6 (−9.9) | 8e-5 | 41 / 50 / 48 |
+| 4.6416e-25 (x_g = 1226.7) | 8 | 1226.9 (+0.2, 0.0 %) | 1329.0 (+102.2) | 1187.9 (−38.9) | 2e-6 | 7 / 3 / 4 |
+| | 4 | 1229.4 (+2.6, 0.2 %) | 1328.1 (+101.3) | 1197.9 (−28.8) | 4e-5 | 8 / 7 / 8 |
+| | 2 | 1226.6 (−0.1, 0.0 %) | 1325.8 (+99.0) | 1199.0 (−27.8) | 2e-6 | 21 / 20 / 23 |
+| 4.6416e-26 (x_g = 1492.8) | 8 | 1499.2 (+6.4, 0.4 %) | 1593.2 (+100.4) | 1475.8 (−17.0) | 3e-4 | 2 / 2 / 2 |
+| | 4 | 1493.6 (+0.7, 0.0 %) | 1592.2 (+99.3) | 1474.0 (−18.9) | 2e-4 | 4 / 4 / 5 |
+| | 2 | 1492.7 (−0.2, 0.0 %) | 1591.7 (+98.9) | 1469.0 (−23.9) | 1e-5 | 11 / 10 / 13 |
+
+Differences to Schoof (2007) in km in brackets. Wall times for 4 OpenMP threads; a 2-km test over 300 yr took 1.2, 0.9, 1.3 and 1.8 min on 1, 4, 8 and 16 threads, so the strip does not profit from more threads.
+
+- Hysteresis does not shrink with resolution. The advanced starts do not retreat at all (x_g moves by less than 3 km at every resolution), and the retreated starts stop 10–39 km upstream of the reference. Only for A = 4.6416e-24 does the retreated start come closer with refinement (−33, −19, −10 km). The reference starts stay where they start (within 0.2 km at 2 km for the two stiffer cases), so their agreement with Schoof (2007) does not show that the model grounding line converges.
+- Grounding-line flux. In every final state the model flux across the grounding line equals the balance flux a x_g, as it must in steady state, but the boundary-layer flux at the model grounding-line thickness does not: q_g(h_g)/(a x_g) is 3.0, 2.1 and 1.6 for the advanced starts and 0.65–0.9 for the retreated ones, with the same values at 8 and 2 km. The model flux thus does not depend on h_g as in the boundary-layer theory, and a band of grounding-line positions around the reference is steady (neutral equilibrium).
+- A = 4.6416e-24 with DIVA. The reference start drifts downstream with refinement (+14, +32, +40 km). For this soft ice, vertical shear is not negligible: the DIVA ice sheet is about 620 m thinner at the divide than the semi-analytic sliding profile (3207 vs 3828 m at 2 km), while with `ydyn.solver = "ssa"` it matches (3854 m). The SSA runs end at 1059.2 km (8 km) and 1067.0 km (2 km, +1.4 %). The reference of Schoof (2007) therefore applies to the DIVA runs only for the stiffer two cases; for A = 4.6416e-24 the start is not steady and the transient sets where the grounding line locks.
+- The lock is not a DIVA effect: the advanced start for A = 4.6416e-25 at 2 km with `ydyn.solver = "ssa"` also stays at 1326.0 km.
+- Linear solver. At 2 km about one SSA linear solve per time step stops at the iteration limit of the default `ssa_lis_opt_energy` (CG with Jacobi, `-maxiter 200`), never at 8 and 4 km. With `-maxiter 2000` the final x_g of all nine 2-km runs is identical to 0.01 km.
+
+![B2 grounding line over time for A = 4.6416e-24, -25 and -26 Pa⁻³ s⁻¹ at 8, 4 and 2 km, from the reference (solid), advanced (dashed) and retreated (dotted) starts; black: Schoof (2007).](figures/b2_xg_time.png)
+
+![B2 final grounding line minus Schoof (2007) against resolution, for the three starts.](figures/b2_xg_resolution.png)
+
+![B2 final surface and base from the reference starts against the semi-analytic profile (dashed), full profile and near the grounding line; vertical lines: grounding lines.](figures/b2_profiles.png)
+
+![B2 flux across the grounding line against the grounding-line thickness over the runs (dots: final states), with the boundary-layer flux q_g(h_g) (black) and the balance flux a x_g (dashed).](figures/b2_flux.png)
 
 ### Model changes
 
@@ -347,6 +386,7 @@ julia --project=docs/dev/benchmark-protocol/scripts docs/dev/benchmark-protocol/
 
 - Asay-Davis, X. S., et al. (2016). Experimental design for three interrelated marine ice sheet and ocean model intercomparison projects: MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1). *Geosci. Model Dev.*, 9, 2471–2497.
 - Moreno-Parada, D., Robinson, A., Montoya, M., and Alvarez-Solas, J. (2024). Analytical solutions for the advective–diffusive ice column in the presence of strain heating. *The Cryosphere*, 18, 4215–4232.
+- Pattyn, F., et al. (2012). Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP. *The Cryosphere*, 6, 573–588.
 - Robin, G. de Q. (1955). Ice movement and temperature distribution in glaciers and ice sheets. *J. Glaciol.*, 2, 523–532.
 - Schoof, C. (2006). A variational approach to ice stream flow. *J. Fluid Mech.*, 556, 227–251.
 - Schoof, C. (2007). Ice sheet grounding line dynamics: Steady states, stability, and hysteresis. *J. Geophys. Res.*, 112, F03S28.
