@@ -12,7 +12,7 @@ module yelmo_dynamics
                             calc_strain_rate_tensor_jac_quad3D
 
     use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
-    use fast_hydrology, only : hydro_calc_N
+    use fast_hydrology, only : hydro_calc_N, hydro_N_responds_to_ub, hydro_N_from_ub
 
     use velocity_general
 
@@ -50,7 +50,7 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
-        type(hydro_class),  intent(IN)    :: hyd
+        type(hydro_class),  intent(INOUT) :: hyd   ! N updated inside the velocity solve for a hydrology that responds to u_b
         real(wp),         intent(IN)    :: time
 
         ! Local variables
@@ -215,7 +215,12 @@ contains
                 case("diva","diva-noslip") 
                     ! Depth-integrated variational approximation (DIVA) - Goldberg (2011); Lipscomb et al. (2019)
 
-                    call calc_ydyn_diva(dyn,tpo,mat,thrm,bnd)
+                    if (hydro_N_responds_to_ub(hyd)) then
+                        ! N depends on u_b (steady hydrology, e.g. K24): solve them together
+                        call calc_ydyn_diva(dyn,tpo,mat,thrm,bnd,neff_hook=neff_from_hydrology)
+                    else
+                        call calc_ydyn_diva(dyn,tpo,mat,thrm,bnd)
+                    end if
 
                 case DEFAULT
 
@@ -358,6 +363,39 @@ contains
 
         return
 
+    contains
+
+        subroutine neff_from_hydrology(c_bed,ux_b,uy_b)
+            ! Velocity-iteration hook: the hydrology recomputes N from the current basal velocity
+            ! (hydro_N_from_ub), and c_bed follows as in calc_ydyn. Its inputs are those
+            ! calc_yhyd gives hydro_update -- the same grounded-ice mask, H_ice and basal Glen A
+            ! (fixed during the velocity solve), and the sliding speed magnitude on aa-nodes from
+            ! the C-grid ux_b/uy_b, converted to SI -- so N is the one hydro_update would give
+            ! for this u_b with its routing held (see k24_N_from_ub).
+
+            implicit none
+
+            real(wp), intent(INOUT) :: c_bed(:,:)
+            real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+
+            real(wp), allocatable :: uxy_b(:,:), mask(:,:)
+
+            uxy_b = calc_magnitude_from_staggered(ux_b,uy_b,tpo%now%f_ice_dyn,dyn%par%boundaries)
+
+            allocate(mask(size(uxy_b,1),size(uxy_b,2)))
+            where (tpo%now%f_ice .ge. 0.5_wp .and. tpo%now%f_grnd .gt. 0.0_wp)
+                mask = 1.0_wp
+            elsewhere
+                mask = 0.0_wp
+            end where
+
+            call hydro_N_from_ub(hyd,tpo%now%H_ice,mask,uxy_b/bnd%c%sec_year,mat%now%ATT(:,:,1)/bnd%c%sec_year)
+
+            call calc_ydyn_neff(dyn,tpo,thrm,bnd,hyd)
+            call calc_c_bed(c_bed,dyn%now%cb_ref,dyn%now%N_eff,dyn%par%till_is_angle)
+
+        end subroutine neff_from_hydrology
+
     end subroutine calc_ydyn
     
     subroutine calc_ydyn_hybrid(dyn,tpo,mat,thrm,bnd,use_sia,use_ssa)
@@ -490,7 +528,7 @@ contains
 
     end subroutine calc_ydyn_hybrid
 
-    subroutine calc_ydyn_diva(dyn,tpo,mat,thrm,bnd)
+    subroutine calc_ydyn_diva(dyn,tpo,mat,thrm,bnd,neff_hook)
         ! Velocity is a steady-state solution to a given set of boundary conditions (topo, material, etc)
 
         implicit none
@@ -500,6 +538,14 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm 
         type(ybound_class), intent(IN)    :: bnd   
+        interface
+            subroutine neff_hook(c_bed,ux_b,uy_b)   ! N (and so c_bed) from the current u_b, see calc_ydyn
+                use yelmo_defs, only : wp
+                real(wp), intent(INOUT) :: c_bed(:,:)
+                real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+            end subroutine neff_hook
+        end interface
+        optional :: neff_hook
 
         ! Local variables
         integer :: iter, n_iter
@@ -583,7 +629,7 @@ contains
                                 dyn%now%f_slide,dyn%now%taud_acx,dyn%now%taud_acy,dyn%now%taul_int_acx,dyn%now%taul_int_acy, &
                                 tpo%now%H_ice_dyn,tpo%now%f_ice_dyn,tpo%now%H_grnd,   &
                                 tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,mat%now%ATT, &
-                                dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,diva_par)
+                                dyn%par%zeta_aa,bnd%z_sl,bnd%z_bed,tpo%now%z_srf,dyn%par%dx,dyn%par%dy,mat%par%n_glen,diva_par,neff_hook=neff_hook)
 
         ! Integrate from 3D shear velocity field to get depth-averaged field
         dyn%now%ux_i_bar = calc_vertical_integrated_2D(dyn%now%ux_i,dyn%par%zeta_aa)

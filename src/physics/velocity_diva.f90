@@ -62,7 +62,7 @@ contains
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
-                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
+                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par,neff_hook)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
         ! following the Depth-Integrated Viscosity Approximation (DIVA),
         ! as outlined by Lipscomb et al. (2019). Method originally 
@@ -98,7 +98,15 @@ contains
         integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
         integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
         integer,  intent(OUT)   :: ssa_lim_n            ! Faces at the velocity limit after the last iteration (count_vel_lim_faces)
-        real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
+        real(wp), intent(INOUT) :: c_bed(:,:)         ! [Pa] updated in the iteration when neff_hook is present
+        interface
+            subroutine neff_hook(c_bed,ux_b,uy_b)   ! N (and so c_bed) from the current u_b, see calc_ydyn
+                use yelmo_defs, only : wp
+                real(wp), intent(INOUT) :: c_bed(:,:)
+                real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+            end subroutine neff_hook
+        end interface
+        optional :: neff_hook
         real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
@@ -126,6 +134,7 @@ contains
 
         real(wp), allocatable :: visc_eff_nm1(:,:,:) 
         real(wp), allocatable :: ux_bar_nm1(:,:) 
+        real(wp), allocatable :: c_bed_nm1(:,:)   ! c_bed of the previous iteration (neff_hook)
         real(wp), allocatable :: uy_bar_nm1(:,:)  
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
@@ -382,6 +391,17 @@ contains
             call calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2_acx,F2_acy,taub_acx,taub_acy,par%no_slip)
 
             ! Exit iterations if ssa solution has converged
+            ! Effective pressure that depends on the sliding speed (a steady hydrology such as K24):
+            ! re-evaluate it, and with it c_bed, from this iterations u_b, so the next iterations
+            ! beta uses N consistent with the current velocity. The solve has converged only when
+            ! c_bed has stopped changing too (relative L1 change below ssa_iter_conv), otherwise a
+            ! warm-started solve can exit after one iteration without ever updating N.
+            if (present(neff_hook)) then
+                c_bed_nm1 = c_bed
+                call neff_hook(c_bed,ux_b,uy_b)
+                if (sum(abs(c_bed-c_bed_nm1)) .gt. par%ssa_iter_conv*max(sum(abs(c_bed)),TOL_UNDERFLOW)) is_converged = .FALSE.
+            end if
+
             if (is_converged) exit 
             
         end do 

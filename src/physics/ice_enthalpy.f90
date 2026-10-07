@@ -611,7 +611,7 @@ end if
         logical  :: use_capacity
         logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
         real(wp) :: C_now, Q_wat_now, eps_now
-        real(wp) :: q_up_star, net_enth_b, bmb_star, bmb_clamp
+        real(wp) :: q_up_star, q_warm_star, net_enth_b, bmb_star, bmb_clamp
         real(wp) :: dz
         real(wp) :: omega_excess
         real(wp) :: melt_internal
@@ -753,7 +753,7 @@ end if
 
             else if (use_capacity) then
                 ! == Capacity rule ==
-                ! Compare the freezing the base would need to stay at the pressure
+                ! Compare the freezing the base would need to reach and stay at the pressure
                 ! melting point (bmb_star, the basal mass balance of a base held at
                 ! T_pmp, from the start-of-step profile; positive = freeze-on) with
                 ! the rate at which the water at the bed can be frozen (C_cap).
@@ -762,10 +762,17 @@ end if
                 dz = H_ice * (zeta_aa(2) - zeta_aa(1))
                 q_up_star = kt(1) * (T_pmp(1) - T_ice(2)) / dz
 
+                ! Heat to warm a base below T_pmp up to it within the step [J m-2 a-1].
+                ! The base node has no volume, so a base held at T_pmp would otherwise
+                ! jump there for free; the water must also supply this sensible heat,
+                ! taken over the same distance dz as q_up_star. Zero for a base at T_pmp,
+                ! small for the drift of T_pmp with ice thickness.
+                q_warm_star = rho_ice * max(enth_pmp(1) - enth(1), 0.0_wp) * dz / dt
+
                 ! Latent heat reduced by water already stored in the basal ice,
                 ! as in calc_bmb_grounded_enth
                 net_enth_b = max(enth(1) - enth_pmp(1), 0.0_wp)
-                bmb_star   = (q_up_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
+                bmb_star   = (q_up_star + q_warm_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
                                 / (rho_ice*(L_ice - net_enth_b))             ! [m/a ice equiv.]
 
                 if (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now) then
