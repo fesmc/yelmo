@@ -1,8 +1,11 @@
 ! Benchmark protocol: B2 marine flowline (docs/dev/benchmark-protocol).
 ! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
 ! Fixture: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
-!          (the fixture attributes rf_const and cf_ref give ymat.rf_const and ytill.cf_ref for its A and C)
-! Check:   julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1.nc <run-dir>
+!          (the fixture attributes rf_const and cf_ref give ymat.rf_const and ytill.cf_ref for its A and C,
+!          and experiment gives yelmo.experiment for its domain)
+!          Perturbed starts: dxg_start=-100e3 (retreated) or dxg_start=100e3 (advanced) [m].
+!          Symmetric domain: domain=symmetric, and run with -p yelmo.experiment=periodic-y.
+! Check:  julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1.nc <run-dir>
 ! All parameters not listed here come from input/yelmo_defaults.nml.
 
 &ctrl
@@ -24,13 +27,17 @@
     z0              = -200.0            ! [m] mismip+: depth above which melt is zero (unused)
 /
 
-! Strip periodic across the flow (y), divide at x = 0, ice-free x-borders.
-! MISMIP densities and g (rho_ice = 900, rho_sw = 1000 kg m-3, g = 9.8 m s-2).
+! Strip periodic across the flow (y). One-sided domain x in [0, L]: the divide
+! lies on the face between the first two cells; experiment = "MISMIP3D" mirrors
+! the first cell (H, beta) and sets ux = 0 on the divide face, ice-free far x-border.
+! mask_border = "dynamic" keeps the fixture mask_ice on the borders (the divide
+! cell must stay dynamic). MISMIP densities and g (rho_ice = 900, rho_sw = 1000 kg m-3, g = 9.8 m s-2).
 &yelmo
     domain          = "FLOWLINE"
     grid_name       = "FLOWLINE-8KM"
     phys_const      = "MISMIP3D"
-    experiment      = "periodic-y"
+    experiment      = "MISMIP3D"        ! one-sided; "periodic-y" for the symmetric domain
+    mask_border     = "dynamic"
 /
 
 &yelmo_masks
