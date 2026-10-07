@@ -1,0 +1,50 @@
+! Benchmark protocol: B1 ISLAND4-L land dome (docs/dev/benchmark-protocol).
+! Driver: tests/yelmo_bench.f90 (make bench, runme alias "bench").
+! Fixtures: julia --project=tests/bench tests/bench/make_fixture.jl input/bench/island4-L-16km.nc island4 dx_km=16 land=true
+!           ISLAND4-L-R: add rot=45
+! Isothermal pair (constant rate factor, no thermodynamic evolution):
+!           -p ytherm.method=fixed ymat.rf_method=0
+! All parameters not listed here come from input/yelmo_defaults.nml.
+
+&ctrl
+    time_init       = 0.0               ! [yr] Starting time
+    time_end        = 5000.0            ! [yr] Ending time
+    dtt             = 10.0              ! [yr] Main loop time step
+    dt2D_out        = 100.0             ! [yr] Frequency of 2D output
+    dt_restart      = 0.0               ! [yr] Frequency of intermediate restarts yelmo_restart_<time>.nc (0: only at time_end)
+/
+
+&bench
+    fixture         = "input/bench/island4-L-16km.nc"
+    tsrf_method     = "lapse"           ! "fixed" | "lapse"
+    bmb_method      = "mismip+"         ! "fixed" | "mismip+" (no floating ice in ISLAND4-L)
+    T_sl            = -10.0             ! [degC] lapse: temperature at sea level
+    lapse           = 8e-3              ! [K m-1] lapse: lapse rate
+    Omega           = 0.01              ! [yr-1] mismip+: melt-rate factor
+    Hc0             = 75.0              ! [m] mismip+: water-column scale
+    z0              = -200.0            ! [m] mismip+: depth above which melt is zero
+/
+
+&yelmo
+    domain          = "ISLAND4"
+    grid_name       = "ISLAND4-16KM"
+/
+
+&yelmo_masks
+    basins_load     = False
+    regions_load    = False
+/
+
+&yelmo_data
+    pd_topo_load    = False
+    pd_tsrf_load    = False
+    pd_smb_load     = False
+    pd_vel_load     = False
+/
+
+! Tight solver tolerances for the symmetry check, as in yelmo_bench_ISLAND4.nml
+&ydyn
+    ssa_iter_max        = 200
+    ssa_iter_conv       = 1e-5
+    ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 5000 -tol 1.0e-8 -initx_zeros false"
+/

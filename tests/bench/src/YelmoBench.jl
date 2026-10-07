@@ -78,5 +78,7 @@ include("shelf.jl")
 include("strip.jl")
 include("symmetry.jl")
 include("compare.jl")
+include("budget.jl")
+include("margins.jl")
 
 end # module
