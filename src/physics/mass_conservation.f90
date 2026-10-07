@@ -202,7 +202,7 @@ contains
 
     end subroutine apply_tendency
 
-    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
+    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy, &
                                                     solver,boundaries,dx,dt,F,lin_iter,lin_status)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving.
@@ -216,7 +216,6 @@ contains
         real(wp),         intent(IN)    :: f_ice(:,:)           ! [--]  Ice area fraction 
         real(wp),         intent(IN)    :: ux(:,:)              ! [m/a] Depth-averaged velocity, x-direction (ac-nodes)
         real(wp),         intent(IN)    :: uy(:,:)              ! [m/a] Depth-averaged velocity, y-direction (ac-nodes)
-        integer,          intent(IN)    :: mask_ice(:,:)        ! Advection mask
         character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
         character(len=*), intent(IN)    :: boundaries
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
@@ -238,7 +237,7 @@ contains
         if (present(F)) F_now = F 
 
         ! Determine current advective rate of change (time=n)
-        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
+        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
 
         return 
 
@@ -512,10 +511,10 @@ contains
         ! independent of the boundary BC choice above: MASK_ICE_NONE forces zero
         ! ice thickness and MASK_ICE_FIXED imposes the reference thickness.
         ! mask_ice is a per-cell constraint, not a border treatment, so it must
-        ! be honored for every 'boundaries' choice - matching how the advection
-        ! solver already treats mask_ice. Without this, a boundary choice like
-        ! "zeros" only zeroes the outer domain borders, and positive smb re-grows
-        ! ice in interior MASK_ICE_NONE cells that dynamics had zeroed each step.
+        ! be honored for every 'boundaries' choice. This is the only place where
+        ! the mask is imposed: the advection solvers transport ice into and out of
+        ! masked cells, and the change applied here is booked in mb_resid, so that
+        ! the mass budget closes.
         where (mask_ice .eq. MASK_ICE_NONE)  H_ice_new = 0.0_wp
         where (mask_ice .eq. MASK_ICE_FIXED) H_ice_new = H_ice_ref
 

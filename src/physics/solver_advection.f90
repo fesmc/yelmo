@@ -1,7 +1,6 @@
 module solver_advection
     
-    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err, &
-                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
+    use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     
     use solver_linear
@@ -16,7 +15,7 @@ module solver_advection
 
 contains 
 
-    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries,lin_iter,lin_status)
+    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,dx,dy,dt,solver,boundaries,lin_iter,lin_status)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `var_dot`. Various solvers are possible
 
@@ -26,7 +25,6 @@ contains
         real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
         real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
-        integer,        intent(IN)    :: mask_ice(:,:)          ! Per-cell ice mask (bnd%mask_ice)
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
@@ -95,7 +93,7 @@ contains
                 call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
                 ! Populate advection matrices Ax=b
-                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
                 ! Jacobi preconditioner: the upwind matrix is diagonally dominant, and the
@@ -152,7 +150,7 @@ contains
 
     end subroutine linear_solver_save_advection
 
-    subroutine linear_solver_matrix_advection_csr_2D(lgs,H,ux,uy,F,mask,dx,dy,dt,boundaries)
+    subroutine linear_solver_matrix_advection_csr_2D(lgs,H,ux,uy,F,dx,dy,dt,boundaries)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for 2D advection equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -166,7 +164,6 @@ contains
         real(wp), intent(IN)      :: ux(:,:)        ! [m a-1] Horizontal velocity x-direction (ac nodes)
         real(wp), intent(IN)      :: uy(:,:)        ! [m a-1] Horizontal velocity y-direction (ac nodes)
         real(wp), intent(IN)      :: F(:,:)         ! [m a-1] Net source/sink terms (aa nodes)
-        integer,  intent(IN)      :: mask(:,:)      ! Advection mask
         real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
         real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
         real(wp), intent(IN)      :: dt             ! [a] Time step 
@@ -344,29 +341,13 @@ contains
             if (jp1 .eq. ny+1) jp1 = 1 
             
 
-            ! Handle special cases first, otherwise populate with normal inner discretization
+            ! Handle special cases first, otherwise populate with normal inner discretization.
+            ! The ice mask (bnd%mask_ice) is not imposed here: every cell is advected,
+            ! and calc_G_boundaries enforces the mask afterwards and books the change
+            ! in mb_resid. Imposing H = 0 or H = H_ref in the matrix would remove or
+            ! add the flux through the faces of masked cells without booking it.
 
-            if (mask(i,j) .eq. MASK_ICE_NONE) then
-                ! Zero thickness imposed
-
-                k = k+1
-                lgs%a_index(k) = nr
-                lgs%a_value(k) = 1.0_wp   ! diagonal element only
-                
-                lgs%b_value(nr) = 0.0_wp
-                lgs%x_value(nr) = 0.0_wp
-
-            else if (mask(i,j) .eq. MASK_ICE_FIXED) then
-                ! Prescribed ice thickness imposed
-
-                k = k+1
-                lgs%a_index(k) = nr
-                lgs%a_value(k) = 1.0_wp   ! diagonal element only
-
-                lgs%b_value(nr) = H(i,j)
-                lgs%x_value(nr) = H(i,j)
-            
-            else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+            if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
                 ! Right border
 
                 if (bcs(1) .eq. "infinite") then
