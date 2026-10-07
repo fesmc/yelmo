@@ -7,6 +7,16 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Relaxation separate from the optimization.** The topography relaxation of a
+  spin-up moves out of `&opt` into its own group `&relax` (`relax_params`,
+  `relax_par_load`, `relax_update` in `libs/ice_optimization.f90`): `opt.rel_tau1`,
+  `rel_tau2`, `rel_time1`, `rel_time2`, `rel_m` -> `relax.tau1`, `tau2`, `time1`,
+  `time2`, `m`, plus `relax.topo_rel` (the `ytopo.topo_rel` mode while active,
+  was 4 fixed). After `time2` the par-file `ytopo.topo_rel` and `topo_rel_tau`
+  apply again (was `topo_rel = 0`). initmip: `equil_method = "relax"` uses
+  `&relax` too (was `topo_rel = 2`, 50 yr until `ctrl.time_equil`);
+  `ctrl.time_equil` is removed.
+
 - **Mass budget at `mask_ice` cells.** The implicit advection (`impl-lis`) imposed
   H = 0 in `MASK_ICE_NONE` cells and H = H in `MASK_ICE_FIXED` cells inside the solve,
   so ice that flowed into masked cells disappeared, and ice leaving fixed cells appeared,

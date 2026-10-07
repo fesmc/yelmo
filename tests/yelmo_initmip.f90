@@ -28,7 +28,6 @@ program yelmo_test
 
     type ctrl_params
         character(len=56) :: run_step
-        real(wp) :: time_equil      ! Only for spinup
         real(wp) :: dtt
         character(len=56) :: restart_mode   ! "state" or "continue"
 
@@ -59,6 +58,9 @@ program yelmo_test
 
     type(ctrl_params)    :: ctl
     type(ice_opt_params) :: opt
+    type(relax_params)   :: rlx             ! relaxation ([relax]), equil_method "relax" or "opt"
+    integer              :: topo_rel0       ! par-file ytopo.topo_rel, restored after the relaxation
+    real(wp)             :: topo_rel_tau0   ! par-file ytopo.topo_rel_tau
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime
 
@@ -74,7 +76,6 @@ program yelmo_test
     call tstep_init(ts,path_par,"ctrl",ctl%dtt)
 
     ! Other parameters 
-    call nml_read(path_par,"ctrl","time_equil",     ctl%time_equil)         ! [yr] Years to equilibrate first
     call nml_read(path_par,"ctrl","restart_mode",   ctl%restart_mode)       ! "state": spun-up state, "continue": continuation (time_init = restart time)
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
@@ -127,6 +128,11 @@ program yelmo_test
 
     end if 
 
+    ! Relaxation of the topography (spin-up methods "relax" and "opt")
+    if (trim(ctl%equil_method) .eq. "relax" .or. trim(ctl%equil_method) .eq. "opt") then 
+        call relax_par_load(rlx,path_par,"relax")
+    end if 
+
     ! Define input and output locations
     t2Dsm%filename = "yelmo_sm.nc"
     t2D%filename   = "yelmo.nc"
@@ -134,9 +140,6 @@ program yelmo_test
 
     write(*,*)
     write(*,*) "timestepping:   ",  trim(ts%method)
-    if (trim(ts%method) .eq. "const") then 
-        write(*,*) "time_equil: ",    ctl%time_equil
-    end if 
 
     write(*,*) "time    = ", ts%time 
     write(*,*) "time_bp = ", ts%time_rel 
@@ -146,6 +149,10 @@ program yelmo_test
 
     ! Initialize data objects and load initial topography
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=ts%time)
+
+    ! Par-file relaxation settings, restored once a spin-up relaxation ends
+    topo_rel0     = yelmo1%tpo%par%topo_rel
+    topo_rel_tau0 = yelmo1%tpo%par%topo_rel_tau
 
     ! Restart mode: a continuation must start at the restart file's time
     call check_restart_mode(ctl%restart_mode,yelmo1%par%use_restart,yelmo1%par%restart,ts%time_init)
@@ -355,29 +362,14 @@ program yelmo_test
         call tstep_update(ts,ctl%dtt)
         call tstep_print(ts)
         
-        ! Spin-up procedure - only relevant for time_elapsed <= time_equil
+        ! Spin-up procedure: relaxation ([relax], until relax.time2), plus the
+        ! optimization for equil_method = "opt"
         select case(trim(ctl%equil_method))
             
             case("opt")
                 ! ===== basal friction optimization ==================
 
-                if (ts%time_elapsed .le. opt%rel_time2) then 
-                    ! Apply relaxation to the model 
-
-                    ! Update model relaxation time scale and error scaling (in [m])
-                    call optimize_set_transient_param(opt%rel_tau,ts%time_elapsed,time1=opt%rel_time1,time2=opt%rel_time2, &
-                                                    p1=opt%rel_tau1,p2=opt%rel_tau2,m=opt%rel_m)
-                    
-                    ! Set model tau, and set yelmo relaxation switch (4: gl line and grounding zone relaxing; 0: no relaxation)
-                    yelmo1%tpo%par%topo_rel_tau = opt%rel_tau 
-                    yelmo1%tpo%par%topo_rel     = 4
-                
-                else 
-                    ! Turn-off relaxation now
-
-                    yelmo1%tpo%par%topo_rel = 0 
-
-                end if 
+                call relax_update(rlx,yelmo1%tpo%par,ts%time_elapsed,topo_rel0,topo_rel_tau0)
 
                 ! === Optimization update step =========
 
@@ -407,21 +399,12 @@ program yelmo_test
             case("relax")
                 ! ===== relaxation spinup ==================
 
-                ! Turn on relaxation for now, to let thermodynamics equilibrate
-                ! without changing the topography too much. Important when 
-                ! effective pressure = f(thermodynamics).
+                ! Relaxation only, to let thermodynamics equilibrate without
+                ! changing the topography too much. Important when effective
+                ! pressure = f(thermodynamics).
 
-                yelmo1%tpo%par%topo_rel     = 2
-                yelmo1%tpo%par%topo_rel_tau = 50.0 
-                write(*,*) "timelog, tau = ", yelmo1%tpo%par%topo_rel_tau
-                
-                if ( ts%time_elapsed .ge. ctl%time_equil) then
-                    ! Finally, ensure all relaxation is disabled and continue as normal.
+                call relax_update(rlx,yelmo1%tpo%par,ts%time_elapsed,topo_rel0,topo_rel_tau0)
 
-                        yelmo1%tpo%par%topo_rel     = 0
-                        write(*,*) "timelog, relaxation off..."
-                    
-                end if 
         end select 
 
         ! == UPDATE YELMO =======================================================

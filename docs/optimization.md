@@ -38,16 +38,20 @@ they control is switched off in `optimize_cb_ref`.
 ## Relaxation of the ice shelves
 
 The optimization works best when the floating ice and the grounding zone are
-first held close to the observed thickness and then gradually released. The
-relaxation time scale `tau` (`tpo%par%topo_rel_tau`) is `rel_tau1` until
-`rel_time1`, increases to `rel_tau2` at `rel_time2` as
+first held close to the observed thickness and then gradually released. This
+relaxation is separate from the optimization (`relax_params`, `relax_par_load`,
+`relax_update`, group `&relax`): while active, `ytopo.topo_rel` is
+`relax.topo_rel`, and the time scale `tau` (`tpo%par%topo_rel_tau`) is `tau1`
+until `time1` and increases to `tau2` at `time2` as
 
 $$
-\tau = \tau_1 + (\tau_2 - \tau_1)\left(\frac{t - t_1}{t_2 - t_1}\right)^m,
+\tau = \tau_1 + (\tau_2 - \tau_1)\left(\frac{t - t_1}{t_2 - t_1}\right)^m.
 $$
 
-with $m$ = `rel_m`, and relaxation is switched off after `rel_time2`. initmip
-relaxes the grounding zone (`ytopo.topo_rel = 4`).
+After `time2`, the `ytopo` values `topo_rel` and `topo_rel_tau` of the par file
+apply again. initmip relaxes the grounding zone (`relax.topo_rel = 4`), for
+`equil_method = "relax"` (relaxation only) and `"opt"` (relaxation +
+optimization).
 
 ## Parameters
 
@@ -56,8 +60,10 @@ In `&opt` (times are counted from `ctrl.time_init`, also after a restart):
 - `opt_cf`: switch for the friction optimization, active between
   `cf_time_init` and `cf_time_end` (default 0–15 kyr);
 - `cf_init`: initial `cb_ref` everywhere without a restart (must be positive);
-- `tau_c`, `H0`, `fill_method`, `rel_tau1`, `rel_tau2`, `rel_time1`,
-  `rel_time2`, `rel_m` as above.
+- `tau_c`, `H0`, `fill_method` as above.
+
+In `&relax` (times also counted from `ctrl.time_init`): `topo_rel`, `tau1`,
+`tau2`, `time1`, `time2`, `m` as above.
 
 The optimization of the ocean thermal forcing (`opt_tf`) is not implemented
 and stops the model.

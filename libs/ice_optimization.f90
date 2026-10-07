@@ -1,6 +1,7 @@
 module ice_optimization
 
-    use yelmo_defs, only : sp, dp, wp, prec, io_unit_err, pi, missing_value, mv, tol_underflow
+    use yelmo_defs, only : sp, dp, wp, prec, io_unit_err, pi, missing_value, mv, tol_underflow, &
+                           ytopo_param_class
     use nml 
 
     use gaussian_filter 
@@ -19,13 +20,6 @@ module ice_optimization
         character(len=56) :: fill_method 
         logical  :: basin_fill
 
-        real(wp) :: rel_tau 
-        real(wp) :: rel_tau1 
-        real(wp) :: rel_tau2
-        real(wp) :: rel_time1
-        real(wp) :: rel_time2
-        real(wp) :: rel_m
-
         logical  :: opt_tf 
         real(wp) :: tf_time_init
         real(wp) :: tf_time_end
@@ -42,11 +36,26 @@ module ice_optimization
         
     end type 
 
+    type relax_params
+        ! Relaxation of the ice thickness towards a reference (ytopo.topo_rel),
+        ! with a timescale ramp, over the times elapsed since the start of the run.
+        integer  :: topo_rel        ! ytopo.topo_rel mode while active (e.g. 3: all points, 4: gl + grounding zone)
+        real(wp) :: tau1            ! [yr] relaxation timescale until time1
+        real(wp) :: tau2            ! [yr] relaxation timescale at time2
+        real(wp) :: time1           ! [yr] end of the tau1 period
+        real(wp) :: time2           ! [yr] end of the ramp; relaxation off afterwards
+        real(wp) :: m               ! [--] non-linear exponent of the ramp between time1 and time2
+    end type 
+
     private 
 
     public :: ice_opt_params
     public :: optimize_par_load 
     public :: optimize_set_transient_param
+
+    public :: relax_params
+    public :: relax_par_load
+    public :: relax_update
 
     public :: optimize_tf_corr
     public :: optimize_tf_corr_basin
@@ -86,12 +95,6 @@ contains
         call nml_read(path_par,group,"sigma_vel",   opt%sigma_vel)   
         call nml_read(path_par,group,"fill_method", opt%fill_method)
         call nml_read(path_par,group,"basin_fill",  opt%basin_fill)   
-        
-        call nml_read(path_par,group,"rel_tau1",    opt%rel_tau1)   
-        call nml_read(path_par,group,"rel_tau2",    opt%rel_tau2)  
-        call nml_read(path_par,group,"rel_time1",   opt%rel_time1)    
-        call nml_read(path_par,group,"rel_time2",   opt%rel_time2) 
-        call nml_read(path_par,group,"rel_m",       opt%rel_m)
 
         call nml_read(path_par,group,"opt_tf",      opt%opt_tf)
         call nml_read(path_par,group,"tf_time_init",opt%tf_time_init)
@@ -134,6 +137,53 @@ contains
         return 
 
     end subroutine optimize_set_transient_param
+
+    subroutine relax_par_load(rlx,path_par,group)
+        ! Load the relaxation parameters (e.g. group "relax").
+
+        implicit none
+
+        type(relax_params), intent(INOUT) :: rlx 
+        character(len=*),   intent(IN)    :: path_par 
+        character(len=*),   intent(IN)    :: group 
+
+        call nml_read(path_par,group,"topo_rel", rlx%topo_rel)
+        call nml_read(path_par,group,"tau1",     rlx%tau1)
+        call nml_read(path_par,group,"tau2",     rlx%tau2)
+        call nml_read(path_par,group,"time1",    rlx%time1)
+        call nml_read(path_par,group,"time2",    rlx%time2)
+        call nml_read(path_par,group,"m",        rlx%m)
+
+        return
+
+    end subroutine relax_par_load
+
+    subroutine relax_update(rlx,tpo_par,time_elapsed,topo_rel0,topo_rel_tau0)
+        ! Set the relaxation of Yelmo's topography for the time elapsed since
+        ! the start of the run: while time_elapsed <= time2, mode rlx%topo_rel
+        ! with the timescale ramp tau1 -> tau2; afterwards, the par-file values
+        ! topo_rel0 / topo_rel_tau0.
+
+        implicit none
+
+        type(relax_params),      intent(IN)    :: rlx 
+        type(ytopo_param_class), intent(INOUT) :: tpo_par 
+        real(wp),                intent(IN)    :: time_elapsed 
+        integer,                 intent(IN)    :: topo_rel0 
+        real(wp),                intent(IN)    :: topo_rel_tau0 
+
+        if (time_elapsed .le. rlx%time2) then 
+            call optimize_set_transient_param(tpo_par%topo_rel_tau,time_elapsed,time1=rlx%time1, &
+                                              time2=rlx%time2,p1=rlx%tau1,p2=rlx%tau2,m=rlx%m)
+            tpo_par%topo_rel = rlx%topo_rel 
+        else 
+            tpo_par%topo_rel     = topo_rel0 
+            tpo_par%topo_rel_tau = topo_rel_tau0 
+        end if 
+
+        return
+
+    end subroutine relax_update
 
     subroutine optimize_tf_corr(tf_corr,H_ice,H_grnd,dHicedt,H_obs,H_grnd_obs,H_grnd_lim, &
                                 basins,basin_fill,tau_m,m_temp,tf_min,tf_max,dx,sigma,dt)
