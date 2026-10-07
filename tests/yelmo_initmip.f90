@@ -373,7 +373,7 @@ program yelmo_test
 
                 ! === Optimization update step =========
 
-                if (opt%opt_cf .and. &
+                if (trim(opt%opt_cf) .eq. "L21" .and. &
                         (ts%time_elapsed .ge. opt%cf_time_init .and. ts%time_elapsed .le. opt%cf_time_end) ) then
                     ! Perform cf_ref optimization
                 
@@ -386,12 +386,11 @@ program yelmo_test
                     
                 end if
 
-                if (opt%opt_tf .and. &
-                        (ts%time_elapsed .ge. opt%tf_time_init .and. ts%time_elapsed .le. opt%tf_time_end) ) then
-                    ! Perform tf_corr optimization
+                if (trim(opt%opt_tf) .ne. "none") then
+                    ! No ocean model here (bmb_shlf is prescribed), so there is no tf_corr to optimize
 
-                    write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not yet defined."
-                    write(io_unit_err,*) "Best solution for now: set opt_tf=False."
+                    write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not available."
+                    write(io_unit_err,*) "Set opt_tf = 'none'."
                     error stop 1
 
                 end if 
