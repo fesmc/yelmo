@@ -461,7 +461,8 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#continuum-form" id="toc-continuum-form" class="nav-link" data-scroll-target="#continuum-form">Continuum form</a></li>
   <li><a href="#discrete-form" id="toc-discrete-form" class="nav-link" data-scroll-target="#discrete-form">Discrete form</a></li>
-  <li><a href="#the-three-methods" id="toc-the-three-methods" class="nav-link" data-scroll-target="#the-three-methods">The three methods</a></li>
+  <li><a href="#the-four-methods" id="toc-the-four-methods" class="nav-link" data-scroll-target="#the-four-methods">The four methods</a></li>
+  <li><a href="#uz-flux" id="toc-uz-flux" class="nav-link" data-scroll-target="#uz-flux">Flux-consistent vertical velocity (<code>uz_method = 4</code>)</a></li>
   <li><a href="#practical-caveats" id="toc-practical-caveats" class="nav-link" data-scroll-target="#practical-caveats">Practical caveats</a></li>
   </ul></li>
   <li><a href="#uz_star-the-sigma-relative-advective-velocity" id="toc-uz_star-the-sigma-relative-advective-velocity" class="nav-link" data-scroll-target="#uz_star-the-sigma-relative-advective-velocity"><code>uz_star</code> — the sigma-relative advective velocity</a>
@@ -578,9 +579,9 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <p>The bedrock and sea-level rates are the changes since the previous call of <code>yelmo_update</code> (<code>ybound_update_rates</code>). They are written to the restart file, so a continued run uses the same rates; they are zero on the first call after initialisation or after a restart that does not continue the run.</p>
 <p><strong>The sigma-ness is removed, not embedded.</strong> The coordinate corrections are applied to the <em>horizontal derivatives</em> precisely so that what gets integrated is the true constant-<span class="math inline">z</span> divergence. What comes out, <code>uz</code>, is honest physical <span class="math inline">w</span> in a fixed frame.</p>
 </section>
-<section id="the-three-methods" class="level3">
-<h3 class="anchored" data-anchor-id="the-three-methods">The three methods</h3>
-<p><code>ydyn.uz_method</code> selects among three implementations that differ only in how the horizontal derivatives are evaluated — all three produce the same quantity. They use the column of the dynamics (<code>H_ice_dyn</code>), so partial front cells are full columns with the effective thickness:</p>
+<section id="the-four-methods" class="level3">
+<h3 class="anchored" data-anchor-id="the-four-methods">The four methods</h3>
+<p><code>ydyn.uz_method</code> selects among four implementations. Methods 1–3 integrate the horizontal divergence as above and differ in how it is discretized. They use the column of the dynamics (<code>H_ice_dyn</code>), so partial front cells are full columns with the effective thickness. Method 4 integrates the layer mass budget instead (see <a href="#uz-flux">below</a>):</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -593,25 +594,50 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 <tr class="odd">
 <td>1 (<code>uz_aa</code>)</td>
 <td><code>calc_uz_3D_aa</code></td>
-<td>simplest; plain finite differences on <code>aa</code>-nodes</td>
+<td>divergence from the two faces of each cell, <span class="math inline">(u_{i+1/2}-u_{i-1/2})/\Delta x</span>, the same face differences as the thickness equation</td>
 </tr>
 <tr class="even">
 <td>2 (<code>uz_nodes</code>)</td>
 <td><code>calc_uz_3D</code></td>
-<td>Gaussian-quadrature sub-node averaging</td>
+<td>Gaussian-quadrature sub-node averaging (same effective stencil as method 3)</td>
 </tr>
 <tr class="odd">
 <td>3 (<code>uz_jac</code>)</td>
 <td><code>calc_uz_3D_jac</code></td>
-<td><strong>default</strong>; uses the precomputed 3D velocity Jacobian <code>jvel</code> from <code>calc_jacobian_vel_3D_uxyterms</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a>), with 3D quadrature. The constant-<span class="math inline">z</span> correction is applied in the Jacobian, so <code>uz</code> is integrated from the corrected divergence directly. Most stable and most correct.</td>
+<td><strong>default</strong>; uses the precomputed 3D velocity Jacobian <code>jvel</code> from <code>calc_jacobian_vel_3D_uxyterms</code> (<a href="https://github.com/fesmc/yelmo/blob/main/src/physics/deformation.f90"><code>deformation.f90</code></a>), with 3D quadrature. The constant-<span class="math inline">z</span> correction is applied in the Jacobian, so <code>uz</code> is integrated from the corrected divergence directly.</td>
+</tr>
+<tr class="even">
+<td>4 (<code>uz_flux</code>)</td>
+<td><code>calc_uz_3D_flux</code></td>
+<td><code>uz_star</code> from the layer mass budget, with the layer fluxes closed against the applied thickness step; <code>uz</code> recovered from <code>uz_star</code></td>
 </tr>
 </tbody>
 </table>
+<p>Methods 2 and 3 average the divergence over neighbouring cells. Along the flow, the centred face derivatives <span class="math inline">(u_{i+3/2}-u_{i-1/2})/(2\Delta x)</span> averaged to the cell centre give a four-face stencil, which does not see a 2<span class="math inline">\Delta x</span> oscillation of the velocity; across the flow, the corner and quadrature averaging weights the neighbouring rows by 1/4, 1/2, 1/4. This smooths grid-scale noise in the divergence: in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatch <code>uz_srf_err</code> and a 2–5 times smoother <code>uz</code> than method 1. However, where the divergence changes from one cell to the next, the vertical velocity of a column is mixed with that of its neighbours: in the A4 benchmark (plug flow with uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a surface <code>uz</code> off by up to a factor of 5 next to a jump in the divergence, while method 1 is exact.</p>
+</section>
+<section id="uz-flux" class="level3">
+<h3 class="anchored" data-anchor-id="uz-flux">Flux-consistent vertical velocity (<code>uz_method = 4</code>)</h3>
+<p>Method 4 computes <code>uz_star</code> directly from the mass budget of each layer <span class="math inline">k</span> between <span class="math inline">\zeta_{k-1/2}</span> and <span class="math inline">\zeta_{k+1/2}</span>,</p>
+<p><span class="math display">
+w^\star_{k+1/2} \;=\; w^\star_{k-1/2} \;-\; \Delta\zeta_k\,\frac{\partial H}{\partial t} \;-\; D_k,
+\qquad w^\star_{1/2} = \dot b ,
+</span></p>
+<p>where <span class="math inline">D_k = \nabla\cdot(H\,\Delta\zeta_k\,\mathbf{u}_k)</span> is the flux divergence of layer <span class="math inline">k</span> and <span class="math inline">\partial H/\partial t</span> = <code>dzsdt_kin</code> − <code>dzbdt_kin</code> is the vertical thickness change of the column. <span class="math inline">D_k</span> is formed with the stencil of the thickness solver (face thickness of <code>H_ice</code> upwind by the sign of the depth-averaged velocity). Since the trapezoid weights of <code>zeta_aa</code> are the layer thicknesses <span class="math inline">\Delta\zeta_k</span>, the sum of the layer fluxes is the flux divergence <span class="math inline">\nabla\cdot(H\bar{\mathbf{u}})</span> of the current velocity. Where the column rate is given by the applied thickness step (<code>tpo%now%mask_kin</code> = 1), the layer fluxes are corrected additively,</p>
+<p><span class="math display">
+D_k \;\leftarrow\; D_k + \Delta\zeta_k\Bigl(-\dot H_\mathrm{dyn} - \sum_m D_m\Bigr),
+</span></p>
+<p>so that they sum to the applied transport <span class="math inline">-\dot H_\mathrm{dyn}</span> (<code>dHidt_dyn</code>). The correction absorbs the differences between the thickness step and the current velocity solution (time-filtered velocity, implicit face thickness, predictor–corrector weighting) and is distributed over the column like the layer thickness. The surface value is then</p>
+<p><span class="math display">
+w^\star_s \;=\; -\dot a \;-\; \dot H_\mathrm{clip} \;-\; \dot H_\mathrm{relax},
+</span></p>
+<p>the kinematic condition, with the clip of negative thickness (<code>mb_clip</code>) and the relaxation (<code>mb_relax</code>) as additional surface terms. The physical <code>uz</code> is recovered from <code>uz_star</code> with the coordinate terms of the next section, so the two fields stay consistent.</p>
+<p><code>mask_kin</code> is 0 where the column is re-derived (partial front cells, cells on the <code>H_eff</code> floor, cells that became fully ice covered during the step) and wherever the thickness is not advanced (<code>topo_fixed</code>, initialization). There the layer fluxes are those of the current velocity and <span class="math inline">\partial H/\partial t = 0</span>, so the surface condition holds only if the ice is in balance. For uniform thickness along the flow (benchmark A4), the uncorrected layer fluxes are exact and do not mix neighbouring columns.</p>
+<p>The vertical velocity is computed in the dynamics, after the predictor step. With <code>pc_use_H_pred = True</code> (default), the predictor is the applied thickness step and the closure is exact. With <code>pc_use_H_pred = False</code>, the corrected thickness is applied, and the closure differs from it by the predictor–corrector truncation error.</p>
 </section>
 <section id="practical-caveats" class="level3">
 <h3 class="anchored" data-anchor-id="practical-caveats">Practical caveats</h3>
 <ul>
-<li><strong>The surface kinematic BC is not enforced.</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward, and the surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is not imposed. So <code>uz</code> is <em>exactly divergence-consistent and exactly satisfies the basal BC</em>; any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. The mismatch is diagnosed as <code>uz_srf_err</code> = <span class="math inline">w^\star_s + \dot a</span> in fully ice-covered cells.</li>
+<li><strong>The surface kinematic BC is not enforced (methods 1–3).</strong> <code>uz</code> is anchored at the <em>base</em> and integrated upward, and the surface condition <span class="math inline">w_s = \partial s/\partial t + u_s\,\partial s/\partial x + v_s\,\partial s/\partial y - \dot a</span> is not imposed. So <code>uz</code> <em>exactly satisfies the basal BC</em>, and any mismatch with the surface BC accumulates as a residual at the top rather than being spread through the column. The mismatch is diagnosed as <code>uz_srf_err</code> = <span class="math inline">w^\star_s + \dot a</span> in fully ice-covered cells. It is not zero, since the integrated divergence (<span class="math inline">H\,\nabla\cdot\mathbf{u}</span> plus the basal and coordinate terms) is not the discrete flux divergence of the thickness equation, which uses face thicknesses and the time-filtered velocity (<code>pc_filter_vel</code>). It is largest at grounding lines and outlet margins (several m/yr in Greenland at 16 km) for all three methods. Method 4 closes it by construction where <code>mask_kin</code> = 1.</li>
 <li><strong>No clamps.</strong> <code>uz</code> and <code>uz_star</code> are not limited; in fast outlets <span class="math inline">w</span> reaches tens of m/yr. Values below <code>TOL_UNDERFLOW</code> are zeroed.</li>
 <li><strong>Ice-free points</strong> get <code>uz = dzbdt - max(smb,0)</code> and <code>uz_star = uz</code>.</li>
 </ul>
