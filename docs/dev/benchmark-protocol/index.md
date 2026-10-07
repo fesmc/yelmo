@@ -300,20 +300,19 @@ The coupled B1 thus does not test a land margin set by ablation: the initial tem
 
 B1 rerun (2026-10-07, dev d23b4810: r_ela = 350 km, R_i = 450 km, mask budget fix; albedo; single precision with 16 threads, double precision with 1 thread):
 
-| Run | D4 error H / velocity at 5 kyr | max \|r_M\| per 10 yr | V [1e6 km³], 0 → 5 kyr |
+| Run | max D4 error over 5 kyr, H / velocity (enthalpy) | max \|r_M\| per 10 yr | V [1e6 km³], 0 → 5 kyr |
 |---|---|---|---|
-| 32 km isothermal, L / L-R | 2e-7 / 3–4e-6 | 4–5e-7 | 1.47 → 1.61 |
-| 32 km coupled, L / L-R | 1–4e-6 / 1e-5 | 5e-7 | 1.47 → 1.25 / 1.28 |
-| 16 km isothermal, L / L-R | 2–3e-7 / 6–9e-6 | 6–7e-7 | 1.47 → 1.64 |
-| 16 km coupled, L-R | 4e-4 / 5e-3 | 5e-7 | 1.47 → 1.29 |
-| 16 km coupled, L | 5e-4 / 1e-2 (peak 1e-2 / 1.1 at 0.6–2.4 kyr) | 7e-7 | 1.47 → 1.26 |
-| Double precision: 32 km isothermal, 32 km coupled, 16 km coupled | ≤ 7e-14 / ≤ 1e-12 | ≤ 2e-11 | as single precision |
+| 32 km isothermal, L / L-R | 3e-7 / 6e-6 | 4–5e-7 | 1.47 → 1.61 |
+| 32 km coupled, L / L-R | 4e-6 / 2e-4 (4e-4) | 5e-7 | 1.47 → 1.25 / 1.28 |
+| 16 km isothermal, L / L-R | 4e-7 / 1e-5 | 6–7e-7 | 1.47 → 1.64 |
+| 16 km coupled, L / L-R | 2e-2 / 1 (0.5); velocity 1e-2 at 5 kyr | 5–7e-7 | 1.47 → 1.26 / 1.29 |
+| Double precision, L: 32 km isothermal, 32 km coupled, 16 km coupled | 7e-14 / 1e-12 (3e-13) | 2e-11 | as single precision |
 
 - The margin stays inside r_lim in all runs, and the mass budget closes to round-off from the time series (`mb_resid_tot`, `mb_clip_tot`, `mb_relax_tot`).
-- In single precision, the coupled run at 16 km loses the symmetry between 0.3 and 0.6 kyr: the velocity error reaches order one at single cells and the enthalpy error 0.3 of its range, and both decay after 2.5 kyr. The same run in double precision stays symmetric to 1e-12. The break is therefore the amplification of single-precision round-off by a threshold in the coupled thermodynamics (e.g., a cell switching between cold and temperate base), not an asymmetry in the code.
+- In single precision, both coupled runs at 16 km lose the symmetry (L from 0.3–0.6 kyr, L-R from 1–2 kyr): the velocity error reaches order one at single cells and falls to 1e-2 by 5 kyr, while the enthalpy error stays at 0.2–0.5 of its range. The coupled 16 km run of ISLAND4-L in double precision stays symmetric to 1e-12. The break is therefore the amplification of single-precision round-off by a threshold in the coupled thermodynamics (e.g., a cell switching between cold and temperate base), not an asymmetry in the code.
 - ISLAND4-L vs ISLAND4-L-R: V differs by 6e-4 (32 km) and 2e-3 (16 km) in the isothermal runs and by 2 % in the coupled runs after 5 kyr; the margin radii differ by one to two cells.
 
-![B1 ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
+![B1 rerun (r_ela = 350 km, R_i = 450 km, single precision). ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
 
 B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
 
