@@ -10,6 +10,8 @@
 #   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/shelf-r-10km.nc shelf-r dx_km=10
 #   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/strip-a4-tsrf.nc strip exp=tsrf
 #   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
+#   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-4km-a1-r.nc flowline A=4.6416e-24 dx_km=4 dxg_start=-100e3
+#   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1-sym.nc flowline A=4.6416e-24 domain=symmetric
 #
 # Keys are the keyword arguments of the benchmark constructor (exp selects the
 # experiment, island4 and strip). Numbers are parsed as Float64, true/false as Bool, the rest as Symbol.
