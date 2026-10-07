@@ -4,14 +4,13 @@
     tstep_const     = 0.0               ! Assumed time for "const" method
     time_init       = 0.0               ! [yr] Starting time 
     time_end        = 1e3               ! [yr] Ending time
-    time_equil      = 0e3               ! [yr] Equilibration time (equil_method="relax"), counted from time_init
     restart_mode    = "state"           ! "state": start at time_init from a (spun-up) restart state; "continue": continue the restart's simulation (time_init must equal the restart time)
-                                        ! time_equil and opt cf_time_*, tf_time_*, rel_time* are times elapsed since time_init (start of this run):
+                                        ! opt cf_time_*, tf_time_* and relax time1, time2 are times elapsed since time_init (start of this run):
                                         ! a "continue" run starts the spin-up/optimisation schedule again
     dtt             = 10.0              ! [yr] Main loop timestep 
 
     with_ice_sheet  = True              ! Active ice-sheet component? 
-    equil_method    = "opt"             ! "none", "relax", "opt"
+    equil_method    = "opt"             ! "none", "relax" (relaxation, [relax]), "opt" (relaxation + optimization, [relax] + [opt])
     init_temp       = "robin"           ! Initial temperature profile: "robin" or "robin-cold" (cold base)
 
     set_nm          = "set_grl_pd"     ! "set_grl_pd", "set_ant_pd" or "set_ant_lgm"
@@ -93,7 +92,7 @@
 /
 
 &opt
-    ! cf_time_*, tf_time_*, rel_time* [yr]: time elapsed since ctrl.time_init (start of this run), also after a restart
+    ! cf_time_*, tf_time_* [yr]: time elapsed since ctrl.time_init (start of this run), also after a restart
     opt_cf          = True              ! Should basal friction be optimized?
     cf_time_init    = 0.0               ! [yr] When should optimization of basal friction start?
     cf_time_end     = 15e3              ! [yr] When should optimization of basal friction stop?
@@ -104,12 +103,6 @@
     sigma_err       = 50e3              ! [m] Smoothing radius for error to calculate correction in cf_ref
     sigma_vel       = 100.0             ! [m/yr] Speed at which smoothing diminishes to zero
     fill_method     = "cf_min"          ! nearest, analog, target, cf_min
-
-    rel_tau1        = 100.0  !1.0               ! [yr] Relaxation timescale in time period 1
-    rel_tau2        = 2000.0 !6000.0            ! [yr] Relaxation timescale in time period 2
-    rel_time1       = 2000.0 !1e3               ! [yr] Time limit for time period 1
-    rel_time2       = 6000.0 !1e3               ! [yr] Time limit for time period 2
-    rel_m           = 2.0               ! [--] Non-linear exponent to scale interpolation of rel_tau between time1 and time2 
 
     opt_tf          = False              ! Should thermal forcing be optimized?
     tf_time_init    = 0.0               ! [yr] When should optimization of thermal forcing start?
@@ -122,6 +115,17 @@
     tf_max          =  1.0              ! [degC] Maximum allowed tf_corr value 
     tf_basins       = -1                ! Basin numbers to optimize (-1 for all basins)
     basin_fill      = False    
+/
+
+&relax
+    ! Relaxation of the topography (ytopo.topo_rel) during the spin-up (equil_method "relax" or "opt").
+    ! time1, time2 [yr]: time elapsed since ctrl.time_init (start of this run), also after a restart
+    topo_rel        = 4                 ! ytopo.topo_rel mode while active (4: grounding line + grounding zone)
+    tau1            = 100.0             ! [yr] Relaxation timescale until time1
+    tau2            = 2000.0            ! [yr] Relaxation timescale at time2
+    time1           = 2000.0            ! [yr] End of the tau1 period
+    time2           = 6000.0            ! [yr] End of the relaxation (then the ytopo values apply)
+    m               = 2.0               ! [--] Non-linear exponent of the tau1 -> tau2 ramp
 /
 
 &yelmo

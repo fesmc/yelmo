@@ -236,7 +236,7 @@ initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
 Levante shared node). Grey: DIVA in Robinson et al. (2022), Fig. 3, on
 one processor. The lines are fits of $\Delta t \propto \Delta x^p$.](img/timing-resolution-grl.png)
 
-The runs use `par/yelmo_initmip.nml` with `ctrl.time_end=1000 ctrl.time_equil=0`.
+The runs use `par/yelmo_initmip.nml` with `ctrl.time_end=1000`.
 The mean time step is the simulated time divided by the number of time steps, and
 the model speed is the simulated time per hour of wall time of the main loop. The
 time step is set by the predictor-corrector controller (`yelmo.pc_eps = 0.02`)

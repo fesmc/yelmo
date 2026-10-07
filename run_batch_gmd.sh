@@ -48,13 +48,13 @@ make initmip
 # For LGM forcing, set ctrl.set_nm="set_ant_lgm".
 # For higher resolutions, change yelmo.grid_name to "ANT-16KM" or "ANT-8KM" (4 km not yet supported).
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/initmip-ant-32km \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 \
        ctrl.set_nm="set_ant_pd" yelmo.log_timestep=True \
        ydyn.solver="diva" yelmo.domain="Antarctica" yelmo.grid_name="ANT-32KM"
 
 # Antarctica resolution ensemble (32 / 16 / 8 km).
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/initmip-ant-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 \
        ctrl.set_nm="set_ant_pd" yelmo.log_timestep=True \
        ydyn.solver="diva" yelmo.domain="Antarctica" \
        yelmo.grid_name="ANT-32KM","ANT-16KM","ANT-8KM"
@@ -62,23 +62,23 @@ runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/initm
 # Greenland present-day initialization (single run, 32 km).
 # For higher resolutions, change yelmo.grid_name to "GRL-16KM", "GRL-8KM", or "GRL-4KM".
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/initmip-grl-32km \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 \
        ctrl.set_nm="set_grl_pd" yelmo.log_timestep=True \
        ydyn.solver="diva" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
 
 # Greenland resolution ensemble (32 / 16 / 8 / 4 km).
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/initmip-grl-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 \
        ctrl.set_nm="set_grl_pd" yelmo.log_timestep=True \
        ydyn.solver="diva" yelmo.domain="Greenland" \
        yelmo.grid_name="GRL-32KM","GRL-16KM","GRL-8KM","GRL-4KM"
 
 # Solver stability (Robinson et al., 2022): Greenland with DIVA, one run and all resolutions
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/grl-diva-test \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" \
        yelmo.log_timestep=True ydyn.solver="diva" yelmo.grid_name="GRL-16KM"
 runme ${runopt} -w 05:00:00 -e initmip -n par/yelmo_initmip.nml -o ${fldr}/grl-diva \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" \
+    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" \
        yelmo.log_timestep=True ydyn.solver="diva" yelmo.grid_name="GRL-32KM","GRL-16KM","GRL-8KM","GRL-4KM"
 
 # OpenMP scaling (GRL-8KM, 1-32 threads)
@@ -87,7 +87,7 @@ make initmip openmp=1
 gridname='GRL-8KM'
 for nt in 1 2 4 8 16 32; do
     runme ${runopt} -w 01:00:00 --omp ${nt} -e initmip -n par/yelmo_initmip.nml -o ${fldr}/openmp/${gridname}-omp$(printf "%02d" ${nt}) \
-        -p yelmo.grid_name=${gridname} ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 ctrl.set_nm="set_grl_pd" \
+        -p yelmo.grid_name=${gridname} ctrl.dtt=5 ctrl.time_end=1e3 ctrl.set_nm="set_grl_pd" \
            yelmo.domain="Greenland" yelmo.log_timestep=True
 done
 make clean
