@@ -32,7 +32,7 @@ function report_run(run)
             abs(b.r_M[k]), b.time[k], b.time[2] - b.time[1], sum(abs, b.r_M[2:end]) / (length(b.r_M) - 1))
     c = budget_closure(run)
     kc = argmax(abs.(c.r_C))
-    @printf("  closed budget      max |r_C| = %.1e at t = %.0f yr, max |r_M − r_C| (mb_resid, mb_relax) = %.1e  (%d intervals ending at 2D times)\n",
+    @printf("  closed budget      max |r_C| = %.1e at t = %.0f yr, max |r_resid| (mb_resid + mb_relax) = %.1e  (%d intervals ending at 2D times)\n",
             abs(c.r_C[kc]), c.time[kc], maximum(abs, c.r_resid), length(c.time))
     @printf("  V: %.4f → %.4f 1e6 km³\n", b.V[1] * 1e-15, b.V[end] * 1e-15)
 end

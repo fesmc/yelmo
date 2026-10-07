@@ -2,9 +2,10 @@
 # Mass budget residual from the Yelmo time series (yelmo_ts.nc).
 #
 # The driver writes yelmo_ts.nc after every outer step dtt. The budget terms
-# (smb_tot, bmb_tot, fmb_tot, dmb, cmb) are the rates applied by Yelmo,
-# averaged over that step (calc_ytopo_rates), so their integral over the
-# output interval (t[n-1], t[n]] is (t[n] - t[n-1]) times the value at t[n].
+# (smb_tot, bmb_tot, fmb_tot, dmb, cmb, and mb_relax_tot, mb_resid_tot,
+# mb_clip_tot when written) are the rates applied by Yelmo, averaged over
+# that step (calc_ytopo_rates), so their integral over the output interval
+# (t[n-1], t[n]] is (t[n] - t[n-1]) times the value at t[n].
 # ----------------------------------------------------------------------
 
 export mass_budget, budget_closure
@@ -14,11 +15,14 @@ export mass_budget, budget_closure
 
 Mass budget residual per output interval of yelmo_ts.nc,
 
-    r_M[n] = [ΔV − Δt (SMB + BMB + FMB + DMB + CMB)] / V[n],
+    r_M[n] = [ΔV − Δt (SMB + BMB + FMB + DMB + CMB + RELAX + RESID + CLIP)] / V[n],
 
-with all terms integrated over the region of the time series (the calving
-mask of the benchmark). CMB is negative for calving. Returns (time, r_M, V,
-dV, flux), with dV and flux in m³ per interval; r_M[1] (initial state) is 0.
+with all terms integrated over the region of the time series (the whole
+domain). CMB is negative for calving. RELAX, RESID and CLIP (mb_relax_tot,
+mb_resid_tot, mb_clip_tot: relaxation, removal at the margin and at masked
+cells, clipping of negative thickness) are used when yelmo_ts.nc has them.
+Returns (time, r_M, V, dV, flux), with dV and flux in m³ per interval;
+r_M[1] (initial state) is 0.
 """
 function mass_budget(run::AbstractString)
     file = isdir(run) ? joinpath(run, "yelmo_ts.nc") : run
@@ -26,7 +30,9 @@ function mass_budget(run::AbstractString)
         t = Float64.(ds["time"][:])
         V = Float64.(ds["V_ice"][:]) .* 1e15          # [1e6 km³] → [m³]
         rate = zeros(length(t))
-        for name in ("smb_tot", "bmb_tot", "fmb_tot", "dmb", "cmb")   # [m³/yr]
+        for name in ("smb_tot", "bmb_tot", "fmb_tot", "dmb", "cmb",
+                     "mb_relax_tot", "mb_resid_tot", "mb_clip_tot")              # [m³/yr]
+            haskey(ds, name) || continue
             rate .+= Float64.(coalesce.(ds[name][:], 0.0))
         end
         dt   = [0.0; diff(t)]
@@ -47,13 +53,12 @@ output time (yelmo.nc):
     r_C = [ΔV − Δt Σ (mb_net + cmb) dx²] / V,
 
 where mb_net (2D, averaged over the interval like the time-series terms) also
-holds the margin terms that the time series does not resolve (mb_resid: thin
-and isolated margin ice, the mask_ice constraint; mb_relax). A nonzero r_C is
-mass that leaves without any budget term, e.g. transport into cells with
-mask_ice = none, which the advection solver holds at zero thickness. Returns
-(time, r_C, r_resid), with r_resid = Δt Σ (mb_net − smb − bmb − fmb) dx² / V
-the part of r_M explained by mb_resid and mb_relax (fmb when written; the 2D
-output has no dmb).
+holds mb_relax and mb_resid (thin and isolated margin ice, the mask_ice
+constraint, applied after transport). It is a check of the time-series
+budget from the 2D output; mb_clip is not included. A nonzero r_C is mass
+that changes without a budget term. Returns (time, r_C, r_resid), with
+r_resid = Δt Σ (mb_net − smb − bmb − fmb) dx² / V the part of mb_net from
+mb_resid and mb_relax (fmb when written; the 2D output has no dmb).
 """
 function budget_closure(run::AbstractString)
     b = mass_budget(run)
