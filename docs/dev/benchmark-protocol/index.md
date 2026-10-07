@@ -173,7 +173,9 @@ The driver `tests/yelmo_calving.f90` runs CalvingMIP Experiment 1 on the circula
 
 Tier C runs the production setup on ISLAND4. It is the main target of the protocol.
 
-- **C0 Spin-up.** The run starts from the Vialov profile and column enthalpy of A3 and continues until the drift criterion is met (|dV/dt|/V below a threshold per kyr, to be set). The thermal adjustment takes about 10⁴–10⁵ yr. C0 runs once per model version and resolution (32, 16 and 8 km) on Levante. The restarts are stored and used by C1–C3.
+- **C0 Spin-up.** The run continues until the drift criterion is met (|dV/dt|/V < 0.1 % kyr⁻¹). The restarts are stored and used by C1–C3.
+  - At 32 and 16 km (routine), C0 starts from the Vialov profile and column enthalpy of A3 and runs 50 kyr; the criterion is met after about 35 kyr, as the thermal adjustment is slow. This takes about 0.5 and 1 h on 16 threads, and is repeated for each model version.
+  - At 8 km, C0 is a resolution check, not part of the routine suite. A run from the Vialov profile takes 4–8 h on 16 threads. The 8 km run therefore starts from the 16 km C0 restart, interpolated onto the 8 km grid by the restart interpolation of Yelmo, so that the thermal state is already close to equilibrium. It runs until the drift criterion is met, expected after about 10 kyr (to be confirmed). It is repeated when a change is expected to affect the resolution dependence, e.g., of the grounding line.
 - **C1 Control.** 1 kyr from the C0 restart without changes. Metrics: drift in V, A_g and A_f, symmetry error and mass budget residual.
 - **C2 Perturbations.** 500 yr from the C0 restart.
   - C2a Ocean: Ω × 2.
