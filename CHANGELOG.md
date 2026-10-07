@@ -7,6 +7,18 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **K24 key names follow FastHydrology dev** (fesmc/FastHydrology#14): in `&yhyd`,
+  `k24_ub_hook` -> `k24_N_ub_coupled`, `k24_manning_exponent` -> `k24_glen_n`,
+  `k24_manning_coefficient_exponent` -> `k24_flux_W_exponent`,
+  `k24_bed_friction_exponent` -> `k24_flux_grad_exponent`, `k24_bed_thickness` ->
+  `k24_bed_bump_height`, `k24_initial_cavity_height` -> `k24_H0_efficient`,
+  `k24_coupling_length` -> `k24_conduit_spacing`, `k24_eta_w` -> `k24_water_viscosity`,
+  `k24_max_coupling_iters` / `k24_coupling_rtol` / `k24_coupling_verbose` ->
+  `k24_max_qN_iters` / `k24_qN_rtol` / `k24_qN_verbose`. Values unchanged. New
+  `k24_kappa_z_hard` / `k24_kappa_z_soft` (-500 / -1500 m) for `k24_substrate_type = 3`
+  (MIXED_SMOOTH, fesmc/FastHydrology#7); type 4 (EXTERNAL) is not supported by yelmo.
+  Needs FastHydrology dev 8e681d0 or later.
+
 - **Optimization methods as strings.** `opt.opt_cf` and `opt.opt_tf` are no
   longer logical: `opt_cf = "none" | "L21"` (`optimize_cb_ref`), `opt_tf =
   "none" | "L21" | "L21-points"` (`optimize_tf_corr_basin`, one correction per

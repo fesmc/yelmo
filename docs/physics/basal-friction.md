@@ -140,9 +140,9 @@ the closure is chosen with `yhyd.bkt_N_closure`:
 
 With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
 the transport model. Its $N$ depends on the basal velocity, so with
-`yhyd.k24_ub_hook = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
+`yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
 velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
-iteration; with `k24_ub_hook = False`, $N$ is evaluated once per time step. A
+iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. A
 host model that owns the hydrology can do the same through the C-API callback
 `yelmo_set_neff_callback`. With `ydyn.neff_nxi` > 0, the cell value of
 $N_\mathrm{eff}$ is the average of the hydrology's $N$ interpolated to sub-grid

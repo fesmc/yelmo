@@ -202,9 +202,9 @@ momentum equation is nonlinear. Yelmo solves it by Picard iteration
 7. with an effective pressure that depends on the basal velocity, re-evaluates
    $N$ from $u_b$, and with it the friction coefficient `c_bed` (`neff_hook`).
    This happens with the K24 hydrology (`yhyd.method_transport = 1`) and
-   `yhyd.k24_ub_hook = True` (default), or when a host has registered a
+   `yhyd.k24_N_ub_coupled = True` (default), or when a host has registered a
    callback with `yelmo_set_neff_callback` (C API). With
-   `k24_ub_hook = False`, $N$ is evaluated once per time step.
+   `k24_N_ub_coupled = False`, $N$ is evaluated once per time step.
 
 The iteration stops when the relative L2 change of the velocity,
 $\lVert \bar{\mathbf u}^{k} - \bar{\mathbf u}^{k-1}\rVert / \lVert \bar{\mathbf u}^{k-1}\rVert$
