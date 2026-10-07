@@ -202,7 +202,7 @@ contains
 
     end subroutine apply_tendency
 
-    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy, &
+    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
                                                     solver,boundaries,dx,dt,F,lin_iter,lin_status)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving.
@@ -216,6 +216,7 @@ contains
         real(wp),         intent(IN)    :: f_ice(:,:)           ! [--]  Ice area fraction 
         real(wp),         intent(IN)    :: ux(:,:)              ! [m/a] Depth-averaged velocity, x-direction (ac-nodes)
         real(wp),         intent(IN)    :: uy(:,:)              ! [m/a] Depth-averaged velocity, y-direction (ac-nodes)
+        integer,          intent(IN)    :: mask_ice(:,:)        ! Ice mask (bnd%mask_ice), only selects the border-cell equations
         character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
         character(len=*), intent(IN)    :: boundaries
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
@@ -237,7 +238,7 @@ contains
         if (present(F)) F_now = F 
 
         ! Determine current advective rate of change (time=n)
-        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
+        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
 
         return 
 

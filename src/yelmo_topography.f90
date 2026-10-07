@@ -131,11 +131,11 @@ contains
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                 tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                  lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = lin_iter
                     tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
@@ -177,10 +177,10 @@ end if
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                 lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
                     tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
