@@ -1,6 +1,7 @@
 # Courant cap on transporting faces: design proposal
 
-Status: implemented on branch `cfl-transport` (off dev b7416276), tested (2026-10-07, section 5).
+Status: merged to dev (2026-10-07), with commit 3. Final algorithm: docs/physics/timestepping.md
+("Transport velocity and Courant limit"). Tests (section 5) ran without dt-growth-cap (19f131cc).
 Decisions on the open points (section 3): closed faces only; the cap uses the transport
 velocity, filtered with `pc_filter_vel`; face opening in the predictor left to `pc_eta`;
 one routine for advection and cap. Commits:
