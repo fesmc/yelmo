@@ -228,6 +228,13 @@ contains
                 bcs(3) = "periodic"
                 bcs(4) = "infinite"
 
+            case("periodic-y")
+
+                bcs(1) = "infinite"
+                bcs(2) = "periodic"
+                bcs(3) = "infinite"
+                bcs(4) = "periodic"
+
             case DEFAULT 
 
                 bcs(1:4) = "zero"
