@@ -186,18 +186,6 @@
     cf_ref          =  0.8              ! [-- or deg] Reference/const/max value of cf
 /
 
-&yhyd schema for FastHydrology.
-!
-! Every parameter fast_hydrology / bucket / closures / k24 reads MUST be
-! declared here: nml_read is called with defaults_file="input/yelmo_defaults.nml"
-! and defaults_group="yhyd", which takes the value from this file and then
-! overlays the user's own file on top. A missing key is a hard error, not a
-! fallback to the code default.
-!
-! When FastHydrology runs as a library inside Yelmo, Yelmo's own
-! input/yelmo_defaults.nml is the file on this path -- keep the &yhyd block
-! there in sync with this one.
-
 &yhyd
     ! Basal hydrology (fasthydrology). Closure parameters mirror the legacy
     ! &yneff till closure; W_til_max / bkt_till_rate mirror the legacy &ytherm bucket.
