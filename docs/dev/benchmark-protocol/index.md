@@ -125,12 +125,12 @@ where (ξ_k, η_k) are the coordinates along and across the k-th diagonal, and T
 | r_h | 250 km | Radius of the trough head |
 | α | 120° | Opening angle of the troughs |
 | ℓ | 50 km | Width of the trough walls and head |
-| D_0 | 1500 m | Trough depth below the base profile |
+| D_0 | 1000 m | Trough depth below the base profile |
 | B_od | 0 or 700 m | Depth of the overdeepening (0: off) |
 | r_od | 350 km | Radius of the deepest point of the overdeepening |
 | w_od | 60 km | Half-width of the overdeepening |
 
-The island forms a four-pointed star (Fig. 1a). The coast reaches r ≈ 556 km along the axes and r ≈ 278 km along the diagonals. Ice in the troughs grounds below sea level and feeds the shelves. With the control forcing, the ice also grounds beyond the coast of the peninsulas, so a continuous shelf surrounds the island out to r_lim. Land-terminating margins are therefore tested in ISLAND4-L (B1). The wide opening angle gives smooth, concave coastlines, so that the geometry does not favor the onset of instabilities. With B_od = 0, the trough beds deepen monotonically seaward, so the steady state is unique, which a regression test needs. Setting B_od > 0 adds an overdeepening with a retrograde bed between r ≈ 360 and 448 km (Fig. 1b, d), which tests marine ice-sheet instability. A single parameter thus switches the instability test on and off.
+The island forms a four-pointed star (Fig. 1a). The coast reaches r ≈ 556 km along the axes and r ≈ 290 km along the diagonals. Ice in the troughs grounds below sea level and feeds the shelves. With the control forcing, the ice also grounds beyond the coast of the peninsulas, so a continuous shelf surrounds the island out to r_lim. Land-terminating margins are therefore tested in ISLAND4-L (B1). The wide opening angle gives smooth, concave coastlines, so that the geometry does not favor the onset of instabilities. With B_od = 0, the trough beds deepen monotonically seaward, so the steady state is unique, which a regression test needs. Setting B_od > 0 adds an overdeepening with a retrograde bed between r ≈ 360 and 448 km (Fig. 1b, d), which tests marine ice-sheet instability. A single parameter thus switches the instability test on and off.
 
 Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1c). The base profile and the forcing are radial, so ISLAND4-R has the same solution as ISLAND4 in the continuum, rotated by 45°. Differences between the two runs measure the dependence of the discrete solution on grid orientation.
 
@@ -140,7 +140,7 @@ Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1
 
 The forcing is radial or depends on the local state only, so it preserves the D4 symmetry. Fixed fields are generated in Julia with the geometry. Forcing that depends on the evolving ice geometry is computed during the run by a Fortran function in the driver. Each online function has a Julia counterpart, so that the forcing written by the model can be checked against the specification.
 
-- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 650 km (450 km for ISLAND4-L). For a linear profile, the net SMB of a disc of radius R vanishes at R = 1.5 r_ela. With r_ela = 650 km, this radius lies beyond r_lim, so the marine margins are set by melt and calving, and the SMB on the shelves stays between about −0.1 and +0.1 m a⁻¹. ISLAND4-L keeps r_ela = 450 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
+- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 800 km (450 km for ISLAND4-L). Since r_ela lies beyond r_lim, the SMB is positive everywhere inside r_lim (0.03 m a⁻¹ at r_lim), and the marine margins are set by melt and calving. ISLAND4-L keeps r_ela = 450 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
 - **Surface temperature (online).** T_srf = T_sl − Γ z_s, with T_sl = −10 °C and Γ = 8 K km⁻¹. The temperature follows the evolving surface, which keeps it consistent with the ice geometry. Its feedback on the dynamics acts through the thermodynamics only and is weak.
 - **Geothermal heat flux (fixed).** Q_geo = 50 mW m⁻², uniform.
 - **Sub-shelf melt (online).** The MISMIP+ Ice1 parameterization (Asay-Davis et al., 2016), m = Ω tanh(H_c/H_c0) max(z_0 − z_d, 0), with Ω = 0.01 a⁻¹, H_c0 = 75 m and z_0 = −200 m, where z_d is the depth of the ice base and H_c the water-column thickness. We chose it because it is a community standard, and the tanh term reduces the melt smoothly toward the grounding line. The MISMIP+ values (Ω = 0.2 a⁻¹, z_0 = −100 m) are sized for the ice flux of MISMIP+, and on ISLAND4 they remove about 30 times more ice than the island supplies (about 3e10 m³ a⁻¹ per trough with r_ela = 450 km). The values used here give no melt below shelves thinner than about 225 m, about 1.5 m a⁻¹ below 400 m of ice and about 7 m a⁻¹ at a grounding line 1 km deep.
@@ -148,6 +148,8 @@ The forcing is radial or depends on the local state only, so it preserves the D4
 - **Friction.** The friction law of the default parameter file with spatially uniform parameters.
 
 The values of r_ela, Ω and z_0 come from a sweep of 5-kyr runs at 32 km (2026-10-05). With the original values (r_ela = 450 km and the MISMIP+ melt), the shelves were about 50–65 m thick on average and ended inside r_lim. With the values above, the shelves reach r_lim, with a mean thickness of about 150 m and about 90 m at the front. Weaker melt or more accumulation increases this only slightly. The shelf thickness is limited by the geometry: beyond the coast the shelves are unconfined and spread under their own weight (strain rate ∝ H^n), so they thin to a few hundred meters within one or two cells of the grounding line. Raising B_l to −840 m extends the peninsulas to about 660 km, but the troughs then form 90° sectors between narrow spurs and give little lateral support (mean shelf thickness about 165 m, about 110 m at the front). We therefore kept B_l = −2000 m. Thin unconfined shelves are the physical solution of this geometry, and they still test the floating momentum balance, calving at r_lim and sub-shelf melt.
+
+The first C0 spin-ups (50 kyr, 32/16/8 km, D_0 = 1500 m, r_ela = 650 km) converged with resolution to a grounding line at the coast everywhere, so the troughs held no grounded ice below sea level. The marine grounded ice at 32 and 16 km was a resolution artifact. A sweep at 16 km with `uz_method = 4` (50 kyr, 2026-10-07) showed that the trough depth controls the grounding line; B_l changes the trough floor by only about 100 m. With D_0 = 1000 m the grounding line rests on the trough floor at r ≈ 440–465 km, with about 0.3e6 km² of grounded ice below sea level, compared with r ≈ 305 km and 0.1e6 km² for D_0 = 1500 m. With D_0 = 700 m it reaches the axis coast, and one run had not reached a steady state after 50 kyr. Raising r_ela from 650 to 800 km moves the grounding line by about 25 km and thickens the shelves by about 25 m. Lowering z_0 from −200 to −400 m changes the shelf thickness by about 10 m. We chose D_0 = 1000 m and r_ela = 800 km. The grounding line then lies just seaward of the retrograde section of the overdeepened variant (r ≈ 358–448 km).
 
 ## Tier B: one margin type at a time
 
@@ -176,7 +178,7 @@ Tier C runs the production setup on ISLAND4. It is the main target of the protoc
 - **C2 Perturbations.** 500 yr from the C0 restart.
   - C2a Ocean: Ω × 2.
   - C2b Shelf removal: all floating ice removed at each time step (as in ABUMIP).
-  - C2c Surface: SMB − 0.1 m a⁻¹ everywhere (r_ela moves to 520 km).
+  - C2c Surface: SMB − 0.1 m a⁻¹ everywhere (r_ela moves to 640 km).
   - C2d Reversibility (optional): C2a followed by 500 yr of control forcing.
 
   The references are resolution convergence (32, 16, 8 km) and a regression envelope against the previous model version. The run length of 500 yr will be shortened if the signals become clear earlier.

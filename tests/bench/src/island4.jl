@@ -14,7 +14,7 @@
 #
 # Forcing:
 #   smb_ref   radial, SMB0 (1 − r/r_ela)                      (fixed)
-#             r_ela = 650 km (ISLAND4), 450 km (ISLAND4-L)
+#             r_ela = 800 km (ISLAND4), 450 km (ISLAND4-L)
 #   Q_geo     uniform                                          (fixed)
 #   mask_ice  no ice for r ≥ r_lim                             (fixed)
 #   T_srf     lapse rate on the evolving surface               (online)
@@ -43,7 +43,7 @@ trough axis). The walls are straight lines from the apex at ξ = r_h with
 opening angle `alpha` [deg], smoothed over `ell`. `B_od` > 0 adds an
 overdeepening centred at ξ = r_od.
 """
-function island4_trough(ξ, η; r_h = 250e3, alpha = 120.0, ell = 50e3, D0 = 1500.0,
+function island4_trough(ξ, η; r_h = 250e3, alpha = 120.0, ell = 50e3, D0 = 1000.0,
                         B_od = 0.0, r_od = 350e3, w_od = 60e3)
     φ = deg2rad(alpha / 2)
     T = 0.5 * (1 + tanh(((ξ - r_h) * tan(φ) - sqrt(η^2 + ell^2)) / ell))
@@ -70,7 +70,7 @@ function island4_bed(x, y; B_od = 0.0, rot = 0.0, dz = 0.0, Bl = -2000.0, kw...)
 end
 
 "Radial surface mass balance [m/a ice eq.]."
-island4_smb(r; smb0 = 0.5, r_ela = 650e3) = smb0 * (1 - r / r_ela)
+island4_smb(r; smb0 = 0.5, r_ela = 800e3) = smb0 * (1 - r / r_ela)
 
 """
     island4_vialov(r; H0 = 3500.0, R_i = 650e3, n = 3) -> Float64
@@ -127,11 +127,11 @@ Keywords:
   - `dx_km`  grid resolution [km]; the axes are cell-centred on [-800, 800] km.
   - `B_od`   depth of the trough overdeepening [m] (0: off).
   - `Bl`     base-profile elevation at R0 = 1000 km [m]; sets the coast radius.
-  - `D0`     trough depth below the base profile [m]; sets the depth of the
-             marine bed in the troughs.
+  - `D0`     trough depth below the base profile [m], default 1000 m; sets the
+             depth of the marine bed in the troughs.
   - `rot`    rotation of the troughs [deg]: 0 (diagonals) or 45 (axes, ISLAND4-R).
   - `land`   true: ISLAND4-L, bed raised by 2500 m (B1).
-  - `r_ela`  radius of the equilibrium line [m]; default 650 km, or 450 km for
+  - `r_ela`  radius of the equilibrium line [m]; default 800 km, or 450 km for
              ISLAND4-L, where ablation sets the land margin inside r_lim.
   - `init`   initial thickness: `:vialov_grounded` (Vialov profile where it is
              grounded, no initial floating ice; prognostic runs), `:vialov` (Vialov
@@ -160,7 +160,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
                           dx_km::Real  = 16.0,
                           B_od::Real   = 0.0,
                           Bl::Real     = -2000.0,
-                          D0::Real     = 1500.0,
+                          D0::Real     = 1000.0,
                           rot::Real    = 0.0,
                           land::Bool   = false,
                           init::Symbol = :vialov_grounded,
@@ -183,7 +183,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
     xc = collect(range(-extent_m/2 + dx_m/2, extent_m/2 - dx_m/2; length = N))
 
     dsmb = exp == :smb ? -0.1 : 0.0
-    r_ela = something(r_ela, land ? 450e3 : 650e3)
+    r_ela = something(r_ela, land ? 450e3 : 800e3)
 
     return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(Bl), Float64(D0), Float64(rot),
                             land, init, Float64(smb0), Float64(r_ela), dsmb,
