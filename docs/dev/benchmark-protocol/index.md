@@ -161,9 +161,20 @@ The run is not in thermal equilibrium after 5 kyr. However, symmetry and conserv
 
 ### B2 Marine flowline
 
-B2 tests grounding-line dynamics in a strip that is periodic in y, with a small number of cells across the flow (about 3–5). It follows the MISMIP experiment 1 setup (linear prograde bed) for several values of A. The periodic strip is a true one-dimensional problem, so there are no lateral walls.
+B2 tests grounding-line dynamics in a strip that is periodic in y (`yelmo.experiment = "periodic-y"`), with three cells across the flow. It follows the MISMIP experiment 1 setup (Pattyn et al., 2012): bed b(x) = 720 − 778.5 |x|/750 km, accumulation a = 0.3 m a⁻¹ everywhere, no basal melt, n = 3, ρ_i = 900 and ρ_w = 1000 kg m⁻³, g = 9.8 m s⁻² (`phys_const = "MISMIP3D"`). The domain is x ∈ [−1800, 1800] km with the ice divide at x = 0 on a cell centre, so the strip has neither lateral walls nor a divide boundary condition. A fixed calving front at |x| = 1700 km is set by `mask_ice`, with `calv_flt_method = "zero"`. The runs are isothermal (`rf_method = 0`, `ytherm.method = "fixed"`).
 
-The reference is the boundary-layer flux of Schoof (2007) for a power-law friction law, and of Tsai et al. (2015) for a Coulomb friction law. The run starts from the semi-analytic steady profile, computed in Julia by integrating the inland profile upstream from the grounding line given by the flux formula. This shortens the run to the adjustment time, about 2–5 kyr, instead of a full spin-up from zero. The test reports the final grounding-line position against the reference, and dx_g/dt over the run, at dx = 1, 2, 4 and 8 km. The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+The friction law is the power law τ_b = C |u|^(m−1) u with C = 7.624e6 Pa m^(−1/3) s^(1/3) and m = 1/3. In Yelmo (`beta_method = 2`) β = c_bed (|u|/u_0)^q / |u|, so the power law follows with q = m, u_0 = 1 m a⁻¹ and c_bed = C sec_year^(−m) = 24126 Pa (m a⁻¹)^(−1/3), with c_bed = `cf_ref` × N_eff, a constant N_eff = 1 Pa (`yhyd.bkt_N_closure = 0`) and no frozen-bed scaling (`frz_scale = False`). We use A = 4.6416e-24, 4.6416e-25 and 4.6416e-26 Pa⁻³ s⁻¹ (MISMIP steps 1, 4 and 7), for which the reference grounding line lies at x_g = 1052.5, 1226.7 and 1492.8 km.
+
+The reference is the boundary-layer flux of Schoof (2007, Eq. 29), q_g = [A (ρ_i g)^(n+1) (1 − ρ_i/ρ_w)^n / (4^n C)]^(1/(m+1)) h_g^((m+n+3)/(m+1)), with the steady grounding line where q_g(x_g) = a x_g. For a Coulomb friction law it is the flux of Tsai et al. (2015) (not yet implemented). The run starts from the semi-analytic steady profile, computed in Julia (`FlowlineBenchmark`): the outer solution of Schoof (2007), C (a x/h)^m = −ρ_i g h d(h + b)/dx, integrated upstream from h(x_g) = h_g, and the unconfined shelf, d(uh)/dx = a and du/dx = A [ρ_i g (1 − ρ_i/ρ_w) h/4]^n, integrated downstream to the calving front. This shortens the run to the adjustment time, about 2–5 kyr, instead of a full spin-up from zero. The test reports the final grounding-line position against the reference, and dx_g/dt over the run, at dx = 1, 2, 4 and 8 km (8 km done). The grounding line is the zero of the thickness above flotation, interpolated linearly between cell centres (as `f_grnd_acx`). The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+
+```bash
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
+runme -r -e bench -n par/yelmo_bench_FLOWLINE.nml -o output/bench/b2-8km-a1 \
+      -p bench.fixture=input/bench/flowline-8km-a1.nc ymat.rf_const=1.464746277216e-16
+julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1.nc output/bench/b2-8km-a1
+```
+
+The fixture attributes `rf_const` and `cf_ref` give the parameter values for its A and C; `check_flowline.jl` warns if the run used other values.
 
 ### B3 CalvingMIP circular Exp1 (exists)
 
@@ -276,6 +287,20 @@ A4 (2026-10-05, 10 km, 7 × 38 cells, 12 parameter sets with Pe ≈ 0.5–33, T_
 - With a single row per parameter set, the default vertical velocity (`uz_method = 3`) gave a surface uz of up to 5 times −SMB next to a jump in SMB/H between rows, and temperature errors of ~7 K after 5 kyr. Methods 2 and 3 average the divergence over the neighbouring cells; method 1 uses the face differences of the thickness equation and is exact here. In realistic flow the averaging is an advantage: method 3 gives a 1.5–4 times smaller surface mismatch `uz_srf_err` and a 2–5 times smoother uz than method 1 in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr). Both methods leave a mismatch of several m a⁻¹ at grounding lines and outlet margins, since neither is the discrete flux divergence of the thickness equation. The method also changes the ISLAND4 state after 1 kyr considerably (temperate basal fraction 0.17 with method 1 and 0.08 with method 3, volume difference 9 %), which shows the thermomechanical sensitivity of the early spin-up. We kept method 3 and use three rows per parameter set.
 - Stationary test (A4a), 50 kyr from the analytic profile: the maximum error is 0.45, 0.14 and 0.03 K for nz = 10, 20 and 40, i.e., second-order convergence to the analytic solution, and the columns of a row agree to output precision (~1e-4 K).
 - Transient tests (A4b), 50 kyr from the stationary P1 profile: IceColumnSolutions.jl used opposite sign conventions for Pe in its stationary and transient solutions (inherited from Moreno-Parada et al., 2024), and the wrong sign of the heat source for Pe ≠ 0; both are fixed in fesmc/IceColumnSolutions.jl#7, with finite-difference tests. With the corrected reference, SMB × 2 gives a maximum error of 0.44 K at nz = 10 at all times. The step T_srf − 10 K gives 0.3–2.3 K after 1 kyr and less than 0.9 K from 10 kyr on, dominated by the surface boundary layer, which the vertical grid resolves poorly at early times; the errors converge with nz (row maxima at 5 kyr of 1.4, 0.65 and 0.25 K for nz = 10, 20 and 40). The step itself cannot be compared at t = 0, and the 10-mode series is not converged at 1 kyr for the highest Péclet number (Pe = 33).
+
+B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
+
+- Periodic-y. The new `experiment = "periodic-y"` transposes `periodic-x` throughout the code. A periodic-y strip and the transposed periodic-x strip (`make_fixture.jl flowline transpose=true`, 32 km, 500 yr, tight tolerances) give identical H, z_srf, speed, β and viscosity in the single-precision output; the velocity components differ by 1e-14 relative to the speed (`tests/bench/check_transpose.jl`).
+- Friction. τ_b = β |u_b| from the output equals C |u_b|^(1/3) to 1e-4 at grounded cells.
+- Grounding line. The model grounding line lies 0.2–0.9 % downstream of the reference. Most of the shift occurs in the first 100 yr (2–10 km); afterwards x_g changes by less than 1 km, and the two sides of the divide and the three rows agree to 1 cm.
+
+| A [Pa⁻³ s⁻¹] | x_g Schoof (2007) [km] | x_g model, 5 kyr [km] | Difference | dx_g/dt, last 100 yr [m a⁻¹] | Run time [min] |
+|---|---|---|---|---|---|
+| 4.6416e-24 | 1052.5 | 1062.3 | +9.8 km (0.9 %) | −0.022 | 17 |
+| 4.6416e-25 | 1226.7 | 1230.9 | +4.1 km (0.3 %) | −0.017 | 9 |
+| 4.6416e-26 | 1492.8 | 1495.3 | +2.5 km (0.2 %) | −0.005 | 5 |
+
+- Hysteresis. Started from the steady profile of the neighbouring A values, the run with A = 4.6416e-25 does not reach the same grounding line. From the profile of 4.6416e-24 the grounding line advances in steps to 1184 km after 10 kyr (dx_g/dt = 0.006 m a⁻¹); from the profile of 4.6416e-26 it stays at 1491 km (−0.001 m a⁻¹), 264 km downstream of the reference. There, the model flux across the grounding line is 0.37e6 m² a⁻¹, below a x_g = 0.45e6 m² a⁻¹, while the boundary-layer flux at this thickness is 2.5e6 m² a⁻¹. The grounded ice is controlled by sliding and nearly independent of A, so A acts only through the boundary layer at the grounding line, which 8 km does not resolve. `beta_gl_stag = 3` or 4 instead of 1 gives the same result (1488 km after 5 kyr). At 8 km the start from the steady profile therefore does not constrain x_g: B2 needs runs from perturbed starts on both sides of the reference, and finer grids (1–4 km, not yet run).
 
 ### Model changes
 
