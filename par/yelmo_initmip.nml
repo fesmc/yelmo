@@ -102,7 +102,7 @@
 
     sigma_err       = 50e3              ! [m] Smoothing radius for error to calculate correction in cf_ref
     sigma_vel       = 100.0             ! [m/yr] Speed at which smoothing diminishes to zero
-    fill_method     = "cf_min"          ! nearest, analog, target, cf_min
+    fill_method     = "cf_min"          ! target, cf_min
 
     opt_tf          = "none"            ! Thermal forcing optimization: "none" (only option in initmip)
     tf_time_init    = 0.0               ! [yr] When should optimization of thermal forcing start?
@@ -133,7 +133,7 @@
     grid_name       = "GRL-16KM"
     grid_path       = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     phys_const      = "Earth"
-    experiment      = "None"       ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "infinite"; "MASK_ICE"
+    experiment      = "None"       ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "periodic-y"; "infinite"; "MASK_ICE"
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"
