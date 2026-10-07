@@ -993,7 +993,9 @@ contains
         ! Initialize region: global domain
         ! Writing to file will only take place if user-program calls yelmo_regions_write(),
         ! which uses the flag specified below. The output path comes from dom%outfldr.
-        call yelmo_region_init(dom%reg,"global",mask=(dom%bnd%mask_ice /= MASK_ICE_NONE), &
+        ! The global region covers the whole domain: cells with MASK_ICE_NONE hold no
+        ! ice, but the ice removed there (mb_resid) belongs to the mass budget.
+        call yelmo_region_init(dom%reg,"global",mask=spread(spread(.TRUE.,1,size(dom%bnd%mask_ice,1)),2,size(dom%bnd%mask_ice,2)), &
                                write_to_file=.TRUE.,outfldr=dom%outfldr)
 
         ! Initialize regional averaging domains too (global region + zero subdomains for now)
