@@ -170,9 +170,9 @@ contains
 
             ! === Diagnose different adaptive timestep limits ===
 
-            ! Courant limits on the faces that transport ice in the predictor
-            ! (closed faces at partial front cells excluded)
-            call calc_transport_velocity(ux_t,uy_t,dom%tpo,dom%dyn,dom%bnd,filter_vel=.FALSE.)
+            ! Courant limits on the velocity that transports ice in the predictor
+            ! (closed faces at partial front cells excluded; filtered with pc_filter_vel)
+            call calc_transport_velocity(ux_t,uy_t,dom%tpo,dom%dyn,dom%bnd,dom%par%pc_filter_vel)
 
             ! Calculate adaptive time step from CFL constraints 
             call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv, &
