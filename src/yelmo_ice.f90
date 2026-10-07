@@ -68,6 +68,7 @@ contains
         integer  :: n_ssa_fail, n_adv_fail             ! Linear solves at breakdown or the iteration limit (this call)
         integer  :: n_lim_steps, n_lim_max             ! Steps with faces at the velocity limit, and max faces (this call)
         logical, allocatable :: pc_mask(:,:) 
+        real(wp), allocatable :: ux_t(:,:), uy_t(:,:)   ! Transport velocity for the Courant cap
 
         character(len=1012) :: kill_txt
 
@@ -129,6 +130,7 @@ contains
         call calc_ytopo_rates(dom%tpo,dom%bnd,time,dt=0.0_wp,step="init",check_mb=dom%par%log_mb_check)
 
         allocate(pc_mask(dom%grd%G%nx,dom%grd%G%ny))
+        allocate(ux_t(dom%grd%G%nx,dom%grd%G%ny),uy_t(dom%grd%G%nx,dom%grd%G%ny))
         
         ! Stop on non-finite forcing (under -Ofast it would otherwise be
         ! turned into finite values without triggering a kill)
@@ -168,14 +170,18 @@ contains
 
             ! === Diagnose different adaptive timestep limits ===
 
+            ! Courant limits on the faces that transport ice in the predictor
+            ! (closed faces at partial front cells excluded)
+            call calc_transport_velocity(ux_t,uy_t,dom%tpo,dom%dyn,dom%bnd,filter_vel=.FALSE.)
+
             ! Calculate adaptive time step from CFL constraints 
             call set_adaptive_timestep(dt_adv_min,dom%time%dt_adv, &
-                                dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%now%dHidt, &
+                                ux_t,uy_t,dom%tpo%now%dHidt, &
                                 dom%tpo%par%dx,dom%par%dt_min,dt_max,dom%par%cfl_max,dom%tpo%par%boundaries)
             
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
-                                    dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
+                                    ux_t,uy_t,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
                                     dom%par%pc_cfl_max,dom%tpo%par%boundaries)
 
             ! ajr restart check:
