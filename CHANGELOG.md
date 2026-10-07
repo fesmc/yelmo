@@ -702,6 +702,9 @@ little. MISMIP3D and DIVA runs change more.
   restarts from. The other backends restart as before.
 - **Imposed `beta_acx/acy` (`beta_gl_stag = -1`)** is no longer raised to `beta_min`
   or overwritten at the domain borders.
+- **New `yelmo.experiment = "periodic-y"`**: periodic in y (true wrap, period ny) and
+  infinite in x, the transpose of `periodic-x` in all solvers. A periodic-y strip
+  reproduces the transposed periodic-x strip to round-off (B2 flowline, 32 km, 500 yr).
 
 - **Frontal melt `ytopo.fmb_method = 3`** (Rignot et al., 2016, ISMIP7 protocol)
   with the new boundary field `bnd%tf_shlf` (thermal forcing) and the subglacial
