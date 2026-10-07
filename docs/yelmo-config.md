@@ -29,8 +29,7 @@ In addition to the defaults, the model enforces consistency checks at load time:
 `yelmo-config` mirrors the enum checks made with `yelmo_check_enum` (extracted
 from `src/` by `yelmo-config snapshot`) and the range and ordering checks listed
 in its `constraints.toml`, so you can catch most problems before launching a
-run. The allowed values of `ytherm.basal_bc_method` and `ytherm.cap_source`
-are checked only by the model.
+run.
 
 ## Installation
 

@@ -210,6 +210,27 @@
   },
   {
     "group": "ytherm",
+    "name": "basal_bc_method",
+    "allowed": [
+      "capacity",
+      "wtil"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "cap_source",
+    "allowed": [
+      "auto",
+      "hyd",
+      "till",
+      "water",
+      "none"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
     "name": "dt_method",
     "allowed": [
       "FE",
