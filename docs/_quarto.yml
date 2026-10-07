@@ -33,11 +33,13 @@ website:
       - section: "Installation"
         href: getting-started.md
         contents:
+          - configme-install-details.md
           - hpc-notes.md
       - benchmarks.md
       - parameters.md
       - yelmo-config.md
       - optimization.md
+      - c-api.md
       - section: "Physics"
         href: physics/index.md
         contents:

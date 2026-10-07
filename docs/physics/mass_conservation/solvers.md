@@ -35,8 +35,11 @@ fluxes are evaluated in time. The other options are `"expl"`, `"impl-upwind"`,
 advection). All schemes are first order in space. The fluxes are
 conservative (the flux leaving cell $(i,j)$ across a face is the same flux
 entering its neighbour), so the advection does not create or destroy mass,
-apart from the domain boundaries, cells with a prescribed thickness and the
-rate limiter below.
+apart from the flux through the domain edge and, in the explicit schemes, the
+rate limiter below. The ice mask `bnd%mask_ice` is not imposed in the
+advection: every cell is advected, and `calc_G_boundaries` imposes the mask
+afterwards and books the change in `mb_resid` (see
+[Mass conservation](index.md)).
 
 The advection solver is called twice per time step, in the predictor and the
 corrector of the [time-stepping scheme](../timestepping.md).
@@ -116,10 +119,14 @@ not a parameter).
 
 The rows at the domain edge depend on the boundary type of the experiment
 (`yelmo.experiment`): zero thickness at the edge (default), zero normal
-gradient (`"infinite"`) or periodic. MISMIP3D and TROUGH-F17 combine a zero
-edge, an outflow edge and periodic sides. Cells with
-`bnd%mask_ice = NONE` are held at $H = 0$ and cells with `FIXED` at their
-current thickness; only `DYNAMIC` cells are solved.
+gradient (`"infinite"`), periodic in both directions, or periodic in one
+direction and zero gradient in the other (`"periodic-x"`, `"periodic-y"`).
+`"MASK_ICE"` uses zero gradient on all edges. MISMIP3D and TROUGH-F17 have
+zero thickness at $x_\mathrm{max}$, zero gradient at the symmetry edge
+$x = 0$ and periodic sides in $y$. Border cells with `bnd%mask_ice = NONE` or
+`FIXED` do not use the edge condition: they are solved as inner cells with no
+flux through the domain edge, so that the flux through their inner faces is
+kept and booked in `mb_resid`.
 
 Because the implicit upwind scheme is unconditionally stable for this
 linear transport problem, it tolerates larger Courant numbers than

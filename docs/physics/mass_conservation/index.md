@@ -59,7 +59,8 @@ Each topography step applies the terms one after another, each with
 8. boundary and margin corrections `mb_resid`.
 
 The ice fraction `f_ice` is diagnosed from $H$ between the stages
-(`update_ice_fraction`). `apply_tendency` adds $\Delta t\,\dot m$ to $H$, sets
+(`update_ice_fraction`); ice thinner than 1 mm (`H_ice_eps`) counts as ice
+free. `apply_tendency` adds $\Delta t\,\dot m$ to $H$, sets
 negative thickness to zero and resets $\dot m$ to the rate actually applied, so
 that the stored rates close the budget. The change made by this limit during
 the advection step (mostly ice added where advection would give negative
@@ -70,7 +71,9 @@ $$
 $$
 
 with `mb_net` = `smb + bmb + fmb + dmb + mb_relax + mb_resid`; the remainder is
-written as `mb_err`.
+written as `mb_err`. The region time series (`yelmo_ts.nc`) include the totals
+`mb_relax_tot`, `mb_resid_tot` and `mb_clip_tot`; the global region covers the
+whole domain.
 
 The mass-balance rates are prepared by `calc_G_mbal`: melt is limited to the
 available ice ($\dot m \ge -H/\Delta t$), ice-free cells cannot melt, and no ice
@@ -139,8 +142,10 @@ With `ytopo.topo_rel` ≠ 0, the thickness is relaxed towards a reference
 start of the step) with the time scale `topo_rel_tau`, in a subset of cells:
 1, floating cells and cells without ice in the reference; 2, as 1 plus the
 grounding line; 3, all cells; 4, grounded grounding-zone cells; −1, the
-per-cell time scale `bnd%tau_relax`. Relaxation is used during
-[optimization](../../optimization.md) spin-ups.
+per-cell time scale `bnd%tau_relax`. Relaxation applies only where
+`bnd%mask_ice` = `DYNAMIC`. A driver can change `topo_rel` and `topo_rel_tau`
+over time with the `&relax` group, with or without the friction optimization
+(see [Optimization](../../optimization.md)).
 
 ## Boundary and margin corrections
 
@@ -154,4 +159,6 @@ per-cell time scale `bnd%tau_relax`. Relaxation is used during
   front cells);
 - the domain boundary conditions and the ice mask `bnd%mask_ice` are applied:
   no ice where `mask_ice` is `NONE`, and the prescribed thickness where it is
-  `FIXED`.
+  `FIXED`. This is the only place where the mask is imposed: the advection
+  moves ice into and out of masked cells, and the change made here is booked,
+  so the budget closes at masked cells too.

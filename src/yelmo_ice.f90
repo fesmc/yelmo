@@ -1706,7 +1706,7 @@ contains
         call yelmo_parse_path(par%restart,par%domain,par%grid_name)
 
         ! dt_min must be greater than zero 
-        if (par%dt_min .eq. 0.0) then 
+        if (par%dt_min .le. 0.0_wp) then 
             write(*,*) "yelmo_par_load:: dt_min must be greater than zero."
             write(*,*) "dt_min = ", par%dt_min 
             error stop 1

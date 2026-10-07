@@ -80,9 +80,11 @@ modification).
 At ice fronts, the depth-integrated imbalance between ice and water pressure
 $\tau_{l,\mathrm{int}}$ enters as a Neumann condition on the front faces.
 `ydyn.ssa_lat_bc` selects the fronts where it is applied: `"marine"`
-(default; floating and marine-terminating fronts), `"floating"` (floating
-fronts), `"all"` or `"none"`. The other front faces are solved as inner
-faces (see [Numerical solution](solvers.md)).
+(default; floating and marine-terminating fronts), `"floating"` (or
+`"float"`; floating fronts), `"all"` or `"none"`. The other front faces are
+solved as inner faces (see [Numerical solution](solvers.md)). A face between
+ice and ice-free land is not an ocean front: next to floating ice it carries
+no velocity, and next to marine ice it is treated as a grounded front.
 
 ### Effective viscosity from Glen's flow law
 
@@ -155,7 +157,7 @@ $$
 ### Basal stress closure and effective drag
 
 With a basal friction law of the form $\boldsymbol\tau_b = \beta\,\mathbf u_b$
-(see [Parameters](../../parameters.md) for the supported choices of
+(see [Basal friction](../basal-friction.md) for the supported choices of
 $\beta$), the relation
 $\bar u = u_b + \tau_{b,x}\,F_2 = u_b\,(1 + \beta\,F_2)$ inverts to
 express $\boldsymbol\tau_b$ directly in terms of the depth-averaged
@@ -188,20 +190,29 @@ momentum equation is nonlinear. Yelmo solves it by Picard iteration
    2023; `picard_relax_visc`), and integrates it to $\bar\mu H$;
 3. computes $\beta$ from the current basal velocity (see
    [Basal friction](../basal-friction.md)), the F-integral $F_2$, and
-   $\beta_\mathrm{eff}$ on the velocity faces, with at least `beta_min` on
-   grounded faces;
+   $\beta_\mathrm{eff}$ on the velocity faces. A non-zero $\beta$ on the
+   faces is raised to at least `beta_min`, and $\beta_\mathrm{eff}$ is set to
+   `beta_min` on grounded faces where it is zero (`set_beta_min_grounded`);
 4. adds the [velocity-limit drag](solvers.md#velocity-limit), and assembles and
    solves the linear system for $\bar{\mathbf u}$ (see
    [Numerical solution](solvers.md));
 5. relaxes $\bar{\mathbf u}$ against the previous iterate with the factor
    `ydyn.ssa_iter_rel` (default 0.7; `picard_relax_vel`);
-6. updates the basal stress and the basal velocity.
+6. updates the basal stress and the basal velocity;
+7. with an effective pressure that depends on the basal velocity, re-evaluates
+   $N$ from $u_b$, and with it the friction coefficient `c_bed` (`neff_hook`).
+   This happens with the K24 hydrology (`yhyd.method_transport = 1`) and
+   `yhyd.k24_ub_hook = True` (default), or when a host has registered a
+   callback with `yelmo_set_neff_callback` (C API). With
+   `k24_ub_hook = False`, $N$ is evaluated once per time step.
 
 The iteration stops when the relative L2 change of the velocity,
 $\lVert \bar{\mathbf u}^{k} - \bar{\mathbf u}^{k-1}\rVert / \lVert \bar{\mathbf u}^{k-1}\rVert$
 (De Smedt et al., 2010), over the solved faces faster than $10^{-5}$ m a$^{-1}$,
 is below `ydyn.ssa_iter_conv` (default $10^{-2}$), or after `ydyn.ssa_iter_max`
-(default 20) iterations.
+(default 20) iterations. With the hook of step 7, the relative L1 change of
+`c_bed` must also be below `ssa_iter_conv`. The hook is used only with DIVA,
+not with the SSA or hybrid solvers.
 
 When the iteration converges, the basal stress
 $\boldsymbol\tau_b = \beta_\mathrm{eff}\bar{\mathbf u}$ and basal velocity

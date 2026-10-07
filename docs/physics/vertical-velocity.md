@@ -155,9 +155,10 @@ TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatc
 `uz_srf_err` and a 2–5 times smoother `uz` than method 1. However, where the
 divergence changes from one cell to the next, the vertical velocity of a column
 is mixed with that of its neighbours: in the A4 benchmark (plug flow with
-uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a
+uniform thickness along the flow), method 3 gives a
 surface `uz` off by up to a factor of 5 next to a jump in the divergence, while
-method 1 is exact.
+method 1 is exact. At an ice margin, the Jacobian of method 3 uses second-order
+one-sided differences on the ice side instead of the centred ones.
 
 ### Flux-consistent vertical velocity (`uz_method = 4`) {#uz-flux}
 
@@ -319,13 +320,17 @@ nothing to do with numerics.
 
 ## The two `c_x` are not the same {#the-two-c_x-are-not-the-same}
 
-In `calc_uz_3D` and `calc_uz_3D_aa`, `c_x` is defined twice with different
-normalisations within the *same subroutine*. This trips people up:
+In `calc_uz_3D`, `c_x` is defined twice with different normalisations within
+the *same subroutine*. This trips people up:
 
 | Context | Code | Value | Multiplies |
 |---|---|---|---|
 | `uz` loop | `c_x = -H_inv * (...)` | $\partial\zeta/\partial x$ | $\partial u/\partial\zeta$ (a **velocity derivative**) |
 | `uz_star` loop | `c_x = -(...)` | $H\,\partial\zeta/\partial x$ | $u$ (the **velocity itself**) |
+
+In `calc_uz_3D_aa` and `calc_uz_3D_flux`, the `uz_star` loop includes the
+velocity in `c_x` (`c_x = -ux_aa*(...)`), so there `c_x` is the product
+$u\,H\,\partial\zeta/\partial x$ itself.
 
 The corresponding physical distinction is worth stating outright, because it is
 the most common misconception about these two fields:

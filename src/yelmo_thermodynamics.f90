@@ -791,23 +791,12 @@ end if
         call nml_read(filename,group,"cap_eps",        par%cap_eps,          init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"gl_temperate",   par%gl_temperate,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
 
-        select case(trim(par%basal_bc_method))
-            case("capacity")
-                ! ok
-            case("wtil")
-                write(io_unit_err,*) "ytherm_par_load:: warning: basal_bc_method='wtil' is deprecated; use 'capacity'."
-            case DEFAULT
-                write(io_unit_err,*) "ytherm_par_load:: error: basal_bc_method must be 'wtil' or 'capacity'; got ", trim(par%basal_bc_method)
-                stop
-        end select
+        call yelmo_check_enum(group,"basal_bc_method", par%basal_bc_method, "capacity|wtil")
+        call yelmo_check_enum(group,"cap_source",      par%cap_source,      "auto|hyd|till|water|none")
 
-        select case(trim(par%cap_source))
-            case("auto","hyd","till","water","none")
-                ! ok
-            case DEFAULT
-                write(io_unit_err,*) "ytherm_par_load:: error: cap_source must be 'auto', 'hyd', 'till', 'water' or 'none'; got ", trim(par%cap_source)
-                stop
-        end select
+        if (trim(par%basal_bc_method) .eq. "wtil") then
+            write(io_unit_err,*) "ytherm_par_load:: warning: basal_bc_method='wtil' is deprecated; use 'capacity'."
+        end if
 
         if (trim(par%basal_bc_method) .eq. "capacity" .and. trim(par%method) .ne. "enth") then
             ! Only the enthalpy column has the capacity rule; the other

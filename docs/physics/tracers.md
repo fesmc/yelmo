@@ -19,10 +19,13 @@ isochrones at the times `time_iso` [ka] are diagnosed (`depth_iso`; with
 `calc_age = False`, only the first time is used). The Eulerian solver is
 explicit (`tracer_method = "expl"`) or implicit in the vertical with an
 artificial diffusion `tracer_impl_kappa` (`"impl"`); the horizontal advection
-is explicit upwind in both cases. The elsa layer stack is sized by the
-simulation end time `time_end`. On a restart, the state of the Lagrangian
-backends is read from separate files next to the restart file
-(`<restart>_tracer.nc`, and `<restart>_elsa.nc` with `elsa_restart = True`).
+is explicit upwind in both cases. Where the depth-averaged speed exceeds
+500 m a$^{-1}$, the Eulerian tracer is set to the surface value. The elsa
+layer stack is sized by the simulation end time `time_end`, which must be
+later than the start time. On a restart, the state of the Lagrangian
+backends is read from separate files next to the restart file (for
+`restart.nc`: `restart_tracer.nc`, and `restart_elsa.nc` with
+`elsa_restart = True`).
 
 The tracers are updated after the material properties and before the
 thermodynamics in each [time step](timestepping.md). The variables are listed

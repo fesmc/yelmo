@@ -26,7 +26,9 @@ In addition to the defaults, the model enforces consistency checks at load time:
 - **range** checks — e.g. `yelmo.cfl_max` must be in `(0, 1]`;
 - **ordering** checks — e.g. `ycalv.sd_min < sd_max`.
 
-`yelmo-config` mirrors all of these so you can catch problems before launching a
+`yelmo-config` mirrors the enum checks made with `yelmo_check_enum` (extracted
+from `src/` by `yelmo-config snapshot`) and the range and ordering checks listed
+in its `constraints.toml`, so you can catch most problems before launching a
 run.
 
 ## Installation
