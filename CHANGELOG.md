@@ -7,6 +7,17 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Mass budget at `mask_ice` cells.** The implicit advection (`impl-lis`) imposed
+  H = 0 in `MASK_ICE_NONE` cells and H = H in `MASK_ICE_FIXED` cells inside the solve,
+  so ice that flowed into masked cells disappeared, and ice leaving fixed cells appeared,
+  without any budget term (ISLAND4: ~20 % of the initial volume over 5 kyr). Masked cells
+  are now advected like other cells (on a non-periodic domain border with no flux through
+  the domain edge), and `calc_G_boundaries` alone enforces the mask and books the change
+  in `mb_resid`. The global region (`yelmo_ts.nc`) covers the whole domain, and the time
+  series has `mb_resid_tot`, `mb_clip_tot` and `mb_relax_tot`, so the budget closes from
+  the time series. Results change only where ice reaches masked cells (MASK_ICE: < 0.03 m;
+  ISLAND4: 4e-7 in volume); the other benchmarks are bit-identical.
+
 - **New `yelmo.pc_rho_max`** (default 2): the pc adaptive timestep grows by at most this
   factor per step (`set_adaptive_timestep_pc`). The controllers had no upper bound: after
   a nearly static step, `pc_eta` reached its 1e-8 floor and PI42 asked for ~4000 times the
