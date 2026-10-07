@@ -140,6 +140,7 @@
       "periodic",
       "periodic-xy",
       "periodic-x",
+      "periodic-y",
       "infinite",
       "MASK_ICE"
     ],
