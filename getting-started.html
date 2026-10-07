@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./hpc-notes.html" rel="next">
+<link href="./configme-install-details.html" rel="next">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -177,6 +177,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -205,6 +211,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -460,11 +472,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">-d</span> https                 <span class="co"># clone over HTTPS (no GitHub SSH key needed)</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--dir</span> ~/models/yelmo     <span class="co"># put the checkout here instead of ./yelmo</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--overwrite</span>              <span class="co"># re-clone over an existing checkout</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--build-deps</span>             <span class="co"># build the dependency packages without prompting</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo <span class="at">--build-deps</span>             <span class="co"># build the dependency packages without prompting</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">configme</span> install yelmo:dev                      <span class="co"># check out a branch, tag or commit (default: main)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Run <code>configme list</code> for the supported machines and compilers, and <code>configme --help</code> for the full command surface. <code>configme install</code> also writes the commands it ran to a <code>.install.sh</code> script in the checkout; see <a href="./configme-install-details.html">configme install details</a>.</p>
 <p>If the <code>configme</code> or <code>runme</code> command is not found after installation, your Python user bin directory is probably not on your <code>PATH</code>; add it in your <code>~/.bashrc</code> / <code>~/.zshrc</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span><span class="op">=</span><span class="st">"</span><span class="va">${PATH}</span><span class="st">:</span><span class="va">${HOME}</span><span class="st">/.local/bin"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>To update <code>configme</code> later, run <code>configme update</code>.</p>
+<p>To update <code>configme</code> later, run <code>configme update</code>. <code>configme upgrade</code> pulls the existing checkouts, regenerates the Makefiles and rebuilds the packages that changed.</p>
 </section>
 <section id="existing-checkout" class="level3">
 <h3 class="anchored" data-anchor-id="existing-checkout">Existing checkout</h3>
@@ -542,11 +555,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Alternatively, several test programs exist in the folder <code>tests/</code> to run Yelmo as a stand-alone ice sheet, for example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> benchmarks    <span class="co"># libyelmo/bin/yelmo_benchmarks.x: EISMINT, HALFAR, BUELER</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip        <span class="co"># libyelmo/bin/yelmo_mismip.x:     MISMIP3D</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> trough        <span class="co"># libyelmo/bin/yelmo_trough.x:     TROUGH-F17, MISMIP+, SLAB-S06</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> ismiphom      <span class="co"># libyelmo/bin/yelmo_ismiphom.x:   ISMIP-HOM</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> calving       <span class="co"># libyelmo/bin/yelmo_calving.x:    CalvingMIP</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip       <span class="co"># libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP Greenland/Antarctica)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> trough        <span class="co"># libyelmo/bin/yelmo_trough.x:     TROUGH-F17, MISMIP+, SLAB-S06, FRONT-SLAB, COLUMN-SLAB</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> bench         <span class="co"># libyelmo/bin/yelmo_bench.x:      benchmark-protocol fixtures (ISLAND4, SHELF-R, A4, FLOWLINE)</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> ismiphom      <span class="co"># libyelmo/bin/yelmo_ismiphom.x:   ISMIP-HOM</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> calving       <span class="co"># libyelmo/bin/yelmo_calving.x:    CalvingMIP</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip       <span class="co"># libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP Greenland/Antarctica)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>make usage</code> lists all targets. The option <code>debug=1</code> compiles with debugging flags (e.g., <code>make benchmarks debug=1</code>); the code then runs much slower, so this option is not recommended unless necessary. Yelmo is compiled with OpenMP by default; <code>openmp=0</code> compiles without it.</p>
+<p>The C API library (<code>make yelmo-c</code>) needs position-independent code: build fesm-utils with <code>pic=1</code> (e.g.&nbsp;<code>make all openmp=1 pic=1</code>), then <code>make clean</code> and <code>make yelmo-c pic=1</code> in yelmo (<code>pic=1</code> is passed on to FastHydrology, elsa and tracer).</p>
 </section>
 <section id="run-the-model" class="level3">
 <h3 class="anchored" data-anchor-id="run-the-model">2. Run the model</h3>
@@ -563,13 +578,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The option <code>-r</code> runs the model as a background process. Without it, the output directory is populated, but no executable is run. The option <code>-s</code> prepares a job script for the cluster queue system instead, and <code>-rs</code> also submits it (<code>-q</code> selects the queue, <code>-w</code> the wall time and <code>--omp</code> the number of OpenMP threads). To submit jobs, set <code>hpc</code> and <code>account</code> in <code>.runme/config.toml</code>.</p>
 <p>The option <code>-e</code> sets the executable. For the standard programs, shortcuts are defined in <code>.runme/info.json</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">benchmarks</span> = libyelmo/bin/yelmo_benchmarks.x</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">calving</span>    = libyelmo/bin/yelmo_calving.x</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yelmo_mismip.x</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">trough</span>     = libyelmo/bin/yelmo_trough.x</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="ex">ismiphom</span>   = libyelmo/bin/yelmo_ismiphom.x</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="ex">mask_ice</span>   = libyelmo/bin/yelmo_mask_ice.x</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">regridding</span> = libyelmo/bin/yelmo_test_regridding.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">bench</span>      = libyelmo/bin/yelmo_bench.x</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">calving</span>    = libyelmo/bin/yelmo_calving.x</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ex">mismip</span>     = libyelmo/bin/yelmo_mismip.x</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">initmip</span>    = libyelmo/bin/yelmo_initmip.x</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="ex">trough</span>     = libyelmo/bin/yelmo_trough.x</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="ex">ismiphom</span>   = libyelmo/bin/yelmo_ismiphom.x</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">mask_ice</span>   = libyelmo/bin/yelmo_mask_ice.x</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="ex">regridding</span> = libyelmo/bin/yelmo_test_regridding.x</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The arguments <code>-o OUTDIR</code> and <code>-n PAR_PATH</code> are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is <code>output/test</code>, where all model parameters (loaded from the file <code>par/yelmo_EISMINT_moving.nml</code>) and model output can be found.</p>
 <p>Parameters can be modified inline with <code>-p KEY=VAL [KEY=VAL ...]</code>, with the parameter given by its namelist group and its name. E.g., to change the resolution of the EISMINT benchmark experiment to 10 km, use:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> benchmarks <span class="at">-o</span> output/test <span class="at">-n</span> par/yelmo_EISMINT_moving.nml <span class="at">-p</span> ctrl.dx=10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -990,8 +1006,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="nav-page nav-page-previous">
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./hpc-notes.html" class="pagination-link" aria-label="HPC Notes">
-        <span class="nav-page-text">HPC Notes</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./configme-install-details.html" class="pagination-link" aria-label="What `configme install yelmo` does">
+        <span class="nav-page-text">What <code>configme install yelmo</code> does</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

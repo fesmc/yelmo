@@ -221,6 +221,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -249,6 +255,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -520,7 +532,7 @@ window.Quarto = {
 </section>
 <section id="mismip3d" class="level2">
 <h2 class="anchored" data-anchor-id="mismip3d">MISMIP3D</h2>
-<p>Marine Ice Sheet Model Intercomparison Project, 3D version (<a href="https://doi.org/10.3189/2013JoG12J129">Pattyn et al., 2013</a>). Tests grounding-line dynamics on a marine bed, with the SSA momentum balance (<code>ydyn.solver = "ssa"</code> in the parameter file). Two experiments are defined in the namelist via the <code>ctrl.experiment</code> field: <code>Stnd</code> (standard, advance to steady state) and <code>RF</code> (reverse forcing, to test reversibility).</p>
+<p>Marine Ice Sheet Model Intercomparison Project, 3D version (<a href="https://doi.org/10.3189/2013JoG12J129">Pattyn et al., 2013</a>). Tests grounding-line dynamics on a marine bed, with the SSA momentum balance (<code>ydyn.solver = "ssa"</code> in the parameter file). Two experiments are defined in the namelist via the <code>ctrl.experiment</code> field: <code>Stnd</code> (standard: advance to steady state, the P75S basal-friction perturbation from 15.0 to 15.1 ka, and recovery until 16.1 ka) and <code>RF</code> (reverse forcing, to test reversibility, until 85 ka). With <code>ctrl.time_end</code> ≤ 0 (default), the run ends at the end of the protocol.</p>
 <p>Standard experiment:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> mismip</span>
@@ -618,7 +630,7 @@ window.Quarto = {
 <figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ Levante shared node). Grey: DIVA in Robinson et al.&nbsp;(2022), Fig. 3, on one processor. The lines are fits of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
 </figure>
 </div>
-<p>The runs use <code>par/yelmo_initmip.nml</code> with <code>ctrl.time_end=1000 ctrl.time_equil=0</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
+<p>The runs use <code>par/yelmo_initmip.nml</code> with <code>ctrl.time_end=1000</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
 </section>
 </section>
 <section id="initmip-ant" class="level2">
@@ -693,7 +705,7 @@ window.Quarto = {
 </table>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> enthalpy</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./libyelmo/bin/test_enthalpy.x</span> kleiner-b enth 201 1e-4</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The arguments are the experiment, the solver (<code>temp</code>, <code>enth</code> or <code>both</code>), the number of vertical points (default 51) and optionally the conductivity ratio of temperate ice (<code>enth_cr</code>). Output is written to <code>output/test_enthalpy_&lt;experiment&gt;_&lt;solver&gt;.nc</code>, and the program reports whether the comparison with the reference passes.</p>
+<p>The arguments are the experiment, the solver, the number of vertical points (default 51) and optionally the conductivity ratio of temperate ice (<code>enth_cr</code>). The solver (<code>temp</code> or <code>enth</code>, default <code>enth</code>) applies to <code>kleiner-a</code> and <code>kleiner-b</code>; the other experiments ignore it (<code>cold-limit</code>, <code>thin-margin</code> and <code>robin-column</code> run both solvers, <code>kleiner-a-cap</code> the enthalpy solver). Output is written to <code>output/test_enthalpy_&lt;experiment&gt;_&lt;solver&gt;.nc</code> (not for <code>thin-margin</code> and <code>robin-column</code>, which only print their results), and the program reports whether the comparison with the reference passes.</p>
 
 
 </section>

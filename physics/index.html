@@ -34,7 +34,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../physics/momentum/diva.html" rel="next">
-<link href="../optimization.html" rel="prev">
+<link href="../c-api.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -503,7 +515,7 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
 </section>
 <section id="time-stepping" class="level2">
 <h2 class="anchored" data-anchor-id="time-stepping">Time stepping</h2>
-<p>The ice thickness is advanced with an adaptive <a href="../physics/timestepping.html">predictor–corrector scheme</a>, whose time step is set by an estimate of the truncation error and limited by a Courant condition.</p>
+<p>The ice thickness is advanced with an adaptive <a href="../physics/timestepping.html">predictor–corrector scheme</a>, whose time step is set by an estimate of the truncation error and limited by a Courant condition and a cap on its growth from one step to the next.</p>
 </section>
 <section id="thermodynamics" class="level2">
 <h2 class="anchored" data-anchor-id="thermodynamics">Thermodynamics</h2>
@@ -952,8 +964,8 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../optimization.html" class="pagination-link" aria-label="Basal friction optimization">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction optimization</span>
+      <a href="../c-api.html" class="pagination-link" aria-label="C API">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">C API</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

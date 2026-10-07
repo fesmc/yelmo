@@ -221,6 +221,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -249,6 +255,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -613,7 +625,7 @@ w(z) \;=\; w_b \;-\; \int_b^z \left( \frac{\partial u}{\partial x}\bigg|_{z'} + 
 </tr>
 </tbody>
 </table>
-<p>Methods 2 and 3 average the divergence over neighbouring cells. Along the flow, the centred face derivatives <span class="math inline">(u_{i+3/2}-u_{i-1/2})/(2\Delta x)</span> averaged to the cell centre give a four-face stencil, which does not see a 2<span class="math inline">\Delta x</span> oscillation of the velocity; across the flow, the corner and quadrature averaging weights the neighbouring rows by 1/4, 1/2, 1/4. This smooths grid-scale noise in the divergence: in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatch <code>uz_srf_err</code> and a 2–5 times smoother <code>uz</code> than method 1. However, where the divergence changes from one cell to the next, the vertical velocity of a column is mixed with that of its neighbours: in the A4 benchmark (plug flow with uniform thickness along the flow, docs/dev/benchmark-protocol), method 3 gives a surface <code>uz</code> off by up to a factor of 5 next to a jump in the divergence, while method 1 is exact.</p>
+<p>Methods 2 and 3 average the divergence over neighbouring cells. Along the flow, the centred face derivatives <span class="math inline">(u_{i+3/2}-u_{i-1/2})/(2\Delta x)</span> averaged to the cell centre give a four-face stencil, which does not see a 2<span class="math inline">\Delta x</span> oscillation of the velocity; across the flow, the corner and quadrature averaging weights the neighbouring rows by 1/4, 1/2, 1/4. This smooths grid-scale noise in the divergence: in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr), method 3 gives a 1.5–4 times smaller surface mismatch <code>uz_srf_err</code> and a 2–5 times smoother <code>uz</code> than method 1. However, where the divergence changes from one cell to the next, the vertical velocity of a column is mixed with that of its neighbours: in the A4 benchmark (plug flow with uniform thickness along the flow), method 3 gives a surface <code>uz</code> off by up to a factor of 5 next to a jump in the divergence, while method 1 is exact. At an ice margin, the Jacobian of method 3 uses second-order one-sided differences on the ice side instead of the centred ones.</p>
 </section>
 <section id="uz-flux" class="level3">
 <h3 class="anchored" data-anchor-id="uz-flux">Flux-consistent vertical velocity (<code>uz_method = 4</code>)</h3>
@@ -701,7 +713,7 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 </section>
 <section id="the-two-c_x-are-not-the-same" class="level2">
 <h2 class="anchored" data-anchor-id="the-two-c_x-are-not-the-same">The two <code>c_x</code> are not the same</h2>
-<p>In <code>calc_uz_3D</code> and <code>calc_uz_3D_aa</code>, <code>c_x</code> is defined twice with different normalisations within the <em>same subroutine</em>. This trips people up:</p>
+<p>In <code>calc_uz_3D</code>, <code>c_x</code> is defined twice with different normalisations within the <em>same subroutine</em>. This trips people up:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -732,6 +744,7 @@ w^\star \;\equiv\; H\,\frac{\mathrm{D}\zeta}{\mathrm{D}t}
 </tr>
 </tbody>
 </table>
+<p>In <code>calc_uz_3D_aa</code> and <code>calc_uz_3D_flux</code>, the <code>uz_star</code> loop includes the velocity in <code>c_x</code> (<code>c_x = -ux_aa*(...)</code>), so there <code>c_x</code> is the product <span class="math inline">u\,H\,\partial\zeta/\partial x</span> itself.</p>
 <p>The corresponding physical distinction is worth stating outright, because it is the most common misconception about these two fields:</p>
 <ul>
 <li>The corrections that build <strong><code>uz</code></strong> involve <strong>derivatives of <span class="math inline">u</span> and <span class="math inline">v</span></strong> (<span class="math inline">\partial u/\partial\zeta</span>, <span class="math inline">\partial v/\partial\zeta</span>). They arise from converting constant-<span class="math inline">\zeta</span> velocity gradients into constant-<span class="math inline">z</span> ones so that incompressibility can be integrated.</li>

@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -487,7 +499,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p><code>yelmo_init_state</code> initialises the thermodynamic state with <code>"linear"</code>, <code>"robin"</code> or <code>"robin-cold"</code> (argument <code>thrm_method</code>). The Robin solution assumes constant material properties and uses <code>const_kt</code> and <code>const_cp</code> (whatever <code>use_const_kt</code> / <code>use_const_cp</code>), so that the basal gradient is <span class="math inline">-G/k</span> with <span class="math inline">k</span> = <code>const_kt</code>.</p>
+<p><code>yelmo_init_state</code> initialises the thermodynamic state with <code>"linear"</code>, <code>"robin"</code> or <code>"robin-cold"</code> (argument <code>thrm_method</code>), or with <code>"prescribed"</code> and a temperature field passed as <code>T_ice</code> (see <a href="../remapping.html">Remapping</a>). The Robin solution assumes constant material properties and uses <code>const_kt</code> and <code>const_cp</code> (whatever <code>use_const_kt</code> / <code>use_const_cp</code>), so that the basal gradient is <span class="math inline">-G/k</span> with <span class="math inline">k</span> = <code>const_kt</code>.</p>
 </section>
 <section id="enthalpy" class="level2">
 <h2 class="anchored" data-anchor-id="enthalpy">Enthalpy</h2>
@@ -546,7 +558,7 @@ k/(\rho_i c) &amp; \text{cold ice} \\
 <section id="basal-boundary-condition" class="level3">
 <h3 class="anchored" data-anchor-id="basal-boundary-condition">Basal boundary condition</h3>
 <p>The basal heat balance involves the geothermal (or bedrock) heat flux <span class="math inline">G</span> (<code>Q_rock</code>), the frictional heating <span class="math inline">Q_b = \boldsymbol\tau_b \cdot \mathbf u_b</span> (<code>Q_b</code>), the heat supplied by basal water <span class="math inline">Q_w</span> (dissipation and sensible heat, from the hydrology model), and the conductive flux into the ice <span class="math inline">Q_{i,b} = -k\,\partial T/\partial z|_b</span> (<code>Q_ice_b</code>).</p>
-<p><strong>Grounded ice.</strong> With <code>basal_bc_method = "capacity"</code> (default), the model first computes the basal mass balance <span class="math inline">\dot b^\star</span> (<code>bmb_grnd_star</code>) that would keep the base at the pressure melting point. It is compared with the freeze-on capacity <span class="math inline">C</span>, the rate at which the water at the bed can be frozen:</p>
+<p><strong>Grounded ice.</strong> With <code>basal_bc_method = "capacity"</code> (default), the model first computes the basal mass balance <span class="math inline">\dot b^\star</span> (<code>bmb_grnd_star</code>) that would keep the base at the pressure melting point. It includes the sensible heat needed to warm a base below the pressure melting point up to it within the step, <span class="math inline">\rho_i\,\max(E_\mathrm{pmp} - E_b, 0)\,\Delta z/\Delta t</span>, with <span class="math inline">\Delta z</span> the thickness of the lowest layer; otherwise a cold base held at the pressure melting point would warm at no cost. It is compared with the freeze-on capacity <span class="math inline">C</span>, the rate at which the water at the bed can be frozen:</p>
 <ul>
 <li>if <span class="math inline">\dot b^\star \le 0</span> (melting) or <span class="math inline">\dot b^\star \le C</span>, the base is held at the pressure melting point (Dirichlet condition);</li>
 <li>otherwise all available water freezes (<span class="math inline">\dot b = C</span>), and the base cools with the flux condition <span class="math inline">k\,\partial T/\partial z|_b = -(G + Q_b + Q_w + \rho_i L C)</span>.</li>
@@ -581,7 +593,7 @@ k/(\rho_i c) &amp; \text{cold ice} \\
 A = E_f\,A_0\,\exp\!\left(-\frac{Q}{R\,T^\ast}\right),
 </span></p>
 <p>with the homologous temperature on the absolute scale <span class="math inline">T^\ast = T - T_\mathrm{pmp} + T_0</span> (limited to <span class="math inline">[220\,\mathrm K, T_0]</span>), and <span class="math inline">A_0</span> = 1.25671<span class="math inline">\times10^{-5}</span> Pa<span class="math inline">^{-3}</span> a<span class="math inline">^{-1}</span>, <span class="math inline">Q</span> = 60 kJ mol<span class="math inline">^{-1}</span> for <span class="math inline">T^\ast \le 263.15</span> K and <span class="math inline">A_0</span> = 6.0422976<span class="math inline">\times10^{10}</span> Pa<span class="math inline">^{-3}</span> a<span class="math inline">^{-1}</span>, <span class="math inline">Q</span> = 139 kJ mol<span class="math inline">^{-1}</span> above (Greve and Blatter, 2009). <code>rf_use_eismint2 = True</code> uses the EISMINT2 constants (Payne et al., 2000). With <code>rf_with_water = True</code>, <span class="math inline">A</span> is multiplied by <span class="math inline">1 + 181.25\,\omega</span> (Lliboutry and Duval, 1985). <span class="math inline">E_f</span> is the enhancement factor (<code>enh_method</code>, <code>enh_shear</code>, <code>enh_stream</code>, <code>enh_shlf</code>).</p>
-<p>With <code>gl_temperate = True</code>, a fully grounded column next to floating ice or open ocean (<code>f_grnd</code> = 0 in one of its four neighbours) has its base held at the pressure melting point (the bed is wetted by the ocean); freeze-on there is not limited by the bed’s water (capacity rule).</p>
+<p>With <code>gl_temperate = True</code> (default), a fully grounded column next to floating ice or open ocean (<code>f_grnd</code> = 0 in one of its four neighbours) has its base held at the pressure melting point (the bed is wetted by the ocean); freeze-on there is not limited by the bed’s water (capacity rule).</p>
 <p>The basal temperature enters the basal friction through the frozen-bed sliding factor (<code>ydyn.frz_scale</code>, see <a href="../physics/basal-friction.html">Basal friction</a>), with the basal homologous temperature <span class="math inline">T'_b = T_b - T_\mathrm{pmp}</span> (<code>T_prime_b</code>). The temperate fraction of the base, <code>f_pmp</code> = <span class="math inline">\exp(\max(T'_b, -20\,\mathrm K)/\gamma)</span> with <span class="math inline">\gamma</span> = <code>ytherm.gamma</code> (0 and 1 below 0.01 and above 0.99; binary for <span class="math inline">\gamma = 0</span>; 1 for floating ice), is a diagnostic used in the bed mask.</p>
 </section>
 <section id="references" class="level2">

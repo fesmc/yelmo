@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -456,16 +468,16 @@ window.Quarto = {
 <li><strong>aa-nodes</strong> (cell centres): scalars — <span class="math inline">H</span>, <span class="math inline">s</span>, <span class="math inline">\bar\mu</span>, <span class="math inline">\bar\mu\,H</span>, <span class="math inline">\beta</span> (before staggering).</li>
 <li><strong>acx-nodes</strong> (right face of each aa-cell): <span class="math inline">\bar u</span>, <span class="math inline">\tau_{d,x}</span>, <span class="math inline">\beta_{\mathrm{eff},x}</span>.</li>
 <li><strong>acy-nodes</strong> (top face): <span class="math inline">\bar v</span>, <span class="math inline">\tau_{d,y}</span>, <span class="math inline">\beta_{\mathrm{eff},y}</span>.</li>
-<li><strong>ab-nodes</strong> (cell corners): cross-coupling viscosity <span class="math inline">(\bar\mu H)^{\mathrm{ab}}</span>, obtained by averaging <span class="math inline">\bar\mu\,H</span> from its four neighbouring aa-cells (<code>stagger_visc_aa_ab</code>).</li>
+<li><strong>ab-nodes</strong> (cell corners): cross-coupling viscosity <span class="math inline">(\bar\mu H)^{\mathrm{ab}}</span>, the average of <span class="math inline">\bar\mu\,H</span> over its four neighbouring aa-cells if all four are fully ice covered, and zero otherwise (<code>stagger_visc_aa_ab</code>), so that an ice margin carries no shear traction.</li>
 </ul>
-<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt_energy</code> (default <code>-i cg -p jacobi -maxiter 200 -tol 1.0e-2</code>) or <code>ydyn.ssa_lis_opt_residual</code> (default <code>-i minres -p jacobi -maxiter 100 -tol 1.0e-2</code>), depending on <code>ydyn.ssa_solver</code>.</p>
-<p>Per-row solver masks (<code>ssa_mask_acx</code>, <code>ssa_mask_acy</code>, set by <code>set_ssa_masks</code>) classify each ac-node as one of:</p>
+<p>The two unknowns per cell (<span class="math inline">\bar u</span> at the right face and <span class="math inline">\bar v</span> at the top face) are interleaved into a single state vector <span class="math inline">\mathbf x = [\,\bar u_{1}, \bar v_{1}, \bar u_{2}, \bar v_{2}, \dots\,]</span>, so the assembled linear system has dimension <span class="math inline">2 N_\mathrm{cells}</span>. The matrix is stored in CSR format and solved with <a href="http://www.ssisc.org/lis/">LIS</a> (Library of Iterative Solvers for Linear Systems); the iterative method and preconditioner are configured at runtime via <code>ydyn.ssa_lis_opt_energy</code> (default <code>-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false</code>) or <code>ydyn.ssa_lis_opt_residual</code> (default <code>-i minres -p jacobi -maxiter 100 -tol 1.0e-2 -initx_zeros false</code>), depending on <code>ydyn.ssa_solver</code>.</p>
+<p>Per-row solver masks (<code>ssa_mask_acx</code>, <code>ssa_mask_acy</code>, set by <code>set_ssa_masks</code>) classify each ac-node as one of the values below. The masks and the thickness of the momentum balance come from the dynamic ice column (<code>H_ice_dyn</code>, <code>f_ice_dyn</code>): a cell with an ice fraction of at least <code>A_FRONT_MIN</code> = 0.1 is a full column with the effective thickness <code>H_eff</code> of the <a href="../../physics/calving.html#subgrid-front">subgrid front</a>, and a cell below 0.1 is ice free.</p>
 <ul>
 <li><code>-1</code>: prescribed velocity, kept at its current value;</li>
 <li><code>0</code>: zero velocity (a face without a fully ice-covered neighbour, or a floating face against ice-free land);</li>
 <li><code>1</code>: solved, grounded or grounding-line face;</li>
 <li><code>2</code>: solved, floating face;</li>
-<li><code>3</code>: ice-front face with the lateral boundary condition, a Neumann row driven by the depth-integrated lateral stress <span class="math inline">\tau_{l,\mathrm{int}}</span>;</li>
+<li><code>3</code>: ice-front face with the lateral boundary condition, a Neumann row driven by the depth-integrated lateral stress <span class="math inline">\tau_{l,\mathrm{int}}</span> (with half of the basal drag in the energy assembler; the residual assembler imposes the stress condition as the row, without drag);</li>
 <li><code>4</code>: ice-front face solved as an inner face, with half of the basal drag (only the ice half of its control area has drag).</li>
 </ul>
 <p>Which front faces get the lateral boundary condition (3) and which are solved as inner faces (4) is set by <code>ydyn.ssa_lat_bc</code> (see <a href="../../physics/momentum/diva.html">DIVA</a>).</p>

@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -462,7 +474,7 @@ c = u \, \max\left(0, \frac{\tau_1}{\tau_{\rm ice}}\right)
 <li><code>"equil"</code>: the front is held in place (<span class="math inline">c = -u</span>);</li>
 <li><code>"threshold"</code>: the front retreats where the ice is thinner than <code>Hc_ref_flt</code> (floating) or <code>Hc_ref_grnd</code> (grounded);</li>
 <li><code>"exp1"</code>–<code>"exp5"</code> (floating): the CalvingMIP experiments;</li>
-<li><code>"ismip7"</code> (grounded): frontal retreat from the frontal melt of Rignot et al.&nbsp;(2016), with the ocean thermal forcing and the subglacial discharge <code>bnd%Qd</code> (ISMIP7 protocol).</li>
+<li><code>"ismip7"</code> (grounded): frontal retreat from the frontal melt of Rignot et al.&nbsp;(2016), with the subglacial discharge <code>bnd%Qd</code> and the thermal forcing <code>bnd%T_shlf</code> minus the seawater freezing point at the water depth (Jenkins, 1991; ISMIP7 protocol). It does not use <code>bnd%tf_shlf</code>.</li>
 </ul>
 </section>
 <section id="level-set-front" class="level3">
@@ -476,8 +488,8 @@ c = u \, \max\left(0, \frac{\tau_1}{\tau_{\rm ice}}\right)
 </section>
 <section id="subgrid-front" class="level3">
 <h3 class="anchored" data-anchor-id="subgrid-front">Subgrid front</h3>
-<p>With <code>ytopo.front_subgrid = "marine"</code>, ice cells with the bed below sea level (<code>"floating"</code>: floating cells only) can be partially ice covered. A front cell (such a cell with an ice-free ocean edge neighbour) has an effective thickness <code>H_eff</code>, taken from its thickest interior neighbour minus <code>ytopo.front_dHdx</code>·distance (at least <code>ytopo.front_H_eff_min</code>, with a limit on the rise of the effective surface), and the ice fraction <code>f_ice = H_ice/H_eff</code>. Front cells without an interior neighbour keep <code>H_eff = H_ice</code>.</p>
-<p>With the level set, the thickness of these cells follows the front (<code>calc_G_lsf_front</code>): <code>a_lsf</code>, the area fraction of the cell behind the zero contour, is computed from the cell’s centre, edge and corner values of <span class="math inline">\varphi</span>. Ice-free land neighbours, where <span class="math inline">\varphi</span> is held at −1, take the cell’s own value, so they do not count as ice. Cells with <code>a_lsf</code> &lt; 0.1 are emptied. With the level set, eligible cells cut by the front (<code>a_lsf</code> &lt; 1) that touch the ocean only at a corner are front cells too; the trim and <code>f_ice</code> use this one front/interior classification. Front cells with <code>a_lsf</code> &lt; 1 are trimmed to <code>a_lsf</code>·<code>H_ref</code>, with <code>H_ref</code> the reference thickness from the interior neighbours, so <code>f_ice</code> is approximately <code>a_lsf</code>. In the momentum balance, partial front cells use <code>H_eff</code> as their thickness and the front boundary condition is applied on their ocean faces. Cells with <code>f_ice</code> &lt; 0.1 keep their ice and fill by transport, but are ice-free in the momentum balance until they reach 0.1.</p>
+<p>With <code>ytopo.front_subgrid = "marine"</code>, ice cells with the bed below sea level (<code>"floating"</code>: floating cells only) can be partially ice covered. A front cell (such a cell with an ice-free ocean edge neighbour) has an effective thickness <code>H_eff</code>, taken from its thickest interior edge neighbour (or diagonal neighbour, if there is none) minus <code>ytopo.front_dHdx</code>·distance (at least <code>ytopo.front_H_eff_min</code>, with a limit on the rise of the effective surface), and the ice fraction <code>f_ice = H_ice/H_eff</code>. Front cells without an interior neighbour keep <code>H_eff = H_ice</code>, and so do front cells entirely behind the level-set front (<code>a_lsf</code> = 1). Ice thinner than 1 mm (<code>H_ice_eps</code>) is ice free (<code>f_ice</code> = 0) and is never a front cell.</p>
+<p>With the level set, the thickness of these cells follows the front (<code>calc_G_lsf_front</code>): <code>a_lsf</code>, the area fraction of the cell behind the zero contour, is computed from the cell’s centre, edge and corner values of <span class="math inline">\varphi</span>. Ice-free land neighbours, where <span class="math inline">\varphi</span> is held at −1, take the cell’s own value, so they do not count as ice. Cells with <code>a_lsf</code> &lt; 0.1 are emptied. With the level set, eligible cells cut by the front (<code>a_lsf</code> &lt; 1) that touch the ocean only at a corner are front cells too; the trim and <code>f_ice</code> use this one front/interior classification. Front cells with <code>a_lsf</code> &lt; 1 are trimmed to <code>a_lsf</code>·<code>H_ref</code>, with <code>H_ref</code> the reference thickness from the interior neighbours, so <code>f_ice</code> is approximately <code>a_lsf</code>. In the momentum balance, partial front cells use <code>H_eff</code> as their thickness and the front boundary condition is applied on their ocean faces. Cells with <code>f_ice</code> &lt; <code>A_FRONT_MIN</code> = 0.1 keep their ice and fill by transport, but are ice free in the momentum balance until they reach 0.1 (<code>H_ice_dyn</code> = 0); otherwise a film of a few millimetres would be a full <code>H_eff</code> column and turn the ocean face of the neighbouring front cell into an interior face.</p>
 </section>
 </section>
 <section id="mass-balance-calving-path" class="level2">
@@ -518,6 +530,7 @@ c = k_\tau\, \tau_{\rm ec}
 <h2 class="anchored" data-anchor-id="references">References</h2>
 <ul>
 <li>Bassis, J. N. and Walker, C. C. (2012). Upper and lower limits on the stability of calving glaciers from the yield strength envelope of ice. Proc. R. Soc. A, 468, 913–931.</li>
+<li>Jenkins, A. (1991). A one-dimensional model of ice shelf–ocean interaction. J. Geophys. Res., 96(C11), 20671–20677.</li>
 <li>Levermann, A., et al.&nbsp;(2012). Kinematic first-order calving law implies potential for abrupt ice-shelf retreat. The Cryosphere, 6, 273–286.</li>
 <li>Lipscomb, W. H., et al.&nbsp;(2019). Description and evaluation of the Community Ice Sheet Model (CISM) v2.1. Geosci. Model Dev., 12, 387–424.</li>
 <li>Morlighem, M., et al.&nbsp;(2016). Modeling of Store Gletscher’s calving dynamics, West Greenland, in response to ocean thermal forcing. Geophys. Res. Lett., 43, 2659–2666.</li>

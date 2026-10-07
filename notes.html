@@ -178,6 +178,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -206,6 +212,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -489,7 +501,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="how-to-read-yelmo_check_kill-output" class="level2">
 <h2 class="anchored" data-anchor-id="how-to-read-yelmo_check_kill-output">How to read <code>yelmo_check_kill</code> output</h2>
-<p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to <code>yelmo_killed.nc</code> at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.</p>
+<p>The subroutine <code>yelmo_check_kill</code> is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to <code>yelmo_killed.nc</code> at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to standard error. The file is written in the working directory.</p>
 <p>The criteria are listed in <a href="./physics/timestepping.html#instability-checks">Time stepping</a>. The error measure is <code>pc_eta</code>, the norm of the predictor–corrector truncation error [1/yr]: <code>pc_eps</code> is its target value for the adaptive time step, and <code>pc_tol</code> the value above which a time step is redone with a smaller dt. If the mean of the stored <code>pc_eta</code> values (the last three steps) exceeds <code>10*pc_tol</code>, this is interpreted as instability and the model is stopped. The checks are switched off with <code>yelmo.disable_kill = True</code>.</p>
 
 

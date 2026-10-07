@@ -178,6 +178,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -206,6 +212,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -465,7 +477,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>As a first step, the Climate Data Operators <code>cdo</code> package is great for most preprocessing steps. It can handle averaging data over time and space, merging data files, extracting individual variables etc. See the extensive documentation and examples online.</p>
 <p>For example, it is possible to use the command <code>cdo selvar</code> to extract specific variables from a file:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> selvar,t2m,precip diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ipsl_tmp1.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>If you have several variables in individual files, you can then conveniently merge them into one file usine <code>merge</code> (it’s better if they have the same shape):</p>
+<p>If you have several variables in individual files, you can then conveniently merge them into one file using <code>merge</code> (it’s better if they have the same shape):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract t2m to a temporary file</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> selvar,t2m diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ipsl_tmp1.nc</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -509,7 +521,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Here, <code>remapbic</code> specifies bicubic interpolation and <code>grid_ANT-32KM.txt</code> defines the target grid as above. Then the source dataset is specified and the desired output file <code>ANT-32KM_test-bic.nc</code>.</p>
 <p>To perform conservative interpolation, replace <code>remapbic</code> with <code>remapcon</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> remapcon,grid_ANT-32KM.txt diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ANT-32KM_test-con.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Conservative interpolation is generally preferred, especially when going from a high resolution to a lower resolution, as it avoids unwanted interpolation artifacts and conserves the quantity being remapped. However, from low resolution to high resolution, conservative interpolation can result in more “blocky” fields with abrupt changes in values. Thus, in this case, bicubic interpolation, or conservative interpolation with additional Gaussian smoothing is better. The latter is not supported by <code>cdo</code>, but can be acheived with other tools.</p>
+<p>Conservative interpolation is generally preferred, especially when going from a high resolution to a lower resolution, as it avoids unwanted interpolation artifacts and conserves the quantity being remapped. However, from low resolution to high resolution, conservative interpolation can result in more “blocky” fields with abrupt changes in values. Thus, in this case, bicubic interpolation, or conservative interpolation with additional Gaussian smoothing is better. The latter is not supported by <code>cdo</code>, but can be achieved with other tools.</p>
 <p>One option for processing may be a conservative remapping, following by a smoothing step:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> remapcon,grid_ANT-32KM.txt diane_C14Ma_1_5PAL_SE_4750_4849_1M_histmth.nc ANT-32KM_test-con.nc</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">cdo</span> smooth,radius=128km ANT-32KM_test-con.nc ANT-32KM_test-con-smooth.nc</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -534,9 +546,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="remapping-fields-inside-a-program">Remapping fields inside a program</h2>
 <p>The module <code>yelmo_remapping</code> (re-exported by <code>use yelmo</code>) maps 2D and 3D fields from another source, such as another model or another resolution, onto the Yelmo grid:</p>
 <ul>
-<li><code>yelmo_remap(var, var_in, mp)</code> maps a 2D field with a coords map <code>mp</code>.</li>
-<li><code>yelmo_remap(var, zeta, var_in, zeta_in, [mp])</code> maps a 3D field. Each column is first interpolated linearly from the source levels <code>zeta_in</code> onto the Yelmo levels <code>zeta</code> (constant beyond the end levels), and then each level is remapped horizontally if <code>mp</code> is given. Levels are normalized heights (0 at the base, 1 at the top), as <code>zeta_aa</code>, <code>zeta_ac</code> and the bedrock axes.</li>
-<li><code>yelmo_load_map(mp, grd, filename, src_grid_name, [method])</code> builds the map from the xc/yc axes of a NetCDF file onto the Yelmo grid, with the projection of the Yelmo grid (method <code>"con"</code> by default, as for restart files).</li>
+<li><code>yelmo_remap(var, var_in, mp, [name])</code> maps a 2D field with a coords map <code>mp</code>.</li>
+<li><code>yelmo_remap(var, zeta, var_in, zeta_in, [mp], [name])</code> maps a 3D field (<code>name</code>: field name for messages, also in 2D). Each column is first interpolated linearly from the source levels <code>zeta_in</code> onto the Yelmo levels <code>zeta</code> (constant beyond the end levels), and then each level is remapped horizontally if <code>mp</code> is given. Levels are normalized heights (0 at the base, 1 at the top), as <code>zeta_aa</code>, <code>zeta_ac</code> and the bedrock axes.</li>
+<li><code>yelmo_load_map(mp, grd, filename, src_grid_name, [method], [gen])</code> builds the map from the xc/yc axes of a NetCDF file onto the Yelmo grid, with the projection of the Yelmo grid (method <code>"con"</code> by default, as for restart files). With <code>gen = "cdo"</code>, a SCRIP map generated with <code>cdo</code> is loaded from <code>maps/</code> instead (default <code>"coords"</code>: weights computed by Yelmo).</li>
 <li><code>yelmo_read_remap(var, grd, filename, varname, [zeta, zeta_name], [method])</code> reads a 2D or 3D field (the last time record, if there is a time dimension) and maps it onto the Yelmo grid. The field is remapped horizontally only if the file’s axes differ from the Yelmo grid.</li>
 </ul>
 <p>For example, to initialize the ice temperature from a field <code>T_ice</code> on the levels <code>zeta</code> of another file:</p>

@@ -73,6 +73,49 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -143,6 +186,12 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -171,6 +220,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -419,7 +474,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 </tbody>
 </table>
-<p>All backends are off by default. Each one gives a deposition-time field on the Yelmo vertical grid. The backend selected by <code>t_dep_source</code> (<code>"euler"</code>, <code>"trc"</code> or <code>"elsa"</code>) is copied to <code>t_dep</code>, from which the depths of the isochrones at the times <code>time_iso</code> [ka] are diagnosed (<code>depth_iso</code>; with <code>calc_age = False</code>, only the first time is used). The Eulerian solver is explicit (<code>tracer_method = "expl"</code>) or implicit in the vertical with an artificial diffusion <code>tracer_impl_kappa</code> (<code>"impl"</code>); the horizontal advection is explicit upwind in both cases. The elsa layer stack is sized by the simulation end time <code>time_end</code>. On a restart, the state of the Lagrangian backends is read from separate files next to the restart file (<code>&lt;restart&gt;_tracer.nc</code>, and <code>&lt;restart&gt;_elsa.nc</code> with <code>elsa_restart = True</code>).</p>
+<p>All backends are off by default. Each one gives a deposition-time field on the Yelmo vertical grid. The backend selected by <code>t_dep_source</code> (<code>"euler"</code>, <code>"trc"</code> or <code>"elsa"</code>) is copied to <code>t_dep</code>, from which the depths of the isochrones at the times <code>time_iso</code> [ka] are diagnosed (<code>depth_iso</code>; with <code>calc_age = False</code>, only the first time is used). The Eulerian solver is explicit (<code>tracer_method = "expl"</code>) or implicit in the vertical with an artificial diffusion <code>tracer_impl_kappa</code> (<code>"impl"</code>); the horizontal advection is explicit upwind in both cases. Where the depth-averaged speed exceeds 500 m a<span class="math inline">^{-1}</span>, the Eulerian tracer is set to the surface value. The elsa layer stack is sized by the simulation end time <code>time_end</code>, which must be later than the start time. On a restart, the state of the Lagrangian backends is read from separate files next to the restart file (for <code>restart.nc</code>: <code>restart_tracer.nc</code>, and <code>restart_elsa.nc</code> with <code>elsa_restart = True</code>).</p>
 <p>The tracers are updated after the material properties and before the thermodynamics in each <a href="../physics/timestepping.html">time step</a>. The variables are listed in the <a href="../yelmo-variables-ytrc.html">tracer variable table</a>.</p>
 
 

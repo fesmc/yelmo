@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -454,7 +466,7 @@ H_{i+1,j} &amp; \text{if } \bar u_{i+\tfrac12,j} &lt; 0,
 \;=\; \frac{Q^{x}_{i+\tfrac12,j} - Q^{x}_{i-\tfrac12,j}}{\Delta x}
    + \frac{Q^{y}_{i,j+\tfrac12} - Q^{y}_{i,j-\tfrac12}}{\Delta y}.
 </span></p>
-<p>The scheme is selected with <code>ytopo.solver</code>. The two recommended schemes, <code>"impl-lis"</code> (default) and <code>"expl-upwind"</code>, differ only in <strong>how</strong> the upwind fluxes are evaluated in time. The other options are <code>"expl"</code>, <code>"impl-upwind"</code>, <code>"expl-sico"</code>, <code>"impl-sico"</code>, <code>"impl-sico-lis"</code>, <code>"expl-new"</code> and <code>"none"</code> (no advection). All schemes are first order in space. The fluxes are conservative (the flux leaving cell <span class="math inline">(i,j)</span> across a face is the same flux entering its neighbour), so the advection does not create or destroy mass, apart from the domain boundaries, cells with a prescribed thickness and the rate limiter below.</p>
+<p>The scheme is selected with <code>ytopo.solver</code>. The two recommended schemes, <code>"impl-lis"</code> (default) and <code>"expl-upwind"</code>, differ only in <strong>how</strong> the upwind fluxes are evaluated in time. The other options are <code>"expl"</code>, <code>"impl-upwind"</code>, <code>"expl-sico"</code>, <code>"impl-sico"</code>, <code>"impl-sico-lis"</code>, <code>"expl-new"</code> and <code>"none"</code> (no advection). All schemes are first order in space. The fluxes are conservative (the flux leaving cell <span class="math inline">(i,j)</span> across a face is the same flux entering its neighbour), so the advection does not create or destroy mass, apart from the flux through the domain edge and, in the explicit schemes, the rate limiter below. The ice mask <code>bnd%mask_ice</code> is not imposed in the advection: every cell is advected, and <code>calc_G_boundaries</code> imposes the mask afterwards and books the change in <code>mb_resid</code> (see <a href="../../physics/mass_conservation/index.html">Mass conservation</a>).</p>
 <p>The advection solver is called twice per time step, in the predictor and the corrector of the <a href="../../physics/timestepping.html">time-stepping scheme</a>.</p>
 <section id="expl-upwind-explicit-forward-euler-donor-cell-upwind" class="level2">
 <h2 class="anchored" data-anchor-id="expl-upwind-explicit-forward-euler-donor-cell-upwind"><code>expl-upwind</code> — explicit forward-Euler donor-cell upwind</h2>
@@ -495,7 +507,7 @@ F^{x}_{i+\tfrac12,j}(H^{n+1})
 \;+\; \Delta t\,\dot m_{i,j},
 </span></p>
 <p>with <span class="math inline">F^{x}_{i+\tfrac12,j} = \bar u_{i+\tfrac12,j}\,\Delta y \cdot H^{\mathrm{up}}_{i+\tfrac12,j}</span> and analogously for <span class="math inline">F^{y}</span>. Each face contributes a single off-diagonal coefficient to the row for cell <span class="math inline">(i,j)</span> — the one corresponding to its upwind neighbour — and a diagonal contribution when cell <span class="math inline">(i,j)</span> itself is the upwind donor. The assembled operator <span class="math inline">A\,H^{n+1} = b</span> therefore has at most five non-zeros per row (centre plus four neighbours), is stored in CSR form, and is solved each timestep by <a href="http://www.ssisc.org/lis/">LIS</a> with BiCGSTAB and a Jacobi preconditioner (tolerance 1e-12, set in <code>solver_advection.f90</code>, not a parameter).</p>
-<p>The rows at the domain edge depend on the boundary type of the experiment (<code>yelmo.experiment</code>): zero thickness at the edge (default), zero normal gradient (<code>"infinite"</code>) or periodic. MISMIP3D and TROUGH-F17 combine a zero edge, an outflow edge and periodic sides. Cells with <code>bnd%mask_ice = NONE</code> are held at <span class="math inline">H = 0</span> and cells with <code>FIXED</code> at their current thickness; only <code>DYNAMIC</code> cells are solved.</p>
+<p>The rows at the domain edge depend on the boundary type of the experiment (<code>yelmo.experiment</code>): zero thickness at the edge (default), zero normal gradient (<code>"infinite"</code>), periodic in both directions, or periodic in one direction and zero gradient in the other (<code>"periodic-x"</code>, <code>"periodic-y"</code>). <code>"MASK_ICE"</code> uses zero gradient on all edges. MISMIP3D and TROUGH-F17 have zero thickness at <span class="math inline">x_\mathrm{max}</span>, zero gradient at the symmetry edge <span class="math inline">x = 0</span> and periodic sides in <span class="math inline">y</span>. Border cells with <code>bnd%mask_ice = NONE</code> or <code>FIXED</code> do not use the edge condition: they are solved as inner cells with no flux through the domain edge, so that the flux through their inner faces is kept and booked in <code>mb_resid</code>.</p>
 <p>Because the implicit upwind scheme is unconditionally stable for this linear transport problem, it tolerates larger Courant numbers than <code>expl-upwind</code>. In Yelmo, the time step is set by the predictor–corrector error estimate and the Courant cap <code>pc_cfl_max</code> for both schemes. The price is one sparse linear solve per call and a slightly more diffusive solution than the explicit upwind scheme at the same <span class="math inline">\Delta t</span>.</p>
 </section>
 <section id="choosing-between-the-two" class="level2">

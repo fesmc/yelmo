@@ -178,6 +178,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -206,6 +212,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -491,7 +503,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>The time-series names are the defaults set by <code>yelmo_region_init</code>. The killed, metrics and timestep files are written by Yelmo in its output folder. For the other files, the calling program chooses the name.</p>
+<p>The time-series names are the defaults set by <code>yelmo_region_init</code>. The killed, metrics and timestep files are named by Yelmo: <code>yelmo_metrics.nc</code> is written in its output folder (<code>outfldr</code> of <code>yelmo_init</code>), <code>yelmo_killed.nc</code> and <code>timesteps.nc</code> in the working directory. For the other files, the calling program chooses the name.</p>
 </section>
 <section id="yelmo_write_init" class="level3">
 <h3 class="anchored" data-anchor-id="yelmo_write_init">yelmo_write_init</h3>
@@ -544,8 +556,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="yelmo_restart_write" class="level3">
 <h3 class="anchored" data-anchor-id="yelmo_restart_write">yelmo_restart_write</h3>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yelmo_restart_write(ylmo,filename,time,init,irange,jrange)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the <a href="./yelmo-variables.html">Yelmo variable tables</a> and write them to a NetCDF file. The tables are read at <code>yelmo_init</code> from <code>input/yelmo-variables-*.md</code>, so a field that is missing from a table is not written to the restart file. Optionally <code>init=.FALSE.</code> will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode fortran code-with-copy"><code class="sourceCode fortranfixed"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">subroutine</span> yelmo_restart_write(dom,filename,time,init,irange,jrange)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the <a href="./yelmo-variables.html">Yelmo variable tables</a> (except the <code>ydata</code> table) and write them to a NetCDF file. The tables are read at <code>yelmo_init</code> from <code>input/yelmo-variables-*.md</code>, so a field that is missing from a table is not written to the restart file. The file also holds the predictor–corrector state (<code>pc_tau</code>, <code>pc_dt</code>, <code>pc_eta</code>, …) and the boundary-rate state (<code>bnd_time_n</code>, <code>bnd_rates_init</code>). With the Lagrangian <a href="./physics/tracers.html">tracer</a> backends, their state is written to separate files next to it (for <code>restart.nc</code>: <code>restart_tracer.nc</code>, <code>restart_elsa.nc</code>). Optionally <code>init=.FALSE.</code> will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).</p>
 <p>This routine can also be used to write regional output using the arguments <code>irange, jrange</code>.</p>
 </section>
 </section>

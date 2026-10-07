@@ -186,6 +186,12 @@ window.Quarto = {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">HPC Notes</span></a>
   </div>
@@ -214,6 +220,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="../optimization.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -506,13 +518,14 @@ window.Quarto = {
 <li>by the Courant number <span class="math inline">C</span> = <code>pc_cfl_max</code> (default 0.5) of the <a href="#transport-velocity-and-courant-limit">transport velocity</a>;</li>
 <li>to the interval [<code>dt_min</code>, remaining time], with <code>dt_min</code> = 0.1 a by default. A step longer than half of the remaining time, but shorter than it, is set to half of the remaining time, to avoid a very short last step.</li>
 </ul>
+<p>The call steps until <code>time</code> is reached, however many steps that takes. <code>par_load</code> stops the model unless <code>pc_rho_max</code> &gt; 1, <code>pc_cfl_max</code> and <code>cfl_max</code> are in (0, 1], and <code>pc_eta_trim</code> is in [0, 0.5).</p>
 </section>
 <section id="transport-velocity-and-courant-limit" class="level3">
 <h3 class="anchored" data-anchor-id="transport-velocity-and-courant-limit">Transport velocity and Courant limit</h3>
 <p>The Courant limit is computed from the velocity that advects <span class="math inline">H</span> in the predictor, the transport velocity (<code>calc_transport_velocity</code>, <a href="https://github.com/fesmc/yelmo/blob/main/src/yelmo_topography.f90"><code>src/yelmo_topography.f90</code></a>). The predictor, the corrector and the Courant limit all call this routine, so the limit is set by exactly the faces that move ice. On the cell faces (ac-nodes) it is</p>
 <ol type="1">
 <li>the depth-averaged velocity <span class="math inline">\bar{u}</span>, or with <code>pc_filter_vel = True</code> (default) the mean of the current and the previous velocity solution;</li>
-<li>set to zero on faces that carry no ice (<code>set_inactive_margins</code>): faces between a partially ice-covered cell (<span class="math inline">f_\mathrm{ice} &lt; 1</span>) and an ice-free cell that may not fill. With the level set and a subgrid front (<code>ytopo.use_lsf = True</code>, <code>ytopo.front_subgrid</code> ≠ <code>"none"</code>), an ice-free cell may fill if the front covers at least <code>A_FRONT_MIN</code> = 10 % of it (level-set area fraction, <code>calc_lsf_area_fraction</code>); otherwise no ice-free cell may fill. A partial cell thus fills before ice flows beyond it.</li>
+<li>set to zero on faces that carry no ice (<code>set_inactive_margins</code>): faces between a partially ice-covered cell (<span class="math inline">f_\mathrm{ice} &lt; 1</span>) and an ice-free cell that may not fill. With the level set and a subgrid front (<code>ycalv.use_lsf = True</code>, <code>ytopo.front_subgrid</code> ≠ <code>"none"</code>), an ice-free cell may fill if the front covers at least <code>A_FRONT_MIN</code> = 10 % of it (level-set area fraction, <code>calc_lsf_area_fraction</code>); otherwise no ice-free cell may fill. A partial cell thus fills before ice flows beyond it.</li>
 </ol>
 <p>The time step is then limited to</p>
 <p><span class="math display">
