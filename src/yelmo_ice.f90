@@ -52,7 +52,9 @@ contains
 
         real(wp) :: dt_now, dt_max, dt_max_0
         real(wp) :: time_now 
-        integer  :: n, nstep, n_now, n_dtmin 
+        integer  :: n, n_now, n_dtmin 
+        integer  :: nstep_dtmin                         ! Steps this call would need at dt_min
+        integer  :: n_dtmin_run                         ! Consecutive steps at dt_min
         integer  :: n_lim 
         real(wp), parameter :: time_tol = 1e-5
 
@@ -61,7 +63,6 @@ contains
         real(wp) :: speed  
 
         real(wp) :: H_mean, T_mean 
-        real(wp), allocatable :: dt_save(:) 
         real(wp) :: dt_adv_min, dt_pi
         real(wp) :: eta_now, rho_now 
         integer  :: iter_redo, iter_redo_tot 
@@ -104,13 +105,17 @@ contains
         ! Load last model time (from dom%tpo, should be equal to dom%thrm)
         time_now = dom%tpo%par%time
 
-        ! Determine maximum number of time steps to be iterated through 
-        ! Note: ensure at least one step will be performed, so that even 
-        ! if the time is already up-to-date, masks etc can be calculated
-        ! if desired. 
-        nstep   = ceiling( (time-time_now) / dom%par%dt_min )
-        nstep   = max(nstep,1)  
-        n_now   = 0  ! Number of timesteps saved 
+        ! Number of timesteps this call would need at dt_min (at least one), 
+        ! used by the dt_min check below. It does not bound the time loop: 
+        ! steps can be shorter than dt_min (eg, the last steps to reach time,
+        ! or dt_min rounded down in limit_adaptive_timestep).
+        nstep_dtmin = ceiling( (time-time_now) / dom%par%dt_min )
+        nstep_dtmin = max(nstep_dtmin,1)  
+        n_now       = 0  ! Number of timesteps done
+        n_dtmin     = 0  ! Number of timesteps at dt_min
+        n_dtmin_run = 0  ! Number of consecutive timesteps at dt_min (up to the current one)
+        max_dt_used = 0.0_wp 
+        min_dt_used = 0.0_wp 
 
         ! Get initial estimate of maximum timestep
         dt_max_0 = max(time-time_now,0.0_wp)
@@ -120,8 +125,6 @@ contains
         n_adv_fail    = 0
         n_lim_steps   = 0
         n_lim_max     = 0
-        allocate(dt_save(nstep))
-        dt_save = missing_value 
 
         dom%time%eta_avg      = missing_value
         dom%time%ssa_iter_avg = missing_value
@@ -151,7 +154,11 @@ contains
         !call yelmo_restart_write(dom,"./yelmo_restart_init_loop.nc",time)
 
         ! Iteration of yelmo component updates until external timestep is reached
-        do n = 1, nstep
+        ! (at least one step is performed, so that even if the time is already
+        ! up-to-date, masks etc can be calculated if desired)
+        n = 0
+        do 
+            n = n + 1
 
             ! Initialize cpu timing for this iteration
             call yelmo_cpu_time(cpu_time0) 
@@ -471,7 +478,19 @@ contains
 
             ! Save the current timestep and other data for log and for running mean 
             n_now = n_now + 1 
-            dt_save(n_now) = dt_now 
+            if (n_now .eq. 1) then 
+                max_dt_used = dt_now 
+                min_dt_used = dt_now 
+            else 
+                max_dt_used = max(max_dt_used,dt_now)
+                min_dt_used = min(min_dt_used,dt_now)
+            end if 
+            if (abs(dt_now-dom%par%dt_min) .lt. dom%par%dt_min*1e-3) then 
+                n_dtmin     = n_dtmin + 1 
+                n_dtmin_run = n_dtmin_run + 1 
+            else 
+                n_dtmin_run = 0 
+            end if 
             call yelmo_calc_running_stats(dom%time%dt_avg,dom%time%dts,dt_now,stat="mean")
             
             call yelmo_calc_running_stats(dom%time%model_speed,dom%time%model_speeds,speed,stat="mean")
@@ -503,33 +522,26 @@ contains
             ! when the minimum is set to a very small value.
 
             ! Set limit for check to be the last 50 timesteps or, if it is smaller,
-            ! the total number of timesteps in this call of yelmo_update
-            n_lim = min(50,nstep)
+            ! the number of timesteps this call of yelmo_update would need at dt_min
+            n_lim = min(50,nstep_dtmin)
 
-            if (n .ge. n_lim .and. dom%par%dt_min .le. 1e-2) then
-                ! Currently n timesteps have been made at the limit of n_lim
-                ! and the dt_min value is quite low. So the model may be stuck
-                ! advancing in time. 
-                
-                ! Check how many of the last 50 timesteps are dt = dt_min 
-                n_dtmin = count(abs(dt_save((n-n_lim+1):n)-dom%par%dt_min) .lt. dom%par%dt_min*1e-3)
-                
-                ! If all n_lim timesteps are at minimum, kill program
-                if (n_dtmin .ge. n_lim) then 
+            if (n_dtmin_run .ge. n_lim .and. dom%par%dt_min .le. 1e-2) then
+                ! The last n_lim timesteps were all at dt_min and the dt_min 
+                ! value is quite low. So the model may be stuck advancing in time:
+                ! kill program
                     
-                    write(kill_txt,"(a,i10,a,i10)") &
-                        "Too many iterations of dt_min called continuously for this timestep.", &
-                                            n_dtmin, " of ", n 
+                write(kill_txt,"(a,i10,a,i10)") &
+                    "Too many iterations of dt_min called continuously for this timestep.", &
+                                        n_dtmin_run, " of ", n 
 
-                    call yelmo_check_kill(dom,time_now,kill_request=kill_txt)
-
-                end if 
+                call yelmo_check_kill(dom,time_now,kill_request=kill_txt)
 
             end if 
 
             ! Check if it is time to exit adaptive iterations
-            ! (if current outer time step has been reached)
-            if (abs(time_now - time) .lt. time_tol) exit 
+            ! (if current outer time step has been reached; also exits after
+            ! one step if time is earlier than the model time)
+            if (time_now .ge. time - time_tol) exit 
 
         end do 
 
@@ -555,17 +567,6 @@ contains
             else 
                 H_mean = 0.0_wp 
                 T_mean = 0.0_wp
-            end if 
-
-            n       = count(dt_save .ne. missing_value)
-            n_dtmin = count( abs(dt_save(1:n)-dom%par%dt_min) .lt. dom%par%dt_min*1e-3 )
-
-            if (n .gt. 0) then 
-                max_dt_used = maxval(dt_save(1:n))
-                min_dt_used = minval(dt_save(1:n))
-            else 
-                max_dt_used = 0.0 
-                min_dt_used = 0.0 
             end if 
 
             write(*,"(a,f13.2,f10.2,f10.1,f8.1,2G10.3,1i6)") &
