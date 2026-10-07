@@ -122,7 +122,14 @@ $(objdir)/velocity_diva.o: $(srcdir)/physics/velocity_diva.f90 \
 
 ## YELMO BASE ###############################################
 
-$(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90
+# yelmo_defs embeds hydro_class, elsa_class and tracer_class, so its object layout
+# (and that of every object built on it) goes stale when those types change. The
+# .mod files alone are not enough for make: depend on the sibling archives, which
+# are rebuilt (by the *-static targets) whenever their sources change.
+$(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90 \
+                        $(FASTHYDROROOT)/include/libfasthydro.a \
+                        $(ELSAROOT)/libelsa/include/libelsa.a \
+                        $(TRACERROOT)/libtracer/include/libtracer.a
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_grid.o: $(srcdir)/yelmo_grid.f90 $(objdir)/yelmo_defs.o
