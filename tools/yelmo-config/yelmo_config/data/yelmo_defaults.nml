@@ -47,9 +47,10 @@
     pc_use_H_pred   = True              ! Use predicted H_ice instead of corrected H_ice 
     pc_filter_vel   = True              ! Advect H_ice with mean of current and previous vel. solutions (vel. fields stay unfiltered)
     pc_n_redo       = 5                 ! How many times can the same iteration be repeated (when high error exists)
-    pc_tol          = 5.0               ! [1/a] Redo the timestep when pc_eta > pc_tol; pc_eta = RMS of tau/(1 m + 0.01 H) over the pc mask without the pc_eta_trim largest, tau = pc truncation error [m/a]
+    pc_tol          = 1.0               ! [1/a] Redo the timestep when pc_eta > pc_tol; pc_eta = RMS of tau/(1 m + 0.01 H) over the pc mask without the pc_eta_trim largest, tau = pc truncation error [m/a]
     pc_eps          = 0.02              ! [1/a] Target pc_eta of the adaptive timestep (dt_method=2), must be <= pc_tol
     pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
+    pc_rho_max      = 2.0               ! Maximum growth factor dt_new/dt per step of the pc adaptive timestep (dt_method=2)
     pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
     pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
     pc_eta_trim     = 0.0               ! [--] Fraction of points with the largest errors left out of the pc error norm
@@ -137,7 +138,7 @@
 
 &ydyn
     solver              = "diva"          ! "fixed", "sia", "ssa", "hybrid", "diva", "diva-noslip"
-    uz_method           = 3               ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian
+    uz_method           = 3               ! 1: aa-staggering, 2: strain-rate-on-nodes, 3: jacobian, 4: flux-consistent (layer mass budget)
     visc_method         = 1               ! 0: constant visc=visc_const, 1: dynamic viscosity (quadrature points), 2: dynamic viscosity (aa-nodes)
     visc_const          = 1e7             ! [Pa a] Constant value for viscosity (if visc_method=0)
     beta_method         = 1               ! -1: imposed externally; 0: constant beta; 1: linear (beta=cb/u0); 2: pseudo-plastic power; 3: regularized Coulomb; 4, 5: as 2, 3 with c_bed and u_b at the cell centre (no quadrature)

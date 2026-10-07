@@ -176,7 +176,7 @@ contains
             ! Calculate adaptive timestep using proportional-integral (PI) methods
             call set_adaptive_timestep_pc(dt_pi,dom%time%pc_dt,dom%time%pc_eta,dom%par%pc_eps,dom%par%dt_min,dt_max, &
                                     dom%dyn%now%ux_bar,dom%dyn%now%uy_bar,dom%tpo%par%dx,dom%tpo%par%pc_k,dom%par%pc_controller, &
-                                    dom%par%pc_cfl_max,dom%tpo%par%boundaries)
+                                    dom%par%pc_cfl_max,dom%par%pc_rho_max,dom%tpo%par%boundaries)
 
             ! ajr restart check:
             ! write(*,*) "Set timestep: ", n, time_now, dt_pi, dt_max
@@ -1658,6 +1658,7 @@ contains
         call nml_read(filename,group,"pc_tol",        par%pc_tol,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eps",        par%pc_eps,        defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_cfl_max",    par%pc_cfl_max,    defaults_file=def_file,defaults_group=def_yelmo)
+        call nml_read(filename,group,"pc_rho_max",    par%pc_rho_max,    defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eta_H_min",  par%pc_eta_H_min,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eta_u_min",  par%pc_eta_u_min,  defaults_file=def_file,defaults_group=def_yelmo)
         call nml_read(filename,group,"pc_eta_trim",   par%pc_eta_trim,   defaults_file=def_file,defaults_group=def_yelmo)
@@ -1726,6 +1727,10 @@ contains
         end if
         if (par%pc_cfl_max .le. 0.0_wp .or. par%pc_cfl_max .gt. 1.0_wp) then
             write(io_unit_err,*) "yelmo_par_load:: error: pc_cfl_max must be in (0,1]; got ", par%pc_cfl_max
+            error stop 1
+        end if
+        if (par%pc_rho_max .le. 1.0_wp) then
+            write(io_unit_err,*) "yelmo_par_load:: error: pc_rho_max must be > 1; got ", par%pc_rho_max
             error stop 1
         end if
         if (par%pc_eta_H_min .lt. 0.0_wp .or. par%pc_eta_u_min .lt. 0.0_wp) then
