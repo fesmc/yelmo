@@ -298,6 +298,21 @@ B1 (2026-10-07, ISLAND4-L and ISLAND4-L-R, 32 and 16 km, 5 kyr, single precision
 
 The coupled B1 thus does not test a land margin set by ablation: the initial temperature (stationary columns, a temperate base in 48 % of the grounded area) softens the ice, and the dome spreads to r_lim in spite of r_ela = 450 km. The budget check also showed that ice leaving through `mask_ice = none` was not reported in any budget term, which affected every ISLAND4 test where ice reaches r_lim (fixed, see above). These runs used r_ela = 450 km and the A3 Vialov profile; B1 now uses r_ela = 350 km and R_i = 450 km (see B1).
 
+B1 rerun (2026-10-07, dev d23b4810: r_ela = 350 km, R_i = 450 km, mask budget fix; albedo; single precision with 16 threads, double precision with 1 thread):
+
+| Run | D4 error H / velocity at 5 kyr | max \|r_M\| per 10 yr | V [1e6 km³], 0 → 5 kyr |
+|---|---|---|---|
+| 32 km isothermal, L / L-R | 2e-7 / 3–4e-6 | 4–5e-7 | 1.47 → 1.61 |
+| 32 km coupled, L / L-R | 1–4e-6 / 1e-5 | 5e-7 | 1.47 → 1.25 / 1.28 |
+| 16 km isothermal, L / L-R | 2–3e-7 / 6–9e-6 | 6–7e-7 | 1.47 → 1.64 |
+| 16 km coupled, L-R | 4e-4 / 5e-3 | 5e-7 | 1.47 → 1.29 |
+| 16 km coupled, L | 5e-4 / 1e-2 (peak 1e-2 / 1.1 at 0.6–2.4 kyr) | 7e-7 | 1.47 → 1.26 |
+| Double precision: 32 km isothermal, 32 km coupled, 16 km coupled | ≤ 7e-14 / ≤ 1e-12 | ≤ 2e-11 | as single precision |
+
+- The margin stays inside r_lim in all runs, and the mass budget closes to round-off from the time series (`mb_resid_tot`, `mb_clip_tot`, `mb_relax_tot`).
+- In single precision, the coupled run at 16 km loses the symmetry between 0.3 and 0.6 kyr: the velocity error reaches order one at single cells and the enthalpy error 0.3 of its range, and both decay after 2.5 kyr. The same run in double precision stays symmetric to 1e-12. The break is therefore the amplification of single-precision round-off by a threshold in the coupled thermodynamics (e.g., a cell switching between cold and temperate base), not an asymmetry in the code.
+- ISLAND4-L vs ISLAND4-L-R: V differs by 6e-4 (32 km) and 2e-3 (16 km) in the isothermal runs and by 2 % in the coupled runs after 5 kyr; the margin radii differ by one to two cells.
+
 ![B1 ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
 
 B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
