@@ -9,6 +9,7 @@
 #   julia --project=tests/bench tests/bench/make_fixture.jl output/bench/island4-od.nc island4 B_od=700 exp=smb
 #   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/shelf-r-10km.nc shelf-r dx_km=10
 #   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/strip-a4-tsrf.nc strip exp=tsrf
+#   julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
 #
 # Keys are the keyword arguments of the benchmark constructor (exp selects the
 # experiment, island4 and strip). Numbers are parsed as Float64, true/false as Bool, the rest as Symbol.
@@ -37,8 +38,10 @@ function main(args)
         ShelfRadialBenchmark(; kw...)
     elseif name == "strip"
         StripThermoBenchmark(exp == :ctrl ? :stationary : exp; kw...)
+    elseif name == "flowline"
+        FlowlineBenchmark(exp; kw...)
     else
-        error("make_fixture.jl: unknown benchmark $name. Available: island4, shelf-r, strip.")
+        error("make_fixture.jl: unknown benchmark $name. Available: island4, shelf-r, strip, flowline.")
     end
 
     write_fixture!(b, out)
