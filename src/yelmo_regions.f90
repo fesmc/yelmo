@@ -323,7 +323,8 @@ contains
         reg%bmb_tot    = sum(tpo%now%bmb*area,mask=mask_reg)                ! [m^3/yr]
         reg%fmb_tot    = sum(tpo%now%fmb*area,mask=mask_reg)                ! [m^3/yr]
 
-        ! Boundary removal (mask, margin, isolated points) and clipping of negative thickness
+        ! Relaxation, boundary removal (mask, margin, isolated points) and clipping of negative thickness
+        reg%mb_relax_tot = sum(tpo%now%mb_relax*area,mask=mask_reg)         ! [m^3/yr]
         reg%mb_resid_tot = sum(tpo%now%mb_resid*area,mask=mask_reg)         ! [m^3/yr]
         reg%mb_clip_tot  = sum(tpo%now%mb_clip*area,mask=mask_reg)          ! [m^3/yr]
 
@@ -583,6 +584,8 @@ contains
         call nc_write(filename,"bmb_tot",reg%bmb_tot,units="m^3/yr",long_name="Total applied basal mass balance", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"fmb_tot",reg%fmb_tot,units="m^3/yr",long_name="Total applied frontal mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_relax_tot",reg%mb_relax_tot,units="m^3/yr",long_name="Total relaxation mass balance (tau_relax)", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"mb_resid_tot",reg%mb_resid_tot,units="m^3/yr",long_name="Total residual mass balance (boundary and mask removal)", &
                       dim1="time",start=[n],ncid=ncid)
