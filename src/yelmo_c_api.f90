@@ -132,6 +132,26 @@ contains
 
   end subroutine
 
+  ! Register a host callback for the effective pressure: called in every DIVA Picard iteration as
+  !   cb(tag, uxy_b, N_eff, nx, ny)   (uxy_b [m/yr] on aa-nodes in, N_eff [Pa] out)
+  ! so that a steady hydrology owned by the host (K24 in Julia) is solved together with the sliding
+  ! speed instead of lagging it by a step. Pass a null pointer to unregister. Needs the host to push
+  ! N externally (hyd.bkt_N_closure = -1) as for any externally driven N.
+  subroutine yelmo_set_neff_callback(cb, tag, alias) bind(C, name="yelmo_set_neff_callback")
+    use iso_c_binding
+    type(c_funptr), value, intent(in) :: cb
+    integer(c_int), value, intent(in) :: tag
+    character(c_char),     intent(in) :: alias(*)
+
+    call yelmo_set_alias(alias)
+
+    ylmo%dyn%neff_cb     = cb
+    ylmo%dyn%neff_cb_tag = tag
+
+    nullify(ylmo)
+
+  end subroutine
+
   subroutine yelmo_step_wrapper(time,alias) bind(C, name="yelmo_step")
     use iso_c_binding
     real(c_double), value :: time
