@@ -9,7 +9,7 @@ module ice_optimization
     implicit none 
 
     type ice_opt_params
-        logical  :: opt_cf 
+        character(len=56) :: opt_cf     ! "none", "L21" (optimize_cb_ref)
         real(wp) :: cf_time_init
         real(wp) :: cf_time_end
         real(wp) :: cf_init
@@ -20,7 +20,7 @@ module ice_optimization
         character(len=56) :: fill_method 
         logical  :: basin_fill
 
-        logical  :: opt_tf 
+        character(len=56) :: opt_tf     ! "none", "L21" (optimize_tf_corr_basin), "L21-points" (optimize_tf_corr)
         real(wp) :: tf_time_init
         real(wp) :: tf_time_end
         real(wp) :: H_grnd_lim
@@ -107,6 +107,26 @@ contains
         call nml_read(path_par,group,"tf_max",      opt%tf_max)
         call nml_read(path_par,group,"tf_basins",   opt%tf_basins)
         
+        select case(trim(opt%opt_cf))
+            case("none","L21")
+                ! Valid method
+            case DEFAULT
+                write(io_unit_err,*) "optimize_par_load:: Error: opt_cf not recognized."
+                write(io_unit_err,*) "opt_cf = ", trim(opt%opt_cf)
+                write(io_unit_err,*) "Allowed values: none, L21"
+                error stop 1
+        end select
+
+        select case(trim(opt%opt_tf))
+            case("none","L21","L21-points")
+                ! Valid method
+            case DEFAULT
+                write(io_unit_err,*) "optimize_par_load:: Error: opt_tf not recognized."
+                write(io_unit_err,*) "opt_tf = ", trim(opt%opt_tf)
+                write(io_unit_err,*) "Allowed values: none, L21, L21-points"
+                error stop 1
+        end select
+
         return
 
     end subroutine optimize_par_load

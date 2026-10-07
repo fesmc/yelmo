@@ -7,6 +7,13 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **Optimization methods as strings.** `opt.opt_cf` and `opt.opt_tf` are no
+  longer logical: `opt_cf = "none" | "L21"` (`optimize_cb_ref`), `opt_tf =
+  "none" | "L21" | "L21-points"` (`optimize_tf_corr_basin`, one correction per
+  basin, or `optimize_tf_corr`, point by point). Other values stop the model in
+  `optimize_par_load`. initmip: `True` -> `"L21"`, `False` -> `"none"`; `opt_tf`
+  must stay `"none"` (no ocean model).
+
 - **Relaxation separate from the optimization.** The topography relaxation of a
   spin-up moves out of `&opt` into its own group `&relax` (`relax_params`,
   `relax_par_load`, `relax_update` in `libs/ice_optimization.f90`): `opt.rel_tau1`,

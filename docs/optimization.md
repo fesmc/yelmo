@@ -57,16 +57,20 @@ optimization).
 
 In `&opt` (times are counted from `ctrl.time_init`, also after a restart):
 
-- `opt_cf`: switch for the friction optimization, active between
-  `cf_time_init` and `cf_time_end` (default 0–15 kyr);
+- `opt_cf`: method of the friction optimization, `"none"` or `"L21"`
+  (`optimize_cb_ref`, above), active between `cf_time_init` and `cf_time_end`
+  (default 0–15 kyr);
 - `cf_init`: initial `cb_ref` everywhere without a restart (must be positive);
 - `tau_c`, `H0`, `fill_method` as above.
 
 In `&relax` (times also counted from `ctrl.time_init`): `topo_rel`, `tau1`,
 `tau2`, `time1`, `time2`, `m` as above.
 
-The optimization of the ocean thermal forcing (`opt_tf`) is not implemented
-and stops the model.
+The optimization of the ocean thermal forcing `tf_corr` (`opt_tf`) needs an
+ocean model, so initmip only accepts `opt_tf = "none"`. Drivers with an ocean
+model (yelmox) can use `"L21"` (`optimize_tf_corr_basin`, one correction per
+basin, basins in `tf_basins`) or `"L21-points"` (`optimize_tf_corr`, a correction
+in each point, smoothed with `tf_sigma`).
 
 ## Reference
 
