@@ -21,7 +21,7 @@ The Yelmo code repository can be found here:
 
 ### yelmo\_class
 
-The Yelmo class defines all data related to a model domain, such as Greenland or Antarctica. As seen below in the yelmo\_class defintion, the 'class' is simply a user-defined Fortran type that contains additional types representing various parameters, variables or sets of module variables.
+The Yelmo class defines all data related to a model domain, such as Greenland or Antarctica. As seen below in the yelmo\_class definition, the 'class' is simply a user-defined Fortran type that contains additional types representing various parameters, variables or sets of module variables.
 
 ```fortran
     type yelmo_class
@@ -60,7 +60,7 @@ Likewise the module variables are defined in a similar way, e.g. ytopo\_class th
 
 Components such as ytopo\_class include the parameters relevant to topography calculations (`par`), as well as all variables that define the state of the domain being modeled (`now`).
 
-### Example model domain intialization
+### Example model domain initialization
 
 The below code snippet shows an example of how to initialize an instance of Yelmo
 inside of a program, run the model forward in time and then terminate the instance.
@@ -76,6 +76,11 @@ inside of a program, run the model forward in time and then terminate the instan
 
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=time_init)
 
+    ! Optional arguments: outfldr, the folder for the files Yelmo writes itself
+    ! (region time series, metrics), and cnst, a phys_const_class with the
+    ! physical constants, for a driver that shares one set of constants
+    ! between the components of a coupled model.
+
     ! === Load initial boundary conditions for current time and yelmo state =====
     ! These variables can be loaded from a file, or passed from another
     ! component being simulated. Yelmo does not care about the source.
@@ -87,7 +92,7 @@ inside of a program, run the model forward in time and then terminate the instan
     yelmo1%bnd%smb      = [2D array]    ! [m/a ice equiv.] Surface mass balance
     yelmo1%bnd%T_srf    = [2D array]    ! [K] Surface temperature
     yelmo1%bnd%bmb_shlf = [2D array]    ! [m/a ice equiv.] Sub-shelf basal mass balance
-    yelmo1%bnd%fmb_shlf = [2D array]    ! [m/a ice equiv.] Frontal mass balance (ytopo.fmb_method=0)
+    yelmo1%bnd%fmb_shlf = [2D array]    ! [m/a ice equiv.] Frontal mass balance (ytopo.fmb_method=0,2)
     yelmo1%bnd%Q_geo    = [2D array]    ! [mW/m2] Geothermal heat flux
 
     ! Depending on the methods used: T_shlf, tf_shlf and Qd (ocean
@@ -139,7 +144,7 @@ optional field replaces the matching file read; the processing that follows is
 the same:
 
 ```fortran
-    type(ytopo_input_class) :: topo_pd, topo_init   ! H_ice, z_bed [, z_bed_sd, z_srf]
+    type(ytopo_input_class) :: topo_pd, topo_init   ! topo_pd: H_ice, z_bed, z_srf [, z_bed_sd]; topo_init: H_ice, z_bed [, z_bed_sd]
 
     call yelmo_init_grid(yelmo1%grd,grid)           ! grid: a coords grid_class
     call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init, &

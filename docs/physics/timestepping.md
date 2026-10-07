@@ -98,6 +98,10 @@ error $\varepsilon$ = `pc_eps` (default 0.02 a$^{-1}$, which must not exceed
   A step longer than half of the remaining time, but shorter than it, is set to
   half of the remaining time, to avoid a very short last step.
 
+The call steps until `time` is reached, however many steps that takes.
+`par_load` stops the model unless `pc_rho_max` > 1, `pc_cfl_max` and `cfl_max`
+are in (0, 1], and `pc_eta_trim` is in [0, 0.5).
+
 ### Transport velocity and Courant limit
 
 The Courant limit is computed from the velocity that advects $H$ in the
@@ -112,7 +116,7 @@ the limit is set by exactly the faces that move ice. On the cell faces
 2. set to zero on faces that carry no ice (`set_inactive_margins`): faces
    between a partially ice-covered cell ($f_\mathrm{ice} < 1$) and an ice-free
    cell that may not fill. With the level set and a subgrid front
-   (`ytopo.use_lsf = True`, `ytopo.front_subgrid` ≠ `"none"`), an ice-free cell
+   (`ycalv.use_lsf = True`, `ytopo.front_subgrid` ≠ `"none"`), an ice-free cell
    may fill if the front covers at least `A_FRONT_MIN` = 10 % of it (level-set
    area fraction, `calc_lsf_area_fraction`); otherwise no ice-free cell may
    fill. A partial cell thus fills before ice flows beyond it.

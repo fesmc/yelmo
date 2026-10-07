@@ -110,6 +110,6 @@ obtain `[kyr/hr]`, take 60/rate.
 
 ## How to read `yelmo_check_kill` output
 
-The subroutine `yelmo_check_kill` is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to `yelmo_killed.nc` at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to the log file.
+The subroutine `yelmo_check_kill` is used to see if any instability is arising in the model. If so, then a snapshot of the model state is written to `yelmo_killed.nc` at that moment (the earlier in the instability, the better), and the model is stopped with diagnostic output to standard error. The file is written in the working directory.
 
 The criteria are listed in [Time stepping](physics/timestepping.md#instability-checks). The error measure is `pc_eta`, the norm of the predictor–corrector truncation error [1/yr]: `pc_eps` is its target value for the adaptive time step, and `pc_tol` the value above which a time step is redone with a smaller dt. If the mean of the stored `pc_eta` values (the last three steps) exceeds `10*pc_tol`, this is interpreted as instability and the model is stopped. The checks are switched off with `yelmo.disable_kill = True`.

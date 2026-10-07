@@ -64,7 +64,7 @@ runme -r -e initmip -o output/ant-pd -n par/yelmo_initmip.nml -p ctrl.set_nm="se
 See: [Installation](https://fesmc.github.io/yelmo/getting-started.html) for installation tips.
 
 - NetCDF library (preferably version 4.0 or higher), with the Fortran interface. This is the only library to install yourself.
-- LIS: [Library of Iterative Solvers for Linear Systems](http://www.ssisc.org/lis/) and FFTW, built inside `fesm-utils` by `configme install`.
+- LIS: [Library of Iterative Solvers for Linear Systems](http://www.ssisc.org/lis/) FFTW and SHTns, built inside `fesm-utils` by `configme install`.
 - The Fortran packages [fesm-utils](https://github.com/fesmc/fesm-utils), [FastHydrology](https://github.com/fesmc/FastHydrology), [elsa](https://github.com/fesmc/elsa) and [tracer](https://github.com/fesmc/tracer), cloned and linked into the checkout by `configme install yelmo`.
 - Python 3 with the [`configme`](https://github.com/fesmc/configme) package (Makefile generation and installation) and the [`runme`](https://github.com/fesmc/runme) package (running single simulations and ensembles, job submission). Install both with `pip` as shown above.
 
@@ -109,7 +109,7 @@ command set.
         Default parameters (yelmo_defaults.nml), physical constants and the
         variable tables used for output.
     libs/
-        Auxiliary libraries nesecessary for running the model.
+        Auxiliary libraries necessary for running the model.
     libyelmo/
         Compiled files: include/ (object and module files, libyelmo.a) and bin/ (executables).
     output/

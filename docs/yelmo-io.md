@@ -30,8 +30,10 @@ The Yelmo test programs and yelmox use the same file names as CLIMBER-X:
 | `timesteps.nc` | Time steps and solver diagnostics (`yelmo.log_timestep = True`) |
 
 The time-series names are the defaults set by `yelmo_region_init`. The killed,
-metrics and timestep files are written by Yelmo in its output folder. For the
-other files, the calling program chooses the name.
+metrics and timestep files are named by Yelmo: `yelmo_metrics.nc` is written in
+its output folder (`outfldr` of `yelmo_init`), `yelmo_killed.nc` and
+`timesteps.nc` in the working directory. For the other files, the calling
+program chooses the name.
 
 ### yelmo_write_init
 
@@ -119,10 +121,10 @@ If no argument is used, then a subset of useful variables is written:
 ### yelmo_restart_write
 
 ```fortran
-subroutine yelmo_restart_write(ylmo,filename,time,init,irange,jrange)
+subroutine yelmo_restart_write(dom,filename,time,init,irange,jrange)
 ```
 
-This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the [Yelmo variable tables](yelmo-variables.md) and write them to a NetCDF file. The tables are read at `yelmo_init` from `input/yelmo-variables-*.md`, so a field that is missing from a table is not written to the restart file. Optionally `init=.FALSE.` will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).
+This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the [Yelmo variable tables](yelmo-variables.md) (except the `ydata` table) and write them to a NetCDF file. The tables are read at `yelmo_init` from `input/yelmo-variables-*.md`, so a field that is missing from a table is not written to the restart file. The file also holds the predictor–corrector state (`pc_tau`, `pc_dt`, `pc_eta`, ...) and the boundary-rate state (`bnd_time_n`, `bnd_rates_init`). With the Lagrangian [tracer](physics/tracers.md) backends, their state is written to separate files next to it (for `restart.nc`: `restart_tracer.nc`, `restart_elsa.nc`). Optionally `init=.FALSE.` will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).
 
 This routine can also be used to write regional output using the arguments `irange, jrange`.
 

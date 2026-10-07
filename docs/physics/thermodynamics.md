@@ -24,7 +24,8 @@ The method is selected with `ytherm.method`:
 | `"fixed"` | No update: the temperature/enthalpy fields stay as initialised |
 
 `yelmo_init_state` initialises the thermodynamic state with `"linear"`,
-`"robin"` or `"robin-cold"` (argument `thrm_method`). The Robin solution
+`"robin"` or `"robin-cold"` (argument `thrm_method`), or with `"prescribed"`
+and a temperature field passed as `T_ice` (see [Remapping](../remapping.md)). The Robin solution
 assumes constant material properties and uses `const_kt` and `const_cp`
 (whatever `use_const_kt` / `use_const_cp`), so that the basal gradient is
 $-G/k$ with $k$ = `const_kt`.
@@ -151,7 +152,11 @@ $Q_{i,b} = -k\,\partial T/\partial z|_b$ (`Q_ice_b`).
 
 **Grounded ice.** With `basal_bc_method = "capacity"` (default), the model
 first computes the basal mass balance $\dot b^\star$ (`bmb_grnd_star`) that
-would keep the base at the pressure melting point. It is compared with the
+would keep the base at the pressure melting point. It includes the sensible
+heat needed to warm a base below the pressure melting point up to it within
+the step, $\rho_i\,\max(E_\mathrm{pmp} - E_b, 0)\,\Delta z/\Delta t$, with
+$\Delta z$ the thickness of the lowest layer; otherwise a cold base held at the
+pressure melting point would warm at no cost. It is compared with the
 freeze-on capacity $C$, the rate at which the water at the bed can be frozen:
 
 - if $\dot b^\star \le 0$ (melting) or $\dot b^\star \le C$, the base is held
@@ -242,7 +247,7 @@ constants (Payne et al., 2000). With `rf_with_water = True`, $A$ is multiplied
 by $1 + 181.25\,\omega$ (Lliboutry and Duval, 1985). $E_f$ is the enhancement
 factor (`enh_method`, `enh_shear`, `enh_stream`, `enh_shlf`).
 
-With `gl_temperate = True`, a fully grounded column next to floating ice or open
+With `gl_temperate = True` (default), a fully grounded column next to floating ice or open
 ocean (`f_grnd` = 0 in one of its four neighbours) has its base held at the
 pressure melting point (the bed is wetted by the ocean); freeze-on there is not
 limited by the bed's water (capacity rule).

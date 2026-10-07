@@ -38,7 +38,8 @@ any speed.
 
 After the friction law, $\beta$ is modified in this order:
 
-1. divided by the sub-temperate sliding factor $f_\mathrm{slide}$ (below);
+1. multiplied by $f_\mathrm{slide}^{-q}$, with the sub-temperate sliding
+   factor $f_\mathrm{slide}$ (below);
 2. scaled near the grounding line (`beta_gl_scale`): 0, multiplied by
    `beta_gl_f` at the grounding line; 1, reduced linearly to zero as the
    thickness above flotation decreases from `H_grnd_lim` to 0; 2, scaled by
@@ -48,7 +49,8 @@ After the friction law, $\beta$ is modified in this order:
    100 Pa a m$^{-1}$) for grounded ice.
 
 Steps 1–3 are skipped for `beta_method = -1`. $\beta$ is then staggered to the
-velocity faces (`beta_gl_stag`): 0, mean of the two cells; 1 (default), the
+velocity faces (`beta_gl_stag`): −1, `beta_acx`/`beta_acy` are imposed
+externally and not computed; 0, mean of the two cells; 1 (default), the
 upstream (grounded) value at grounding-line faces; 2, the downstream value;
 3, a mix of the grounded and floating values weighted by the square of the
 grounded fraction of the face; 4, weighted by the grounded
@@ -61,14 +63,15 @@ below the pressure melting point. After the friction law, $\beta$ is multiplied
 by $f_\mathrm{slide}^{-q}$, with
 
 $$
-f_\mathrm{slide} = f_\mathrm{min} + (1 - f_\mathrm{min})\exp(T'_b/\gamma_T),
+f_\mathrm{slide} = f_\mathrm{min} + (1 - f_\mathrm{min})\exp(T'_b/T_e),
 $$
 
-where $T'_b \le 0$ is the basal homologous temperature, $\gamma_T$ is
-`ydyn.frz_efold` and $f_\mathrm{min}$ is `ydyn.frz_min` (e.g., Fowler, 1986;
+where $T'_b \le 0$ is the basal homologous temperature, $T_e$ is
+`ydyn.frz_efold` (default 3 K) and $f_\mathrm{min}$ is `ydyn.frz_min` (default
+$10^{-3}$) (e.g., Fowler, 1986;
 Hindmarsh and Le Meur, 2001). $q$ is `beta_q`, or 1 for `beta_method` 0 and 1.
 At a given basal stress this scales the sliding speed by $f_\mathrm{slide}$ for
-the linear and power-plastic laws, so $\gamma_T$ is the e-folding temperature of
+the linear and power-plastic laws, so $T_e$ is the e-folding temperature of
 the sliding speed for any friction law. For the regularized Coulomb law this
 holds for $u_b \ll u_0$; for $u_b \gg u_0$ the yield stress becomes
 $c_b f_\mathrm{slide}^{-q}$. $f_\mathrm{slide} = 1$ where the base is temperate,
@@ -136,7 +139,12 @@ the closure is chosen with `yhyd.bkt_N_closure`:
 | 3 | Till closure (Bueler and van Pelt, 2015), parameters `yhyd.till_*` (**default**) |
 
 With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
-the transport model. With `ydyn.neff_nxi` > 0, the cell value of
+the transport model. Its $N$ depends on the basal velocity, so with
+`yhyd.k24_ub_hook = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
+velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
+iteration; with `k24_ub_hook = False`, $N$ is evaluated once per time step. A
+host model that owns the hydrology can do the same through the C-API callback
+`yelmo_set_neff_callback`. With `ydyn.neff_nxi` > 0, the cell value of
 $N_\mathrm{eff}$ is the average of the hydrology's $N$ interpolated to sub-grid
 points (1: the four Gauss points, > 1: an `neff_nxi` × `neff_nxi` grid; default 0,
 no interpolation).

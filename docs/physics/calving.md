@@ -46,8 +46,9 @@ Other laws on this path:
   `Hc_ref_flt` (floating) or `Hc_ref_grnd` (grounded);
 - `"exp1"`–`"exp5"` (floating): the CalvingMIP experiments;
 - `"ismip7"` (grounded): frontal retreat from the frontal melt of Rignot et
-  al. (2016), with the ocean thermal forcing and the subglacial discharge
-  `bnd%Qd` (ISMIP7 protocol).
+  al. (2016), with the subglacial discharge `bnd%Qd` and the thermal forcing
+  `bnd%T_shlf` minus the seawater freezing point at the water depth (Jenkins,
+  1991; ISMIP7 protocol). It does not use `bnd%tf_shlf`.
 
 ### Level-set front
 
@@ -78,11 +79,13 @@ except with `calv_flt_method = "equil"`.
 With `ytopo.front_subgrid = "marine"`, ice cells with the bed below sea level
 (`"floating"`: floating cells only) can be partially ice covered. A front cell
 (such a cell with an ice-free ocean edge neighbour) has an effective thickness
-`H_eff`, taken from its thickest interior neighbour minus
-`ytopo.front_dHdx`·distance (at least `ytopo.front_H_eff_min`, with a limit on
-the rise of the effective surface), and the ice fraction
-`f_ice = H_ice/H_eff`. Front cells without an interior neighbour keep
-`H_eff = H_ice`.
+`H_eff`, taken from its thickest interior edge neighbour (or diagonal
+neighbour, if there is none) minus `ytopo.front_dHdx`·distance (at least
+`ytopo.front_H_eff_min`, with a limit on the rise of the effective surface),
+and the ice fraction `f_ice = H_ice/H_eff`. Front cells without an interior
+neighbour keep `H_eff = H_ice`, and so do front cells entirely behind the
+level-set front (`a_lsf` = 1). Ice thinner than 1 mm (`H_ice_eps`) is ice free
+(`f_ice` = 0) and is never a front cell.
 
 With the level set, the thickness of these cells follows the front
 (`calc_G_lsf_front`): `a_lsf`, the area fraction of the cell behind the zero
@@ -95,8 +98,11 @@ classification. Front cells with `a_lsf` < 1 are trimmed to `a_lsf`·`H_ref`,
 with `H_ref` the reference thickness from the interior neighbours, so `f_ice`
 is approximately `a_lsf`. In the momentum balance, partial front cells use
 `H_eff` as their thickness and the front boundary condition is applied on
-their ocean faces. Cells with `f_ice` < 0.1 keep their ice and fill by transport,
-but are ice-free in the momentum balance until they reach 0.1.
+their ocean faces. Cells with `f_ice` < `A_FRONT_MIN` = 0.1 keep their ice and
+fill by transport, but are ice free in the momentum balance until they reach
+0.1 (`H_ice_dyn` = 0); otherwise a film of a few millimetres would be a full
+`H_eff` column and turn the ocean face of the neighbouring front cell into an
+interior face.
 
 ## Mass-balance calving path
 
@@ -159,6 +165,8 @@ $$
 - Bassis, J. N. and Walker, C. C. (2012). Upper and lower limits on the
   stability of calving glaciers from the yield strength envelope of ice.
   Proc. R. Soc. A, 468, 913–931.
+- Jenkins, A. (1991). A one-dimensional model of ice shelf–ocean interaction.
+  J. Geophys. Res., 96(C11), 20671–20677.
 - Levermann, A., et al. (2012). Kinematic first-order calving law implies
   potential for abrupt ice-shelf retreat. The Cryosphere, 6, 273–286.
 - Lipscomb, W. H., et al. (2019). Description and evaluation of the Community

@@ -67,7 +67,8 @@ documented in [Numerical solution](mass_conservation/solvers.md).
 
 The ice thickness is advanced with an adaptive
 [predictor–corrector scheme](timestepping.md), whose time step is set by an
-estimate of the truncation error and limited by a Courant condition.
+estimate of the truncation error and limited by a Courant condition and a cap
+on its growth from one step to the next.
 
 ## Thermodynamics
 

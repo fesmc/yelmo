@@ -68,8 +68,10 @@ Marine Ice Sheet Model Intercomparison Project, 3D version
 ([Pattyn et al., 2013](https://doi.org/10.3189/2013JoG12J129)). Tests
 grounding-line dynamics on a marine bed, with the SSA momentum balance
 (`ydyn.solver = "ssa"` in the parameter file). Two experiments are defined in the namelist via
-the `ctrl.experiment` field: `Stnd` (standard, advance to steady state) and
-`RF` (reverse forcing, to test reversibility).
+the `ctrl.experiment` field: `Stnd` (standard: advance to steady state,
+the P75S basal-friction perturbation from 15.0 to 15.1 ka, and recovery until
+16.1 ka) and `RF` (reverse forcing, to test reversibility, until 85 ka). With
+`ctrl.time_end` ≤ 0 (default), the run ends at the end of the protocol.
 
 Standard experiment:
 
@@ -304,8 +306,11 @@ make enthalpy
 ./libyelmo/bin/test_enthalpy.x kleiner-b enth 201 1e-4
 ```
 
-The arguments are the experiment, the solver (`temp`, `enth` or `both`), the
-number of vertical points (default 51) and optionally the conductivity ratio
-of temperate ice (`enth_cr`). Output is written to
-`output/test_enthalpy_<experiment>_<solver>.nc`, and the program reports
-whether the comparison with the reference passes.
+The arguments are the experiment, the solver, the number of vertical points
+(default 51) and optionally the conductivity ratio of temperate ice
+(`enth_cr`). The solver (`temp` or `enth`, default `enth`) applies to
+`kleiner-a` and `kleiner-b`; the other experiments ignore it (`cold-limit`,
+`thin-margin` and `robin-column` run both solvers, `kleiner-a-cap` the enthalpy
+solver). Output is written to `output/test_enthalpy_<experiment>_<solver>.nc`
+(not for `thin-margin` and `robin-column`, which only print their results), and
+the program reports whether the comparison with the reference passes.

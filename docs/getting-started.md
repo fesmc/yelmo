@@ -49,6 +49,7 @@ configme install yelmo -d https                 # clone over HTTPS (no GitHub SS
 configme install yelmo --dir ~/models/yelmo     # put the checkout here instead of ./yelmo
 configme install yelmo --overwrite              # re-clone over an existing checkout
 configme install yelmo --build-deps             # build the dependency packages without prompting
+configme install yelmo:dev                      # check out a branch, tag or commit (default: main)
 ```
 
 Run `configme list` for the supported machines and compilers, and
@@ -64,7 +65,9 @@ Python user bin directory is probably not on your `PATH`; add it in your
 export PATH="${PATH}:${HOME}/.local/bin"
 ```
 
-To update `configme` later, run `configme update`.
+To update `configme` later, run `configme update`. `configme upgrade` pulls the
+existing checkouts, regenerates the Makefiles and rebuilds the packages that
+changed.
 
 ### Existing checkout
 
@@ -193,7 +196,8 @@ as a stand-alone ice sheet, for example:
 ```bash
 make benchmarks    # libyelmo/bin/yelmo_benchmarks.x: EISMINT, HALFAR, BUELER
 make mismip        # libyelmo/bin/yelmo_mismip.x:     MISMIP3D
-make trough        # libyelmo/bin/yelmo_trough.x:     TROUGH-F17, MISMIP+, SLAB-S06
+make trough        # libyelmo/bin/yelmo_trough.x:     TROUGH-F17, MISMIP+, SLAB-S06, FRONT-SLAB, COLUMN-SLAB
+make bench         # libyelmo/bin/yelmo_bench.x:      benchmark-protocol fixtures (ISLAND4, SHELF-R, A4, FLOWLINE)
 make ismiphom      # libyelmo/bin/yelmo_ismiphom.x:   ISMIP-HOM
 make calving       # libyelmo/bin/yelmo_calving.x:    CalvingMIP
 make initmip       # libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP Greenland/Antarctica)
@@ -241,6 +245,7 @@ defined in `.runme/info.json`:
 
 ```bash
 benchmarks = libyelmo/bin/yelmo_benchmarks.x
+bench      = libyelmo/bin/yelmo_bench.x
 calving    = libyelmo/bin/yelmo_calving.x
 mismip     = libyelmo/bin/yelmo_mismip.x
 initmip    = libyelmo/bin/yelmo_initmip.x

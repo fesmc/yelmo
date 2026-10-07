@@ -33,6 +33,7 @@ website:
       - section: "Installation"
         href: getting-started.md
         contents:
+          - configme-install-details.md
           - hpc-notes.md
       - benchmarks.md
       - parameters.md

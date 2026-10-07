@@ -25,9 +25,9 @@ Yelmo uses the Arakawa C / staggered AC grid:
 - **acx-nodes** (right face of each aa-cell): $\bar u$, $\tau_{d,x}$, $\beta_{\mathrm{eff},x}$.
 - **acy-nodes** (top face): $\bar v$, $\tau_{d,y}$, $\beta_{\mathrm{eff},y}$.
 - **ab-nodes** (cell corners): cross-coupling viscosity
-  $(\bar\mu H)^{\mathrm{ab}}$, obtained by averaging
-  $\bar\mu\,H$ from its four neighbouring aa-cells
-  (`stagger_visc_aa_ab`).
+  $(\bar\mu H)^{\mathrm{ab}}$, the average of $\bar\mu\,H$ over its four
+  neighbouring aa-cells if all four are fully ice covered, and zero otherwise
+  (`stagger_visc_aa_ab`), so that an ice margin carries no shear traction.
 
 The two unknowns per cell ($\bar u$ at the right face and $\bar v$ at the
 top face) are interleaved into a single state vector
@@ -37,12 +37,18 @@ matrix is stored in CSR format and solved with
 [LIS](http://www.ssisc.org/lis/) (Library of Iterative Solvers for
 Linear Systems); the iterative method and preconditioner are configured
 at runtime via `ydyn.ssa_lis_opt_energy` (default
-`-i cg -p jacobi -maxiter 200 -tol 1.0e-2`) or `ydyn.ssa_lis_opt_residual`
-(default `-i minres -p jacobi -maxiter 100 -tol 1.0e-2`), depending on
+`-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false`) or
+`ydyn.ssa_lis_opt_residual` (default
+`-i minres -p jacobi -maxiter 100 -tol 1.0e-2 -initx_zeros false`), depending on
 `ydyn.ssa_solver`.
 
 Per-row solver masks (`ssa_mask_acx`, `ssa_mask_acy`, set by `set_ssa_masks`)
-classify each ac-node as one of:
+classify each ac-node as one of the values below. The masks and the
+thickness of the momentum balance come from the dynamic ice column
+(`H_ice_dyn`, `f_ice_dyn`): a cell with an ice fraction of at least
+`A_FRONT_MIN` = 0.1 is a full column with the effective thickness `H_eff` of
+the [subgrid front](../calving.md#subgrid-front), and a cell below 0.1 is ice
+free.
 
 - `-1`: prescribed velocity, kept at its current value;
 - `0`: zero velocity (a face without a fully ice-covered neighbour, or a
@@ -50,7 +56,9 @@ classify each ac-node as one of:
 - `1`: solved, grounded or grounding-line face;
 - `2`: solved, floating face;
 - `3`: ice-front face with the lateral boundary condition, a Neumann row
-  driven by the depth-integrated lateral stress $\tau_{l,\mathrm{int}}$;
+  driven by the depth-integrated lateral stress $\tau_{l,\mathrm{int}}$
+  (with half of the basal drag in the energy assembler; the residual
+  assembler imposes the stress condition as the row, without drag);
 - `4`: ice-front face solved as an inner face, with half of the basal drag
   (only the ice half of its control area has drag).
 
