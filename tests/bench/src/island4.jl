@@ -127,6 +127,8 @@ Keywords:
   - `dx_km`  grid resolution [km]; the axes are cell-centred on [-800, 800] km.
   - `B_od`   depth of the trough overdeepening [m] (0: off).
   - `Bl`     base-profile elevation at R0 = 1000 km [m]; sets the coast radius.
+  - `D0`     trough depth below the base profile [m]; sets the depth of the
+             marine bed in the troughs.
   - `rot`    rotation of the troughs [deg]: 0 (diagonals) or 45 (axes, ISLAND4-R).
   - `land`   true: ISLAND4-L, bed raised by 2500 m (B1).
   - `r_ela`  radius of the equilibrium line [m]; default 650 km, or 450 km for
@@ -142,6 +144,7 @@ struct Island4Benchmark <: AbstractBenchmark
     dx_km    ::Float64
     B_od     ::Float64
     Bl       ::Float64
+    D0       ::Float64
     rot      ::Float64
     land     ::Bool
     init     ::Symbol
@@ -157,6 +160,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
                           dx_km::Real  = 16.0,
                           B_od::Real   = 0.0,
                           Bl::Real     = -2000.0,
+                          D0::Real     = 1500.0,
                           rot::Real    = 0.0,
                           land::Bool   = false,
                           init::Symbol = :vialov_grounded,
@@ -181,7 +185,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
     dsmb = exp == :smb ? -0.1 : 0.0
     r_ela = something(r_ela, land ? 450e3 : 650e3)
 
-    return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(Bl), Float64(rot),
+    return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(Bl), Float64(D0), Float64(rot),
                             land, init, Float64(smb0), Float64(r_ela), dsmb,
                             Float64(r_lim), Float64(Q_geo), Float64(T_shlf))
 end
@@ -217,7 +221,7 @@ function state(b::Island4Benchmark, t::Real)
     r(i, j)   = hypot(oct(i, j)...)
     dz = b.land ? 2500.0 : 0.0
 
-    z_bed = [island4_bed(oct(i, j)...; B_od = b.B_od, rot = b.rot, dz, Bl = b.Bl) for i in 1:Nx, j in 1:Ny]
+    z_bed = [island4_bed(oct(i, j)...; B_od = b.B_od, rot = b.rot, dz, Bl = b.Bl, D0 = b.D0) for i in 1:Nx, j in 1:Ny]
     smb   = [island4_smb(r(i, j); smb0 = b.smb0, r_ela = b.r_ela) + b.dsmb for i in 1:Nx, j in 1:Ny]
     mask_ice = [r(i, j) < b.r_lim ? MASK_ICE_DYNAMIC : MASK_ICE_NONE for i in 1:Nx, j in 1:Ny]
 
@@ -261,8 +265,8 @@ function write_fixture!(b::Island4Benchmark, path::AbstractString;
 
     s = state(b, 0.0)
     attrs = Dict("benchmark" => island4_name(b), "exp" => String(b.exp),
-                 "dx_km" => b.dx_km, "B_od" => b.B_od, "Bl" => b.Bl, "rot" => b.rot,
-                 "init" => String(b.init))
+                 "dx_km" => b.dx_km, "B_od" => b.B_od, "Bl" => b.Bl, "D0" => b.D0, "rot" => b.rot,
+                 "r_ela" => b.r_ela, "init" => String(b.init))
     write_fixture_nc(path, s, FIELDS_2D; fields3D = FIELDS_3D, attrs)
     return [path]
 end
