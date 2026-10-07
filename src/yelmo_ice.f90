@@ -940,6 +940,13 @@ contains
                 dom%dyn%par%boundaries  = "periodic-x"
                 dom%thrm%par%boundaries = "periodic-x"
 
+            case("periodic-y") 
+                ! Periodic boundary conditions in y-direction (true wrap, period ny),
+                ! infinite in x-direction
+                dom%tpo%par%boundaries  = "periodic-y"
+                dom%dyn%par%boundaries  = "periodic-y"
+                dom%thrm%par%boundaries = "periodic-y"
+
             case("infinite")
                 ! Set border points equal to interior neighbors
 
@@ -1726,7 +1733,7 @@ contains
         call yelmo_check_enum(group,"pc_controller", par%pc_controller, "PI42|H312b|H312PID|H321PID|PID1")
         ! experiment: the values handled in yelmo_init (boundary treatment); "None" gives "zeros"
         call yelmo_check_enum(group,"experiment",    par%experiment,    &
-                "None|EISMINT|MISMIP3D|MISMIP+|TROUGH-F17|SLAB|ISMIPHOM|slab|periodic|periodic-xy|periodic-x|infinite|MASK_ICE")
+                "None|EISMINT|MISMIP3D|MISMIP+|TROUGH-F17|SLAB|ISMIPHOM|slab|periodic|periodic-xy|periodic-x|periodic-y|infinite|MASK_ICE")
 
         ! Range checks
         if (par%cfl_max .le. 0.0_wp .or. par%cfl_max .gt. 1.0_wp) then

@@ -17,6 +17,7 @@ module yelmo_tools
     integer, parameter :: BND_TROUGH   = 3
     integer, parameter :: BND_PERIODIC = 4
     integer, parameter :: BND_PERIODIC_X = 5
+    integer, parameter :: BND_PERIODIC_Y = 6
     
     interface is_finite
         module procedure is_finite_sp
@@ -60,7 +61,7 @@ module yelmo_tools
     
     ! Boundary constants (for converting string definitions to integers for faster computations)
     public :: boundary_code
-    public :: BND_ZEROS, BND_INFINITE, BND_MISMIP3D, BND_TROUGH, BND_PERIODIC, BND_PERIODIC_X
+    public :: BND_ZEROS, BND_INFINITE, BND_MISMIP3D, BND_TROUGH, BND_PERIODIC, BND_PERIODIC_X, BND_PERIODIC_Y
 
 contains 
 
@@ -204,6 +205,18 @@ contains
                 jm1 = max(j-1,1)
                 jp1 = min(j+1,ny)
 
+            case(BND_PERIODIC_Y)
+                ! Periodic in y (true wrap, period ny),
+                ! infinite (clamped) in x
+
+                im1 = max(i-1,1)
+                ip1 = min(i+1,nx)
+
+                jm1 = j-1
+                if (jm1 .eq. 0)    jm1 = ny
+                jp1 = j+1
+                if (jp1 .eq. ny+1) jp1 = 1
+
             case DEFAULT
 
                 write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
@@ -245,6 +258,10 @@ contains
                 per_x = .TRUE.
                 per_y = .FALSE.
 
+            case(BND_PERIODIC_Y)
+                per_x = .FALSE.
+                per_y = .TRUE.
+
             case DEFAULT
 
                 write(io_unit_err,*) "get_periodic_directions:: Error: boundary code not recognized: ", BC
@@ -270,6 +287,7 @@ contains
             case("TROUGH");     code = BND_TROUGH
             case("periodic");   code = BND_PERIODIC
             case("periodic-x"); code = BND_PERIODIC_X
+            case("periodic-y"); code = BND_PERIODIC_Y
             case("mask");       code = BND_INFINITE
             case default
                 write(io_unit_err,*) "boundary_code:: Error: Boundary string not recognized: "//trim(boundaries)
@@ -401,7 +419,7 @@ contains
         ! is the same, not the variable itself.
         select case(trim(boundaries))
 
-            case("infinite","MISMIP3D","TROUGH","mask")
+            case("infinite","MISMIP3D","TROUGH","mask","periodic-y")
                 dvardx(1,:)  = dvardx(2,:)
                 dvardx(nx,:) = dvardx(nx-1,:)
 
@@ -655,6 +673,14 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundarie
                 ! Infinite y (free-slip too)
                 var(:,1)  = var(:,2)
                 var(:,ny) = var(:,ny-1)
+
+            case("periodic-y")
+
+                ! Periodic y: true wrap (period ny), nothing to set.
+
+                ! Infinite x (free-slip too)
+                var(1,:)  = var(2,:)
+                var(nx,:) = var(nx-1,:)
 
             case("MISMIP3D")
 

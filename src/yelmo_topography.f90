@@ -1349,7 +1349,7 @@ end if
                 gz_perx = .TRUE.  ; gz_pery = .TRUE.
             case("periodic-x")
                 gz_perx = .TRUE.  ; gz_pery = .FALSE.
-            case("MISMIP3D","TROUGH")
+            case("periodic-y","MISMIP3D","TROUGH")
                 gz_perx = .FALSE. ; gz_pery = .TRUE.
             case DEFAULT
                 gz_perx = .FALSE. ; gz_pery = .FALSE.

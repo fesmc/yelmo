@@ -205,6 +205,11 @@ make initmip       # libyelmo/bin/yelmo_initmip.x:    realistic domains (initMIP
 is not recommended unless necessary. Yelmo is compiled with OpenMP by default;
 `openmp=0` compiles without it.
 
+The C API library (`make yelmo-c`) needs position-independent code: build
+fesm-utils with `pic=1` (e.g. `make all openmp=1 pic=1`), then `make clean`
+and `make yelmo-c pic=1` in yelmo (`pic=1` is passed on to FastHydrology, elsa
+and tracer).
+
 ### 4. Run the model.
 
 Once an executable has been created, you can run the model. This can be

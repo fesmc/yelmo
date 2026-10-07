@@ -284,6 +284,11 @@ contains
             visc_eff_int(:,1)    = visc_eff_int(:,2)
             visc_eff_int(:,ny)   = visc_eff_int(:,ny-1)
 
+        else if (trim(boundaries) .eq. "periodic-y") then 
+            
+            visc_eff_int(1,:)    = visc_eff_int(2,:)
+            visc_eff_int(nx,:)   = visc_eff_int(nx-1,:)
+
         else if (trim(boundaries) .eq. "infinite") then 
             
             visc_eff_int(1,:)    = visc_eff_int(2,:) 

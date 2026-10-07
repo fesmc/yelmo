@@ -12,6 +12,7 @@ testdir = tests
 debug  ?= 0
 openmp ?= 1
 petsc  ?= 0 
+pic    ?= 0
 
 ## COMPILER CONFIGURATION ##
 # Loaded from a config/<host> fragment by `python config.py config/<host>`,
@@ -24,7 +25,7 @@ petsc  ?= 0
 ## SHARED DEPENDENCY WIRING ##
 # Pulled in after the compiler/machine fragment so it can reference FFLAGS,
 # FFLAGS_OPENMP, LIB_NC, and LFLAGS_EXTRA set there. Defines the FESMUTILS,
-# LIS, FASTHYDRO, FFTW, and (optional) PETSc paths, the openmp= / petsc=
+# LIS, FASTHYDRO, FFTW, and (optional) PETSc paths, the openmp= / petsc= / pic=
 # build switches, and the final LFLAGS.
 
 include config/common.mk
@@ -61,16 +62,16 @@ check-hash:
 # sources `use` (transitively via yelmo_defs, which declares a hydro_class
 # member of yelmo_class), so this must build before yelmo-static.
 fasthydro-static:
-	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp)
+	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp) pic=$(pic)
 
 # elsa/tracer static archives provide the .mod files yelmo `use`s (transitively
 # via yelmo_defs, which declares elsa_class/tracer_class members of ytrc_class),
 # so they must build before yelmo-static.
 elsa-static:
-	$(MAKE) -C $(ELSAROOT) elsa-static openmp=$(openmp)
+	$(MAKE) -C $(ELSAROOT) elsa-static openmp=$(openmp) pic=$(pic)
 
 tracer-static:
-	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp)
+	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp) pic=$(pic)
 
 # Static library compilation
 yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
@@ -81,8 +82,17 @@ yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_p
 	@echo "    $(objdir)/libyelmo.a is ready."
 	@echo " "
 
+# Shared libraries link libyelmo.a and the static deps, so every object must be
+# position-independent (required on Linux): build with pic=1, with fesm-utils
+# also built pic=1.
+ifneq ($(filter yelmo-c yelmo-shared,$(MAKECMDGOALS)),)
+ifneq ($(pic), 1)
+$(error yelmo-c/yelmo-shared need pic=1 (all objects and static deps built with -fPIC): make clean, then make $(filter yelmo-c yelmo-shared,$(MAKECMDGOALS)) pic=1)
+endif
+endif
+
 yelmo-c: yelmo-static
-	$(FC) -shared -fPIC $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
+	$(FC) -shared $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
 	-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 	@echo " "
 	@echo "    $(objdir)/libyelmo_c_api.so is ready."
@@ -266,7 +276,7 @@ clean:
 
 # Experimental
 yelmo-shared: $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	$(FC) -shared -o $(objdir)/libyelmo.so -fPIC $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests) \
+	$(FC) -shared -o $(objdir)/libyelmo.so $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests) \
 		$(LFLAGS) $(INC_LIS) 
 	./check_githash > git_yelmo.txt
 	@echo " "

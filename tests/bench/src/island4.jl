@@ -14,7 +14,7 @@
 #
 # Forcing:
 #   smb_ref   radial, SMB0 (1 − r/r_ela)                      (fixed)
-#             r_ela = 800 km (ISLAND4), 450 km (ISLAND4-L)
+#             r_ela = 800 km (ISLAND4), 350 km (ISLAND4-L)
 #   Q_geo     uniform                                          (fixed)
 #   mask_ice  no ice for r ≥ r_lim                             (fixed)
 #   T_srf     lapse rate on the evolving surface               (online)
@@ -131,8 +131,10 @@ Keywords:
              depth of the marine bed in the troughs.
   - `rot`    rotation of the troughs [deg]: 0 (diagonals) or 45 (axes, ISLAND4-R).
   - `land`   true: ISLAND4-L, bed raised by 2500 m (B1).
-  - `r_ela`  radius of the equilibrium line [m]; default 800 km, or 450 km for
+  - `r_ela`  radius of the equilibrium line [m]; default 800 km, or 350 km for
              ISLAND4-L, where ablation sets the land margin inside r_lim.
+  - `R_i`    radius of the initial Vialov profile [m]; default 650 km, or 450 km
+             for ISLAND4-L, which then starts close to its balance size.
   - `init`   initial thickness: `:vialov_grounded` (Vialov profile where it is
              grounded, no initial floating ice; prognostic runs), `:vialov` (Vialov
              profile everywhere, including thick floating ice; A3) or `:zero`.
@@ -150,6 +152,7 @@ struct Island4Benchmark <: AbstractBenchmark
     init     ::Symbol
     smb0     ::Float64
     r_ela    ::Float64
+    R_i      ::Float64
     dsmb     ::Float64
     r_lim    ::Float64
     Q_geo    ::Float64
@@ -166,6 +169,7 @@ function Island4Benchmark(exp::Symbol = :ctrl;
                           init::Symbol = :vialov_grounded,
                           smb0::Real   = 0.5,
                           r_ela::Union{Real,Nothing} = nothing,
+                          R_i::Union{Real,Nothing} = nothing,
                           r_lim::Real  = 750e3,
                           Q_geo::Real  = 50.0,
                           T_shlf::Real = 271.15)
@@ -183,10 +187,11 @@ function Island4Benchmark(exp::Symbol = :ctrl;
     xc = collect(range(-extent_m/2 + dx_m/2, extent_m/2 - dx_m/2; length = N))
 
     dsmb = exp == :smb ? -0.1 : 0.0
-    r_ela = something(r_ela, land ? 450e3 : 800e3)
+    r_ela = something(r_ela, land ? 350e3 : 800e3)
+    R_i   = something(R_i,   land ? 450e3 : 650e3)
 
     return Island4Benchmark(exp, xc, copy(xc), Float64(dx_km), Float64(B_od), Float64(Bl), Float64(D0), Float64(rot),
-                            land, init, Float64(smb0), Float64(r_ela), dsmb,
+                            land, init, Float64(smb0), Float64(r_ela), Float64(R_i), dsmb,
                             Float64(r_lim), Float64(Q_geo), Float64(T_shlf))
 end
 
@@ -225,7 +230,7 @@ function state(b::Island4Benchmark, t::Real)
     smb   = [island4_smb(r(i, j); smb0 = b.smb0, r_ela = b.r_ela) + b.dsmb for i in 1:Nx, j in 1:Ny]
     mask_ice = [r(i, j) < b.r_lim ? MASK_ICE_DYNAMIC : MASK_ICE_NONE for i in 1:Nx, j in 1:Ny]
 
-    H_ice = b.init == :zero ? zeros(Nx, Ny) : [island4_vialov(r(i, j)) for i in 1:Nx, j in 1:Ny]
+    H_ice = b.init == :zero ? zeros(Nx, Ny) : [island4_vialov(r(i, j); R_i = b.R_i) for i in 1:Nx, j in 1:Ny]
     H_ice[mask_ice .== MASK_ICE_NONE] .= 0.0
     if b.init == :vialov_grounded
         # Remove the ice that would float (z_sl = 0): the shelves form during the run
@@ -266,7 +271,7 @@ function write_fixture!(b::Island4Benchmark, path::AbstractString;
     s = state(b, 0.0)
     attrs = Dict("benchmark" => island4_name(b), "exp" => String(b.exp),
                  "dx_km" => b.dx_km, "B_od" => b.B_od, "Bl" => b.Bl, "D0" => b.D0, "rot" => b.rot,
-                 "r_ela" => b.r_ela, "init" => String(b.init))
+                 "r_ela" => b.r_ela, "R_i" => b.R_i, "init" => String(b.init))
     write_fixture_nc(path, s, FIELDS_2D; fields3D = FIELDS_3D, attrs)
     return [path]
 end

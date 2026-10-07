@@ -68,6 +68,13 @@ ifeq ($(openmp), 1)
     FFLAGS += $(FFLAGS_OPENMP)
 endif
 
+# Position-independent code (make pic=1): needed to link objects into a shared
+# library on Linux, e.g. yelmo-c for the C API. Passed on to the in-tree deps;
+# fesm-utils (incl. LIS/FFTW) must be built with pic=1 too.
+ifeq ($(pic), 1)
+    FFLAGS += -fPIC
+endif
+
 # Linear solvers to include: LIS is always required, PETSc is optional.
 INC_LINEAR = $(INC_LIS)
 LIB_LINEAR = $(LIB_LIS)

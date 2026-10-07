@@ -140,7 +140,7 @@ Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1
 
 The forcing is radial or depends on the local state only, so it preserves the D4 symmetry. Fixed fields are generated in Julia with the geometry. Forcing that depends on the evolving ice geometry is computed during the run by a Fortran function in the driver. Each online function has a Julia counterpart, so that the forcing written by the model can be checked against the specification.
 
-- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 800 km (450 km for ISLAND4-L). Since r_ela lies beyond r_lim, the SMB is positive everywhere inside r_lim (0.03 m a⁻¹ at r_lim), and the marine margins are set by melt and calving. ISLAND4-L keeps r_ela = 450 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
+- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 800 km (350 km for ISLAND4-L). Since r_ela lies beyond r_lim, the SMB is positive everywhere inside r_lim (0.03 m a⁻¹ at r_lim), and the marine margins are set by melt and calving. ISLAND4-L uses r_ela = 350 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
 - **Surface temperature (online).** T_srf = T_sl − Γ z_s, with T_sl = −10 °C and Γ = 8 K km⁻¹. The temperature follows the evolving surface, which keeps it consistent with the ice geometry. Its feedback on the dynamics acts through the thermodynamics only and is weak.
 - **Geothermal heat flux (fixed).** Q_geo = 50 mW m⁻², uniform.
 - **Sub-shelf melt (online).** The MISMIP+ Ice1 parameterization (Asay-Davis et al., 2016), m = Ω tanh(H_c/H_c0) max(z_0 − z_d, 0), with Ω = 0.01 a⁻¹, H_c0 = 75 m and z_0 = −200 m, where z_d is the depth of the ice base and H_c the water-column thickness. We chose it because it is a community standard, and the tanh term reduces the melt smoothly toward the grounding line. The MISMIP+ values (Ω = 0.2 a⁻¹, z_0 = −100 m) are sized for the ice flux of MISMIP+, and on ISLAND4 they remove about 30 times more ice than the island supplies (about 3e10 m³ a⁻¹ per trough with r_ela = 450 km). The values used here give no melt below shelves thinner than about 225 m, about 1.5 m a⁻¹ below 400 m of ice and about 7 m a⁻¹ at a grounding line 1 km deep.
@@ -155,15 +155,28 @@ The first C0 spin-ups (50 kyr, 32/16/8 km, D_0 = 1500 m, r_ela = 650 km) converg
 
 ### B1 ISLAND4-L land dome
 
-ISLAND4-L is ISLAND4 with the bed raised by 2500 m, so that all ice inside r_lim rests on land. The bed keeps its D4 structure, so the flow is not radial and the transposed and rotated tests remain meaningful. The ice starts from the Vialov profile of A3 with the column enthalpy from IceColumnSolutions.jl, and the run lasts 5 kyr with the production solver and sliding.
+ISLAND4-L is ISLAND4 with the bed raised by 2500 m, so that all ice inside r_lim rests on land. The bed keeps its D4 structure, so the flow is not radial and the transposed and rotated tests remain meaningful. The ice starts from a Vialov profile with R_i = 450 km (650 km in A3) and the column enthalpy from IceColumnSolutions.jl, and the run lasts 5 kyr with the production solver and sliding.
+
+With r_ela = 450 km and the Vialov profile of A3, the coupled dome spread to the calving mask within 300 yr: its stationary-column start had a temperate base in about half of the grounded area, and the soft ice advanced before ablation could act. A smaller r_ela alone does not prevent this, since less accumulation gives a warmer start. With r_ela = 350 km and R_i = 450 km (32 km, coupled, 5 kyr), the dome starts close to its balance size (V from 1.47 to 1.25e6 km³), the temperate fraction of the bed is 0.22 at the start and at most 0.49 (at 0.3 kyr), and the margin stays between 448 and 588 km, at least 160 km inside r_lim.
 
 The run is not in thermal equilibrium after 5 kyr. However, symmetry and conservation do not require equilibrium, and the transient margin adjustment exercises the land margin. Metrics: growth of the symmetry error over time (isothermal and coupled), mass budget residual, and comparison with ISLAND4-L-R.
 
 ### B2 Marine flowline
 
-B2 tests grounding-line dynamics in a strip that is periodic in y, with a small number of cells across the flow (about 3–5). It follows the MISMIP experiment 1 setup (linear prograde bed) for several values of A. The periodic strip is a true one-dimensional problem, so there are no lateral walls.
+B2 tests grounding-line dynamics in a strip that is periodic in y (`yelmo.experiment = "periodic-y"`), with three cells across the flow. It follows the MISMIP experiment 1 setup (Pattyn et al., 2012): bed b(x) = 720 − 778.5 |x|/750 km, accumulation a = 0.3 m a⁻¹ everywhere, no basal melt, n = 3, ρ_i = 900 and ρ_w = 1000 kg m⁻³, g = 9.8 m s⁻² (`phys_const = "MISMIP3D"`). The domain is x ∈ [−1800, 1800] km with the ice divide at x = 0 on a cell centre, so the strip has neither lateral walls nor a divide boundary condition. A fixed calving front at |x| = 1700 km is set by `mask_ice`, with `calv_flt_method = "zero"`. The runs are isothermal (`rf_method = 0`, `ytherm.method = "fixed"`).
 
-The reference is the boundary-layer flux of Schoof (2007) for a power-law friction law, and of Tsai et al. (2015) for a Coulomb friction law. The run starts from the semi-analytic steady profile, computed in Julia by integrating the inland profile upstream from the grounding line given by the flux formula. This shortens the run to the adjustment time, about 2–5 kyr, instead of a full spin-up from zero. The test reports the final grounding-line position against the reference, and dx_g/dt over the run, at dx = 1, 2, 4 and 8 km. The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+The friction law is the power law τ_b = C |u|^(m−1) u with C = 7.624e6 Pa m^(−1/3) s^(1/3) and m = 1/3. In Yelmo (`beta_method = 2`) β = c_bed (|u|/u_0)^q / |u|, so the power law follows with q = m, u_0 = 1 m a⁻¹ and c_bed = C sec_year^(−m) = 24126 Pa (m a⁻¹)^(−1/3), with c_bed = `cf_ref` × N_eff, a constant N_eff = 1 Pa (`yhyd.bkt_N_closure = 0`) and no frozen-bed scaling (`frz_scale = False`). We use A = 4.6416e-24, 4.6416e-25 and 4.6416e-26 Pa⁻³ s⁻¹ (MISMIP steps 1, 4 and 7), for which the reference grounding line lies at x_g = 1052.5, 1226.7 and 1492.8 km.
+
+The reference is the boundary-layer flux of Schoof (2007, Eq. 29), q_g = [A (ρ_i g)^(n+1) (1 − ρ_i/ρ_w)^n / (4^n C)]^(1/(m+1)) h_g^((m+n+3)/(m+1)), with the steady grounding line where q_g(x_g) = a x_g. For a Coulomb friction law it is the flux of Tsai et al. (2015) (not yet implemented). The run starts from the semi-analytic steady profile, computed in Julia (`FlowlineBenchmark`): the outer solution of Schoof (2007), C (a x/h)^m = −ρ_i g h d(h + b)/dx, integrated upstream from h(x_g) = h_g, and the unconfined shelf, d(uh)/dx = a and du/dx = A [ρ_i g (1 − ρ_i/ρ_w) h/4]^n, integrated downstream to the calving front. This shortens the run to the adjustment time, about 2–5 kyr, instead of a full spin-up from zero. The test reports the final grounding-line position against the reference, and dx_g/dt over the run, at dx = 1, 2, 4 and 8 km (8 km done). The grounding line is the zero of the thickness above flotation, interpolated linearly between cell centres (as `f_grnd_acx`). The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+
+```bash
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1.nc flowline A=4.6416e-24
+runme -r -e bench -n par/yelmo_bench_FLOWLINE.nml -o output/bench/b2-8km-a1 \
+      -p bench.fixture=input/bench/flowline-8km-a1.nc ymat.rf_const=1.464746277216e-16
+julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1.nc output/bench/b2-8km-a1
+```
+
+The fixture attributes `rf_const` and `cf_ref` give the parameter values for its A and C; `check_flowline.jl` warns if the run used other values.
 
 ### B3 CalvingMIP circular Exp1 (exists)
 
@@ -286,6 +299,20 @@ B1 (2026-10-07, ISLAND4-L and ISLAND4-L-R, 32 and 16 km, 5 kyr, single precision
 The coupled B1 thus does not test a land margin set by ablation: the initial temperature (stationary columns, a temperate base in 48 % of the grounded area) softens the ice, and the dome spreads to r_lim in spite of r_ela = 450 km. The budget check also shows that ice leaving through `mask_ice = none` is not reported in any budget term, which affects every ISLAND4 test where ice reaches r_lim.
 
 ![B1 ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
+
+B2 (2026-10-07, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
+
+- Periodic-y. The new `experiment = "periodic-y"` transposes `periodic-x` throughout the code. A periodic-y strip and the transposed periodic-x strip (`make_fixture.jl flowline transpose=true`, 32 km, 500 yr, tight tolerances) give identical H, z_srf, speed, β and viscosity in the single-precision output; the velocity components differ by 1e-14 relative to the speed (`tests/bench/check_transpose.jl`).
+- Friction. τ_b = β |u_b| from the output equals C |u_b|^(1/3) to 1e-4 at grounded cells.
+- Grounding line. The model grounding line lies 0.2–0.9 % downstream of the reference. Most of the shift occurs in the first 100 yr (2–10 km); afterwards x_g changes by less than 1 km, and the two sides of the divide and the three rows agree to 1 cm.
+
+| A [Pa⁻³ s⁻¹] | x_g Schoof (2007) [km] | x_g model, 5 kyr [km] | Difference | dx_g/dt, last 100 yr [m a⁻¹] | Run time [min] |
+|---|---|---|---|---|---|
+| 4.6416e-24 | 1052.5 | 1062.3 | +9.8 km (0.9 %) | −0.022 | 17 |
+| 4.6416e-25 | 1226.7 | 1230.9 | +4.1 km (0.3 %) | −0.017 | 9 |
+| 4.6416e-26 | 1492.8 | 1495.3 | +2.5 km (0.2 %) | −0.005 | 5 |
+
+- Hysteresis. Started from the steady profile of the neighbouring A values, the run with A = 4.6416e-25 does not reach the same grounding line. From the profile of 4.6416e-24 the grounding line advances in steps to 1184 km after 10 kyr (dx_g/dt = 0.006 m a⁻¹); from the profile of 4.6416e-26 it stays at 1491 km (−0.001 m a⁻¹), 264 km downstream of the reference. There, the model flux across the grounding line is 0.37e6 m² a⁻¹, below a x_g = 0.45e6 m² a⁻¹, while the boundary-layer flux at this thickness is 2.5e6 m² a⁻¹. The grounded ice is controlled by sliding and nearly independent of A, so A acts only through the boundary layer at the grounding line, which 8 km does not resolve. `beta_gl_stag = 3` or 4 instead of 1 gives the same result (1488 km after 5 kyr). At 8 km the start from the steady profile therefore does not constrain x_g: B2 needs runs from perturbed starts on both sides of the reference, and finer grids (1–4 km, not yet run).
 
 ### Model changes
 
