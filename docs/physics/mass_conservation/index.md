@@ -84,7 +84,9 @@ current and the previous velocity solution. Velocities on faces from a
 partially ice-covered cell into an ice-free cell are set to zero
 (`set_inactive_margins`), so that partial cells fill before ice spreads
 further; with the level set and the subgrid front, faces into cells the front
-covers by at least 10 % stay open.
+covers by at least 10 % stay open. This transport velocity
+(`calc_transport_velocity`) also sets the Courant limit of the time step (see
+[Time stepping](../timestepping.md#transport-velocity-and-courant-limit)).
 
 ## Basal mass balance
 

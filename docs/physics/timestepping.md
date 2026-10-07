@@ -9,7 +9,7 @@ The internal time step is chosen with `yelmo.dt_method`:
 | `dt_method` | Description |
 |---|---|
 | 0 | No internal time step: one step over the whole interval |
-| 1 | Adaptive, limited by the Courant number `cfl_max` (default 0.1), and reduced by a factor 0.05 when a checkerboard pattern appears in $\partial H/\partial t$ |
+| 1 | Adaptive, limited by the Courant number `cfl_max` (default 0.1) of the [transport velocity](#transport-velocity-and-courant-limit), and reduced by a factor 0.05 when a checkerboard pattern appears in $\partial H/\partial t$ |
 | 2 | Adaptive, set by the predictor–corrector error estimate (**default**) |
 
 The first step after initialisation is always `dt_min` long. All parameters on
@@ -87,13 +87,53 @@ with $k_I = 2/(5k)$, $k_P = 1/(5k)$, $k$ the order of the scheme, and the target
 error $\varepsilon$ = `pc_eps` (default 0.02 a$^{-1}$, which must not exceed
 `pc_tol`). The step is then limited:
 
-- by the Courant number $C$ = `pc_cfl_max` (default 0.5) of the depth-averaged
-  advection (`calc_adv2D_timestep1`),
-  $\Delta t \le \min_{i,j} C/(u_c/\Delta x + v_c/\Delta y + 0.1/\Delta x)$, with $u_c$
-  and $v_c$ the largest speeds on the faces of each cell;
+- by the Courant number $C$ = `pc_cfl_max` (default 0.5) of the
+  [transport velocity](#transport-velocity-and-courant-limit);
 - to the interval [`dt_min`, remaining time], with `dt_min` = 0.1 a by default.
   A step longer than half of the remaining time, but shorter than it, is set to
   half of the remaining time, to avoid a very short last step.
+
+### Transport velocity and Courant limit
+
+The Courant limit is computed from the velocity that advects $H$ in the
+predictor, the transport velocity (`calc_transport_velocity`,
+[`src/yelmo_topography.f90`](https://github.com/fesmc/yelmo/blob/main/src/yelmo_topography.f90)).
+The predictor, the corrector and the Courant limit all call this routine, so
+the limit is set by exactly the faces that move ice. On the cell faces
+(ac-nodes) it is
+
+1. the depth-averaged velocity $\bar{u}$, or with `pc_filter_vel = True`
+   (default) the mean of the current and the previous velocity solution;
+2. set to zero on faces that carry no ice (`set_inactive_margins`): faces
+   between a partially ice-covered cell ($f_\mathrm{ice} < 1$) and an ice-free
+   cell that may not fill. With the level set and a subgrid front
+   (`ytopo.use_lsf = True`, `ytopo.front_subgrid` ≠ `"none"`), an ice-free cell
+   may fill if the front covers at least `A_FRONT_MIN` = 10 % of it (level-set
+   area fraction, `calc_lsf_area_fraction`); otherwise no ice-free cell may
+   fill. A partial cell thus fills before ice flows beyond it.
+
+The time step is then limited to
+
+$$
+\Delta t \le \min_{i,j} \frac{C}{u_c/\Delta x + v_c/\Delta y + 0.1/\Delta x},
+$$
+
+with $u_c$ and $v_c$ the largest speeds of the transport velocity on the faces
+of each cell (`calc_adv2D_timestep1`), $C$ = `pc_cfl_max` (`dt_method` = 2) or
+`cfl_max` (`dt_method` = 1). The limit is evaluated once per step, from
+$f_\mathrm{ice}$, the level set and the velocity at the start of the step, i.e.
+with the faces of the predictor. A face that opens during the step (the cell
+beyond starts to fill) is not in the limit; the error estimate $\eta$ checks
+the step instead.
+
+Closed faces are left out because they can be fast: at a partial front cell,
+the speed on the face towards the ocean is the extrapolated front velocity
+(e.g. 5 km a$^{-1}$ at Rink Isbræ in GRL-8KM), which limited the step to
+0.7 a although no ice crosses the face. With the transport velocity the
+Courant limit is a backstop and the error estimate sets the step in the
+initMIP runs (1 kyr, mean $\Delta t$: GRL-8KM 0.73 → 1.15 a, GRL-16KM
+1.37 → 3.2 a, ANT-16KM 1.2 → 2.4 a). With `front_subgrid = "none"`,
+$f_\mathrm{ice}$ is 0 or 1 and no face is closed.
 
 There is no time-step limit from the 3D advection. The horizontal advection in
 the thermodynamics is sub-cycled internally instead (see
