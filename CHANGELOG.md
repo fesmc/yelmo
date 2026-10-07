@@ -378,6 +378,16 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Courant limit of the time step on the transport velocity** (`calc_transport_velocity`,
+  `yelmo_update`). The limit used `ux_bar`/`uy_bar` on all faces, including faces that
+  the thickness advection closes (partial cell next to an ice-free cell that may not
+  fill) and without the `pc_filter_vel` mean. At partial front cells the closed ocean face
+  carries the extrapolated front speed (Rink Isbræ, GRL-8KM: 5 km/yr) and set dt although
+  no ice crosses it. The predictor, corrector and Courant limit now use the same transport
+  velocity. InitMIP 1 kyr, mean dt: GRL-8KM 0.73 -> 1.15 a, GRL-16KM 1.37 -> 3.2 a,
+  ANT-16KM 1.2 -> 2.4 a, no redos, volume within 2e-4. EISMINT, HALFAR, MASK_ICE,
+  MISMIP3D, ISMIP-HOM, TROUGH-F17 and CalvingMIP Exp1: unchanged (only the `dt_adv`
+  diagnostic in the last two). See docs/physics/timestepping.md.
 - **`calv_flt_method = "kill"` / `"kill-pos"` act after the front advance**
   (`calc_ytopo_calving`). The kill ran before `calc_G_front_advance`
   (`front_subgrid`), so ice the advance pushed into the kill region survived the

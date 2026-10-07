@@ -6,7 +6,6 @@ module mass_conservation
                             fill_borders_2D, set_boundaries_2D_aa
 
     use solver_advection, only : calc_advec2D  
-    use velocity_general, only : set_inactive_margins 
     use topography, only : calc_front_cells, calc_front_H_ref
 
     implicit none 
@@ -204,9 +203,11 @@ contains
     end subroutine apply_tendency
 
     subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
-                                                    solver,boundaries,dx,dt,F,a_front,lin_iter,lin_status)
+                                                    solver,boundaries,dx,dt,F,lin_iter,lin_status)
         ! Interface subroutine to update ice thickness through application
-        ! of advection, vertical mass balance terms and calving 
+        ! of advection, vertical mass balance terms and calving.
+        ! ux/uy are the transport velocities: faces that carry no ice are
+        ! already zero (set_inactive_margins, see calc_transport_velocity).
 
         implicit none 
 
@@ -221,36 +222,23 @@ contains
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
         real(wp),         intent(IN)    :: dt                   ! [a]   Timestep 
         real(wp),         intent(IN), optional :: F(:,:) 
-        real(wp),         intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front (level set)
         integer,          intent(OUT), optional :: lin_iter     ! Linear solver iterations (impl-lis)
         integer,          intent(OUT), optional :: lin_status   ! Linear solver return status (impl-lis)
 
         ! Local variables 
         integer :: i, j, nx, ny
         real(wp), allocatable :: F_now(:,:) 
-        real(wp), allocatable :: ux_tmp(:,:) 
-        real(wp), allocatable :: uy_tmp(:,:) 
 
         nx = size(H_ice,1)
         ny = size(H_ice,2)
 
         allocate(F_now(nx,ny))
-        allocate(ux_tmp(nx,ny))
-        allocate(uy_tmp(nx,ny))
 
-        ! Set local velocity fields with no margin treatment intially
-        ux_tmp = ux
-        uy_tmp = uy
-        
         F_now = 0.0_wp 
         if (present(F)) F_now = F 
 
-        ! Ensure that no velocity is defined for outer boundaries of partially-filled margin points
-        ! (open into cells behind a prescribed front)
-        call set_inactive_margins(ux_tmp,uy_tmp,f_ice,boundaries,a_front)
-
         ! Determine current advective rate of change (time=n)
-        call calc_advec2D(G_advec,H_ice,f_ice,ux_tmp,uy_tmp,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
+        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
 
         return 
 

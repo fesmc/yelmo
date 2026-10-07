@@ -62,7 +62,7 @@ $(objdir)/ice_enthalpy.o : $(srcdir)/physics/ice_enthalpy.f90 $(objdir)/yelmo_de
 
 $(objdir)/mass_conservation.o : $(srcdir)/physics/mass_conservation.f90 $(objdir)/yelmo_defs.o \
 								$(objdir)/solver_advection.o $(objdir)/solver_advection_sico.o \
-								$(objdir)/solver_advection_new.o $(objdir)/velocity_general.o \
+								$(objdir)/solver_advection_new.o \
 								$(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -146,7 +146,7 @@ $(objdir)/yelmo_topography.o: $(srcdir)/yelmo_topography.f90 $(objdir)/yelmo_def
  							  $(objdir)/mass_conservation.o $(objdir)/calving_ac.o $(objdir)/calving_aa.o $(objdir)/lsf_module.o \
 							  $(objdir)/discharge.o \
  							  $(objdir)/runge_kutta.o \
- 							  $(objdir)/topography.o
+ 							  $(objdir)/topography.o $(objdir)/velocity_general.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_dynamics.o: $(srcdir)/yelmo_dynamics.f90 $(objdir)/yelmo_defs.o \
