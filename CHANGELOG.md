@@ -812,6 +812,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- `yelmo-config` checks the remaining numeric par_load checks: `yelmo.dt_min`,
+  `pc_rho_max`, `ydyn.ssa_vel_max`, `neff_nxi`, `ytherm.qb_method`, `advecxy_order`,
+  `advecxy_cfl`, `advecxy_nmax`, `cap_W_floor`, `cap_eps`.
+- Docs: C API reference (docs/c-api.md); pages synced with dev.
 - New module `yelmo_remapping` (`src/yelmo_remapping.f90`, re-exported by `use yelmo`):
   `yelmo_remap` (2D: horizontal with a coords map; 3D: vertical interpolation onto a
   Yelmo axis, then horizontal), `yelmo_load_map` (map from a file's axes; replaces

@@ -39,6 +39,7 @@ website:
       - parameters.md
       - yelmo-config.md
       - optimization.md
+      - c-api.md
       - section: "Physics"
         href: physics/index.md
         contents:

@@ -124,6 +124,66 @@ min = 0.0
 min_inclusive = false
 note = "must be > 0"
 
+[[range]]
+group = "yelmo"
+name = "dt_min"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_rho_max"
+min = 1.0
+min_inclusive = false
+note = "must be > 1"
+
+[[range]]
+group = "ydyn"
+name = "ssa_vel_max"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ydyn"
+name = "neff_nxi"
+min = 0
+min_inclusive = true
+note = "must be >= 0 (checked in calc_ydyn_neff, at the first velocity solve)"
+
+[[range]]
+group = "ytherm"
+name = "qb_method"
+min = 1
+max = 4
+note = "must be in 1..4"
+
+[[range]]
+group = "ytherm"
+name = "advecxy_cfl"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ytherm"
+name = "advecxy_nmax"
+min = 1
+note = "must be >= 1"
+
+[[range]]
+group = "ytherm"
+name = "cap_W_floor"
+min = 0.0
+note = "must be >= 0"
+
+[[range]]
+group = "ytherm"
+name = "cap_eps"
+min = 0.0
+note = "must be >= 0"
+
 # Union of intervals: the value must lie in one of the `any_of` intervals.
 [[range]]
 group = "ycalv"
@@ -132,6 +192,15 @@ note = "must be <= 0 (disabled) or >= 0.01 yr"
 any_of = [
     { max = 0.0, max_inclusive = true },
     { min = 0.01, min_inclusive = true },
+]
+
+[[range]]
+group = "ytherm"
+name = "advecxy_order"
+note = "must be 1 or 2"
+any_of = [
+    { min = 1, max = 1 },
+    { min = 2, max = 2 },
 ]
 
 # Conditional ranges: enforced only when the guard holds (as for [[order]] below).
