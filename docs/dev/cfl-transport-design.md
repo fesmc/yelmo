@@ -1,7 +1,19 @@
 # Courant cap on transporting faces: design proposal
 
-Status: proposal (2026-10-07), not implemented, design not yet confirmed.
-Branch `cfl-transport` (off dev b7416276).
+Status: implemented on branch `cfl-transport` (off dev b7416276), tested (2026-10-07, section 5).
+Decisions on the open points (section 3): closed faces only; the cap uses the transport
+velocity, filtered with `pc_filter_vel`; face opening in the predictor left to `pc_eta`;
+one routine for advection and cap. Commits:
+
+1. 7b575d87 `calc_transport_velocity(ux_t,uy_t,tpo,dyn,bnd,filter_vel)` in `yelmo_topography`
+   (filter + `a_front` + `set_inactive_margins`), called in the predictor and corrector;
+   `calc_G_advec_simple` no longer masks (no `a_front` argument). Bit-identical expected.
+   Side effect: the RK4 path (`use_rk4`, off) now sees the level-set front too.
+2. 565f6129 `yelmo_update`: both `set_adaptive_timestep*` use `calc_transport_velocity`
+   with `filter_vel = .FALSE.` (closed faces excluded).
+3. 187ba318 Same with `filter_vel = pc_filter_vel` (initmip: True).
+
+Levante clones `yelmo-fl/cfl1`..`cfl3` (one per commit), base `yelmo-fl/merged` (25250a38).
 
 ## 1. Problem
 
@@ -74,3 +86,27 @@ Levante baseline clone with dev code: `/work/ba1442/robinson/models/yelmo-fl/mer
 - GRL-8 restart case (`rst`), GRL-16, ANT-16 1 kyr: dt, `ssa_lim_n`, `iter_redo`, V/A.
 - Benchmarks: expected bit-identical where `front_subgrid = "none"` or no partial cells;
   EISMINT symmetry.
+
+## 5. Results (Levante, 2026-10-07)
+
+Base `merged` (25250a38) vs `cfl1`..`cfl3`; `fl_summary.jl`, `dtlim.jl` in `yelmo-fl/`.
+
+- Commit 1: grl16, trough8, calv1 bit-identical.
+- Commits 2 and 3: eis, halfar, maskice, mismip3d, homc, homf bit-identical; trough8 and
+  calv1 differ only in the `dt_adv` diagnostic (cap not binding). EISMINT unchanged.
+- Initmip, 1 kyr (rst: 100 yr), mean dt / steps:
+
+  | case  | base         | cfl2 (closed faces) | cfl3 (+ filtered) |
+  |-------|--------------|---------------------|-------------------|
+  | rst   | 0.763 / 131  | 0.800 / 125         | 0.833 / 120       |
+  | grl8  | 0.733 / 1365 | 1.119 / 894         | 1.145 / 873       |
+  | grl16 | 1.368 / 731  | 2.967 / 337         | 3.205 / 312       |
+  | ant16 | 1.199 / 834  | 2.278 / 439         | 2.381 / 420       |
+
+  No redos (`iter_redo` > 1: 0 everywhere). Volume at t_end within 2e-4 (relative) of base.
+  `ssa_iter` up by ~10-25 % per step (larger steps), `ssa_lim_n` > 0 in at most 1.7 % of steps.
+- With the transport faces the Courant cap no longer binds at t_end (`dt_pi` = `dt_now` below
+  the Courant minimum, e.g. GRL-8 cfl3: dt 1.15, transport Courant min 1.30 vs 0.75 on all
+  faces): the pc error controller sets dt (mean `pc_eta` 0.001 -> 0.0075 in GRL-8).
+- The Rink front cell no longer appears among the Courant-min cells. GRL-8 limiting cells are
+  now full and partial front cells with open faces (130,110), (123,98).
