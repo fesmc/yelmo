@@ -257,7 +257,8 @@ contains
                 ! parameter choice is the same for both cases. Perhaps this can
                 ! be improved though.
 
-                call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd)
+                call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd, &
+                        defaults_file="input/yelmo_defaults.nml",defaults_group="yelmo_init_topo")
 
                 ! Apply scaling to adjust z_bed depending on standard deviation
                 ! Use scaling suppied as input argument
