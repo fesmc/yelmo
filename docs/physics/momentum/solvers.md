@@ -297,11 +297,19 @@ $\tau_{\mathrm{lim},x} \approx k\,\bar u - r$. The assemblers add $k$ to
 the matrix friction and $r$ to the right-hand side, with the face weight
 of the friction. The basal stress $\tau_b$, the basal velocity and the
 frictional heating are computed from the physical friction only, so the
-limit drag does not heat the bed. In the "residual" assembler, the rows
-of lateral-bc front faces (`ssa_mask` = 3) impose the front stress
-condition and have no drag term. There, the velocity is clipped to
-$[-u_\mathrm{max}, u_\mathrm{max}]$ after each solve instead
-(`ssa_vel_clip_front`).
+limit drag does not heat the bed.
+
+After each solve, the velocity components are also clipped to
+$[-u_\mathrm{max}, u_\mathrm{max}]$ (`ssa_vel_clip`), as with `"clip"`.
+A converged drag solution stays near $0.8$–$0.85\,u_\mathrm{max}$, so the
+clip does not change it; it bounds the iterates that the drag does not
+hold. Below $s_0$ the drag is zero, so ice that nothing else holds (e.g.
+a floating fragment with no friction and no shear coupling to other ice)
+can reach many times $u_\mathrm{max}$ in one solve, and the Newton steps
+of the drag then need more Picard iterations than `ssa_iter_max` to bring
+it back. In the "residual" assembler, the rows of lateral-bc front faces
+(`ssa_mask` = 3) impose the front stress condition and have no drag term,
+so there the clip is the only limit.
 
 The front faces need the limit as much as the grounded interior. At
 coarse resolution, thick front cells can be driven to runaway speeds,

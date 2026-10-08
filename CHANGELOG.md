@@ -26,6 +26,36 @@ little. MISMIP3D and DIVA runs change more.
   `optimize_par_load`. initmip: `True` -> `"L21"`, `False` -> `"none"`; `opt_tf`
   must stay `"none"` (no ocean model).
 
+- **`ytopo.gl_sep = 2` removed; use `gl_sep = 3`** (`ytopo_par_load` stops; values
+  other than 1 and 3 stop too, they left `f_grnd` unset). The grounded area of
+  `gl_sep = 2` interpolated `H_grnd` between the cell-corner means only, so a cell
+  grounded at its centre next to deep ocean had `f_grnd = 0`: no friction, but the
+  grounded surface `z_bed + H`. In a GRL-16KM ISMIP7 spin-up (DIVA, velocity-limit
+  drag) thin ice on small coastal islands (beds up to 45 m above sea level) was pushed
+  by up to 1.2 kPa without friction, and the run was killed at t = 1 yr (`uxy_bar`
+  2.1e4 m/yr). `gl_sep = 3` (Leguy et al., 2021) interpolates `H_grnd` bilinearly
+  between the cell centres, so the cell's own value counts, and integrates each
+  quadrant analytically; the face fractions come from the quadrants. GRL-16KM
+  (1 kyr): runs with the drag, limit never active, volume as `gl_sep = 2` with the
+  clip; ANT-32KM: volume +0.08 %, grounded area +0.18 %. Benchmarks use `gl_sep = 1`
+  (unchanged).
+- **Grounded area of `gl_sep = 3` computed by a new, case-free integral**
+  (`calc_f_grnd_subgrid_area`, `bilinear_grounded_fraction`; replaces the IMAU-ICE port
+  of the CISM routine, `determine_grounded_fractions`). Same interpolant, quarters and
+  averaging (Leguy et al., 2021); the area of each quarter is the integral over x of the
+  grounded length of the line x, split at the roots of the two edge lines, with one
+  formula for all sign patterns (docs/physics/grounded-fraction.md). The port nudged
+  corner values within 1e-4 of zero (and zero to floating), shifted a corner by 0.1 m
+  where H_grnd is locally planar (|d| < 1e-4, e.g. straight grounding lines), and
+  stopped the model with NaN for an exact saddle (e.g. H_grnd = 1, -3, -3, 9 m on a
+  2 x 2 block). Now `H_grnd = 0` is grounded (as `gl_sep = 1`), and f_grnd changes by at
+  most 1e-4 (GRL-16KM). The same routine gives `f_grnd_bmb` (partial melt at the
+  grounding line) for every `gl_sep`. New test `tests/test_f_grnd.f90` (`make f_grnd`).
+- **`bmb_gl_method = "pmpt"`**: the subgrid `H_grnd` uses the same interpolation
+  between cell centres (fesm-utils `calc_subgrid_array_quad`, at the centres of a
+  `gz_nx` x `gz_nx` partition), not between the corner means. Needs fesm-utils
+  cc3f719 or later. `gz_nx` is now used by `"pmpt"` only.
+
 - **Relaxation separate from the optimization.** The topography relaxation of a
   spin-up moves out of `&opt` into its own group `&relax` (`relax_params`,
   `relax_par_load`, `relax_update` in `libs/ice_optimization.f90`): `opt.rel_tau1`,
@@ -143,6 +173,15 @@ little. MISMIP3D and DIVA runs change more.
   faces. With `ssa_solver="residual"`, lateral-bc front faces are clipped at
   `ssa_vel_max` instead. Grounded-only drag let front faces run away: ANT-32 killed
   at t = 0.1 yr, GRL-8 (Helheim cliff) at 89 yr, GRL-4 (Jakobshavn) at 41 yr.
+- **With `"drag"`, the velocity components are also clipped at `ssa_vel_max`** after
+  each linear solve (`ssa_vel_clip`, as with `"clip"`; replaces the clip of the
+  residual assembler's lateral-bc front faces, `ssa_vel_clip_front`). The drag is zero
+  below 0.8·u_max, so ice that nothing else holds can jump far above the limit in one
+  solve, and the Newton steps of the drag (excess × ~0.65 per Picard iteration with
+  `ssa_iter_rel = 0.7`) then need more than `ssa_iter_max` iterations: a frictionless
+  fragment of a GRL-16KM spin-up (`gl_sep = 2`, see above) ended a step at 21 km/yr
+  and was killed (Picard loop on the killed state: 0 → 70 km/yr in one solve). The converged drag solution (0.8–0.85·u_max)
+  is unchanged; runs whose Picard iterates stay below `ssa_vel_max` are unchanged.
 - **pc error norm switch** (`pc_norm_L8` in yelmo_timesteps.f90, hard-coded `.FALSE.`):
   the L8 norm of the scaled pc error is kept next to the RMS (default, unchanged results).
   L8 removes the outlet 2Δx checkerboard at pc_eps ~0.03 but costs more steps; see the

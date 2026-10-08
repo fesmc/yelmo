@@ -56,6 +56,10 @@ upstream (grounded) value at grounding-line faces; 2, the downstream value;
 grounded fraction of the face; 4, weighted by the grounded
 share of the velocity across the face (Gladstone et al., 2010).
 
+The grounded fractions of cells and faces are set by `ytopo.gl_sep` (1: binary
+per cell, 3: grounded area of the flotation thickness interpolated bilinearly
+between cell centres), see [Grounded fraction](grounded-fraction.md).
+
 ### Frozen-bed sliding
 
 With `ydyn.frz_scale = True` (default), sliding is reduced where the bed is

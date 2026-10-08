@@ -319,14 +319,13 @@ if (.TRUE.) then
             ! Store velocity solution
             call linear_solver_save_velocity(ux_b,uy_b,lgs_now)
 
-            ! Limit the velocity
-            if (trim(par%ssa_vel_lim_method) .eq. "clip") then
-                call ssa_vel_clip(ux_b,uy_b,par%ssa_vel_max)
-            else if (trim(par%ssa_solver) .ne. "energy") then
-                ! Residual assembler: the limit drag cannot act at lateral-bc
-                ! front faces (stress condition rows), clip there instead
-                call ssa_vel_clip_front(ux_b,uy_b,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max)
-            end if
+            ! Limit the velocity: each component is clipped at ssa_vel_max, for
+            ! both methods. With "drag" the converged speed stays near 0.8-0.85
+            ! ssa_vel_max and the clip only bounds iterates the drag does not hold:
+            ! below its onset the drag is zero, so ice that nothing else holds can
+            ! jump far above the limit in one solve, and the residual assembler's
+            ! lateral-bc front rows have no drag term.
+            call ssa_vel_clip(ux_b,uy_b,par%ssa_vel_max)
 
 end if 
 

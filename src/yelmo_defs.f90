@@ -461,7 +461,7 @@ module yelmo_defs
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc
-        character(len=56)  :: ssa_vel_lim_method   ! "clip": clip each component at ssa_vel_max; "drag": speed-limit drag on grounded faces
+        character(len=56)  :: ssa_vel_lim_method   ! "clip": clip each component at ssa_vel_max; "drag": speed-limit drag on all free faces, plus the clip
         real(wp)   :: ssa_vel_lim_tau      ! [Pa] Speed-limit drag at ssa_vel_max ("drag")
         real(wp)   :: ssa_vel_max
         integer    :: ssa_iter_max 

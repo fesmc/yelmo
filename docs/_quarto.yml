@@ -56,6 +56,7 @@ website:
           - physics/vertical-velocity.md
           - physics/timestepping.md
           - physics/basal-friction.md
+          - physics/grounded-fraction.md
           - physics/thermodynamics.md
           - physics/calving.md
           - physics/tracers.md
