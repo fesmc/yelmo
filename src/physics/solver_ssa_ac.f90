@@ -18,7 +18,6 @@ module solver_ssa_ac
     public :: linear_solver_save_velocity
     public :: ssa_vel_clip
     public :: calc_vel_lim_drag
-    public :: ssa_vel_clip_front
     public :: count_vel_lim_faces
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
@@ -105,8 +104,8 @@ contains
         real(wp), intent(IN), optional :: lim_r_acy(:,:)    ! [Pa] Linearised speed-limit drag, offset (acy-nodes)
         ! The limit drag (calc_vel_lim_drag) enters the inner rows like beta,
         ! with the offset on the RHS. Lateral-bc rows (ssa_mask = 3) impose the
-        ! front stress condition and have no drag term: the Picard loop clips
-        ! the velocity there instead (ssa_vel_clip_front).
+        ! front stress condition and have no drag term: there only the clip
+        ! of the Picard loop (ssa_vel_clip) bounds the velocity.
 
         ! Local variables
         integer  :: nx, ny
@@ -1063,8 +1062,8 @@ contains
     end subroutine stagger_visc_aa_ab
 
     subroutine ssa_vel_clip(ux,uy,u_lim)
-        ! Clip each velocity component to [-u_lim,u_lim]
-        ! (ssa_vel_lim_method="clip")
+        ! Clip each velocity component to [-u_lim,u_lim] (after each linear
+        ! solve, for both ssa_vel_lim_method = "clip" and "drag")
 
         implicit none 
 
@@ -1087,36 +1086,6 @@ contains
         return 
 
     end subroutine ssa_vel_clip
-
-    subroutine ssa_vel_clip_front(ux,uy,ssa_mask_acx,ssa_mask_acy,u_lim)
-        ! Clip each velocity component to [-u_lim,u_lim] at lateral-bc front
-        ! faces (ssa_mask = 3) only. With the residual assembler these rows
-        ! impose the front stress condition, where the limit drag cannot act
-        ! (ssa_vel_lim_method="drag", ssa_solver="residual").
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: ux(:,:)              ! [m yr^-1] Horizontal velocity x
-        real(wp), intent(INOUT) :: uy(:,:)              ! [m yr^-1] Horizontal velocity y
-        integer,  intent(IN)    :: ssa_mask_acx(:,:)    ! [--] ssa solver action mask (acx-nodes)
-        integer,  intent(IN)    :: ssa_mask_acy(:,:)    ! [--] ssa solver action mask (acy-nodes)
-        real(wp), intent(IN)    :: u_lim                ! [m yr^-1] Velocity limit
-
-        ! Local variables 
-        integer :: i, j 
-
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, size(ux,2)
-        do i = 1, size(ux,1)
-            if (ssa_mask_acx(i,j) .eq. 3) call limit_vel(ux(i,j),u_lim)
-            if (ssa_mask_acy(i,j) .eq. 3) call limit_vel(uy(i,j),u_lim)
-        end do
-        end do
-        !$omp end parallel do
-
-        return 
-
-    end subroutine ssa_vel_clip_front
 
     subroutine calc_vel_lim_drag(lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy, &
                                     ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,tau_c,boundaries)

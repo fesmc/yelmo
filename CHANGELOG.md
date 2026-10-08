@@ -161,6 +161,15 @@ little. MISMIP3D and DIVA runs change more.
   faces. With `ssa_solver="residual"`, lateral-bc front faces are clipped at
   `ssa_vel_max` instead. Grounded-only drag let front faces run away: ANT-32 killed
   at t = 0.1 yr, GRL-8 (Helheim cliff) at 89 yr, GRL-4 (Jakobshavn) at 41 yr.
+- **With `"drag"`, the velocity components are also clipped at `ssa_vel_max`** after
+  each linear solve (`ssa_vel_clip`, as with `"clip"`; replaces the clip of the
+  residual assembler's lateral-bc front faces, `ssa_vel_clip_front`). The drag is zero
+  below 0.8·u_max, so ice that nothing else holds can jump far above the limit in one
+  solve, and the Newton steps of the drag (excess × ~0.65 per Picard iteration with
+  `ssa_iter_rel = 0.7`) then need more than `ssa_iter_max` iterations: a frictionless
+  fragment of a GRL-16KM spin-up (`gl_sep = 2`, see above) ended a step at 21 km/yr
+  and was killed (Picard loop on the killed state: 0 → 70 km/yr in one solve). The converged drag solution (0.8–0.85·u_max)
+  is unchanged; runs whose Picard iterates stay below `ssa_vel_max` are unchanged.
 - **pc error norm switch** (`pc_norm_L8` in yelmo_timesteps.f90, hard-coded `.FALSE.`):
   the L8 norm of the scaled pc error is kept next to the RMS (default, unchanged results).
   L8 removes the outlet 2Δx checkerboard at pc_eps ~0.03 but costs more steps; see the

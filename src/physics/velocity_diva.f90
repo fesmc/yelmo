@@ -348,14 +348,13 @@ contains
             ! Store velocity solution
             call linear_solver_save_velocity(ux_bar,uy_bar,lgs_now)
 
-            ! Limit the velocity
-            if (trim(par%ssa_vel_lim_method) .eq. "clip") then
-                call ssa_vel_clip(ux_bar,uy_bar,par%ssa_vel_max)
-            else if (trim(par%ssa_solver) .ne. "energy") then
-                ! Residual assembler: the limit drag cannot act at lateral-bc
-                ! front faces (stress condition rows), clip there instead
-                call ssa_vel_clip_front(ux_bar,uy_bar,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max)
-            end if
+            ! Limit the velocity: each component is clipped at ssa_vel_max, for
+            ! both methods. With "drag" the converged speed stays near 0.8-0.85
+            ! ssa_vel_max and the clip only bounds iterates the drag does not hold:
+            ! below its onset the drag is zero, so ice that nothing else holds can
+            ! jump far above the limit in one solve, and the residual assembler's
+            ! lateral-bc front rows have no drag term.
+            call ssa_vel_clip(ux_bar,uy_bar,par%ssa_vel_max)
 
             ! Apply relaxation to keep things stable
             call picard_relax_vel(ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1,rel=par%ssa_iter_rel)
