@@ -257,7 +257,7 @@ contains
         end if
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,T_pmp,H_ice,zeta_aa,integral=use_int)
 
         return 
 
@@ -939,7 +939,7 @@ end if
         if (present(melt_int_out)) melt_int_out = melt_internal
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,T_pmp,H_ice,zeta_aa,integral=use_int)
 
         return 
 
@@ -1234,127 +1234,84 @@ end if
 
     end subroutine calc_split_coeffs
     
-    function calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta,integral) result(H_cts)
+    function calc_cts_height(enth,T_pmp,H_ice,zeta,integral) result(H_cts)
         ! Calculate the height of the cold-temperate transition surface (m)
-        ! within the ice sheet. enth_pmp uses the same enthalpy definition as
-        ! the field: constant cp_ref (A1) or the integral form (A2).
+        ! above the base (top of the basal temperate layer; 0 for a cold base).
+        ! enth_pmp uses the same enthalpy definition as the field: constant
+        ! cp_ref (A1) or the integral form (A2).
+        !
+        ! The CTS lies between the top temperate node k_cts and the cold node
+        ! above. Linear interpolation of E-E_pmp between them places it too
+        ! high, because at a melting CTS the cold side reaches E_pmp with zero
+        ! gradient (the cold node sits just below E_pmp). Extrapolating the water
+        ! content of the temperate nodes below to zero corrects this; the lower
+        ! of the two estimates is used, so a weak water-content gradient cannot
+        ! push the CTS above the linear estimate.
 
         implicit none
 
         real(wp), intent(IN) :: enth(:)
-        real(wp), intent(IN) :: T_ice(:)
-        real(wp), intent(IN) :: omega(:)
         real(wp), intent(IN) :: T_pmp(:)
         real(wp), intent(IN) :: H_ice
         real(wp), intent(IN) :: zeta(:)
         logical,  intent(IN), optional :: integral
         real(wp) :: H_cts
+
+        ! Local variables
+        integer  :: k, nz
         logical  :: use_int
+        real(wp) :: zeta_cts, zeta_ext, de, slope
+        real(wp), allocatable :: enth_prime(:)
 
-        ! Local variables 
-        integer  :: k, k_cts, nz 
-        real(wp) :: f_lin, f_lin_0, dedz0, dedz1, zeta_cts 
-        real(wp), allocatable :: enth_pmp(:) 
-
-        integer :: i, n_iter, n_prime
-        real(wp), allocatable :: zeta_prime(:) 
-        real(wp), allocatable :: enth_prime(:) 
-        
-        nz = size(enth,1) 
-
-        allocate(enth_pmp(nz))
-        allocate(enth_prime(nz)) 
+        nz = size(enth,1)
 
         use_int = .false.
         if (present(integral)) use_int = integral
 
-        ! Get enthalpy at the pressure melting point (no water content)
+        ! Enthalpy relative to the pressure melting point (no water content)
+        allocate(enth_prime(nz))
         if (use_int) then
-            enth_pmp = enth_int_from_temp(T_pmp)
+            enth_prime = enth - enth_int_from_temp(T_pmp)
         else
-            enth_pmp = T_pmp * cp_ref
+            enth_prime = enth - T_pmp*cp_ref
         end if
 
-        enth_prime = enth - enth_pmp
+        if (enth_prime(1) .lt. 0.0_wp) then
+            ! Cold base: no basal temperate layer
+            H_cts = 0.0_wp
+            return
+        end if
 
-        ! Determine height of CTS as highest temperate layer
-        k_cts = get_cts_index(enth,enth_pmp)  
+        ! Top of the temperate layer above the base (as get_cts_index)
+        k = 1
+        do while (k .lt. nz)
+            if (enth_prime(k+1) .lt. 0.0_wp) exit
+            k = k + 1
+        end do
 
-        if (k_cts .eq. 0) then 
-            ! No temperate ice 
-            H_cts = 0.0_wp 
-
-        else if (k_cts .eq. nz) then 
+        if (k .eq. nz) then
             ! Whole column is temperate
             H_cts = H_ice
+            return
+        end if
 
-        else 
+        ! Linear interpolation of enth_prime between nodes k and k+1
+        de       = enth_prime(k) - enth_prime(k+1)        ! > 0
+        zeta_cts = zeta(k) + (enth_prime(k)/de)*(zeta(k+1)-zeta(k))
 
-            ! Assume H_cts lies at center of last temperate cell (aa-node)
-!             zeta_cts = zeta(k_cts)
+        ! Extrapolation of the temperate side (nodes k-1, k). Not from the base
+        ! node, which follows the layer above (zero-gradient basal condition).
+        if (k .ge. 3) then
+            slope = (enth_prime(k-1) - enth_prime(k)) / (zeta(k)-zeta(k-1))
+            if (slope .gt. 0.0_wp) then
+                zeta_ext = zeta(k) + enth_prime(k)/slope
+                zeta_cts = min(zeta_cts,zeta_ext)
+            end if
+        end if
 
-!             ! Assume H_cts lies on ac-node between temperate and cold layers 
-!             zeta_cts = 0.5_wp*(zeta(k_cts)+zeta(k_cts+1))
+        H_cts = H_ice*zeta_cts
 
-            ! Perform linear interpolation between enth(k_cts) and enth(k_cts+1) to find 
-            ! where enth==enth_pmp.
-            f_lin_0 = ( (enth(k_cts+1)-enth(k_cts)) - (enth_pmp(k_cts+1)-enth_pmp(k_cts)) )
-            if (f_lin_0 .ne. 0.0) then 
-                f_lin = (enth_pmp(k_cts)-enth(k_cts)) / f_lin_0
-                if (f_lin .lt. 1e-2) f_lin = 0.0 
-            else 
-                f_lin = 1.0
-            end if 
-
-            zeta_cts = zeta(k_cts) + f_lin*(zeta(k_cts+1)-zeta(k_cts))
-            
-!             ec = (zc-z0)/(z1-z0)*(e1-e0) + e0 
-!              0 = (zc-z0)/(z1-z0)*(e1-e0) + e0 
-!            -e0 = (zc-z0)/(z1-z0)*(e1-e0)
-!            -e0*(z1-z0)/(e1-e0) = zc-z0
-           
-!            zc = z0 - e0*(z1-z0)/(e1-e0)
-            
-!             if (abs(enth_prime(k_cts)-enth_prime(k_cts+1)) .lt. 1e-3) then 
-!                 zeta_cts = zeta(k_cts+1)
-!             else 
-!                 zeta_cts = zeta(k_cts) - enth_prime(k_cts)*(zeta(k_cts+1)-zeta(k_cts))/(enth_prime(k_cts+1)-enth_prime(k_cts))
-!             end if 
-
-!             ! Further iterate to improve estimate of H_cts 
-!             n_iter = 3
-!             do i = 1, n_iter 
-
-!             end do 
-            
-!             n_prime = 11 
-
-!             allocate(zeta_prime(n_prime))
-!             allocate(enth_prime(n_prime))
-            
-!             zeta_prime(1)       = zeta(k_cts-1)
-!             zeta_prime(n_prime) = zeta(k_cts+1)
-
-!             do i = 2, n_prime-1
-!                 zeta_prime(i) = ((i-2)/(n_prime-3))*(zeta(k_cts+1)-zeta(k_cts)) + zeta(k_cts)
-!             end do 
-
-!             enth_prime = interp_spline(zeta,enth-enth_pmp,zeta_prime)
-
-!             i = minloc(abs(enth_prime),1)
-!             zeta_cts = zeta_prime(i) 
-
-! !             i = maxloc(abs(enth_prime),1,mask=enth_prime .lt. 0.0_wp)
-! !             f_lin = (zeta_prime(i+1)-zeta_prime(i)) / (enth_prime(i+1)-enth_prime(i))
-! !             if (abs(f_lin) .lt. 1e-3) f_lin = 0.0_wp 
-! !             zeta_cts = (1.0_wp-f_lin)*zeta_prime(i) 
-    
-            H_cts    = H_ice*zeta_cts
-
-        end if 
-
-        return 
-
+        return
 
     end function calc_cts_height
 
