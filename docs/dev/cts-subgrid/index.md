@@ -1,13 +1,19 @@
 # Sub-grid CTS in the enthalpy column solver
 
-Status: branch `cts-subgrid-30c974` (from dev e5ef9fc0), 2026-10-08. Column tests done;
-3D checks (EISMINT EXPF symmetry, initmip GRL 16 km 1 kyr) pending on albedo. Not merged.
+Status: branch `cts-subgrid-30c974` (from dev e5ef9fc0), 2026-10-08. Column tests and
+initmip GRL-16 / ANT-32 (1 kyr) and EISMINT EXPA/EXPF done on albedo (clone
+`models/yelmo-cts`); EXPF burst check with 500-yr output pending. Not merged.
 
 Commits:
 
 1. 094a8c35 `therm: enth vertical diffusion with split sensible/latent face flux`
 2. 62567bdc `therm: H_cts from temperate-side water-content extrapolation`
 3. 62a46423 `tests: kleiner-b checks a steady CTS, tighter tolerance`
+4. 6c2b091e `docs/dev: sub-grid CTS write-up`
+5. b9896f77 `therm: re-solve the column when a temperate node freezes within the step`
+6. 5e0581fa `tests: shelf-freeze column test`
+
+Commit 1 on its own fails in 3D (section 3, "Freezing within a step"); 1 and 5 belong together.
 
 ## 1. Problem
 
@@ -44,6 +50,7 @@ is continuous in E, so the CTS settles between nodes.
   base and surface: from their imposed values). A node then contributes `c*x + d` to a
   face flux (`calc_split_coeffs`; `x = E - enth_ref`): cold `c = Kc`, `d = 0`;
   temperate `c = K0`, `d = (Kc - K0)*(E_pmp - enth_ref)`. Still one tridiagonal solve per step.
+- Freezing within a step: see below.
 - Picard iteration on the phase was tested and not adopted. One solve already gives a
   consistent phase in 99.8 % of the steps, and at nz = 801 / cr = 1e-5 the iteration cycled
   without changing the result.
@@ -55,6 +62,23 @@ is continuous in E, so the CTS settles between nodes.
   latent part, without the latent leak of the old override.
 - A cold column gives the same results as before, bit for bit (the products are ordered
   as before: `wp` is single precision).
+
+**Freezing within a step.** With the phase fixed at the start of the step, a temperate
+node has no sensible conduction of its own (its face coefficient is K0). Next to much
+colder ice with large `Kc*dt/dz^2` (thin or floating columns on the exponential zeta grid,
+`Kc*dt/dz^2` ~ 100 near the base) it then loses heat all step and overshoots far below
+its neighbours. Example from GRL-16 (50 m floating column, base at T_shlf): node 2 went
+from 311454 to 259397 J/kg, ~25 K below both neighbours. With the integral enthalpy (A2)
+the inversion to T_ice then gives NaN: GRL-16 stopped at 50 yr, EISMINT EXPF at 13 kyr.
+Fix (commit 5): after the solve, nodes taken as temperate that ended below E_pmp are set
+cold and the column is solved again, until no node freezes. Nodes only change from
+temperate to cold, so the loop ends (at most nz solves); a node that warms past E_pmp
+keeps its cold coefficient for that step, which is the stable direction. The terms that
+do not depend on the phase (advection, sources, face diffusivities) are assembled once.
+Iterating the phase both ways (Picard) was rejected (it cycles), and so was a relaxation
+with implicit Kc everywhere (it leaks the latent heat of temperate ice held at
+`omega_max` into the cold ice every step). The `shelf-freeze` column test reproduces the
+NaN without commit 5 and passes with it and on dev.
 
 `H_cts` (output only) used linear interpolation of `E - E_pmp` between the top temperate
 node and the cold node above. Because the cold side approaches E_pmp with zero gradient,
@@ -90,6 +114,7 @@ Other column tests (`test_enthalpy.x`, default nz = 51 unless noted):
 | thin-margin | all ok | all ok |
 | robin-column, enth-A1 - Robin, Q_geo = 50 | -0.484 K | -0.519 K |
 | robin-column, enth-A2 - temp, Q_geo = 50 | 0.417 K | 0.357 K |
+| shelf-freeze, nz = 10 / 51 | ok | ok (commit 1 alone: NaN) |
 
 The Robin changes come from the lowest face: the old code used `kappa(2)` there for
 any base (the melting-base override), whereas the new code uses the harmonic mean of
@@ -99,19 +124,38 @@ The kleiner-b check is now: CTS within 0.5 m, base omega within 5 %, and an H_ct
 below 5 cm over the last 1 kyr (sampled every step). It passes for nz >= 201. At nz = 101 base omega
 is 6 % low.
 
-## 5. Expected 3D impact (to check)
+## 5. 3D checks (albedo, ifx, wp = sp)
 
-Changes only where a CTS or a temperate node next to cold ice exists:
+initmip present day, 1 kyr, against dev e5ef9fc0 (`models/yelmo-dev`). Final state, means over
+ice-covered cells (ts: `yelmo_ts.nc`):
 
-- No latent heat is conducted into cold ice at the CTS, so expect a lower CTS and less warming of
-  the cold ice just above it. More water stays in the temperate layer and drains to the
-  bed through `omega_max` (`melt_int`).
-- Floating bases below temperate ice refreeze only through the sensible flux, so shelf-base
-  refreezing of temperate ice slows down.
-- Cold columns: identical.
+| | GRL-16 dev | GRL-16 new | ANT-32 dev | ANT-32 new |
+|---|---|---|---|---|
+| V_ice [1e6 km3] | 3.1715 | 3.1735 | 27.968 | 27.971 |
+| uxy_s (ts) [m/yr] | 59.34 | 57.85 | 53.58 | 53.06 |
+| f_pmp (ts) | 0.4522 | 0.4508 | 0.5591 | 0.5587 |
+| bmb (ts) [m/yr] | -0.0844 | -0.0799 | -0.0536 | -0.0534 |
+| melt_int (mean) [m/yr] | 0.00171 | 0.00187 | 0.00028 | 0.00031 |
+| H_ice rms diff [m] | | 11.4 | | 5.6 |
 
-Checks (albedo): EISMINT EXPF symmetry (20-kyr mean gate) and initmip GRL 16 km 1 kyr,
-compared with dev.
+More englacial water drains to the bed (`melt_int` +9 % / +13 %): water no longer leaks
+into the cold ice at the CTS, so more of it reaches `omega_max`. The other changes are small.
+Speed: GRL-16 81.8 kyr/h vs 82.5 and 84.4 for two dev runs (no measurable cost from the
+re-solve).
+
+EISMINT (serial, 100 kyr), symmetry check of `yelmo_benchmarks` (max Linf/Hmax over the
+reflections; EXPF: mean H over the last 20 kyr, gate 2e-2):
+
+| | dev | new |
+|---|---|---|
+| EXPA (gate 1e-3) | 1.88e-4 | 1.25e-4 |
+| EXPF (gate 2e-2) | 1.90e-3 | 1.34e-2 |
+| EXPF final-state H D4 error | 2.70e-3 | 2.71e-3 |
+| EXPF median H D4 error, 20-100 kyr (5-kyr output) | 1.33e-3 | 1.45e-3 |
+
+The EXPF gate value comes from one output at 80 kyr (H D4 error 6.9e-2), a transient
+burst inside the 20-kyr window. Before and after it the error follows dev. To be checked
+with 500-yr output for both (dev bursts may fall between its 5-kyr outputs).
 
 ## Reproduce
 
