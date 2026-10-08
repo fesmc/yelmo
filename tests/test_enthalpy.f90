@@ -268,6 +268,7 @@ contains
         real(wp) :: W_created              ! [m] water added by the W_til zero floor
         real(wp) :: clamp_sum              ! [m] ice-equivalent freeze-on removed by the clamp
         real(wp) :: t_leave                ! [a] first time after 150 ka the base is below T_pmp
+        real(wp) :: cts_min, cts_max       ! [m] H_cts range over the last 1 ka (Exp B)
         integer  :: n_held, n_flux
 
         ab_warm = -999.0_wp
@@ -279,6 +280,8 @@ contains
         W_created = 0.0_wp
         clamp_sum = 0.0_wp
         t_leave   = -1.0_wp
+        cts_min   =  huge(1.0_wp)
+        cts_max   = -huge(1.0_wp)
         n_held    = 0
         n_flux    = 0
 
@@ -389,6 +392,13 @@ contains
 
             time = time + dt
 
+            ! Range of the CTS height over the last 1 ka, every step (a steady
+            ! state must not oscillate between output snapshots)
+            if (trim(base_exp) .eq. "kleiner-b" .and. time .gt. time_end - 1000.0_wp) then
+                cts_min = min(cts_min,col%H_cts)
+                cts_max = max(cts_max,col%H_cts)
+            end if
+
             if (time - time_out .ge. dt_out - 1e-6_wp) then
                 call write_step(col,filename,time)
                 time_out = time
@@ -400,15 +410,17 @@ contains
                 "] T_base = ", col%T_ice(1), " K, bmb = ", col%bmb
 
         ! T4: compare steady polythermal structure to the Kleiner (2015) Exp B
-        ! analytic solution (CTS at 19 m, base water content 2.07%).
+        ! analytic solution (CTS at 19 m, base water content 2.07%), and check
+        ! that the CTS is steady.
         if (trim(experiment) .eq. "kleiner-b" .and. trim(solver) .eq. "enth") then
             write(*,*) ""
             write(*,*) "=== Kleiner Exp B polythermal structure vs analytic (T4) ==="
             write(*,"(a,f7.2,a)")   "  CTS height = ", col%H_cts,   " m     (analytic 19.0 m)"
+            write(*,"(a,f8.4,a)")   "  CTS range  = ", cts_max-cts_min, " m    (last 1 ka, every step)"
             write(*,"(a,f8.4,a)")   "  base omega = ", col%omega(1), "      (analytic 0.0207)"
-            if (abs(col%H_cts-19.0_wp) .lt. 2.0_wp .and. &
-                abs(col%omega(1)-0.0207_wp) .lt. 0.10_wp*0.0207_wp) then
-                write(*,*) "  PASS: CTS within 2 m and base omega within 10% of analytic."
+            if (abs(col%H_cts-19.0_wp) .lt. 0.5_wp .and. cts_max-cts_min .lt. 0.05_wp .and. &
+                abs(col%omega(1)-0.0207_wp) .lt. 0.05_wp*0.0207_wp) then
+                write(*,*) "  PASS: CTS within 0.5 m and steady (range < 5 cm), base omega within 5% of analytic."
             else
                 write(*,*) "  FAIL: exceeds tolerance (try larger nz / smaller cr)."
             end if

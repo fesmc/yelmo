@@ -297,7 +297,7 @@ column, with reference data in `tests/data/Kleiner2015/`:
 | `cold-limit` | The enthalpy solver reduces to the temperature solver for cold ice |
 | `kleiner-a` | Kleiner et al. (2015) Experiment A: transient basal melt and refreezing under a time-varying surface temperature, compared with the analytic steady melt rates |
 | `kleiner-a-cap` | As `kleiner-a`, with the capacity basal boundary condition |
-| `kleiner-b` | Kleiner et al. (2015) Experiment B: steady polythermal column, CTS height and basal water content compared with the analytic solution |
+| `kleiner-b` | Kleiner et al. (2015) Experiment B: steady polythermal column, CTS height (within 0.5 m) and basal water content (within 5 %) compared with the analytic solution, and a steady CTS over the last 1 kyr; passes from 201 vertical points |
 | `thin-margin` | Stability of a thin polythermal margin column, over a range of thickness and horizontal advection |
 | `robin-column` | Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers |
 
