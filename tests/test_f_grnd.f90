@@ -24,8 +24,15 @@ program test_f_grnd
     real(wp) :: v(4), f0, err, err_max
     real(wp) :: h(n,n), g(n,n), gx(n,n), gy(n,n), gab(n,n), vint(nxi,nxi), fref
     integer  :: k, i, j, n_fail
+    integer, allocatable :: seed(:)
 
     n_fail = 0
+
+    ! Fixed seed, so that the random fields are the same in every run
+    call random_seed(size=k)
+    allocate(seed(k))
+    seed = 20261008
+    call random_seed(put=seed)
 
     ! === 1. Unit square =====================================================
 
