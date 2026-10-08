@@ -2,6 +2,9 @@
 
 ## Unreleased (dev)
 
+- Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
+  in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
+
 Mostly fixes from a whole-source audit (2026-09). Most default runs change a
 little. MISMIP3D and DIVA runs change more.
 

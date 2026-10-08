@@ -422,10 +422,12 @@ contains
 
         end if
 
-        ! Add projection information if needed
+        ! Add projection information if needed. The false easting/northing are
+        ! in the units of the axes (km), like the axes themselves.
         if (grid%cs%is_projection) then
             call nc_write_map(fnm, grid%cs%mtype, grid%cs%proj%lambda, phi=grid%cs%proj%phi, &
-                alpha=grid%cs%proj%alpha, x_e=grid%cs%proj%x_e, y_n=grid%cs%proj%y_n, &
+                alpha=grid%cs%proj%alpha, x_e=grid%cs%proj%x_e*1d-3, y_n=grid%cs%proj%y_n*1d-3, &
+                k0=grid%cs%proj%k0, &
                 is_sphere=grid%cs%planet%is_sphere, semi_major_axis=grid%cs%planet%a, &
                 inverse_flattening=grid%cs%planet%inverse_flattening)
         end if
