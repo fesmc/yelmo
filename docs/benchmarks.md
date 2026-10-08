@@ -299,6 +299,7 @@ column, with reference data in `tests/data/Kleiner2015/`:
 | `kleiner-a-cap` | As `kleiner-a`, with the capacity basal boundary condition |
 | `kleiner-b` | Kleiner et al. (2015) Experiment B: steady polythermal column, CTS height (within 0.5 m) and basal water content (within 5 %) compared with the analytic solution, and a steady CTS over the last 1 kyr; passes from 201 vertical points |
 | `thin-margin` | Stability of a thin polythermal margin column, over a range of thickness and horizontal advection |
+| `shelf-freeze` | Thin floating temperate columns refrozen from the ocean base and the cold surface: no node may cool below the coldest boundary |
 | `robin-column` | Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers |
 
 ```bash
@@ -310,7 +311,7 @@ The arguments are the experiment, the solver, the number of vertical points
 (default 51) and optionally the conductivity ratio of temperate ice
 (`enth_cr`). The solver (`temp` or `enth`, default `enth`) applies to
 `kleiner-a` and `kleiner-b`; the other experiments ignore it (`cold-limit`,
-`thin-margin` and `robin-column` run both solvers, `kleiner-a-cap` the enthalpy
+`thin-margin` and `robin-column` run both solvers, `kleiner-a-cap` and `shelf-freeze` the enthalpy
 solver). Output is written to `output/test_enthalpy_<experiment>_<solver>.nc`
-(not for `thin-margin` and `robin-column`, which only print their results), and
+(not for `thin-margin`, `shelf-freeze` and `robin-column`, which only print their results), and
 the program reports whether the comparison with the reference passes.
