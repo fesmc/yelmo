@@ -206,6 +206,13 @@ optimization-based initialization scheme (`ctrl.equil_method = "opt"`, see
 conditions. Default settings: 10-yr outer timestep, 1000-yr simulation,
 steady-state forcing.
 
+The parameter file `par/yelmo_initmip_grl.nml` lists only the Greenland
+settings that differ from `input/yelmo_defaults.nml`: no flow enhancement
+(`ymat.enh_shear = enh_stream = 1`), calving fronts held at the observed
+positions (`ycalv.calv_flt_method = calv_grnd_method = "equil"`), a lower
+bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
+melt of 2 m/a.
+
 Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid
 by uncommenting the desired line:
 
@@ -217,18 +224,15 @@ grid=GRL-32KM
 
 make clean
 make initmip
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-$grid \
-    -p ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       yelmo.domain=Greenland yelmo.grid_name=$grid
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/initmip-grl-$grid \
+    -p yelmo.log_timestep=True yelmo.grid_name=$grid
 ```
 
 To run all four resolutions as an ensemble:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
-    -p ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       yelmo.domain=Greenland \
-       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/initmip-grl-ens \
+    -p yelmo.log_timestep=True yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
 ```
 
 ### Performance {#initmip-grl-performance}
@@ -238,7 +242,8 @@ initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
 Levante shared node). Grey: DIVA in Robinson et al. (2022), Fig. 3, on
 one processor. The lines are fits of $\Delta t \propto \Delta x^p$.](img/timing-resolution-grl.png)
 
-The runs use `par/yelmo_initmip.nml` with `ctrl.time_end=1000`.
+The runs used the shared initmip parameter file of dev 6d0b30d6 (before the split into
+`par/yelmo_initmip_grl.nml` and `par/yelmo_initmip_ant.nml`) with `ctrl.time_end=1000`.
 The mean time step is the simulated time divided by the number of time steps, and
 the model speed is the simulated time per hour of wall time of the main loop. The
 time step is set by the predictor-corrector controller (`yelmo.pc_eps = 0.02`)
@@ -251,7 +256,8 @@ most. Data and plotting script: `analysis/timing/`.
 Antarctica initialization benchmark following the
 initMIP-Antarctica protocol ([Seroussi et al., 2019](https://doi.org/10.5194/tc-13-1441-2019)).
 Same optimization-based spin-up as initmip-grl, but on the Antarctic domain
-with `set_nm = "set_ant_pd"`.
+with `par/yelmo_initmip_ant.nml` (present day: `ctrl.set_nm = "set_ant_pd"`, the
+default; glacial: `"set_ant_lgm"`).
 
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
@@ -263,18 +269,15 @@ grid=ANT-32KM
 
 make clean
 make initmip
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-$grid \
-    -p ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       yelmo.domain=Antarctica yelmo.grid_name=$grid
+runme -r -e initmip -n par/yelmo_initmip_ant.nml -o output/initmip-ant-$grid \
+    -p yelmo.log_timestep=True yelmo.grid_name=$grid
 ```
 
 To run all three resolutions as an ensemble:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
-    -p ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       yelmo.domain=Antarctica \
-       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
+runme -r -e initmip -n par/yelmo_initmip_ant.nml -o output/initmip-ant-ens \
+    -p yelmo.log_timestep=True yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
 ```
 
 ### Performance {#initmip-ant-performance}

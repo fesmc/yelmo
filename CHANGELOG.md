@@ -10,6 +10,17 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Changes that affect existing par files
 
+- **initmip par file split by domain.** `par/yelmo_initmip.nml` is replaced by
+  `par/yelmo_initmip_grl.nml` and `par/yelmo_initmip_ant.nml`. The yelmo groups
+  list only the overrides of `input/yelmo_defaults.nml`. The data files and the
+  monthly flags are set in `&yelmo_init_topo` / `&yelmo_data` of each file, and the
+  `set_*` groups no longer carry them; `ctrl.set_nm` and `yelmo.domain` no longer
+  need `-p`. Antarctica is unchanged. Greenland uses the 20-kyr spin-up tuning at
+  16 km (2026-10-09): `ymat.enh_shear = enh_stream = 1`, calving fronts held at the
+  observed positions (`calv_flt_method = calv_grnd_method = "equil"`),
+  `ytill.cf_min = 0.02` and `bmb_shlf_const = -2` m/a (rmse_H 230 -> 124 m after
+  20 kyr).
+
 - **K24 key names follow FastHydrology dev** (fesmc/FastHydrology#14): in `&yhyd`,
   `k24_ub_hook` -> `k24_N_ub_coupled`, `k24_manning_exponent` -> `k24_glen_n`,
   `k24_manning_coefficient_exponent` -> `k24_flux_W_exponent`,
