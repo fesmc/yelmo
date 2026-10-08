@@ -2,7 +2,7 @@
 
 Status: branch `cts-subgrid-30c974` (from dev e5ef9fc0), 2026-10-08. Column tests and
 initmip GRL-16 / ANT-32 (1 kyr) and EISMINT EXPA/EXPF done on albedo (clone
-`models/yelmo-cts`); EXPF burst check with 500-yr output pending. Not merged.
+`models/yelmo-cts`). Not merged.
 
 Commits:
 
@@ -153,9 +153,16 @@ reflections; EXPF: mean H over the last 20 kyr, gate 2e-2):
 | EXPF final-state H D4 error | 2.70e-3 | 2.71e-3 |
 | EXPF median H D4 error, 20-100 kyr (5-kyr output) | 1.33e-3 | 1.45e-3 |
 
-The EXPF gate value comes from one output at 80 kyr (H D4 error 6.9e-2), a transient
-burst inside the 20-kyr window. Before and after it the error follows dev. To be checked
-with 500-yr output for both (dev bursts may fall between its 5-kyr outputs).
+With 500-yr output (both runs reproduce the 5-kyr ones exactly): dev never exceeds an H
+D4 error of 2.7e-3; the new run exceeds 5e-3 only from 75 to 84 kyr (peak 6.9e-2 at
+79.5 kyr), and follows dev before and after (median 20-100 kyr 1.45e-3 vs 1.33e-3). The
+episode is a margin retreat. The 8 symmetric images of the margin-ring cell (50,44)
+(r = 23 cells) thin, refreeze at the base and deglaciate, but at different times
+(76-86 kyr), which sets the D4 error while it lasts. In dev these cells are about 30 m
+thicker (365 vs 335 m at 60 kyr) and thin more slowly (~1.2 vs ~3 m/kyr), so they do not
+retreat within 100 kyr. The thermal scheme only changes when this threshold event
+happens. It is not a new instability: the base and thickness are as symmetric as in dev
+outside the episode. The EXPF gate (mean over the last 20 kyr) still passes (1.34e-2 < 2e-2).
 
 ## Reproduce
 
