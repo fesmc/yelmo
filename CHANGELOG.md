@@ -833,6 +833,10 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Other
 
+- Build: `yelmo_defs.o` depends on `libfasthydro.a`, `libelsa.a` and `libtracer.a`, so a
+  type change in a sibling library rebuilds yelmo instead of leaving objects with a stale
+  layout (fesmc/FastHydrology#10). Needs FastHydrology, elsa and tracer dev with the
+  archive as a file target, else every `make` rebuilds yelmo.
 - `yelmo-config` checks the remaining numeric par_load checks: `yelmo.dt_min`,
   `pc_rho_max`, `ydyn.ssa_vel_max`, `neff_nxi`, `ytherm.qb_method`, `advecxy_order`,
   `advecxy_cfl`, `advecxy_nmax`, `cap_W_floor`, `cap_eps`.
