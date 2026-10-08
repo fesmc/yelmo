@@ -90,9 +90,14 @@ k/(\rho_i c) & \text{cold ice} \\
 $$
 
 with the conductivity ratio $\epsilon$ = `enth_cr` (default $10^{-3}$), which
-represents the small diffusion of water in temperate ice. On the cold side of the
-cold–temperate transition surface (CTS), the flux across the interface is
-computed with the cold-ice diffusivity (Blatter and Greve, 2015, Eq. 25).
+represents the small diffusion of water in temperate ice. In the discrete
+equations, the flux is split into a sensible and a latent part,
+$K_c\,\partial E_s/\partial z + \epsilon K_c\,\partial E_l/\partial z$, with
+$E_s = \min(E, E_\mathrm{pmp})$, $E_l = \max(E - E_\mathrm{pmp}, 0)$ and the
+cold-ice diffusivity $K_c$. Across the cold–temperate transition surface (CTS),
+cold ice thus conducts heat to the pressure melting point of the temperate ice,
+but not its water content. The flux is continuous in $E$, so the CTS can lie
+between two nodes and is steady when the forcing is.
 
 The water content is limited to `omega_max` (default 0.01). Water above this
 limit is drained to the bed and added to the basal melt rate (`melt_int`). The
@@ -102,7 +107,11 @@ height of the CTS above the bed is diagnosed as `H_cts`.
 
 Each column is solved implicitly (backward Euler) as a tridiagonal system
 (`calc_enth_column_internal`), on the vertical aa-nodes of the ice layers,
-with the diffusivity at the layer faces from a weighted harmonic mean.
+with the cold-ice diffusivity at the layer faces from a weighted harmonic mean.
+Whether a node counts as cold or temperate in the face fluxes is taken from the
+start-of-step enthalpy, which keeps the system linear. A node that freezes during
+the step is set cold and the column is solved again, so that it cannot cool
+below its colder neighbours.
 
 - **Vertical advection** is upwind with second-order accuracy: the matrix
   holds first-order upwind, and the right-hand side adds the difference to a
@@ -263,9 +272,6 @@ $\gamma = 0$; 1 for floating ice), is a diagnostic used in the bed mask.
 
 - Aschwanden, A., Bueler, E., Khroulev, C., and Blatter, H. (2012). An enthalpy
   formulation for glaciers and ice sheets. J. Glaciol., 58, 441–457.
-- Blatter, H. and Greve, R. (2015). Comparison and verification of enthalpy
-  schemes for polythermal glaciers and ice sheets with a one-dimensional model.
-  Polar Sci., 9, 196–207.
 - Cuffey, K. M. and Paterson, W. S. B. (2010). *The Physics of Glaciers*, 4th ed.
 - Greve, R. and Blatter, H. (2009). *Dynamics of Ice Sheets and Glaciers.* Springer.
 - Jenkins, A. (1991). A one-dimensional model of ice shelf–ocean interaction.

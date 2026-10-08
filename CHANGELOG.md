@@ -478,6 +478,21 @@ little. MISMIP3D and DIVA runs change more.
 
 ### Answer-changing fixes
 
+- **Enthalpy solver: sub-grid CTS** (`calc_enth_column_internal`). The vertical
+  diffusive flux is split into a sensible and a latent part, `Kc*d(min(E,E_pmp)) +
+  cr*Kc*d(max(E-E_pmp,0))`, so cold ice no longer conducts the latent heat (water
+  content) of temperate ice across the CTS. Before, the CTS jumped between nodes every
+  step (Kleiner Exp B: period 3 steps, mean 1.8 m too high at nz = 201; the test passed or
+  failed by phase). It is now steady and between nodes: 19.38 / 19.18 / 19.02 m at nz =
+  201 / 401 / 801 (analytic 19.0). A node that freezes within the step is solved again as
+  cold (thin columns would otherwise overshoot). The CTS, melting-base and floating-base
+  diffusivity overrides are removed (the split covers them); cold columns are bit-identical.
+  `H_cts` uses the temperate-side water-content extrapolation (was up to one layer too
+  high; 0 for a cold base). InitMIP 1 kyr: GRL-16 surface speed -2.5 %, englacial
+  drainage `melt_int` +9 % (ANT-32: -1 %, +13 %), volume within 6e-4. EISMINT EXPA:
+  symmetry 1.25e-4 (was 1.9e-4); EXPF passes (1.34e-2 < 2e-2, from a one-cell margin
+  retreat at 76-86 kyr that dev does not reach in 100 kyr). New column test
+  `shelf-freeze`; `kleiner-b` checks a steady CTS (0.5 m, 5 %). See docs/dev/cts-subgrid.
 - **`yelmo_update` steps until `time` is reached** (`yelmo_ice.f90`). The loop ran at most
   `nstep = ceiling((time-time_now)/dt_min)` steps, so steps shorter than `dt_min` (the last
   steps to reach `time`, `dt_min` rounded down in `limit_adaptive_timestep`) could make the
