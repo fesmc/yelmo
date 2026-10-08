@@ -877,6 +877,8 @@ little. MISMIP3D and DIVA runs change more.
   objects with a stale layout (fesmc/FastHydrology#10). Needs fesm-utils, FastHydrology,
   elsa and tracer dev with the archive as a file target, else every `make` of them
   rebuilds yelmo.
+- Build: `libyelmo.a` is a file target, so its mtime only changes when an object does
+  (yelmox objects depend on it to rebuild after a type change).
 - `yelmo-config` checks the remaining numeric par_load checks: `yelmo.dt_min`,
   `pc_rho_max`, `ydyn.ssa_vel_max`, `neff_nxi`, `ytherm.qb_method`, `advecxy_order`,
   `advecxy_cfl`, `advecxy_nmax`, `cap_W_floor`, `cap_eps`.

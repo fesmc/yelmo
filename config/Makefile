@@ -73,14 +73,18 @@ elsa-static:
 tracer-static:
 	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp) pic=$(pic)
 
-# Static library compilation
-yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	ar rc $(objdir)/libyelmo.a $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	ranlib $(objdir)/libyelmo.a
+# Static library compilation. The archive is a file target, so its mtime only
+# changes when an object does (hosts such as yelmox depend on it to rebuild
+# after a type change).
+yelmo-static: fasthydro-static elsa-static tracer-static $(objdir)/libyelmo.a
 	./check_githash > git_yelmo.txt
 	@echo " "
 	@echo "    $(objdir)/libyelmo.a is ready."
 	@echo " "
+
+$(objdir)/libyelmo.a: $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+	ar rc $@ $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+	ranlib $@
 
 # Shared libraries link libyelmo.a and the static deps, so every object must be
 # position-independent (required on Linux): build with pic=1, with fesm-utils
