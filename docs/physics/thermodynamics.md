@@ -109,7 +109,9 @@ Each column is solved implicitly (backward Euler) as a tridiagonal system
 (`calc_enth_column_internal`), on the vertical aa-nodes of the ice layers,
 with the cold-ice diffusivity at the layer faces from a weighted harmonic mean.
 Whether a node counts as cold or temperate in the face fluxes is taken from the
-start-of-step enthalpy, which keeps the system linear.
+start-of-step enthalpy, which keeps the system linear. A node that freezes during
+the step is set cold and the column is solved again, so that it cannot cool
+below its colder neighbours.
 
 - **Vertical advection** is upwind with second-order accuracy: the matrix
   holds first-order upwind, and the right-hand side adds the difference to a

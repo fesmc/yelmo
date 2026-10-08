@@ -969,7 +969,13 @@ end if
         ! et al., 2015, Exp B). The same split handles a melting base (Dirichlet at
         ! pmp) and a floating freezing base (Dirichlet at T_shlf).
         ! Each node is cold or temperate as at the start of the step (Dirichlet
-        ! nodes: as their imposed value), which keeps the system linear.
+        ! nodes: as their imposed value), which keeps the system linear. A node
+        ! taken as temperate that ends below E_pmp froze during the step: as
+        ! temperate it has no sensible conduction of its own, so next to much
+        ! colder ice it would overshoot far below its neighbours (thin columns,
+        ! large Kc*dt/dz^2). Such nodes are set cold and the column is solved
+        ! again, until no node freezes. Nodes only change from temperate to cold,
+        ! so this ends; most columns need one solve.
         
         implicit none 
 
@@ -994,6 +1000,7 @@ end if
         logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf
         ! Local variables
         integer  :: k, nz_aa
+        integer  :: n_solve
         real(wp) :: fac_km1, fac_ka, fac_kb, fac_kp1, fac_d, uz_aa, dz
         real(wp) :: kc_a, kc_b, dz1, dz2
         real(wp) :: c_km1, d_km1, c_ka, d_ka, c_kb, d_kb, c_kp1, d_kp1
@@ -1003,6 +1010,13 @@ end if
         real(wp), allocatable :: z_aa(:)      ! nz_aa [m] height of aa-nodes
         real(wp), allocatable :: xp(:)        ! nz_aa [J kg-1] enth_pmp - enth_ref
         logical,  allocatable :: is_temp(:)   ! nz_aa node temperate (for the face fluxes)
+        logical,  allocatable :: froze(:)     ! nz_aa node taken as temperate ended below E_pmp
+        real(wp), allocatable :: kc_lo(:)     ! nz_aa cold-ice diffusivity, lower face of node k
+        real(wp), allocatable :: kc_hi(:)     ! nz_aa cold-ice diffusivity, upper face of node k
+        real(wp), allocatable :: subd_adv(:)  ! nz_aa advection part of the matrix and rhs
+        real(wp), allocatable :: diag_adv(:)  ! nz_aa
+        real(wp), allocatable :: supd_adv(:)  ! nz_aa
+        real(wp), allocatable :: rhs_adv(:)   ! nz_aa
         real(wp), allocatable :: subd(:)      ! nz_aa
         real(wp), allocatable :: diag(:)      ! nz_aa  
         real(wp), allocatable :: supd(:)      ! nz_aa 
@@ -1019,6 +1033,13 @@ end if
         allocate(z_aa(nz_aa))
         allocate(xp(nz_aa))
         allocate(is_temp(nz_aa))
+        allocate(froze(nz_aa))
+        allocate(kc_lo(nz_aa))
+        allocate(kc_hi(nz_aa))
+        allocate(subd_adv(nz_aa))
+        allocate(diag_adv(nz_aa))
+        allocate(supd_adv(nz_aa))
+        allocate(rhs_adv(nz_aa))
 
         z_aa = thickness*zeta_aa
         xp   = enth_pmp - enth_ref
@@ -1064,13 +1085,14 @@ end if
 
         end if 
 
-        ! Phase of each node for the face fluxes: start-of-step enthalpy, except
-        ! the Dirichlet base and surface, which take their imposed values
-        is_temp = enth .ge. enth_pmp
-        if (is_dirichlet_base) is_temp(1) = val_base .ge. enth_pmp(1)
-        is_temp(nz_aa) = val_srf .ge. enth_pmp(nz_aa)
+        ! == Ice surface ==
 
-        ! == Ice interior layers 2:nz_aa-1 ==
+        subd(nz_aa) = 0.0_wp
+        diag(nz_aa) = 1.0_wp
+        supd(nz_aa) = 0.0_wp
+        rhs(nz_aa)  = (val_srf-enth_ref)
+
+        ! == Ice interior layers 2:nz_aa-1: terms independent of the phase ==
 
         do k = 2, nz_aa-1
 
@@ -1079,26 +1101,11 @@ end if
             
             dz1 = zeta_ac(k)-zeta_aa(k-1)
             dz2 = zeta_aa(k)-zeta_ac(k)
-            call calc_wtd_harmonic_mean(kc_a,kappa_cold(k-1),kappa_cold(k),dz1,dz2)
+            call calc_wtd_harmonic_mean(kc_lo(k),kappa_cold(k-1),kappa_cold(k),dz1,dz2)
 
             dz1 = zeta_ac(k+1)-zeta_aa(k)
             dz2 = zeta_aa(k+1)-zeta_ac(k+1)
-            call calc_wtd_harmonic_mean(kc_b,kappa_cold(k),kappa_cold(k+1),dz1,dz2)
-
-            ! Split-flux coefficients of the nodes on each face: the face flux is
-            ! (c_hi*x_hi + d_hi) - (c_lo*x_lo + d_lo), with x = enth - enth_ref
-            call calc_split_coeffs(c_km1,d_km1,is_temp(k-1),kc_a,cr*kc_a,xp(k-1))
-            call calc_split_coeffs(c_ka, d_ka, is_temp(k),  kc_a,cr*kc_a,xp(k))
-            call calc_split_coeffs(c_kb, d_kb, is_temp(k),  kc_b,cr*kc_b,xp(k))
-            call calc_split_coeffs(c_kp1,d_kp1,is_temp(k+1),kc_b,cr*kc_b,xp(k+1))
-
-            ! Get diffusion factors (products ordered as kappa*dzeta*dt/H^2, so
-            ! that a cold column reproduces the temperature solver bit for bit)
-            fac_km1 = c_km1*dzeta_a(k)*dt/thickness**2
-            fac_ka  = c_ka *dzeta_a(k)*dt/thickness**2
-            fac_kb  = c_kb *dzeta_b(k)*dt/thickness**2
-            fac_kp1 = c_kp1*dzeta_b(k)*dt/thickness**2
-            fac_d   = (d_kp1-d_kb)*dzeta_b(k)*dt/thickness**2 - (d_ka-d_km1)*dzeta_a(k)*dt/thickness**2
+            call calc_wtd_harmonic_mean(kc_hi(k),kappa_cold(k),kappa_cold(k+1),dz1,dz2)
 
             ! Get implicit vertical advection term, ac => aa nodes
             uz_aa   = 0.5*(uz(k)+uz(k+1))
@@ -1134,25 +1141,68 @@ end if
             e_hi   = face_value_minmod(enth,z_aa,k,  k+1,thickness*zeta_ac(k+1),uz_aa)
             dedz_2 = (e_hi - e_lo) / (thickness*(zeta_ac(k+1)-zeta_ac(k)))
 
-            ! Assemble the tridiagonal row: diffusion + implicit upwind advection
-            subd(k) = -fac_km1 + adv_lo_u
-            supd(k) = -fac_kp1 + adv_hi_u
-            diag(k) = 1.0_wp + fac_ka + fac_kb + adv_mid_u
-            rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k) &
-                                         - dt*uz_aa*(dedz_2 - dedz_1) + fac_d
+            ! Implicit upwind advection, and the rhs without the diffusion terms
+            subd_adv(k) = adv_lo_u
+            supd_adv(k) = adv_hi_u
+            diag_adv(k) = adv_mid_u
+            rhs_adv(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k) &
+                                             - dt*uz_aa*(dedz_2 - dedz_1)
 
         end do
 
-        ! == Ice surface ==
+        ! Phase of each node for the face fluxes: start-of-step enthalpy, except
+        ! the Dirichlet base and surface, which take their imposed values
+        is_temp = enth .ge. enth_pmp
+        if (is_dirichlet_base) is_temp(1) = val_base .ge. enth_pmp(1)
+        is_temp(nz_aa) = val_srf .ge. enth_pmp(nz_aa)
 
-        subd(nz_aa) = 0.0_wp
-        diag(nz_aa) = 1.0_wp
-        supd(nz_aa) = 0.0_wp
-        rhs(nz_aa)  = (val_srf-enth_ref)
+        ! Solve, and again while nodes taken as temperate froze (at most nz_aa times)
+        do n_solve = 1, nz_aa
 
-        ! == Call solver ==
+            ! == Diffusion (split face flux) and assembly of rows 2:nz_aa-1 ==
 
-        call solve_tridiag(subd,diag,supd,rhs,solution)
+            do k = 2, nz_aa-1
+
+                kc_a = kc_lo(k)
+                kc_b = kc_hi(k)
+
+                ! Split-flux coefficients of the nodes on each face: the face flux is
+                ! (c_hi*x_hi + d_hi) - (c_lo*x_lo + d_lo), with x = enth - enth_ref
+                call calc_split_coeffs(c_km1,d_km1,is_temp(k-1),kc_a,cr*kc_a,xp(k-1))
+                call calc_split_coeffs(c_ka, d_ka, is_temp(k),  kc_a,cr*kc_a,xp(k))
+                call calc_split_coeffs(c_kb, d_kb, is_temp(k),  kc_b,cr*kc_b,xp(k))
+                call calc_split_coeffs(c_kp1,d_kp1,is_temp(k+1),kc_b,cr*kc_b,xp(k+1))
+
+                ! Get diffusion factors (products ordered as kappa*dzeta*dt/H^2, so
+                ! that a cold column reproduces the temperature solver bit for bit)
+                fac_km1 = c_km1*dzeta_a(k)*dt/thickness**2
+                fac_ka  = c_ka *dzeta_a(k)*dt/thickness**2
+                fac_kb  = c_kb *dzeta_b(k)*dt/thickness**2
+                fac_kp1 = c_kp1*dzeta_b(k)*dt/thickness**2
+                fac_d   = (d_kp1-d_kb)*dzeta_b(k)*dt/thickness**2 - (d_ka-d_km1)*dzeta_a(k)*dt/thickness**2
+
+                ! Assemble the tridiagonal row: diffusion + implicit upwind advection
+                subd(k) = -fac_km1 + subd_adv(k)
+                supd(k) = -fac_kp1 + supd_adv(k)
+                diag(k) = 1.0_wp + fac_ka + fac_kb + diag_adv(k)
+                rhs(k)  = rhs_adv(k) + fac_d
+
+            end do
+
+            ! == Call solver ==
+
+            call solve_tridiag(subd,diag,supd,rhs,solution)
+
+            ! Nodes taken as temperate that ended below E_pmp (not the Dirichlet ends)
+            froze = is_temp .and. (solution .lt. xp)
+            if (is_dirichlet_base) froze(1) = .FALSE.
+            froze(nz_aa) = .FALSE.
+
+            if (.not. any(froze)) exit
+
+            where (froze) is_temp = .FALSE.
+
+        end do
 
         ! Copy the solution into the temperature variable
 
