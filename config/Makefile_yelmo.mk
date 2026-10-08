@@ -122,10 +122,11 @@ $(objdir)/velocity_diva.o: $(srcdir)/physics/velocity_diva.f90 \
 
 ## YELMO BASE ###############################################
 
-# yelmo_class embeds hydro_class, elsa_class and tracer_class: rebuild yelmo_defs
-# (and everything built on it) when a sibling archive changes, or objects keep a
-# stale type layout (fesmc/FastHydrology#10).
+# yelmo_class embeds fesm-utils, hydro, elsa and tracer types: rebuild yelmo_defs
+# (and everything built on it) when one of their archives changes, or objects keep
+# a stale type layout (fesmc/FastHydrology#10).
 $(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90 \
+                        $(FESMUTILSLIBDIR)/libfesmutils.a \
                         $(FASTHYDROROOT)/include/libfasthydro.a \
                         $(ELSAROOT)/libelsa/include/libelsa.a \
                         $(TRACERROOT)/libtracer/include/libtracer.a
