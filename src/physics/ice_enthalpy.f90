@@ -618,11 +618,12 @@ end if
         real(wp) :: val_base, val_srf
         real(wp) :: Q_b_now, Q_lith_now, Q_ice_b_now
         real(wp) :: enth_ref
+        real(wp) :: kc_b, c1, d1, c2, d2
         logical  :: is_basal_flux
         logical  :: is_float
         logical  :: use_int
 
-        real(wp), allocatable :: kappa_aa(:)    ! aa-nodes
+        real(wp), allocatable :: kappa_cold(:)  ! aa-nodes: cold-ice diffusivity kt/(rho*cp)
         real(wp), allocatable :: Q_strn_now(:)  ! aa-nodes
         real(wp), allocatable :: enth_pmp(:)    ! aa-nodes
         real(wp), allocatable :: cp_eff(:)      ! aa-nodes: reference cp (cp_ref or cp(T))
@@ -639,7 +640,7 @@ end if
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
 
-        allocate(kappa_aa(nz_aa))
+        allocate(kappa_cold(nz_aa))
         allocate(Q_strn_now(nz_aa))
         allocate(enth_pmp(nz_aa))
         allocate(cp_eff(nz_aa))
@@ -673,21 +674,16 @@ end if
         ! Find height of CTS - highest temperate layer
         k_cts = get_cts_index(enth,enth_pmp)
 
-        ! Calculate diffusivity on cell centers (aa-nodes)
-        call calc_enth_diffusivity(kappa_aa,enth,enth_pmp,cp_eff,kt,cr,rho_ice)
+        ! Cold-ice diffusivity on cell centers (aa-nodes). The temperate
+        ! diffusivity is cr*kappa_cold; the solver applies each to its own part
+        ! of the enthalpy (sensible / latent, see calc_enth_column_internal).
+        kappa_cold = kt / (rho_ice*cp_eff)
 
         ! Floating ice: the base is held at the ocean freezing temperature T_shlf
-        ! (imposed as the Dirichlet val_base below), which is colder than the ice
-        ! pressure melting point. This is a cold freezing boundary, so force the
-        ! base-node diffusivity to the cold-ice value kt/(rho*cp) even if the column
-        ! is currently temperate there. Otherwise the temperate K0 (~0) would leave
-        ! the imposed cold base thermally disconnected from the ice above (ill-posed
-        ! Dirichlet). With cold-ice conduction the base can cool/refreeze the ice
-        ! above, forming a physical cold basal boundary layer; the enthalpy method
-        ! books the refreezing latent heat via the migrating CTS. See the k=2
-        ! kappa_a override in calc_enth_column_internal (basal_freezing branch).
+        ! (Dirichlet val_base below), a cold freezing boundary. The split face
+        ! flux conducts heat from the ice above to it with the cold-ice
+        ! diffusivity, so the shelf base can refreeze the ice above.
         is_float = (f_grnd .lt. 1.0_wp)
-        if (is_float) kappa_aa(1) = kt(1) / (rho_ice*cp_eff(1))
 
         ! Convert units of Q_strn [J a-1 m-3] => [J kg a-1]
         Q_strn_now = Q_strn/(rho_ice)
@@ -836,7 +832,7 @@ end if
 
         ! === Solver =============================
      
-        call calc_enth_column_internal(enth,kappa_aa,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
+        call calc_enth_column_internal(enth,kappa_cold,cr,enth_pmp,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
                                             zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,is_float)
 
 
@@ -897,7 +893,12 @@ end if
         if (H_ice .gt. 0.0_wp) then
             dz = H_ice * (zeta_aa(2)-zeta_aa(1))
             if (enth_Q_ice_b) then
-                Q_ice_b_now = -kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz
+                ! Split face flux between the base and the first layer (as in the solver)
+                call calc_wtd_harmonic_mean(kc_b,kappa_cold(1),kappa_cold(2), &
+                                    zeta_ac(2)-zeta_aa(1),zeta_aa(2)-zeta_ac(2))
+                call calc_split_coeffs(c1,d1,enth(1).ge.enth_pmp(1),kc_b,cr*kc_b,enth_pmp(1)-enth_ref)
+                call calc_split_coeffs(c2,d2,enth(2).ge.enth_pmp(2),kc_b,cr*kc_b,enth_pmp(2)-enth_ref)
+                Q_ice_b_now = -rho_ice * ( (c2*(enth(2)-enth_ref)+d2) - (c1*(enth(1)-enth_ref)+d1) ) / dz
             else
                 Q_ice_b_now = -kt(1) * ( T_ice(2) - T_ice(1) ) / dz
             end if
@@ -944,7 +945,7 @@ end if
 
     end subroutine calc_enth_column
 
-    subroutine calc_enth_column_internal(enth,kappa,uz,advecxy,Q_strn,val_base,val_srf,thickness, &
+    subroutine calc_enth_column_internal(enth,kappa_cold,cr,enth_pmp,uz,advecxy,Q_strn,val_base,val_srf,thickness, &
                                             zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,basal_freezing)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -953,11 +954,29 @@ end if
         ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
+
+        ! Vertical diffusion: the flux at each face is split into a sensible and a
+        ! latent part,
+        !   F = Kc*d(E_s)/dz + K0*d(E_l)/dz,  E_s = min(E,E_pmp),  E_l = max(E-E_pmp,0),
+        ! with the cold-ice diffusivity Kc (harmonic mean of kappa_cold) and the
+        ! temperate one K0 = cr*Kc. Cold ice conducts its temperature, temperate ice
+        ! diffuses its water content, and across the cold-temperate transition
+        ! surface (CTS) cold ice conducts to the pressure melting point of the
+        ! temperate node, not to its total enthalpy. The flux is continuous in E, so
+        ! the CTS settles between nodes. Applying Kc to the full enthalpy jump across
+        ! the CTS instead conducts the latent heat of the temperate node into the
+        ! cold ice, which makes the CTS jump between nodes from step to step (Kleiner
+        ! et al., 2015, Exp B). The same split handles a melting base (Dirichlet at
+        ! pmp) and a floating freezing base (Dirichlet at T_shlf).
+        ! Each node is cold or temperate as at the start of the step (Dirichlet
+        ! nodes: as their imposed value), which keeps the system linear.
         
         implicit none 
 
         real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
-        real(wp), intent(IN)    :: kappa(:)       ! nz_aa [] Diffusivity
+        real(wp), intent(IN)    :: kappa_cold(:)  ! nz_aa [m2 a-1] Cold-ice diffusivity kt/(rho*cp)
+        real(wp), intent(IN)    :: cr             ! [--] Conductivity ratio (temperate / cold diffusivity)
+        real(wp), intent(IN)    :: enth_pmp(:)    ! nz_aa [J kg-1] Enthalpy at the pressure melting point
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
         real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
         real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J kg-1 a-1] Internal strain heat production in ice
@@ -972,15 +991,18 @@ end if
         real(wp), intent(IN)    :: dt             ! [a] Time step
         integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point)
         logical,  intent(IN)    :: is_basal_flux  ! Is basal condition flux condition (True) or Neumann (False)
-        logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf with cold-ice conduction
+        logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf
         ! Local variables
         integer  :: k, nz_aa
-        real(wp) :: fac, fac_a, fac_b, uz_aa, dz, dzeta
-        real(wp) :: h1, h2, afac_a, afac_b, afac_mid
-        real(wp) :: kappa_a, kappa_b, dz1, dz2
+        real(wp) :: fac_km1, fac_ka, fac_kb, fac_kp1, fac_d, uz_aa, dz
+        real(wp) :: kc_a, kc_b, dz1, dz2
+        real(wp) :: c_km1, d_km1, c_ka, d_ka, c_kb, d_kb, c_kp1, d_kp1
         real(wp) :: adv_lo_u, adv_hi_u, adv_mid_u
         real(wp) :: e_lo, e_hi, dedz_1, dedz_2
+        logical  :: is_dirichlet_base
         real(wp), allocatable :: z_aa(:)      ! nz_aa [m] height of aa-nodes
+        real(wp), allocatable :: xp(:)        ! nz_aa [J kg-1] enth_pmp - enth_ref
+        logical,  allocatable :: is_temp(:)   ! nz_aa node temperate (for the face fluxes)
         real(wp), allocatable :: subd(:)      ! nz_aa
         real(wp), allocatable :: diag(:)      ! nz_aa  
         real(wp), allocatable :: supd(:)      ! nz_aa 
@@ -995,10 +1017,15 @@ end if
         allocate(rhs(nz_aa))
         allocate(solution(nz_aa))
         allocate(z_aa(nz_aa))
+        allocate(xp(nz_aa))
+        allocate(is_temp(nz_aa))
 
         z_aa = thickness*zeta_aa
+        xp   = enth_pmp - enth_ref
 
         ! == Ice base ==
+
+        is_dirichlet_base = .FALSE.
 
         if (is_basal_flux) then
             ! Impose basal flux (Neumann condition)
@@ -1033,65 +1060,45 @@ end if
             supd(1) = 0.0_wp
             rhs(1)  = (val_base - enth_ref)
 
+            is_dirichlet_base = .TRUE.
+
         end if 
+
+        ! Phase of each node for the face fluxes: start-of-step enthalpy, except
+        ! the Dirichlet base and surface, which take their imposed values
+        is_temp = enth .ge. enth_pmp
+        if (is_dirichlet_base) is_temp(1) = val_base .ge. enth_pmp(1)
+        is_temp(nz_aa) = val_srf .ge. enth_pmp(nz_aa)
 
         ! == Ice interior layers 2:nz_aa-1 ==
 
         do k = 2, nz_aa-1
 
-            ! Get kappa for the lower and upper ac-nodes using harmonic mean from aa-nodes
+            ! Cold-ice diffusivity on the lower and upper faces (ac-nodes), harmonic
+            ! mean from the aa-nodes; the temperate one is cr times this
             
             dz1 = zeta_ac(k)-zeta_aa(k-1)
             dz2 = zeta_aa(k)-zeta_ac(k)
-            call calc_wtd_harmonic_mean(kappa_a,kappa(k-1),kappa(k),dz1,dz2)
+            call calc_wtd_harmonic_mean(kc_a,kappa_cold(k-1),kappa_cold(k),dz1,dz2)
 
             dz1 = zeta_ac(k+1)-zeta_aa(k)
             dz2 = zeta_aa(k+1)-zeta_ac(k+1)
-            call calc_wtd_harmonic_mean(kappa_b,kappa(k),kappa(k+1),dz1,dz2)
+            call calc_wtd_harmonic_mean(kc_b,kappa_cold(k),kappa_cold(k+1),dz1,dz2)
 
-            ! Special treatment of diffusivity at the cold-temperate transition
-            ! surface (CTS). The conductive enthalpy flux across the CTS is set by
-            ! the COLD-side (upper-node) diffusivity, not the small temperate K0
-            ! (Blatter & Greve 2015, Eq. 25; matches the icetemp reference, whose
-            ! comment notes the harmonic mean "doesn't work well for the CTS").
-            !
-            ! This keeps the temperate sub-block coupled to the cold layer above:
-            ! its strain heat drains upward by cold-ice conduction toward the CTS
-            ! (the meltwater is then removed by the omega cap). Choking the CTS
-            ! interface to ~2*K0 instead (harmonic mean, or the previous
-            ! kappa_a = kappa(k-1) override) isolates the block into a near-singular
-            ! Neumann island - zero-flux base plus near-zero-flux CTS top with an
-            ! internal source - which blows up in thin, weakly-advected polythermal
-            ! margin columns (the 2D EISMINT NaN).
-            !
-            ! A temperate base with cold ice directly above (k_cts == 1) is a
-            ! melting boundary, not a temperate layer: the base is held at the
-            ! pressure melting point (Dirichlet) and the overlying cold ice
-            ! conducts to it with cold-ice diffusivity (so the diagnosed basal melt
-            ! rate stays cr-independent, as in Kleiner Exp A).
-            if (k_cts .ge. 2 .and. k .eq. k_cts) then
-                ! Upper interface of the topmost temperate node = cold kappa
-                kappa_b = kappa(k+1)
-            else if (k_cts .ge. 2 .and. k .eq. k_cts+1) then
-                ! Lower interface of the first cold node = cold kappa (same CTS
-                ! interface as above; both rows agree, conserving the flux)
-                kappa_a = kappa(k)
-            else if (k_cts .eq. 1 .and. k .eq. 2) then
-                ! Melting base: cold ice conducts to the Dirichlet-pmp base
-                kappa_a = kappa(k)
-            end if
+            ! Split-flux coefficients of the nodes on each face: the face flux is
+            ! (c_hi*x_hi + d_hi) - (c_lo*x_lo + d_lo), with x = enth - enth_ref
+            call calc_split_coeffs(c_km1,d_km1,is_temp(k-1),kc_a,cr*kc_a,xp(k-1))
+            call calc_split_coeffs(c_ka, d_ka, is_temp(k),  kc_a,cr*kc_a,xp(k))
+            call calc_split_coeffs(c_kb, d_kb, is_temp(k),  kc_b,cr*kc_b,xp(k))
+            call calc_split_coeffs(c_kp1,d_kp1,is_temp(k+1),kc_b,cr*kc_b,xp(k+1))
 
-            ! Floating freezing base (mirror of the melting-base case): the cold base,
-            ! held Dirichlet at T_shlf, conducts into the temperate ice above with
-            ! cold-ice diffusivity kappa(1) (set to kt/(rho*cp) by the caller) instead
-            ! of the near-zero harmonic mean with the temperate K0. This lets the ocean
-            ! cool/refreeze the shelf base and grow a physical cold basal boundary layer.
-            if (basal_freezing .and. k .eq. 2) kappa_a = kappa(1)
-            
-            ! Get diffusion factors
-            fac_a   = -kappa_a*dzeta_a(k)*dt/thickness**2
-            fac_b   = -kappa_b*dzeta_b(k)*dt/thickness**2
-
+            ! Get diffusion factors (products ordered as kappa*dzeta*dt/H^2, so
+            ! that a cold column reproduces the temperature solver bit for bit)
+            fac_km1 = c_km1*dzeta_a(k)*dt/thickness**2
+            fac_ka  = c_ka *dzeta_a(k)*dt/thickness**2
+            fac_kb  = c_kb *dzeta_b(k)*dt/thickness**2
+            fac_kp1 = c_kp1*dzeta_b(k)*dt/thickness**2
+            fac_d   = (d_kp1-d_kb)*dzeta_b(k)*dt/thickness**2 - (d_ka-d_km1)*dzeta_a(k)*dt/thickness**2
 
             ! Get implicit vertical advection term, ac => aa nodes
             uz_aa   = 0.5*(uz(k)+uz(k+1))
@@ -1128,11 +1135,11 @@ end if
             dedz_2 = (e_hi - e_lo) / (thickness*(zeta_ac(k+1)-zeta_ac(k)))
 
             ! Assemble the tridiagonal row: diffusion + implicit upwind advection
-            subd(k) = fac_a          + adv_lo_u
-            supd(k) = fac_b          + adv_hi_u
-            diag(k) = 1.0_wp - fac_a - fac_b + adv_mid_u
+            subd(k) = -fac_km1 + adv_lo_u
+            supd(k) = -fac_kp1 + adv_hi_u
+            diag(k) = 1.0_wp + fac_ka + fac_kb + adv_mid_u
             rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k) &
-                                         - dt*uz_aa*(dedz_2 - dedz_1)
+                                         - dt*uz_aa*(dedz_2 - dedz_1) + fac_d
 
         end do
 
@@ -1200,49 +1207,32 @@ end if
 
     ! ========== ENTHALPY ==========================================
 
-    subroutine calc_enth_diffusivity(kappa,enth,enth_pmp,cp_eff,kt,cr,rho_ice)
-        ! Calculate the enthalpy vertical diffusivity for use with the diffusion solver:
-        ! When water is present in the layer, set kappa=kappa_therm, else kappa=kappa_cold
-        ! Note: cp_eff is the reference heat capacity consistent with the enthalpy
-        ! definition -- constant cp_ref (A1) or the local cp(T)=cp_a+cp_b*T (A2) --
-        ! so kappa_cold = kt/(rho*cp_eff) reproduces true heat conduction kt*grad(T).
+    subroutine calc_split_coeffs(c,d,is_temp,kc,k0,xp)
+        ! Contribution of one node to a face flux of the split form
+        ! kc*E_s + k0*E_l, E_s = min(x,xp), E_l = max(x-xp,0), written as c*x + d
+        ! (x = enth - enth_ref, xp = enth_pmp - enth_ref). Continuous in x: both
+        ! branches give kc*xp at x = xp.
 
         implicit none
 
-        real(wp), intent(OUT) :: kappa(:)         ! [nz_aa]
-        real(wp), intent(IN)  :: enth(:)          ! [nz_aa]
-        real(wp), intent(IN)  :: enth_pmp(:)      ! [nz_aa]
-        real(wp), intent(IN)  :: cp_eff(:)        ! [nz_aa] reference cp (cp_ref or cp(T))
-        real(wp), intent(IN)  :: kt(:)
-        real(wp), intent(IN)  :: cr
-        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(OUT) :: c          ! coefficient of x
+        real(wp), intent(OUT) :: d          ! constant part
+        logical,  intent(IN)  :: is_temp    ! node is temperate
+        real(wp), intent(IN)  :: kc         ! cold-ice diffusivity on the face
+        real(wp), intent(IN)  :: k0         ! temperate diffusivity on the face
+        real(wp), intent(IN)  :: xp         ! pressure melting point, enth_pmp - enth_ref
 
-        ! Local variables
-        integer   :: k, nz
-        real(wp)  :: kappa_cold       ! Cold diffusivity
-        real(wp)  :: kappa_temp       ! Temperate diffusivity
+        if (is_temp) then
+            c = k0
+            d = (kc - k0)*xp
+        else
+            c = kc
+            d = 0.0_wp
+        end if
 
-        nz = size(enth)
+        return
 
-        kappa = 0.0
-
-        do k = 1, nz
-
-            ! Determine kappa_cold and kappa_temp for this level
-            kappa_cold = kt(k) / (rho_ice*cp_eff(k))
-            kappa_temp = cr * kappa_cold 
-
-            if (enth(k) .ge. enth_pmp(k)) then
-                kappa(k) = kappa_temp 
-            else 
-                kappa(k) = kappa_cold 
-            end if 
-
-        end do
-
-        return 
-
-    end subroutine calc_enth_diffusivity
+    end subroutine calc_split_coeffs
     
     function calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta,integral) result(H_cts)
         ! Calculate the height of the cold-temperate transition surface (m)
