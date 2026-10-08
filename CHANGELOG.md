@@ -26,6 +26,24 @@ little. MISMIP3D and DIVA runs change more.
   `optimize_par_load`. initmip: `True` -> `"L21"`, `False` -> `"none"`; `opt_tf`
   must stay `"none"` (no ocean model).
 
+- **`ytopo.gl_sep = 2` removed; use `gl_sep = 3`** (`ytopo_par_load` stops; values
+  other than 1 and 3 stop too, they left `f_grnd` unset). The grounded area of
+  `gl_sep = 2` interpolated `H_grnd` between the cell-corner means only, so a cell
+  grounded at its centre next to deep ocean had `f_grnd = 0`: no friction, but the
+  grounded surface `z_bed + H`. In a GRL-16KM ISMIP7 spin-up (DIVA, velocity-limit
+  drag) thin ice on small coastal islands (beds up to 45 m above sea level) was pushed
+  by up to 1.2 kPa without friction, and the run was killed at t = 1 yr (`uxy_bar`
+  2.1e4 m/yr). `gl_sep = 3` (Leguy et al., 2021) interpolates `H_grnd` bilinearly
+  between the cell centres, so the cell's own value counts, and integrates each
+  quadrant analytically; the face fractions come from the quadrants. GRL-16KM
+  (1 kyr): runs with the drag, limit never active, volume as `gl_sep = 2` with the
+  clip; ANT-32KM: volume +0.08 %, grounded area +0.18 %. Benchmarks use `gl_sep = 1`
+  (unchanged).
+- **`bmb_gl_method = "pmpt"`**: the subgrid `H_grnd` uses the same interpolation
+  between cell centres (fesm-utils `calc_subgrid_array_quad`, at the centres of a
+  `gz_nx` x `gz_nx` partition), not between the corner means. Needs fesm-utils
+  cc3f719 or later. `gz_nx` is now used by `"pmpt"` only.
+
 - **Relaxation separate from the optimization.** The topography relaxation of a
   spin-up moves out of `&opt` into its own group `&relax` (`relax_params`,
   `relax_par_load`, `relax_update` in `libs/ice_optimization.f90`): `opt.rel_tau1`,

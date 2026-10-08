@@ -4,7 +4,7 @@ module topography
                            MASK_FRNT_ICE_FREE, MASK_FRNT_ICE_FREE_LAND, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
                            MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
-    use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
+    use subgrid, only : calc_subgrid_array_quad
 
     implicit none 
 
@@ -46,7 +46,6 @@ module topography
     public :: calc_H_eff
     public :: calc_H_grnd
     public :: calc_H_af
-    public :: calc_f_grnd_subgrid_area
     public :: calc_f_grnd_subgrid_linear
     public :: calc_f_grnd_pinning_points
     public :: remove_englacial_lakes
@@ -973,157 +972,6 @@ contains
 
     end subroutine calc_H_af
 
-    subroutine calc_f_grnd_subgrid_area(f_grnd,f_grnd_acx,f_grnd_acy,H_grnd,gz_nx,boundaries)
-        ! Use H_grnd to determined grounded area fraction of grid point.
-
-        implicit none
-        
-        real(wp), intent(OUT) :: f_grnd(:,:)        ! aa-nodes 
-        real(wp), intent(OUT) :: f_grnd_acx(:,:)    ! ac-nodes
-        real(wp), intent(OUT) :: f_grnd_acy(:,:)    ! ac-nodes
-        real(wp), intent(IN)  :: H_grnd(:,:)        ! aa-nodes
-        integer,  intent(IN)  :: gz_nx          ! Number of interpolation points per side (nx*nx)
-        character(len=*), intent(IN) :: boundaries
-        
-        ! Local variables
-        integer  :: i, j, nx, ny
-        real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4
-        real(wp) :: Hg_min, Hg_max  
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_int(gz_nx,gz_nx)
-        integer  :: BC
-        logical  :: per_x, per_y
-
-        !integer, parameter :: nx_interp = 15
-
-        nx = size(H_grnd,1)
-        ny = size(H_grnd,2) 
-        
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Initialize all masks to zero (fully floating) to start
-        f_grnd     = 0.0_wp 
-        f_grnd_acx = 0.0_wp 
-        f_grnd_acy = 0.0_wp 
-
-        ! Find grounding line cells and determine fraction 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_max,Hg_min,Hg_int)
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! === f_grnd at aa-nodes ===
-
-            ! Calculate Hg at corners (ab-nodes)
-            Hg_1 = 0.25_wp*(H_grnd(i,j) + H_grnd(ip1,j) + H_grnd(ip1,jp1) + H_grnd(i,jp1))
-            Hg_2 = 0.25_wp*(H_grnd(i,j) + H_grnd(im1,j) + H_grnd(im1,jp1) + H_grnd(i,jp1))
-            Hg_3 = 0.25_wp*(H_grnd(i,j) + H_grnd(im1,j) + H_grnd(im1,jm1) + H_grnd(i,jm1))
-            Hg_4 = 0.25_wp*(H_grnd(i,j) + H_grnd(ip1,j) + H_grnd(ip1,jm1) + H_grnd(i,jm1))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then 
-                ! Fully grounded point
-
-                f_grnd(i,j) = 1.0_wp 
-
-            end if 
-
-            ! === f_grnd at acx nodes === 
-
-            ! First, calculate Hg at corners (acy-nodes)
-            Hg_1 = 0.5_wp*(H_grnd(ip1,j) + H_grnd(ip1,jp1))
-            Hg_2 = 0.5_wp*(H_grnd(i,j)   + H_grnd(i,jp1))
-            Hg_3 = 0.5_wp*(H_grnd(i,j)   + H_grnd(i,jm1))
-            Hg_4 = 0.5_wp*(H_grnd(ip1,j) + H_grnd(ip1,jm1))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd_acx(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then
-                ! Purely grounded point 
-
-                f_grnd_acx(i,j) = 1.0_wp 
-
-            end if 
-
-            ! === f_grnd at acy-nodes ===
-        
-            ! First, calculate Hg at corners (acx-nodes)
-            Hg_1 = 0.5_wp*(H_grnd(i,jp1)   + H_grnd(ip1,jp1))
-            Hg_2 = 0.5_wp*(H_grnd(im1,jp1) + H_grnd(i,jp1))
-            Hg_3 = 0.5_wp*(H_grnd(im1,j)   + H_grnd(i,j))
-            Hg_4 = 0.5_wp*(H_grnd(ip1,j)   + H_grnd(i,j))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd_acy(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then 
-                ! Purely grounded point 
-                    
-                f_grnd_acy(i,j) = 1.0_wp 
-                
-            end if 
-
-        end do 
-        end do 
-        !$omp end parallel do
-
-
-if (.TRUE.) then 
-    ! Replace subgrid acx/acy estimates with linear average to ac-nodes 
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            f_grnd_acx(i,j) = 0.5_wp*(f_grnd(i,j) + f_grnd(ip1,j))
-            f_grnd_acy(i,j) = 0.5_wp*(f_grnd(i,j) + f_grnd(i,jp1))
-
-        end do 
-        end do
-
-        ! Non-periodic borders: set equal to inner neighbor
-        call get_periodic_directions(per_x,per_y,BC)
-        if (.not. per_x) f_grnd_acx(nx,:) = f_grnd_acx(nx-1,:) 
-        if (.not. per_y) f_grnd_acy(:,ny) = f_grnd_acy(:,ny-1) 
-
-end if 
-
-        return
-        
-    end subroutine calc_f_grnd_subgrid_area
-    
     subroutine calc_f_grnd_subgrid_linear(f_grnd,f_grnd_x,f_grnd_y,H_grnd,boundaries)
         ! Calculate the grounded fraction of a cell in the x- and y-directions
         ! at the ac nodes
@@ -1943,7 +1791,6 @@ end if
         ! Local variables
         integer  :: i, j, i1, j1, nx, ny
         integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4, Hg_mid  
         real(wp) :: Hg_nb(9)
         real(wp) :: wt 
         integer  :: BC
@@ -1973,7 +1820,7 @@ end if
         allocate(Hg_int(nxi,nxi))
         allocate(bmb_int(nxi,nxi))
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1999,8 +1846,9 @@ end if
             else
                 ! Point contains the grounding zone
                 
-                ! Calculate subgrid values of H_grnd
-                call calc_subgrid_array(Hg_int,H_grnd,nxi,i,j,im1,ip1,jm1,jp1)
+                ! Calculate subgrid values of H_grnd (bilinear between cell
+                ! centres, as the grounded fraction of gl_sep = 3)
+                call calc_subgrid_array_quad(Hg_int,H_grnd,nxi,i,j,im1,ip1,jm1,jp1)
 
                 ! Calculate individual bmb values for each subgrid point
                 do j1 = 1, nxi

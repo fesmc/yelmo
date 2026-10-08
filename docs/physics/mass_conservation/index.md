@@ -98,7 +98,9 @@ floating basal mass balance (`bnd%bmb_shlf`) are combined into `bmb` by
 `calc_bmb_total` according to `ytopo.bmb_gl_method`, which sets the melt in
 partially grounded cells: `"pmp"` (default; partial melt, weighted by the
 grounded fraction), `"fmp"` (full melt), `"fcmp"` (flotation criterion),
-`"pmpt"` (partial melt over a grounding-zone transition, `gz_Hg0`, `gz_Hg1`)
+`"pmpt"` (partial melt over a grounding-zone transition, `gz_Hg0`, `gz_Hg1`,
+on `gz_nx`² subgrid points of $H_\mathrm{grnd}$ interpolated bilinearly
+between cell centres)
 or `"nmp"` (no melt). With `ytopo.use_bmb = False`, the basal and the frontal
 mass balance are not applied.
 

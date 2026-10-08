@@ -1311,14 +1311,9 @@ end if
                 call calc_f_grnd_subgrid_linear(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy,tpo%now%H_grnd, &
                                                                 tpo%par%boundaries)
 
-            case(2)
-                ! Grounded area f_grnd, average to f_grnd_acx/acy 
-
-                call calc_f_grnd_subgrid_area(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
-                                                                tpo%now%H_grnd,tpo%par%gz_nx,tpo%par%boundaries)
-            
             case(3) 
-                ! Grounded area using analytical solutions of Leguy et al. (2021)
+                ! Grounded area of H_grnd interpolated bilinearly between cell centres,
+                ! analytical solutions of Leguy et al. (2021)
 
                 call determine_grounded_fractions(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
                                                                 tpo%now%f_grnd_ab,tpo%now%H_grnd,tpo%par%boundaries)
@@ -1660,6 +1655,15 @@ end if
                                   "zero|none|stress-b12")
         end if
 
+        if (par%gl_sep .eq. 2) then
+            ! The grounded area of gl_sep = 2 interpolated between the corner means of
+            ! H_grnd only, so a cell grounded at its centre next to deep ocean had f_grnd = 0
+            write(io_unit_err,*) "ytopo_par_load:: error: ytopo.gl_sep = 2 is deprecated; use gl_sep = 3."
+            error stop 1
+        else if (par%gl_sep .ne. 1 .and. par%gl_sep .ne. 3) then
+            write(io_unit_err,*) "ytopo_par_load:: error: ytopo.gl_sep must be 1 or 3; got ", par%gl_sep
+            error stop 1
+        end if
         if (par%dt_lsf .gt. 0.0_wp .and. par%dt_lsf .lt. 0.01_wp) then
             ! LSFsnap checks the reflag time on a 0.01 yr resolution (nint(time*100)),
             ! so smaller positive intervals are not representable (and nint(dt_lsf*100)=0).
