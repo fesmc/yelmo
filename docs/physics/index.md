@@ -87,6 +87,14 @@ friction law (linear, pseudo-plastic or regularized Coulomb), a bed coefficient
 that depends on the till properties and the effective pressure, and a reduction
 of sliding below the pressure melting point.
 
+## Grounded fraction
+
+The [grounded fraction](grounded-fraction.md) of cells and velocity faces
+sets where basal friction acts and how the basal mass balance is split at the
+grounding line. It is either binary per cell (`ytopo.gl_sep = 1`) or the
+grounded area of the flotation thickness interpolated bilinearly between cell
+centres (`gl_sep = 3`).
+
 ## Calving
 
 By default, the calving front is a [level set](calving.md) that moves with the

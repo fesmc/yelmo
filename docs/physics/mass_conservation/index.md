@@ -100,7 +100,7 @@ partially grounded cells: `"pmp"` (default; partial melt, weighted by the
 grounded fraction), `"fmp"` (full melt), `"fcmp"` (flotation criterion),
 `"pmpt"` (partial melt over a grounding-zone transition, `gz_Hg0`, `gz_Hg1`,
 on `gz_nx`² subgrid points of $H_\mathrm{grnd}$ interpolated bilinearly
-between cell centres)
+between cell centres, see [Grounded fraction](../grounded-fraction.md))
 or `"nmp"` (no melt). With `ytopo.use_bmb = False`, the basal and the frontal
 mass balance are not applied.
 

@@ -225,7 +225,7 @@ end if
                     ! Calculate grounded fraction on aa-nodes
                     ! (only to be used with basal mass balance, later all
                     !  f_grnd arrays will be calculated according to use choices)
-                    call determine_grounded_fractions(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
+                    call calc_f_grnd_subgrid_area(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
                                                                         boundaries=tpo%par%boundaries)
                     
                     ! Combine basal mass balance into one field accounting for 
@@ -603,7 +603,7 @@ end if
         call calc_G_mbal(tpo%now%smb,tpo%now%H_ice,tpo%now%f_grnd,bnd%smb,dt,tpo%now%f_ice)
 
         ! === bmb (combined grounded + shelf) ===
-        call determine_grounded_fractions(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
+        call calc_f_grnd_subgrid_area(tpo%now%f_grnd_bmb,H_grnd=tpo%now%H_grnd, &
                                                             boundaries=tpo%par%boundaries)
         call calc_bmb_total(tpo%now%bmb_ref,thrm%now%bmb_grnd,bnd%bmb_shlf,tpo%now%H_ice, &
                             tpo%now%H_grnd,tpo%now%f_grnd_bmb,tpo%par%gz_Hg0,tpo%par%gz_Hg1, &
@@ -1312,10 +1312,9 @@ end if
                                                                 tpo%par%boundaries)
 
             case(3) 
-                ! Grounded area of H_grnd interpolated bilinearly between cell centres,
-                ! analytical solutions of Leguy et al. (2021)
+                ! Grounded area of H_grnd interpolated bilinearly between cell centres
 
-                call determine_grounded_fractions(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
+                call calc_f_grnd_subgrid_area(tpo%now%f_grnd,tpo%now%f_grnd_acx,tpo%now%f_grnd_acy, &
                                                                 tpo%now%f_grnd_ab,tpo%now%H_grnd,tpo%par%boundaries)
 
         end select

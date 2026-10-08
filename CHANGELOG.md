@@ -39,6 +39,18 @@ little. MISMIP3D and DIVA runs change more.
   (1 kyr): runs with the drag, limit never active, volume as `gl_sep = 2` with the
   clip; ANT-32KM: volume +0.08 %, grounded area +0.18 %. Benchmarks use `gl_sep = 1`
   (unchanged).
+- **Grounded area of `gl_sep = 3` computed by a new, case-free integral**
+  (`calc_f_grnd_subgrid_area`, `bilinear_grounded_fraction`; replaces the IMAU-ICE port
+  of the CISM routine, `determine_grounded_fractions`). Same interpolant, quarters and
+  averaging (Leguy et al., 2021); the area of each quarter is the integral over x of the
+  grounded length of the line x, split at the roots of the two edge lines, with one
+  formula for all sign patterns (docs/physics/grounded-fraction.md). The port nudged
+  corner values within 1e-4 of zero (and zero to floating), shifted a corner by 0.1 m
+  where H_grnd is locally planar (|d| < 1e-4, e.g. straight grounding lines), and
+  stopped the model with NaN for an exact saddle (e.g. H_grnd = 1, -3, -3, 9 m on a
+  2 x 2 block). Now `H_grnd = 0` is grounded (as `gl_sep = 1`), and f_grnd changes by at
+  most 1e-4 (GRL-16KM). The same routine gives `f_grnd_bmb` (partial melt at the
+  grounding line) for every `gl_sep`. New test `tests/test_f_grnd.f90` (`make f_grnd`).
 - **`bmb_gl_method = "pmpt"`**: the subgrid `H_grnd` uses the same interpolation
   between cell centres (fesm-utils `calc_subgrid_array_quad`, at the centres of a
   `gz_nx` x `gz_nx` partition), not between the corner means. Needs fesm-utils

@@ -56,14 +56,9 @@ upstream (grounded) value at grounding-line faces; 2, the downstream value;
 grounded fraction of the face; 4, weighted by the grounded
 share of the velocity across the face (Gladstone et al., 2010).
 
-The grounded fractions of cells and faces are set by `ytopo.gl_sep`: 1
-(default), $f_\mathrm{grnd} = 1$ where the thickness above flotation
-$H_\mathrm{grnd} \ge 0$ and 0 elsewhere, and on the faces the fraction of the
-distance between the two cell centres where $H_\mathrm{grnd}$, interpolated
-linearly, is positive; 3, the grounded area of $H_\mathrm{grnd}$ interpolated
-bilinearly between cell centres, computed analytically per cell quadrant
-(Leguy et al., 2021). `gl_sep = 2` (grounded area interpolated between the
-cell-corner means of $H_\mathrm{grnd}$ only) is no longer available.
+The grounded fractions of cells and faces are set by `ytopo.gl_sep` (1: binary
+per cell, 3: grounded area of the flotation thickness interpolated bilinearly
+between cell centres), see [Grounded fraction](grounded-fraction.md).
 
 ### Frozen-bed sliding
 
@@ -171,8 +166,5 @@ no interpolation).
 - Leguy, G. R., Asay-Davis, X. S., and Lipscomb, W. H. (2014). Parameterization of
   basal friction near grounding lines in a one-dimensional ice sheet model. The
   Cryosphere, 8, 1239–1259.
-- Leguy, G. R., Lipscomb, W. H., and Asay-Davis, X. S. (2021). Marine ice sheet
-  experiments with the Community Ice Sheet Model. The Cryosphere, 15,
-  3229–3253.
 - Winkelmann, R., et al. (2011). The Potsdam Parallel Ice Sheet Model (PISM-PIK),
   Part 1: Model description. The Cryosphere, 5, 715–726.
