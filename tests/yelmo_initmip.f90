@@ -43,6 +43,10 @@ program yelmo_test
         logical :: load_bmelt
         character(len=256) :: file_bmelt
 
+        logical :: load_ghf
+        character(len=256) :: file_ghf
+        character(len=56)  :: name_ghf
+
         real(wp) :: bmb_shlf_const
         real(wp) :: dT_ann
         real(wp) :: z_sl 
@@ -84,7 +88,12 @@ program yelmo_test
     call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
     if (ctl%load_bmelt) &
         call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
-    call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
+    call nml_read(path_par,ctl%set_nm,  "load_ghf",        ctl%load_ghf)                  ! Load geothermal heat flux from file (else 50 mW/m2)?
+    if (ctl%load_ghf) then
+        call nml_read(path_par,ctl%set_nm,  "file_ghf",    ctl%file_ghf)                  ! Filename holding the geothermal heat flux field
+        call nml_read(path_par,ctl%set_nm,  "name_ghf",    ctl%name_ghf)                  ! Name of the geothermal heat flux variable [mW/m2]
+    end if
+    call nml_read(path_par,ctl%set_nm,  "dT_ann",         ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
     call nml_read(path_par,ctl%set_nm,  "z_sl",            ctl%z_sl)                      ! [m] Sea level relative to present-day
 
     ! Get output and restart times (a restart is always written at time_end)
@@ -143,8 +152,14 @@ program yelmo_test
 
     yelmo1%bnd%z_sl     = ctl%z_sl          ! [m]
     yelmo1%bnd%H_sed    = 0.0               ! [m]
-    yelmo1%bnd%Q_geo    = 50.0              ! [mW/m2]
-    
+
+    if (ctl%load_ghf) then
+        call yelmo_parse_path(ctl%file_ghf,yelmo1%par%domain,yelmo1%par%grid_name)
+        call nc_read(ctl%file_ghf,ctl%name_ghf,yelmo1%bnd%Q_geo)     ! [mW/m2]
+    else
+        yelmo1%bnd%Q_geo = 50.0_wp                              ! [mW/m2]
+    end if
+
     ! Impose present-day surface mass balance and present-day temperature field plus any anomaly
     yelmo1%bnd%smb      = yelmo1%dta%pd%smb                 ! [m.i.e./a]
     yelmo1%bnd%T_srf    = yelmo1%dta%pd%T_srf + ctl%dT_ann  ! [K]

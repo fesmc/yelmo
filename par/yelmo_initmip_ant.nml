@@ -27,6 +27,9 @@
     bmb_shlf_const  = -0.2              ! [m/a] Basal mass balance of ice shelves
     load_bmelt      = True              ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     file_bmelt      = "ice_data/{domain}/{grid_name}/{grid_name}_BMELT-R13.nc"
+    load_ghf        = True              ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
+    file_ghf        = "ice_data/{domain}/{grid_name}/{grid_name}_GHF-S04.nc"
+    name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
 /
@@ -34,6 +37,9 @@
 &set_ant_lgm 
     bmb_shlf_const  = 0.0               ! [m/a] Basal mass balance of ice shelves
     load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
+    load_ghf        = True              ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
+    file_ghf        = "ice_data/{domain}/{grid_name}/{grid_name}_GHF-S04.nc"
+    name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = -10.0             ! [K] Temperature anomaly (atm)
     z_sl            = -120.0            ! [m] Sea level relative to present-day 
 /
@@ -111,8 +117,19 @@
 /
 
 &ycalv
-    tau_ice_flt         = 62.5e3            ! [Pa] Ice strength failure, floating fronts (vm-m16; ANT-16 PD calibration 2026-10-01)
-    tau_ice_grnd        = 2.5e5             ! [Pa] Ice strength failure, marine-grounded fronts (vm-m16)
+    calv_flt_method     = "equil"       ! Calving fronts held at the observed positions during the spin-up
+    calv_grnd_method    = "equil"
+/
+
+&ytill
+    cf_min          =  0.001            ! [--] Minimum value of cf (also the lower bound of the cb_ref optimization)
+    cf_ref          =  1.0              ! [--] Maximum value of cf (upper bound of the cb_ref optimization)
+/
+
+&ymat
+    enh_shear               = 1.0
+    enh_stream              = 1.0
+    enh_shlf                = 1.0
 /
 
 &yhyd
