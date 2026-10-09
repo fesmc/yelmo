@@ -116,6 +116,21 @@
     grid_name       = "ANT-16KM"
 /
 
+&yelmo_masks
+    regions_group    = "yelmo_regions"   ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
+    basins           = "Zwally2012"      ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
+    mask_ice_dynamic = "~zone:open_ocean" ! where ice is dynamic, else no ice
+    mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
+    relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
+    relax_tau        = 0.0               ! [yr] relaxation timescale there
+    mask_rmse        = "all"             ! where the error metrics are computed
+/
+
+&yelmo_regions
+    path_regions = "ice_data/v2/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    path_basins  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
+    basin_sets   = "Zwally2012"
+/
 &ycalv
     calv_flt_method     = "equil"       ! Calving fronts held at the observed positions during the spin-up
     calv_grnd_method    = "equil"
@@ -139,11 +154,11 @@
 /
 
 &yelmo_init_topo
-    init_topo_path  = "ice_data/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine.nc"
+    init_topo_path  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
 /
 
 &yelmo_data 
-    pd_topo_path      = "ice_data/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine.nc"
+    pd_topo_path      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
     pd_tsrf_path      = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
     pd_tsrf_monthly   = True                         ! RACMO monthly file
     pd_smb_path       = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"

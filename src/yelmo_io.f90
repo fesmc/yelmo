@@ -89,8 +89,8 @@ contains
 
         ! Write static fields
         call nc_write(filename,"mask_ice",    ylmo%bnd%mask_ice(i1:i2,j1:j2),    dim1="xc",dim2="yc",units="",long_name="Ice mask (0=none, 1=fixed, 2=dynamic)")
-        call nc_write(filename,"basins",      ylmo%bnd%basins(i1:i2,j1:j2),      dim1="xc",dim2="yc",units="(0 - 8)",long_name="Hydrological basins")
-        call nc_write(filename,"regions",     ylmo%bnd%regions(i1:i2,j1:j2),     dim1="xc",dim2="yc",units="(0 - 8)",long_name="Domain regions") 
+        call nc_write(filename,"basins",      ylmo%bnd%basins(i1:i2,j1:j2),      dim1="xc",dim2="yc",units="1",long_name="Basin ids (0 = none)")
+        call nc_write(filename,"regions",     ylmo%bnd%regions(i1:i2,j1:j2),     dim1="xc",dim2="yc",units="1",long_name="Region codes (0 = none)") 
         call nc_write(filename,"z_bed_sd",    ylmo%bnd%z_bed_sd(i1:i2,j1:j2),    dim1="xc",dim2="yc",units="m",long_name="Stdev(z_bed)")
         call nc_write(filename,"H_sed",       ylmo%bnd%H_sed(i1:i2,j1:j2),       dim1="xc",dim2="yc",units="m",long_name="Stdev(z_bed)")
         
@@ -791,7 +791,6 @@ contains
         call nc_read_interp(filename,"basins",      bnd%basins,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"basin_mask",  bnd%basin_mask,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"regions",     bnd%regions,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
-        call nc_read_interp(filename,"region_mask", bnd%region_mask,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         if (nc_exists_var(filename,"mask_ice")) then
             call nc_read_interp(filename,"mask_ice", bnd%mask_ice,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         else
@@ -2107,9 +2106,6 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("regions")
                 call nc_write(filename,trim(v%varname),ylmo%bnd%regions(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
-            case("region_mask")
-                call nc_write(filename,trim(v%varname),ylmo%bnd%region_mask(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("calv_mask")
                 call nc_write(filename,trim(v%varname),ylmo%bnd%calv_mask(i1:i2,j1:j2), &

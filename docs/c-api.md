@@ -141,7 +141,7 @@ true where the value is non-zero. `bnd_smb_ref` is the surface mass balance
 
 | Prefix | Object | Names (after the prefix) |
 |---|---|---|
-| `bnd_` | `bnd` | `z_bed`, `z_bed_sd`, `z_sl`, `H_sed`, `smb_ref`, `T_srf`, `bmb_shlf`, `fmb_shlf`, `T_shlf`, `Q_geo`, `enh_srf`, `basins`, `basin_mask`, `regions`, `region_mask`, `H_ice_ref`, `z_bed_ref`, `calv_mask`, `tau_relax`, `z_bed_corr`, `dzbdt_corr`, `mask_ice` |
+| `bnd_` | `bnd` | `z_bed`, `z_bed_sd`, `z_sl`, `H_sed`, `smb_ref`, `T_srf`, `bmb_shlf`, `fmb_shlf`, `T_shlf`, `Q_geo`, `enh_srf`, `basins`, `basin_mask`, `regions`, `H_ice_ref`, `z_bed_ref`, `calv_mask`, `tau_relax`, `z_bed_corr`, `dzbdt_corr`, `mask_ice` |
 | `dta_` | `dta%pd` | `pd_uxy_s`, `pd_H_grnd`, `pd_H_ice`, `pd_z_srf`, `pd_mask_bed` |
 | `tpo_` | `tpo%now` | `H_ice`, `dHidt`, `dHidt_dyn`, `mb_net`, `mb_relax`, `mb_resid`, `mb_err`, `smb`, `bmb`, `fmb`, `dmb`, `cmb`, `bmb_ref`, `fmb_ref`, `dmb_ref`, `cmb_flt`, `cmb_flt_x`, `cmb_flt_y`, `cmb_grnd`, `cmb_grnd_x`, `cmb_grnd_y`, `cr_acx`, `cr_acy`, `calv_rate_flt`, `calv_rate_grnd`, `lsf`, `dlsfdt`, `z_srf`, `dzsdt`, `dzsdt_kin`, `dzbdt_kin`, `dHidt_vert`, `mask_kin`, `eps_eff`, `tau_eff`, `z_base`, `dzsdx`, `dzsdy`, `dHidx`, `dHidy`, `dzbdx`, `dzbdy`, `dzsdx_aa`, `dzsdy_aa`, `dHidx_aa`, `dHidy_aa`, `dzbdx_aa`, `dzbdy_aa`, `H_eff`, `H_grnd`, `H_calv`, `kt`, `z_bed_filt`, `f_grnd`, `f_grnd_acx`, `f_grnd_acy`, `f_grnd_ab`, `f_ice`, `f_grnd_bmb`, `f_grnd_pin`, `dist_margin`, `dist_grline`, `dHidt_dyn_raw_n`, `H_ice_n`, `z_srf_n`, `lsf_n`, `H_ice_dyn`, `f_ice_dyn`, `tau_relax`, `mask_bed`, `mask_grz`, `mask_frnt` |
 | `dyn_` | `dyn%now` | `ux_bar`, `uy_bar`, `uxy_bar`, `ux_bar_prev`, `uy_bar_prev`, `ux_b`, `uy_b`, `uz_b`, `uxy_b`, `ux_s`, `uy_s`, `uz_s`, `uxy_s`, `ux_i_bar`, `uy_i_bar`, `uxy_i_bar`, `duxydt`, `duxdz_bar`, `duydz_bar`, `taud_acx`, `taud_acy`, `taud`, `taub_acx`, `taub_acy`, `taub`, `taul_int_acx`, `taul_int_acy`, `qq_gl_acx`, `qq_gl_acy`, `qq_acx`, `qq_acy`, `qq`, `visc_eff_int`, `N_eff`, `cb_tgt`, `cb_ref`, `c_bed`, `f_slide`, `beta_acx`, `beta_acy`, `beta`, `beta_eff`, `f_vbvs`, `ssa_err_acx`, `ssa_err_acy`, `ssa_mask_acx`, `ssa_mask_acy`, `strn2D_dxx`, `strn2D_dyy`, `strn2D_dxy`, `strn2D_dxz`, `strn2D_dyz`, `strn2D_de`, `strn2D_div`, `strn2D_f_shear`, `strn2D_eps_eig_1`, `strn2D_eps_eig_2` |
@@ -164,7 +164,7 @@ The `dta_pd_` fields are present-day data, read-only.
 
 | Prefix | Object | Names (after the prefix) |
 |---|---|---|
-| `bnd_` | `bnd` | `z_bed`, `z_bed_sd`, `z_sl`, `H_sed`, `smb_ref`, `T_srf`, `bmb_shlf`, `fmb_shlf`, `T_shlf`, `Q_geo`, `enh_srf`, `basins`, `basin_mask`, `regions`, `region_mask`, `H_ice_ref`, `z_bed_ref`, `calv_mask`, `tau_relax`, `z_bed_corr`, `dzbdt_corr`, `mask_ice` |
+| `bnd_` | `bnd` | `z_bed`, `z_bed_sd`, `z_sl`, `H_sed`, `smb_ref`, `T_srf`, `bmb_shlf`, `fmb_shlf`, `T_shlf`, `Q_geo`, `enh_srf`, `basins`, `basin_mask`, `regions`, `H_ice_ref`, `z_bed_ref`, `calv_mask`, `tau_relax`, `z_bed_corr`, `dzbdt_corr`, `mask_ice` |
 | `tpo_` | `tpo%now` | `H_ice` |
 | `dyn_` | `dyn%now` | `N_eff`, `cb_tgt`, `cb_ref`, `c_bed` |
 | `hyd_` | `hyd%now` | `N`, `W_til`, `C_frz`, `Q_diss`, `Q_sens` |

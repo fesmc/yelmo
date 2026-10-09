@@ -214,8 +214,8 @@ program yelmo_test
             where(yelmo1%bnd%smb .le. 0.1) yelmo1%bnd%smb = 0.1         ! [m/a]
         end if 
 
-        ! Present-day and LGM 
-        where(yelmo1%bnd%regions .eq. 2.0) yelmo1%bnd%smb = -1.0        ! [m/a]
+        ! Present-day and LGM: negative smb where no ice is allowed (the open ocean)
+        where(yelmo1%bnd%mask_ice .eq. MASK_ICE_NONE) yelmo1%bnd%smb = -1.0        ! [m/a]
 
     end if 
 

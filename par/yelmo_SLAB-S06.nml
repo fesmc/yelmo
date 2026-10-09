@@ -312,12 +312,13 @@
 /
 
 &yelmo_masks
-    basins_load     = False 
-    basins_path     = "none" 
-    basins_nms      = "basin" "basin_mask"
-    regions_load    = False 
-    regions_path    = "none"
-    regions_nms     = "mask" "None"
+    regions_group    = "None"            ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
+    basins           = "None"            ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
+    mask_ice_dynamic = "all"             ! where ice is dynamic, else no ice (selection expression of the regions)
+    mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
+    relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
+    relax_tau        = 0.0               ! [yr] relaxation timescale there
+    mask_rmse        = "all"             ! where the error metrics are computed
 /
 
 &yelmo_init_topo

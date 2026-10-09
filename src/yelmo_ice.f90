@@ -23,6 +23,7 @@ module yelmo_ice
     use yelmo_boundaries
     use yelmo_data 
     use yelmo_regions 
+    use regions, only : regions_class, region_mask_class
 
     use topography, only : remove_englacial_lakes
     use mass_conservation, only : calc_G_boundaries, apply_tendency
@@ -696,7 +697,7 @@ contains
     end subroutine yelmo_update_equil
     
     subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst, &
-                          regions,basins,mask_ice,topo_pd,topo_init)
+                          reg,mask_ice,topo_pd,topo_init)
         ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
@@ -722,18 +723,19 @@ contains
 
         ! Boundary fields supplied by a coupled driver that owns the domain
         ! definition. Each one, when present, replaces the matching file read
-        ! (regions, basins: yelmo_masks; topo_pd: yelmo_data pd_topo_*;
-        ! topo_init: yelmo_init_topo init_topo_*); the processing that follows
-        ! is the same. mask_ice is where ice is allowed in the domain;
+        ! (reg: the regions of yelmo_masks.regions_group; topo_pd: yelmo_data
+        ! pd_topo_*; topo_init: yelmo_init_topo init_topo_*); the processing
+        ! that follows is the same. mask_ice is where ice is allowed in the
+        ! domain, instead of the mask_ice expressions of yelmo_masks;
         ! yelmo.mask_border is applied on top of it. All on the Yelmo grid.
-        real(wp), intent(IN), optional :: regions(:,:)
-        real(wp), intent(IN), optional :: basins(:,:)
+        type(regions_class), intent(IN), optional :: reg
         integer,  intent(IN), optional :: mask_ice(:,:)
         type(ytopo_input_class), intent(IN), optional :: topo_pd
         type(ytopo_input_class), intent(IN), optional :: topo_init
 
         ! Local variables
-        integer :: n_threads 
+        type(region_mask_class), allocatable :: masks(:)
+        integer :: n_threads, k
         character(len=10) :: n_threads_str 
         character(len=32) :: nml_group
         
@@ -819,8 +821,7 @@ contains
         end if 
 
         ! Check that the supplied boundary fields are on the Yelmo grid
-        if (present(regions))   call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"regions",shape(regions))
-        if (present(basins))    call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"basins",shape(basins))
+        if (present(reg))       call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"reg",[reg%nx,reg%ny])
         if (present(mask_ice))  call check_input_shape(dom%grd%G%nx,dom%grd%G%ny,"mask_ice",shape(mask_ice))
         if (present(topo_pd))   call check_topo_input(dom%grd%G%nx,dom%grd%G%ny,"topo_pd",topo_pd,need_z_srf=.TRUE.)
         if (present(topo_init)) call check_topo_input(dom%grd%G%nx,dom%grd%G%ny,"topo_init",topo_init,need_z_srf=.FALSE.)
@@ -987,11 +988,10 @@ contains
 
         ! Load region/basin masks
         call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name, &
-                               basins=basins,regions=regions)
+                               dom%grd,reg=reg,mask_ice=mask_ice,masks=masks)
         
-        ! Update the mask_ice mask based on domain definition
-        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border, &
-                                    mask_ice=mask_ice)
+        ! Treatment of the domain border in mask_ice
+        call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border)
 
 
         write(*,*) "yelmo_init:: boundary initialized (loaded masks, set ref. topography)."
@@ -1006,14 +1006,18 @@ contains
         call yelmo_region_init(dom%reg,"global",mask=spread(spread(.TRUE.,1,size(dom%bnd%mask_ice,1)),2,size(dom%bnd%mask_ice,2)), &
                                write_to_file=.TRUE.,outfldr=dom%outfldr)
 
-        ! Initialize regional averaging domains too (global region + zero subdomains for now)
-        ! If regional subdomains are desired, this call will be made explicitly outside the program
-        ! by the user. Ie,
+        ! Regional averaging domains: the named masks of the regions (masks,
+        ! mask_<name> of the regions group). A driver may also define them
+        ! itself afterwards, e.g.
         ! call yelmo_regions_init(dom,n=2)
         ! call yelmo_region_init(dom%reg(1),"Region1",mask1)
         ! call yelmo_region_init(dom%reg(2),"Region2",mask2)
 
-        call yelmo_regions_init(dom,n=0)
+        call yelmo_regions_init(dom,n=size(masks))
+        do k = 1, size(masks)
+            call yelmo_region_init(dom%regs(k),trim(masks(k)%name),mask=masks(k)%mask, &
+                                   write_to_file=.TRUE.,outfldr=dom%outfldr)
+        end do
 
         
         write(*,*) "yelmo_init:: regions initialized."
@@ -1348,7 +1352,7 @@ contains
             bnd_restart%basins      = dom%bnd%basins 
             bnd_restart%basin_mask  = dom%bnd%basin_mask 
             bnd_restart%regions     = dom%bnd%regions 
-            bnd_restart%region_mask = dom%bnd%region_mask 
+            bnd_restart%mask_rmse   = dom%bnd%mask_rmse
             
             ! Finally populate the main dom object with the desired restart fields
             dom%tpo  = tpo_restart 

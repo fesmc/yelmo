@@ -29,6 +29,28 @@ one parameter file. Physical constants are read from
 
 Groups used only by a driver program, such as `&ctrl`, are not read by Yelmo.
 
+## Masks
+
+`&yelmo_masks` makes Yelmo's masks once at init from the regions, zones and
+basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
+`regions`), with selection expressions such as
+`"region:Greenland & ~zone:open_ocean"`:
+
+| Key | Meaning |
+|---|---|
+| `regions_group` | Group of the regions (`path_regions`, `path_basins`, `basin_sets`, `masks`, `mask_<name>`); `"None"` = no regions |
+| `basins` | Basin ids of `bnd%basins`: `"<set>"` or `"<set>.group"` (e.g. `"Zwally2012.group"`); `"None"` = none |
+| `mask_ice_dynamic` | Where ice is dynamic; elsewhere no ice (`bnd%mask_ice`) |
+| `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
+| `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |
+| `mask_rmse` | Where the error metrics are computed |
+
+Without regions the expressions can only be `"all"` or `"none"`. A driver may
+pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of
+`regions_group`, and `mask_ice` instead of the mask_ice expressions. The named
+masks of the regions (`masks`, `mask_<name>`) become Yelmo's regional output
+domains. `bnd%regions` holds the region codes of the deepest level.
+
 ::: {.callout-tip}
 To browse, build, compare and validate parameter files from the command line, see
 [`yelmo-config`](yelmo-config.md).

@@ -291,10 +291,9 @@ contains
 
         if (basin_fill) then
                 ! Obtain the mean tf_corr value by basins and extrapolate to the basins
-                ! Determine unique basin numbers that are available
-                nb = MAXVAL(basins)
-                allocate(basin_list(nb))
-                basin_list = [(i, i=1,nb)]
+                ! Determine unique basin numbers that are available (0 = no basin)
+                call unique(basin_list,pack(basins,basins .gt. 0.0_wp))
+                nb = size(basin_list)
                 
                 do b = 1, nb
                         ! Get a mask of points of interest:
@@ -381,8 +380,8 @@ contains
 
         allocate(mask(nx,ny)) 
 
-        ! Determine unique basin numbers that are available
-        call unique(basin_list_ref,reshape(basins,[nx*ny]))
+        ! Determine unique basin numbers that are available (0 = no basin)
+        call unique(basin_list_ref,pack(basins,basins .gt. 0.0_wp))
 
         ! Check if we are optimizing all basins
         if (tf_basins(1) .lt. 0) then 
@@ -1712,9 +1711,8 @@ contains
 
         real(wp), parameter :: tol = 1e-5_wp
         
-        n = 1
-        res(1) = x(1)
-        do i=2,size(x)
+        n = 0
+        do i=1,size(x)
             found = .FALSE.
             do j=1,n
                 if (abs(res(j)-x(i)) .le. tol) then 

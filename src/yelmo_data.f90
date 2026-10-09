@@ -83,13 +83,8 @@ contains
 
         ! Calculate region over which to calculate metrics 
 
-        ! By default, calculate everywhere 
-        mask_region = .TRUE. 
-
-        ! For Greenland, limit to continental Greenland where data is defined currently
-        if (trim(domain) .eq. "Greenland") then 
-            where (bnd%regions .ne. 1.3) mask_region = .FALSE. 
-        end if 
+        ! From the masks (yelmo_masks.mask_rmse)
+        mask_region = bnd%mask_rmse
 
         allocate(tmp(nx,ny))
         allocate(tmp1(nx,ny))

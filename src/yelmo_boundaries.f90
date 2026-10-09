@@ -4,6 +4,9 @@ module yelmo_boundaries
     use nml 
     use ncio 
     use yelmo_defs 
+    use coords,  only : grid_class
+    use regions, only : regions_class, region_mask_class, regions_init_nml, regions_select, &
+                        regions_basin_ids, regions_end
     use yelmo_tools, only : boundary_code, get_periodic_directions
 
     implicit none
@@ -134,136 +137,91 @@ contains
 
     end subroutine ybound_define_physical_constants
     
-    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,basins,regions)
-        ! Load masks for managing regions and basins, etc. 
-        ! basins and regions supplied by the driver replace the file reads.
+    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,grid,reg,mask_ice,masks)
+        ! Masks of the boundary from the regions, zones and basins of FesmData
+        ! (fesm-utils regions), made once here from selection expressions of
+        ! the masks group (nml_group):
+        !   regions_group     group of the regions ("None" = no regions)
+        !   basins            basin ids of bnd%basins: "<set>" or "<set>.group" ("None" = no basins)
+        !   mask_ice_dynamic  where ice is dynamic (MASK_ICE_DYNAMIC; else none)
+        !   mask_ice_fixed    where ice is prescribed (MASK_ICE_FIXED; over dynamic)
+        !   relax, relax_tau  where ice relaxes to H_ice_ref (bnd%tau_relax; topo_rel = -1)
+        !   mask_rmse         where the error metrics are computed (bnd%mask_rmse)
+        ! A driver may supply the regions (reg, on the Yelmo grid) instead of
+        ! regions_group, and mask_ice instead of the mask_ice expressions.
+        ! Without regions, the expressions can only be "all" or "none".
+        ! masks: the named masks of the regions (for regional output).
 
         implicit none 
 
         type(ybound_class), intent(INOUT) :: bnd 
         character(len=*), intent(IN)      :: nml_path, nml_group
         character(len=*), intent(IN)      :: domain, grid_name 
-        real(wp), intent(IN), optional    :: basins(:,:)
-        real(wp), intent(IN), optional    :: regions(:,:)
+        type(grid_class), intent(IN)      :: grid
+        type(regions_class), intent(IN), optional :: reg
+        integer,  intent(IN), optional    :: mask_ice(:,:)
+        type(region_mask_class), allocatable, intent(OUT), optional :: masks(:)
 
         ! Local variables
-        logical            :: load_var
-        character(len=512) :: filename
-        character(len=56)  :: vnames(2)
+        type(regions_class) :: reg_now
+        logical             :: with_reg
+        logical             :: extent(size(bnd%basins,1),size(bnd%basins,2))
+        character(len=256)  :: regions_group
+        character(len=56)   :: basins
+        character(len=1000) :: expr_dynamic, expr_fixed, expr_relax, expr_rmse
+        real(wp)            :: relax_tau
 
         character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_masks = "yelmo_masks"
 
         call nml_validate(nml_path,def_file,nml_group,defaults_group=def_masks)
 
-        ! ====================================
-        !
-        ! basins
-        !
-        ! ====================================
+        call nml_read(nml_path,nml_group,"regions_group",   regions_group,   defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"basins",          basins,          defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_ice_dynamic",expr_dynamic,defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_ice_fixed",  expr_fixed,  defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"relax",           expr_relax,           defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"relax_tau",       relax_tau,       defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_rmse",       expr_rmse,       defaults_file=def_file,defaults_group=def_masks)
 
-        ! Specify default values
-        bnd%basin_mask = 1.0
-        bnd%basins     = 1.0
-
-        call nml_read(nml_path,nml_group,"basins_load",load_var,defaults_file=def_file,defaults_group=def_masks)
-
-        if (present(basins)) then
-
-            bnd%basins = basins
-
-        else if (load_var) then
-
-            call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
-            call yelmo_parse_path(filename,domain,grid_name)
-            call yelmo_check_file(nml_group,"basins_path",filename)
-
-            call nml_read(nml_path,nml_group,"basins_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
-            ! Load basin information from a file
-            call nc_read(filename,vnames(1),bnd%basins)
-
-            if (trim(vnames(2)) .ne. "None") then
-                ! If basins have been extrapolated, also load the original basin extent mask
-                call nc_read(filename,vnames(2),bnd%basin_mask)
-            end if
-
+        if (trim(expr_relax) .ne. "none" .and. relax_tau .le. 0.0_wp) then
+            write(io_unit_err,*) "ybound_load_masks:: Error: relax needs relax_tau > 0."
+            write(io_unit_err,*) "relax = ", trim(expr_relax), ", relax_tau = ", relax_tau
+            error stop 1
         end if
 
-        ! ====================================
-        !
-        ! Read in the regions
-        !
-        ! ====================================
+        ! The regions: from the driver, from regions_group, or none
+        with_reg = .TRUE.
+        if (present(reg)) then
+            reg_now = reg
+        else if (trim(regions_group) .ne. "None") then
+            call regions_init_nml(reg_now,nml_path,regions_group,domain=domain,grid_name=grid_name,grid=grid)
+        else
+            with_reg = .FALSE.
+        end if
 
-        ! First assign default region values (used if no regions file is loaded)
-        bnd%region_mask = 1.0
-        select case(trim(domain))
-            case("Greenland")
-                ! The Greenland domain is centered on the Greenland region
-                bnd%regions = bnd%index_grl
-            case DEFAULT
-                ! No region information: mark all points as unclassified (0).
-                ! Note: the hemisphere codes (North=1.0, Antarctica=2.0) cannot be
-                ! used as defaults, since in the REGIONS files they denote points
-                ! outside of any land subregion (open ocean), which is where
-                ! ybound_define_mask_ice (and user code) forbids ice.
-                bnd%regions = 0.0
+        ! Region codes (deepest level) and basins (ids of the set `basins`)
+        bnd%regions    = 0.0_wp
+        bnd%basins     = 0.0_wp
+        bnd%basin_mask = 0.0_wp
+        if (with_reg) then
+            bnd%regions = real(reg_now%region_3,wp)
 
-        end select
-
-        call nml_read(nml_path,nml_group,"regions_load",load_var,defaults_file=def_file,defaults_group=def_masks)
-
-        if (present(regions)) then
-
-            bnd%regions = regions
-
-        else if (load_var) then
-
-            call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
-            call yelmo_parse_path(filename,domain,grid_name)
-            call yelmo_check_file(nml_group,"regions_path",filename)
-
-            ! Load region information from a file
-            call nml_read(nml_path,nml_group,"regions_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
-            call nc_read(filename,vnames(1),bnd%regions)
-
-            if (trim(vnames(2)) .ne. "None") then
-                ! If regions have been extrapolated, also load the original region extent mask
-                call nc_read(filename,vnames(2),bnd%region_mask)
+            if (trim(basins) .ne. "None") then
+                bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
+                where (extent) bnd%basin_mask = 1.0_wp
             end if
+        else if (trim(basins) .ne. "None") then
+            write(io_unit_err,*) "ybound_load_masks:: Error: basins needs regions (regions_group or driver)."
+            error stop 1
+        end if
 
-        end if 
-        
-        write(*,*) "ybound_load_masks:: range(basins):  ", minval(bnd%basins),  maxval(bnd%basins)
-        write(*,*) "ybound_load_masks:: range(regions): ", minval(bnd%regions), maxval(bnd%regions)
-
-        return 
-
-    end subroutine ybound_load_masks
-
-    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border,mask_ice)
-        ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
-        ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
-        ! The mask is built in two parts: where ice is allowed in the domain
-        ! (from the regions, or supplied by the driver), then the treatment
-        ! of the domain border.
-
-        implicit none
-
-        type(ybound_class), intent(INOUT) :: bnd
-        character(len=*),   intent(IN)    :: domain
-        character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
-        character(len=*),   intent(IN)    :: mask_border    ! yelmo.mask_border
-        integer, intent(IN), optional     :: mask_ice(:,:)  ! Where ice is allowed in the domain
-
-        ! Also set calv_mask false everywhere (no imposed calving front)
-        bnd%calv_mask   = .FALSE.
-
+        ! Where ice is allowed in the domain
         if (present(mask_ice)) then
 
             if (any(mask_ice .ne. MASK_ICE_NONE .and. mask_ice .ne. MASK_ICE_FIXED &
                                                 .and. mask_ice .ne. MASK_ICE_DYNAMIC)) then
-                write(io_unit_err,*) "ybound_define_mask_ice:: Error: mask_ice values must be &
+                write(io_unit_err,*) "ybound_load_masks:: Error: mask_ice values must be &
                                      &MASK_ICE_NONE, MASK_ICE_FIXED or MASK_ICE_DYNAMIC."
                 write(io_unit_err,*) "range(mask_ice): ", minval(mask_ice), maxval(mask_ice)
                 error stop 1
@@ -273,71 +231,81 @@ contains
 
         else
 
-            call define_mask_ice_domain(bnd%mask_ice,bnd%regions,domain)
+            bnd%mask_ice = MASK_ICE_NONE
+            where (select_mask(expr_dynamic)) bnd%mask_ice = MASK_ICE_DYNAMIC
+            where (select_mask(expr_fixed))   bnd%mask_ice = MASK_ICE_FIXED
 
         end if
+
+        ! Relaxation timescale (used with ytopo.topo_rel = -1)
+        bnd%tau_relax = -1.0_wp
+        where (select_mask(expr_relax)) bnd%tau_relax = relax_tau
+
+        ! Region of the error metrics
+        bnd%mask_rmse = select_mask(expr_rmse)
+
+        ! The named masks, for regional output
+        if (present(masks)) then
+            if (with_reg) then
+                masks = reg_now%masks
+            else
+                allocate(masks(0))
+            end if
+        end if
+
+        if (with_reg) call regions_end(reg_now)
+
+        write(*,*) "ybound_load_masks:: range(basins):  ", minval(bnd%basins),  maxval(bnd%basins)
+        write(*,*) "ybound_load_masks:: range(regions): ", minval(bnd%regions), maxval(bnd%regions)
+
+        return 
+
+    contains
+
+        function select_mask(expr) result(mask)
+            character(len=*), intent(IN) :: expr
+            logical :: mask(size(bnd%mask_ice,1),size(bnd%mask_ice,2))
+
+            if (with_reg) then
+                mask = regions_select(reg_now,expr)
+            else
+                select case(trim(expr))
+                    case("all")
+                        mask = .TRUE.
+                    case("none")
+                        mask = .FALSE.
+                    case DEFAULT
+                        write(io_unit_err,*) "ybound_load_masks:: Error: without regions, &
+                                             &a mask expression can only be all or none."
+                        write(io_unit_err,*) "expression = ", trim(expr)
+                        error stop 1
+                end select
+            end if
+
+        end function select_mask
+
+    end subroutine ybound_load_masks
+
+    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border)
+        ! Treatment of the domain border in mask_ice (ice dynamic, MASK_ICE_DYNAMIC,
+        ! prescribed, MASK_ICE_FIXED, or forced to zero, MASK_ICE_NONE), after
+        ! ybound_load_masks has set where ice is allowed in the domain.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        character(len=*),   intent(IN)    :: domain
+        character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
+        character(len=*),   intent(IN)    :: mask_border    ! yelmo.mask_border
+
+        ! Also set calv_mask false everywhere (no imposed calving front)
+        bnd%calv_mask   = .FALSE.
 
         call define_mask_ice_border(bnd%mask_ice,domain,boundaries,mask_border)
 
         return
 
     end subroutine ybound_define_mask_ice
-
-    subroutine define_mask_ice_domain(mask_ice,regions,domain)
-        ! Where ice is allowed in the domain, from the regions field.
-
-        implicit none
-
-        integer,          intent(OUT) :: mask_ice(:,:)
-        real(wp),         intent(IN)  :: regions(:,:)
-        character(len=*), intent(IN)  :: domain
-
-        ! Initially mark all points as dynamic (ice is solved)
-        mask_ice = MASK_ICE_DYNAMIC
-
-        ! Determine allowed regions based on domain
-        select case(trim(domain))
-
-            case ("North")
-                ! Allow ice everywhere except the open ocean (region 1.0 in the
-                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
-
-                where (regions .eq. 1.0) mask_ice = MASK_ICE_NONE
-
-            case ("Eurasia")
-                ! Allow ice only in the Eurasia domain (1.2*)
-
-                if (count(regions .ge. 1.2 .and. regions .le. 1.29) .eq. 0) then
-                    ! Without a regions file (regions=0), ice would be forbidden everywhere
-                    write(io_unit_err,*) "ybound_define_mask_ice:: Error: domain='Eurasia' requires a regions &
-                                         &field with Eurasia codes (1.2 <= regions <= 1.29), but none were found."
-                    write(io_unit_err,*) "range(regions): ", minval(regions), maxval(regions)
-                    error stop 1
-                end if
-
-                where (regions .lt. 1.2 .or. regions .gt. 1.29) mask_ice = MASK_ICE_NONE
-
-            case ("Greenland")
-
-                mask_ice = MASK_ICE_NONE
-                where (regions .eq. 1.3)  mask_ice = MASK_ICE_DYNAMIC   ! Main Greenland region
-                where (regions .eq. 1.11) mask_ice = MASK_ICE_DYNAMIC   ! Ellesmere Island
-                where (regions .eq. 1.0)  mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
-
-            case ("Antarctica")
-                ! Allow ice everywhere except the open ocean (region 2.0 in the
-                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
-
-                where (regions .eq. 2.0) mask_ice = MASK_ICE_NONE
-
-            case DEFAULT
-                ! Ice can grow everywhere
-
-        end select
-
-        return
-
-    end subroutine define_mask_ice_domain
 
     subroutine define_mask_ice_border(mask_ice,domain,boundaries,mask_border)
         ! Treatment of the domain border (yelmo.mask_border):
@@ -511,7 +479,7 @@ contains
         allocate(now%basins(nx,ny))
         allocate(now%basin_mask(nx,ny))
         allocate(now%regions(nx,ny))
-        allocate(now%region_mask(nx,ny))
+        allocate(now%mask_rmse(nx,ny))
         
         allocate(now%calv_mask(nx,ny))
         
@@ -547,7 +515,7 @@ contains
         now%basins      = 0.0_wp 
         now%basin_mask  = 0.0_wp 
         now%regions     = 0.0_wp 
-        now%region_mask = 0.0_wp 
+        now%mask_rmse   = .TRUE. 
         
         now%calv_mask   = .FALSE. ! By default no, no calving mask
 
@@ -595,7 +563,7 @@ contains
         if (allocated(now%basins))      deallocate(now%basins)
         if (allocated(now%basin_mask))  deallocate(now%basin_mask)
         if (allocated(now%regions))     deallocate(now%regions)
-        if (allocated(now%region_mask)) deallocate(now%region_mask)
+        if (allocated(now%mask_rmse))   deallocate(now%mask_rmse)
         
         if (allocated(now%calv_mask))   deallocate(now%calv_mask)
         

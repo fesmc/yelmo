@@ -107,6 +107,21 @@
     grid_name       = "GRL-16KM"
 /
 
+&yelmo_masks
+    regions_group    = "yelmo_regions"   ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
+    basins           = "Zwally2012.group" ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
+    mask_ice_dynamic = "region:Greenland,Canadian_Arctic_Archipelago"  ! where ice is dynamic, else no ice
+    mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
+    relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
+    relax_tau        = 0.0               ! [yr] relaxation timescale there
+    mask_rmse        = "region:Greenland & ~zone:open_ocean"  ! where the error metrics are computed
+/
+
+&yelmo_regions
+    path_regions = "ice_data/v2/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    path_basins  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
+    basin_sets   = "Zwally2012"
+/
 &ycalv
     calv_flt_method     = "equil"       ! Calving fronts held at the observed positions during the spin-up
     calv_grnd_method    = "equil"

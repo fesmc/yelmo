@@ -929,9 +929,6 @@ module yelmo_defs
         ! supplied it, this is the set the domain is running with.
         type(phys_const_class)   :: cnst
 
-        ! Region constants
-        real(wp)   :: index_grl   = 1.3   ! Greenland region number
-
         ! Variables that save the current boundary conditions
         real(wp), allocatable :: z_bed(:,:)
         real(wp), allocatable :: z_bed_sd(:,:) 
@@ -948,11 +945,11 @@ module yelmo_defs
 
         real(wp), allocatable :: enh_srf(:,:)
 
-        ! Useful masks
-        real(wp), allocatable :: basins(:,:) 
-        real(wp), allocatable :: basin_mask(:,:)
-        real(wp), allocatable :: regions(:,:) 
-        real(wp), allocatable :: region_mask(:,:) 
+        ! Useful masks (from the FesmData regions, see ybound_load_masks)
+        real(wp), allocatable :: basins(:,:)            ! basin ids (0 = no basin)
+        real(wp), allocatable :: basin_mask(:,:)        ! 1 within the original extent of the basins
+        real(wp), allocatable :: regions(:,:)           ! region codes, deepest level (0 = none)
+        logical,  allocatable :: mask_rmse(:,:)         ! where the error metrics are computed
 
         logical,  allocatable :: calv_mask(:,:)         ! for calv_method="kill-loc", where calv_mask==False, calv.
         
