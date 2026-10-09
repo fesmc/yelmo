@@ -15,11 +15,16 @@ little. MISMIP3D and DIVA runs change more.
   list only the overrides of `input/yelmo_defaults.nml`. The data files and the
   monthly flags are set in `&yelmo_init_topo` / `&yelmo_data` of each file, and the
   `set_*` groups no longer carry them; `ctrl.set_nm` and `yelmo.domain` no longer
-  need `-p`. Antarctica is unchanged. Greenland uses the 20-kyr spin-up tuning at
-  16 km (2026-10-09): `ymat.enh_shear = enh_stream = 1`, calving fronts held at the
-  observed positions (`calv_flt_method = calv_grnd_method = "equil"`),
+  need `-p`. Both domains use the 20-kyr spin-up tuning at 16 km (2026-10-09):
+  `ymat.enh_shear = enh_stream = 1` and calving fronts held at the observed
+  positions (`calv_flt_method = calv_grnd_method = "equil"`). Greenland:
   `ytill.cf_min = 0.02` and `bmb_shlf_const = -2` m/a (rmse_H 230 -> 124 m after
-  20 kyr).
+  20 kyr). Antarctica: `ymat.enh_shlf = 1`, `ytill.cf_min = 0.001`,
+  `ytill.cf_ref = 1` (upper bound of the optimized friction) and the geothermal heat
+  flux of Shapiro and Ritzwoller (2004) (rmse_H 366 -> 176 m).
+- **initmip geothermal heat flux from file.** New `set_*` keys `load_ghf`,
+  `file_ghf` and `name_ghf` (field in mW/m2); without `load_ghf`, the constant
+  50 mW/m2 as before. On for Antarctica (S04), off for Greenland (M18 fits worse).
 
 - **K24 key names follow FastHydrology dev** (fesmc/FastHydrology#14): in `&yhyd`,
   `k24_ub_hook` -> `k24_N_ub_coupled`, `k24_manning_exponent` -> `k24_glen_n`,

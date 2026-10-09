@@ -28,6 +28,7 @@
     load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     load_ghf        = False             ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
     file_ghf        = "ice_data/{domain}/{grid_name}/{grid_name}_GHF-M18.nc"
+    name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day
 /

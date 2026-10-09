@@ -259,6 +259,13 @@ Same optimization-based spin-up as initmip-grl, but on the Antarctic domain
 with `par/yelmo_initmip_ant.nml` (present day: `ctrl.set_nm = "set_ant_pd"`, the
 default; glacial: `"set_ant_lgm"`).
 
+As for Greenland, `par/yelmo_initmip_ant.nml` lists only the settings that
+differ from `input/yelmo_defaults.nml`: no flow enhancement
+(`ymat.enh_shear = enh_stream = enh_shlf = 1`), calving fronts held at the
+observed positions, bounds `ytill.cf_min = 0.001` and `ytill.cf_ref = 1` for the
+optimized friction, and the geothermal heat flux of Shapiro and Ritzwoller (2004)
+(`load_ghf`, `file_ghf` in the `set_ant_*` groups; otherwise 50 mW/m2).
+
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
 
