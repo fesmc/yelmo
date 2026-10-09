@@ -143,13 +143,13 @@ remapping step is needed.
 For example, run a short 32 km Greenland simulation, which writes a restart file:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" yelmo.grid_name="GRL-32KM"
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/restarts/sim0-32km -p ctrl.time_end=100 yelmo.grid_name="GRL-32KM"
 ```
 
 and continue it at 16 km from this restart file:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/restarts/sim1-16km -p ctrl.time_end=100 ctrl.set_nm="set_grl_pd" yelmo.domain="Greenland" yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/restarts/sim1-16km -p ctrl.time_end=100 yelmo.grid_name="GRL-16KM" yelmo.restart="../sim0-32km/yelmo_restart.nc"
 ```
 
 To remap other fields between grids with `cdo`, `maps/genmap.sh` generates

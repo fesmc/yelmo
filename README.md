@@ -56,7 +56,7 @@ runme -r -e benchmarks -o output/eismint1-moving -n par/yelmo_EISMINT_moving.nml
 
 # Compile the initmip program and run a simulation of Antarctica
 make initmip
-runme -r -e initmip -o output/ant-pd -n par/yelmo_initmip.nml -p ctrl.set_nm="set_ant_pd" yelmo.domain="Antarctica" yelmo.grid_name="ANT-32KM"
+runme -r -e initmip -o output/ant-pd -n par/yelmo_initmip_ant.nml -p yelmo.grid_name="ANT-32KM"
 ```
 
 ## Dependencies
@@ -88,7 +88,7 @@ e.g.:
 
 ```bash
 yelmo-config list ydyn                   # browse the dynamics parameters
-yelmo-config check par/yelmo_initmip.nml # validate a parameter file
+yelmo-config check par/yelmo_initmip_grl.nml # validate a parameter file
 yelmo-config diff runA.nml runB.nml      # compare two runs
 yelmo-config update                      # self-update to the latest version
 ```
@@ -324,12 +324,12 @@ precision `wp` (`sp` or `dp`) in the file `src/yelmo_defs.f90`.
 
 ### 6. Antarctica present-day and glacial simulations
 To perform the Antarctica simulations as presented in the paper, it is necessary
-to compile the `initmip` executable and run `par/yelmo_initmip.nml` with the
-present-day (`set_ant_pd`) and glacial (`set_ant_lgm`) settings:
+to compile the `initmip` executable and run `par/yelmo_initmip_ant.nml` with the
+present-day (`set_ant_pd`, the default) and glacial (`set_ant_lgm`) settings:
 
 
 ```bash
 make initmip
-runme -r -e initmip -o output/ant-pd  -n par/yelmo_initmip.nml -p ctrl.set_nm="set_ant_pd"  yelmo.domain="Antarctica" yelmo.grid_name="ANT-32KM"
-runme -r -e initmip -o output/ant-lgm -n par/yelmo_initmip.nml -p ctrl.set_nm="set_ant_lgm" yelmo.domain="Antarctica" yelmo.grid_name="ANT-32KM"
+runme -r -e initmip -o output/ant-pd  -n par/yelmo_initmip_ant.nml -p yelmo.grid_name="ANT-32KM"
+runme -r -e initmip -o output/ant-lgm -n par/yelmo_initmip_ant.nml -p ctrl.set_nm="set_ant_lgm" yelmo.grid_name="ANT-32KM"
 ```

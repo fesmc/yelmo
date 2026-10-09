@@ -206,7 +206,7 @@ Set `yhyd.bkt_N_closure = -1` (externally set effective pressure). A null
 const char *a = "ylmo1";
 int nx, ny, nz_aa, nz_ac, nzr_aa, nzr_ac;
 
-yelmo_init("par/yelmo_initmip.nml", "file", 0.0, a);
+yelmo_init("par/yelmo_initmip_grl.nml", "file", 0.0, a);
 yelmo_get_grid_sizes(&nx, &ny, &nz_aa, &nz_ac, &nzr_aa, &nzr_ac, a);
 
 double *smb  = malloc(sizeof(double) * nx * ny);

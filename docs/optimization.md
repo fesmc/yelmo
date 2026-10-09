@@ -5,7 +5,7 @@ that the simulated ice thickness approaches an observed thickness. The method
 follows Lipscomb et al. (2021) and is implemented in `optimize_cb_ref`
 ([`libs/ice_optimization.f90`](https://github.com/fesmc/yelmo/blob/main/libs/ice_optimization.f90)).
 It is a spin-up option of `yelmo_initmip.x`, with `ctrl.equil_method = "opt"`
-and the `&opt` group of `par/yelmo_initmip.nml` (see the initmip
+and the `&opt` group of `par/yelmo_initmip_grl.nml` and `par/yelmo_initmip_ant.nml` (see the initmip
 [benchmarks](benchmarks.md)). initmip sets `ytill.method = -1`, so that
 `cb_ref` is not recomputed by Yelmo.
 

@@ -94,7 +94,7 @@ yelmo-config search 'calv'           # find calving-related parameters
 
 ```bash
 yelmo-config write -o par/complete.nml        # full default parameter file
-yelmo-config write par/yelmo_initmip.nml      # defaults + initmip overrides
+yelmo-config write par/yelmo_initmip_grl.nml  # defaults + initmip overrides
 ```
 
 ### Comparing parameter sets
@@ -103,7 +103,7 @@ yelmo-config write par/yelmo_initmip.nml      # defaults + initmip overrides
 so it shows only meaningful differences:
 
 ```bash
-yelmo-config diff par/yelmo_initmip.nml       # a file vs the defaults
+yelmo-config diff par/yelmo_initmip_grl.nml   # a file vs the defaults
 yelmo-config diff runA.nml runB.nml           # two runs
 yelmo-config diff --raw runA.nml runB.nml     # only params literally written
 ```
@@ -117,7 +117,7 @@ yelmo-config diff runA.nml:ydyn_north runB.nml:ydyn
 ### Validating a parameter file
 
 ```bash
-yelmo-config check par/yelmo_initmip.nml
+yelmo-config check par/yelmo_initmip_grl.nml
 ```
 
 `check` reports unknown parameters, enum / range / ordering violations, type

@@ -41,15 +41,7 @@ program yelmo_test
         character(len=256) :: file_cb_ref 
 
         logical :: load_bmelt
-        character(len=256) :: file_bmelt 
-
-        character(len=512) :: init_topo_path
-        character(len=512) :: pd_topo_path
-        character(len=512) :: pd_tsrf_path
-        character(len=512) :: pd_smb_path
-        character(len=512) :: pd_vel_path
-        logical :: pd_tsrf_monthly
-        logical :: pd_smb_monthly
+        character(len=256) :: file_bmelt
 
         real(wp) :: bmb_shlf_const
         real(wp) :: dT_ann
@@ -85,26 +77,9 @@ program yelmo_test
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
     call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref)        ! Filename holding cb_ref to load 
 
-        
-    ! Load climate (eg, set_pd or set_lgm)
-    call nml_read(path_par,ctl%set_nm,  "init_topo_path",  ctl%init_topo_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_topo_path",    ctl%pd_topo_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_tsrf_path",    ctl%pd_tsrf_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_smb_path",     ctl%pd_smb_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_vel_path",     ctl%pd_vel_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_tsrf_monthly", ctl%pd_tsrf_monthly)   ! Is the set's tsrf file monthly?
-    call nml_read(path_par,ctl%set_nm,  "pd_smb_monthly",  ctl%pd_smb_monthly)    ! Is the set's smb file monthly?
 
-    ! Parse ctl filenames as needed
-    call nml_set_param(path_par, "yelmo_init_topo", "init_topo_path", ctl%init_topo_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_topo_path", ctl%pd_topo_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_tsrf_path", ctl%pd_tsrf_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_smb_path",  ctl%pd_smb_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_vel_path",  ctl%pd_vel_path)
-    ! Propagate the set's monthly flags so the file's time resolution follows the set (unquoted: logical)
-    call nml_set_param(path_par, "yelmo_data", "pd_tsrf_monthly", merge("True ","False",ctl%pd_tsrf_monthly), quoted=.FALSE.)
-    call nml_set_param(path_par, "yelmo_data", "pd_smb_monthly",  merge("True ","False",ctl%pd_smb_monthly),  quoted=.FALSE.)
-    
+    ! Load climate (eg, set_ant_pd or set_ant_lgm); the data files are set in
+    ! yelmo_init_topo and yelmo_data of the domain's parameter file
     call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
     call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
     if (ctl%load_bmelt) &
@@ -720,101 +695,6 @@ end if
         return 
 
     end subroutine scale_cf_gaussian
-
-    subroutine nml_set_param(filename, nml_group, par_name, value, quoted)
-        implicit none
-        character(len=*), intent(in) :: filename, nml_group, par_name, value
-        logical, intent(in), optional :: quoted   ! Wrap value in single quotes? Default .TRUE. (character params); pass .FALSE. for logicals/numbers
-
-        integer, parameter :: MAX_LINES = 50000
-        integer, parameter :: LINE_LEN  = 1024
-
-        character(len=LINE_LEN) :: lines(MAX_LINES)
-        character(len=LINE_LEN) :: trimmed
-        integer :: unit, io, n_lines, i, ieq
-        logical :: in_group, found, quote_val
-
-        quote_val = .TRUE.
-        if (present(quoted)) quote_val = quoted
-
-        open(newunit=unit, file=trim(filename), status='old', action='read', iostat=io)
-        if (io /= 0) then
-            write(io_unit_err,*) "nml_set_param ERROR: cannot open file ", trim(filename)
-            error stop 1
-        end if
-
-        n_lines = 0
-        do
-            read(unit, '(A)', iostat=io) lines(n_lines + 1)
-            if (io /= 0) exit
-            n_lines = n_lines + 1
-        end do
-        close(unit)
-
-        in_group = .false.
-        found    = .false.
-
-        do i = 1, n_lines
-            trimmed = adjustl(lines(i))
-
-            if (.not. in_group) then
-                if (trimmed(1:1) == '&' .and. str_eq_ci(trim(trimmed(2:)), nml_group)) &
-                    in_group = .true.
-            else
-                if (trimmed(1:1) == '/') exit
-                ieq = index(trimmed, '=')
-                if (ieq > 1 .and. str_eq_ci(trim(trimmed(1:ieq-1)), par_name)) then
-                    if (quote_val) then
-                        lines(i) = " " // trim(par_name) // " = '" // trim(value) // "'"
-                    else
-                        lines(i) = " " // trim(par_name) // " = " // trim(value)
-                    end if
-                    found = .true.
-                    exit
-                end if
-            end if
-        end do
-
-        if (.not. found) then
-            write(*,'(4a)') 'nml_set_param WARNING: "', trim(par_name), &
-                '" not found in group "', trim(nml_group)//'"'
-            return
-        end if
-
-        open(newunit=unit, file=trim(filename), status='replace', action='write', iostat=io)
-        if (io /= 0) then
-            write(io_unit_err,*) "nml_set_param ERROR: cannot write file ", trim(filename)
-            error stop 1
-        end if
-        do i = 1, n_lines
-            write(unit, '(A)') trim(lines(i))
-        end do
-        close(unit)
-
-    end subroutine nml_set_param
-
-    pure function str_eq_ci(a, b) result(eq)
-        implicit none
-        character(len=*), intent(in) :: a, b
-        logical :: eq
-        integer :: j, n
-        n  = len_trim(a)
-        eq = (n == len_trim(b))
-        if (.not. eq) return
-        do j = 1, n
-            eq = (lower_char(a(j:j)) == lower_char(b(j:j)))
-            if (.not. eq) return
-        end do
-    end function str_eq_ci
-
-    pure function lower_char(c) result(lc)
-        implicit none
-        character, intent(in) :: c
-        character             :: lc
-        integer               :: ic
-        ic = iachar(c)
-        lc = merge(achar(ic+32), c, ic >= iachar('A') .and. ic <= iachar('Z'))
-    end function lower_char
 
 end program yelmo_test
 
