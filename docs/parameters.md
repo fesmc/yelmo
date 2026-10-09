@@ -39,7 +39,7 @@ basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
 | Key | Meaning |
 |---|---|
 | `regions_group` | Group of the regions (`path_regions`, `path_basins`, `basin_sets`, `masks`, `mask_<name>`); `"None"` = no regions |
-| `basins` | Basin ids of `bnd%basins`: `"<set>"` or `"<set>.group"` (e.g. `"Zwally2012.group"`); `"None"` = none |
+| `basins` | Basin ids of `bnd%basins`: `"<set>"` or `"<set>.group"` (e.g. `"Zwally2012.group"`); `"None"` = none, `"domain"` = one basin (1) |
 | `mask_ice_dynamic` | Where ice is dynamic; elsewhere no ice (`bnd%mask_ice`) |
 | `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
 | `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |

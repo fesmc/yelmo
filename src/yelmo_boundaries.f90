@@ -142,7 +142,8 @@ contains
         ! (fesm-utils regions), made once here from selection expressions of
         ! the masks group (nml_group):
         !   regions_group     group of the regions ("None" = no regions)
-        !   basins            basin ids of bnd%basins: "<set>" or "<set>.group" ("None" = no basins)
+        !   basins            basin ids of bnd%basins: "<set>" or "<set>.group" of the
+        !                     regions, "None" (no basins) or "domain" (one basin, 1)
         !   mask_ice_dynamic  where ice is dynamic (MASK_ICE_DYNAMIC; else none)
         !   mask_ice_fixed    where ice is prescribed (MASK_ICE_FIXED; over dynamic)
         !   relax, relax_tau  where ice relaxes to H_ice_ref (bnd%tau_relax; topo_rel = -1)
@@ -207,13 +208,20 @@ contains
         if (with_reg) then
             bnd%regions = real(reg_now%region_3,wp)
 
-            if (trim(basins) .ne. "None") then
-                bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
-                where (extent) bnd%basin_mask = 1.0_wp
-            end if
-        else if (trim(basins) .ne. "None") then
-            write(io_unit_err,*) "ybound_load_masks:: Error: basins needs regions (regions_group or driver)."
-            error stop 1
+            bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
+            where (extent) bnd%basin_mask = 1.0_wp
+        else
+            select case(trim(basins))
+                case("None")
+                    ! No basins
+                case("domain")
+                    bnd%basins     = 1.0_wp
+                    bnd%basin_mask = 1.0_wp
+                case DEFAULT
+                    write(io_unit_err,*) "ybound_load_masks:: Error: without regions, basins can only be None or domain."
+                    write(io_unit_err,*) "basins = ", trim(basins)
+                    error stop 1
+            end select
         end if
 
         ! Where ice is allowed in the domain
