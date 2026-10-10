@@ -38,18 +38,19 @@ basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
 
 | Key | Meaning |
 |---|---|
-| `regions_group` | Group of the regions (`path_regions`, `path_basins`, `basin_sets`, `masks`, `mask_<name>`); `"None"` = no regions |
-| `basins` | Basin ids of `bnd%basins`: `"<set>"` or `"<set>.group"` (e.g. `"Zwally2012.group"`); `"None"` = none, `"domain"` = one basin (1) |
+| `regions_group` | Group of the regions (`path_regions`, `path_basins`, `basin_sets`, `layers`, `masks`, ...; see fesm-utils `regions`); `"None"` = no layers |
+| `basins` | Basin ids of `bnd%basins`: a layer of the regions, e.g. `"<set>"` or `"<set>.group"` (`"Zwally2012.group"`); `"None"` = none, `"domain"` = one basin (1) |
 | `mask_ice_dynamic` | Where ice is dynamic; elsewhere no ice (`bnd%mask_ice`) |
 | `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
 | `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |
 | `mask_rmse` | Where the error metrics are computed |
 
-Without regions the expressions can only be `"all"` or `"none"`. A driver may
+Without layers the expressions can only be `"all"` or `"none"`. A driver may
 pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of
 `regions_group`, and `mask_ice` instead of the mask_ice expressions. The named
 masks of the regions (`masks`, `mask_<name>`) become Yelmo's regional output
-domains. `bnd%regions` holds the region codes of the deepest level.
+domains. `bnd%regions` holds the codes of the layer `region` (FesmData: the deepest
+level), 0 without one.
 
 ::: {.callout-tip}
 To browse, build, compare and validate parameter files from the command line, see

@@ -11,13 +11,13 @@ little. MISMIP3D and DIVA runs change more.
 ### Changes that affect existing par files
 
 - **Masks from FesmData v2 regions.** `&yelmo_masks` is replaced: `regions_group`
-  (a fesm-utils `regions` group), `basins` (`"<set>"` or `"<set>.group"`), and the
+  (a fesm-utils `regions` group), `basins` (a layer, e.g. `"<set>.group"`), and the
   selection expressions `mask_ice_dynamic`, `mask_ice_fixed`, `relax`/`relax_tau`
   and `mask_rmse`. They replace the hard-coded domain masks
   (`define_mask_ice_domain`, the Greenland RMSE region) and the v1 code values.
   `yelmo_init(..., regions=, basins=)` becomes `yelmo_init(..., reg=)`;
-  `mask_ice=` stays. `bnd%region_mask` is removed; `bnd%regions` holds v2 region
-  codes, `bnd%basins` v2 basin ids (0 = none). Named masks of the regions become
+  `mask_ice=` stays. `bnd%region_mask` is removed; `bnd%regions` holds the codes
+  of the layer `region` (0 without one), `bnd%basins` basin ids (0 = none). Named masks of the regions become
   regional output domains. Default topography: `ice_data/v2/...TOPO-BedMachine-v6`.
 
 - **initmip par file split by domain.** `par/yelmo_initmip.nml` is replaced by

@@ -5,8 +5,8 @@ module yelmo_boundaries
     use ncio 
     use yelmo_defs 
     use coords,  only : grid_class
-    use regions, only : regions_class, region_mask_class, regions_init_nml, regions_select, &
-                        regions_basin_ids, regions_end
+    use regions, only : regions_class, region_mask_class, regions_init, regions_init_nml, regions_select, &
+                        regions_basin_ids, regions_find, regions_end
     use yelmo_tools, only : boundary_code, get_periodic_directions
 
     implicit none
@@ -138,19 +138,21 @@ contains
     end subroutine ybound_define_physical_constants
     
     subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,grid,reg,mask_ice,masks)
-        ! Masks of the boundary from the regions, zones and basins of FesmData
-        ! (fesm-utils regions), made once here from selection expressions of
-        ! the masks group (nml_group):
-        !   regions_group     group of the regions ("None" = no regions)
-        !   basins            basin ids of bnd%basins: "<set>" or "<set>.group" of the
-        !                     regions, "None" (no basins) or "domain" (one basin, 1)
+        ! Masks of the boundary from the layers of the regions (fesm-utils
+        ! regions: regions, zones, basins, ...), made once here from selection
+        ! expressions of the masks group (nml_group):
+        !   regions_group     group of the regions ("None" = no layers)
+        !   basins            basin ids of bnd%basins: a layer of the regions (e.g.
+        !                     "<set>" or "<set>.group"), "None" (no basins) or
+        !                     "domain" (one basin, 1)
         !   mask_ice_dynamic  where ice is dynamic (MASK_ICE_DYNAMIC; else none)
         !   mask_ice_fixed    where ice is prescribed (MASK_ICE_FIXED; over dynamic)
         !   relax, relax_tau  where ice relaxes to H_ice_ref (bnd%tau_relax; topo_rel = -1)
         !   mask_rmse         where the error metrics are computed (bnd%mask_rmse)
         ! A driver may supply the regions (reg, on the Yelmo grid) instead of
         ! regions_group, and mask_ice instead of the mask_ice expressions.
-        ! Without regions, the expressions can only be "all" or "none".
+        ! Without layers, the expressions can only be "all" or "none".
+        ! bnd%regions: the layer region (0 without one).
         ! masks: the named masks of the regions (for regional output).
 
         implicit none 
@@ -165,7 +167,7 @@ contains
 
         ! Local variables
         type(regions_class) :: reg_now
-        logical             :: with_reg
+        integer             :: k
         logical             :: extent(size(bnd%basins,1),size(bnd%basins,2))
         character(len=256)  :: regions_group
         character(len=56)   :: basins
@@ -191,38 +193,23 @@ contains
             error stop 1
         end if
 
-        ! The regions: from the driver, from regions_group, or none
-        with_reg = .TRUE.
+        ! The regions: from the driver, from regions_group, or none (no layers)
         if (present(reg)) then
             reg_now = reg
         else if (trim(regions_group) .ne. "None") then
             call regions_init_nml(reg_now,nml_path,regions_group,domain=domain,grid_name=grid_name,grid=grid)
         else
-            with_reg = .FALSE.
+            call regions_init(reg_now,grid=grid)
         end if
 
-        ! Region codes (deepest level) and basins (ids of the set `basins`)
+        ! Region codes (deepest level) and basins (ids of the layer `basins`)
         bnd%regions    = 0.0_wp
-        bnd%basins     = 0.0_wp
         bnd%basin_mask = 0.0_wp
-        if (with_reg) then
-            bnd%regions = real(reg_now%region_3,wp)
+        k = regions_find(reg_now,"region")
+        if (k .gt. 0) bnd%regions = real(reg_now%layers(k)%values,wp)
 
-            bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
-            where (extent) bnd%basin_mask = 1.0_wp
-        else
-            select case(trim(basins))
-                case("None")
-                    ! No basins
-                case("domain")
-                    bnd%basins     = 1.0_wp
-                    bnd%basin_mask = 1.0_wp
-                case DEFAULT
-                    write(io_unit_err,*) "ybound_load_masks:: Error: without regions, basins can only be None or domain."
-                    write(io_unit_err,*) "basins = ", trim(basins)
-                    error stop 1
-            end select
-        end if
+        bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
+        where (extent) bnd%basin_mask = 1.0_wp
 
         ! Where ice is allowed in the domain
         if (present(mask_ice)) then
@@ -240,57 +227,27 @@ contains
         else
 
             bnd%mask_ice = MASK_ICE_NONE
-            where (select_mask(expr_dynamic)) bnd%mask_ice = MASK_ICE_DYNAMIC
-            where (select_mask(expr_fixed))   bnd%mask_ice = MASK_ICE_FIXED
+            where (regions_select(reg_now,expr_dynamic)) bnd%mask_ice = MASK_ICE_DYNAMIC
+            where (regions_select(reg_now,expr_fixed))   bnd%mask_ice = MASK_ICE_FIXED
 
         end if
 
         ! Relaxation timescale (used with ytopo.topo_rel = -1)
         bnd%tau_relax = -1.0_wp
-        where (select_mask(expr_relax)) bnd%tau_relax = relax_tau
+        where (regions_select(reg_now,expr_relax)) bnd%tau_relax = relax_tau
 
         ! Region of the error metrics
-        bnd%mask_rmse = select_mask(expr_rmse)
+        bnd%mask_rmse = regions_select(reg_now,expr_rmse)
 
         ! The named masks, for regional output
-        if (present(masks)) then
-            if (with_reg) then
-                masks = reg_now%masks
-            else
-                allocate(masks(0))
-            end if
-        end if
+        if (present(masks)) masks = reg_now%masks
 
-        if (with_reg) call regions_end(reg_now)
+        call regions_end(reg_now)
 
         write(*,*) "ybound_load_masks:: range(basins):  ", minval(bnd%basins),  maxval(bnd%basins)
         write(*,*) "ybound_load_masks:: range(regions): ", minval(bnd%regions), maxval(bnd%regions)
 
         return 
-
-    contains
-
-        function select_mask(expr) result(mask)
-            character(len=*), intent(IN) :: expr
-            logical :: mask(size(bnd%mask_ice,1),size(bnd%mask_ice,2))
-
-            if (with_reg) then
-                mask = regions_select(reg_now,expr)
-            else
-                select case(trim(expr))
-                    case("all")
-                        mask = .TRUE.
-                    case("none")
-                        mask = .FALSE.
-                    case DEFAULT
-                        write(io_unit_err,*) "ybound_load_masks:: Error: without regions, &
-                                             &a mask expression can only be all or none."
-                        write(io_unit_err,*) "expression = ", trim(expr)
-                        error stop 1
-                end select
-            end if
-
-        end function select_mask
 
     end subroutine ybound_load_masks
 
