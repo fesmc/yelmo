@@ -76,6 +76,8 @@ inside of a program, run the model forward in time and then terminate the instan
 
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=time_init)
 
+    ! Model times (time_init, time) are real(dp) [yr].
+
     ! Optional arguments: outfldr, the folder for the files Yelmo writes itself
     ! (region time series, metrics), and cnst, a phys_const_class with the
     ! physical constants, for a driver that shares one set of constants
