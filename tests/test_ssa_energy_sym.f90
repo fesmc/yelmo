@@ -39,6 +39,7 @@ program test_ssa_energy_sym
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
+    real(wp) :: z_bed(nx,ny), z_sl(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
 
@@ -51,6 +52,8 @@ program test_ssa_energy_sym
     ! ---- Uniform symmetric inputs ----
     H_ice         = 1000.0_wp
     f_ice         = 1.0_wp
+    z_bed         = -1000.0_wp              ! Bed below sea level (ocean where ice free)
+    z_sl          = 0.0_wp
     N_aa          = 1.0e10_wp
     beta_acx      = 1.0e3_wp
     beta_acy      = 1.0e3_wp
@@ -70,7 +73,7 @@ program test_ssa_energy_sym
     write(*,*) "Case 1: periodic boundaries, all interior cells (mask=1)"
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"periodic")
     call check_K_symmetry(lgs, total_fail)
 
@@ -83,7 +86,7 @@ program test_ssa_energy_sym
     ! we leave ssa_mask=1 everywhere and let the assembler treat boundaries
     ! per the "zeros" string.
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"zeros")
     call check_K_symmetry(lgs, total_fail)
 
@@ -100,7 +103,7 @@ program test_ssa_energy_sym
         ssa_mask_acy(i,j) = 3
     end do
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"periodic")
     call check_K_symmetry(lgs, total_fail)
 
@@ -121,7 +124,7 @@ program test_ssa_energy_sym
     write(*,*) "Case 4: infinite (free-slip on all edges), ice everywhere"
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"infinite")
     call check_K_symmetry(lgs, total_fail)
 
@@ -146,7 +149,7 @@ program test_ssa_energy_sym
     write(*,*) "Case 5: periodic-x (free-slip lower/upper edges), ice everywhere"
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"periodic-x")
     call check_K_symmetry(lgs, total_fail)
 
@@ -155,7 +158,7 @@ program test_ssa_energy_sym
     write(*,*) "Case 6: MISMIP3D (free-slip right, no-slip left), ice everywhere"
     write(*,*) "============================================================"
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"MISMIP3D")
     call check_K_symmetry(lgs, total_fail)
 

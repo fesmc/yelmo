@@ -297,13 +297,13 @@ if (.TRUE.) then
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
                     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy,  &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
                                 lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
                     call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_b,uy_b,beta_ssa_acx,beta_ssa_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy,  &
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy,  &
                                 taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
                                 lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
             end select

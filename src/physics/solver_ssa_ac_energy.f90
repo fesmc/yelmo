@@ -68,7 +68,7 @@ module solver_ssa_ac_energy
 contains
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D_energy(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx, &
                             taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries, &
                             lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
         ! Energy-formulation analogue of linear_solver_matrix_ssa_ac_csr_2D.
@@ -90,6 +90,8 @@ contains
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
+        real(wp), intent(IN) :: z_bed(:,:)              ! [m] bedrock elevation (aa-nodes)
+        real(wp), intent(IN) :: z_sl(:,:)               ! [m] sea level (aa-nodes)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] driving stress (acx-nodes)
         real(wp), intent(IN) :: taud_acy(:,:)           ! [Pa] driving stress (acy-nodes)
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] vertically integrated lateral stress (acx-nodes)
@@ -176,7 +178,7 @@ contains
 
         ! Stagger depth-integrated viscosity to ab-nodes
         allocate(N_ab(nx,ny))
-        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,z_bed,z_sl,boundaries)
 
         ! ================================================================
         ! 1. Classify the unknowns and resolve tied chains to free roots

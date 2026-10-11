@@ -152,16 +152,20 @@ little. MISMIP3D and DIVA runs change more.
   precision). CalvingMIP Exp1, MISMIP+ Ice0, MISMIP3D Stnd and A2: unchanged (volume
   differences <= 2e-5).
 
-- **No shear stress at ice-margin corners in the SSA solvers** (`stagger_visc_aa_ab`,
+- **No shear stress at calving-front corners in the SSA solvers** (`stagger_visc_aa_ab`,
   both assemblers). The corner viscosity was the mean over the ice-covered cells around
   the corner, so corners on a calving front coupled the front faces to the u = 0 faces of
-  the ice-free cells: a drag on the velocity along the front. It is now the mean over the
-  four cells when all are fully ice covered, and zero otherwise (traction-free margin).
+  the ice-free cells: a drag on the velocity along the front. It is now zero at a corner
+  that touches an ocean-side cell (f_ice < 1 and bed below sea level; traction-free front),
+  and elsewhere still the mean over the fully ice-covered cells, so land margins (e.g.
+  narrow outlets between ice-free land) keep their lateral shear. The mean is summed in
+  mirror-symmetric pairs. Both assemblers take `z_bed` and `z_sl` as new arguments.
   Found with benchmark A2 (radial floating shelf, docs/dev/benchmark-protocol): rms error
   44 % (energy) / 15 % (residual) → 0.07 %. CalvingMIP Exp1 (25 km, 10 kyr): grounding-line
   radius 573 → 539 km, axis-to-diagonal spread 39 → 28 km (no orientation trend), volume
   −15 %. TROUGH-F17: volume −1.5 %, max speed 971 → 781 m/yr. MISMIP+ Ice0 and MISMIP3D
-  Stnd unchanged (straight fronts).
+  Stnd unchanged (straight fronts). (Numbers with zero viscosity at all margin corners,
+  before land margins were restored.)
 
 - **`ytherm.use_strain_sia` replaced by `ytherm.strain_heating = "full" | "sia" | "none"`**
   (default `"full"`, same as `use_strain_sia = False`). `"none"` switches strain heating
