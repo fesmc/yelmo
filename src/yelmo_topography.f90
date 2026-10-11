@@ -51,7 +51,7 @@ contains
         type(ytherm_class), intent(IN)    :: thrm  
         type(ybound_class), intent(IN)    :: bnd
         type(ydata_class),  intent(IN)    :: dta 
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
         logical,            intent(IN)    :: topo_fixed  
         character(len=*),   intent(IN)    :: pc_step 
         logical, optional,  intent(IN)    :: use_H_pred
@@ -88,8 +88,8 @@ contains
         if (present(filter_vel)) filt = filter_vel
 
         ! Initialize time if necessary 
-        if (tpo%par%time .gt. dble(time)) then 
-            tpo%par%time = dble(time) 
+        if (tpo%par%time .gt. time) then 
+            tpo%par%time = time 
         end if 
         
         ! Initialize rk4 object if necessary 
@@ -98,7 +98,7 @@ contains
         end if 
 
         ! Get time step
-        dt = dble(time) - tpo%par%time 
+        dt = time - tpo%par%time 
 
         ! Step 0: Get some diagnostic quantities for mass balance calculation --------
 
@@ -286,7 +286,7 @@ end if
                     ! Calculate and apply calving
                     if (tpo%par%use_lsf) then
                         ! Level-set function as calving
-                        call calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,time)
+                        call calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,real(time,wp))
                     else
                         ! Mass balance calving
                         call calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
@@ -566,10 +566,10 @@ end if
         if (trim(pc_step) .eq. "advance") then 
             ! Advance timestep here whether topo_fixed was true or not...
 
-            call yelmo_calc_speed(tpo%par%speed,real(tpo%par%time,wp),time,0.0d0,tpo%par%cpu_step)
+            call yelmo_calc_speed(tpo%par%speed,tpo%par%time,time,0.0d0,tpo%par%cpu_step)
             
             ! Update ytopo time to current time 
-            tpo%par%time = dble(time)
+            tpo%par%time = time
             
         end if
 

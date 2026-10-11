@@ -1475,8 +1475,8 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: speed            ! [kyr / hr]
-        real(wp), intent(IN)  :: model_time0      ! [yr]
-        real(wp), intent(IN)  :: model_time1      ! [yr]
+        real(dp), intent(IN)  :: model_time0      ! [yr]
+        real(dp), intent(IN)  :: model_time1      ! [yr]
         real(8),    intent(IN)  :: cpu_time0        ! [sec]
         real(8),    intent(IN)  :: cpu_time1        ! [sec]
 

@@ -29,7 +29,7 @@ contains
         type(ydyn_class),   intent(IN)    :: dyn 
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd     
-        real(wp),           intent(IN)    :: time    ! Current time (for age tracing)
+        real(dp),           intent(IN)    :: time    ! Current time (for age tracing)
 
         ! Local variables
         integer  :: k, nz_aa
@@ -53,8 +53,8 @@ contains
         end if 
 
         ! Get time step and advance current time 
-        dt            = dble(time) - mat%par%time 
-        mat%par%time  = dble(time) 
+        dt            = time - mat%par%time 
+        mat%par%time  = time 
 
         ! Note: the age tracer (dep_time) moved to the ytrc subsystem (yelmo_tracers)
         ! for v2.0. The Eulerian solver is still used below for the enh_bnd
@@ -146,7 +146,7 @@ contains
 
                     call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
+                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),mask=mask_tracers)
 
                 end if 
 
