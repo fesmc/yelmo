@@ -744,6 +744,7 @@ module yelmo_defs
 
         ! Internal parameters
         real(dp)   :: time
+        real(dp)   :: t_ref_euler                    ! [yr] Reference time of the Eulerian tracer (its cold start)
         real(wp)   :: dx, dy
         integer    :: nx, ny, nz_aa, nz_ac
         integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
@@ -757,7 +758,8 @@ module yelmo_defs
 
         ! Model-agnostic harmonized fields, all on the host (nx,ny,nz_aa) sigma grid.
         real(wp), allocatable :: t_dep(:,:,:)        ! Authoritative deposition time (copy of chosen source)
-        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian native field (also the restart variable)
+        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian deposition time (t_ref_euler + t_dep_euler_rel)
+        real(wp), allocatable :: t_dep_euler_rel(:,:,:) ! Eulerian native field, relative to t_ref_euler (also the restart variable)
         real(wp), allocatable :: t_dep_trc(:,:,:)    ! Gridded from Lagrangian particles (gappy diagnostic)
         real(wp), allocatable :: t_dep_elsa(:,:,:)   ! Gridded from the isochrone layer stack (diagnostic)
         real(wp), allocatable :: depth_iso(:,:,:)    ! Authoritative isochrone depths (nx,ny,n_iso)

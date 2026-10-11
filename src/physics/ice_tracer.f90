@@ -45,7 +45,7 @@ contains
 
         ! Local variables
         integer    :: i, j, k, nx, ny, nz_aa, nz_ac  
-        real(prec) :: X_base, f_diff    
+        real(prec) :: X_base
         real(prec), allocatable :: advecxy(:)   ! [X a-1 m-2] Horizontal advection  
         real(prec), allocatable :: X_prev(:,:,:) 
         
@@ -119,18 +119,6 @@ contains
 
                 end select 
 
-                ! Determine maximum allowed rate of change in tracer values
-                ! for numerical safety. Allowed rate is reduced for margin points. 
-                if (H_ice(i,j) .gt. 0.0_prec .and. count(H_ice(i-1:i+1,j-1:j+1).eq.0.0_prec).gt.0) then 
-                    ! Margin point
-                    f_diff    = 0.05_prec
-                else
-                    f_diff    = 0.1_prec 
-                end if 
-                
-                ! Check for tracer inconsistencies (usually for very fast-flowing regions)
-                call fix_tracer_violation(X_ice(i,j,:),X_prev(i,j,:),X_base,X_srf(i,j),dt,f_diff)
-
             else
                 ! Conditions not met for tracing, simply set column
                 ! equal to the surface values 
@@ -156,62 +144,6 @@ contains
         return 
 
     end subroutine calc_tracer_3D
-
-    subroutine fix_tracer_violation(X_ice,X_prev,X_base,X_srf,dt,f_diff)
-
-        implicit none 
-
-        real(prec), intent(INOUT) :: X_ice(:)           ! [units] Predicted values 
-        real(prec), intent(IN)    :: X_prev(:)          ! [units] Previous values
-        real(prec), intent(IN)    :: X_base             ! [units] Basal boundary value
-        real(prec), intent(IN)    :: X_srf              ! [units] Surface boudnary value 
-        real(prec), intent(IN)    :: dt                 ! [yr]    Timestep 
-        real(prec), intent(IN)    :: f_diff             ! Fraction difference in X/yr of allowed change in tracer value
-                                                        ! Typically f_diff = 0.1-0.2
-
-        ! Local variables
-        integer :: nz   
-        real(prec) :: X_min, X_max, X_mean                
-        logical    :: is_active 
-
-        nz = size(X_ice,1) 
-
-        if (minval(X_ice) .eq. X_srf .and. maxval(X_ice) .eq. X_srf) then 
-            ! This column had X_srf imposed everywhere, so ignore it.
-            is_active = .FALSE. 
-        else 
-            is_active = .TRUE. 
-        end if 
-
-        if (is_active) then 
-            ! Check this column for errors:
-            ! Column values cannot be outside of the range of
-            ! previous values or the boundary values. 
-
-            ! Determine mean value of column for previous timestep 
-            X_mean = abs(sum(X_prev) / real(nz,prec))
-            X_max  = abs(maxval(X_prev))
-
-            ! Limit any value change in X to eg 50% per year if X_mean .ne. 0.0
-            if (X_mean .ne. 0.0_prec) then  
-                where ( (X_ice-X_prev)/dt .gt. f_diff*X_mean )
-                    X_ice = X_prev + f_diff*X_mean*dt 
-                else where ( (X_ice-X_prev)/dt .lt. -f_diff*X_mean )
-                    X_ice = X_prev - f_diff*X_mean*dt 
-                end where
-            end if 
-
-            ! Finally, also reset tracer to previous value if value is too large, or appears problematic 
-            ! (likely redundant with previous check, but kept for safety)
-            if (maxval(abs(X_ice)) .gt. 1e10) then 
-                X_ice = X_srf 
-            end if 
-
-        end if 
-
-        return 
-
-    end subroutine fix_tracer_violation
 
     subroutine calc_tracer_column(X_ice,uz,advecxy,X_srf,X_base,H_ice,zeta_aa,zeta_ac,kappa,dt)
         ! Tracer solver for a given column of ice 
@@ -380,25 +312,39 @@ contains
         real(prec), intent(IN)    :: zeta_ac(:)   ! nz_ac [--] Vertical sigma coordinates (zeta==height), layer boundary ac-nodes
         real(prec), intent(IN)    :: dt           ! [a] Time step 
 
-        ! Local variables 
-        integer :: k, nz_aa 
+        ! Local variables
+        integer    :: k, n, nz_aa, n_sub
+        real(prec) :: dt_sub
         real(prec), allocatable :: advecz(:)   ! nz_aa, for explicit vertical advection solving
 
         nz_aa = size(zeta_aa,1)
-        
+
         allocate(advecz(nz_aa))
 
         ! Update base and surface values
-        X_ice(1)     = X_base 
-        X_ice(nz_aa) = X_srf 
+        ! (X_base already includes the horizontal advection of the basal layer)
+        X_ice(1)     = X_base
+        X_ice(nz_aa) = X_srf
 
-        ! Calculate vertical advection 
-        call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+        ! Sub-step the vertical advection so that its Courant number is at most 1
+        ! (the time step of the host model does not limit it, e.g. for thin ice).
+        ! The horizontal advection (from the previous time step) is spread over the sub-steps.
+        n_sub  = max(1,ceiling(calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt)))
+        dt_sub = dt / real(n_sub,prec)
 
-        ! Use advection terms to advance column tracer value 
-        X_ice = X_ice - dt*advecxy - dt*advecz
+        do n = 1, n_sub
+
+            ! Calculate vertical advection
+            call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+
+            ! Use advection terms to advance the interior column tracer values
+            do k = 2, nz_aa-1
+                X_ice(k) = X_ice(k) - dt_sub*advecxy(k) - dt_sub*advecz(k)
+            end do
+
+        end do
 
         ! Ensure tiny values are removed to avoid underflow errors 
         where (abs(X_ice) .lt. 1e-5) X_ice = 0.0_prec 
@@ -450,6 +396,43 @@ contains
         return 
 
     end subroutine calc_advec_vertical_column_upwind1
+
+    function calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt) result(courant)
+        ! Maximum Courant number of the vertical upwind advection
+        ! (calc_advec_vertical_column_upwind1) over the internal cell centers
+
+        implicit none
+
+        real(prec), intent(IN) :: uz(:)          ! nz_ac: cell boundaries
+        real(prec), intent(IN) :: H_ice          ! Ice thickness
+        real(prec), intent(IN) :: zeta_aa(:)     ! nz_aa, cell centers
+        real(prec), intent(IN) :: dt             ! [a] Time step
+        real(prec) :: courant
+
+        ! Local variables
+        integer :: k, nz_aa
+        real(prec) :: u_aa
+
+        nz_aa = size(zeta_aa,1)
+
+        courant = 0.0_prec
+
+        ! Same upwind velocity and spacing as calc_advec_vertical_column_upwind1
+        do k = 2, nz_aa-1
+
+            u_aa = 0.5_prec*(uz(k)+uz(k+1))
+
+            if (u_aa < 0.0) then
+                courant = max(courant, abs(uz(k+1))*dt / (H_ice*(zeta_aa(k+1)-zeta_aa(k))))
+            else
+                courant = max(courant, abs(uz(k))*dt / (H_ice*(zeta_aa(k)-zeta_aa(k-1))))
+            end if
+
+        end do
+
+        return
+
+    end function calc_courant_vertical_upwind1
 
     subroutine calc_advec_vertical_column_upwind2(advecz,Q,uz,H_ice,zeta_aa)
         ! Calculate vertical advection term advecz, which enters
