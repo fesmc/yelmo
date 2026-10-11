@@ -647,13 +647,14 @@ end if
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         logical,  allocatable :: mask_kill(:,:)
+        real(wp), allocatable :: H_grnd_now(:,:)
 
         nx = size(tpo%now%H_ice,1) 
         ny = size(tpo%now%H_ice,2) 
 
         allocate(mbal_now(nx,ny)) 
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
-        allocate(mask_kill(nx,ny))
+        allocate(mask_kill(nx,ny),H_grnd_now(nx,ny))
         allocate(cmb_sd(nx,ny)) 
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
 
@@ -849,12 +850,17 @@ end if
         ! floating ice, "kill-pos": floating ice where bnd%calv_mask). Applied last,
         ! after the front advance: otherwise ice the advance moves into the region
         ! survives the step and is removed in the next one, so the front cell fills
-        ! and empties on alternate steps.
+        ! and empties on alternate steps. Flotation is evaluated on the current
+        ! H_ice, not tpo%now%f_grnd (start-of-step geometry), so ice that grounds
+        ! as it advances over a marine bed is not killed.
         select case(trim(tpo%par%calv_flt_method))
 
             case("kill","kill-pos")
 
-                mask_kill = tpo%now%f_grnd .eq. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
+                call calc_H_grnd(H_grnd_now,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl, &
+                                    bnd%c%rho_ice,bnd%c%rho_sw,use_f_ice=.FALSE.)
+
+                mask_kill = H_grnd_now .lt. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
                 if (trim(tpo%par%calv_flt_method) .eq. "kill-pos") mask_kill = mask_kill .and. bnd%calv_mask
 
                 call calc_calving_rate_kill(mbal_now,tpo%now%H_ice,mask_kill,tau=0.0_wp,dt=dt)
