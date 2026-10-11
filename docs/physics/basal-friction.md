@@ -142,6 +142,12 @@ the closure is chosen with `yhyd.bkt_N_closure`:
 | 2 | Marine closure (Leguy et al., 2014), exponent `yhyd.marine_p` |
 | 3 | Till closure (Bueler and van Pelt, 2015), parameters `yhyd.till_*` (**default**) |
 
+The till water $W_\mathrm{til}$ (`hyd_W_til`) of floating and ocean cells is set by
+`yhyd.bkt_floating_mode`: 0, none; 1, saturated (`yhyd.W_til_max`), together with
+the grounded cells next to floating ice (legacy); 2, saturated (**default**). With
+2, ice that grounds starts from saturated till, so $N_\mathrm{eff}$ does not jump
+from zero to the overburden pressure when a cell regrounds.
+
 With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
 the transport model. Its $N$ depends on the basal velocity, so with
 `yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)

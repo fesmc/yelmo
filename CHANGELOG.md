@@ -2,6 +2,13 @@
 
 ## Unreleased (dev)
 
+- **`yhyd.bkt_floating_mode` default 0 → 2 (SATURATED)** (input/yelmo_defaults.nml and all
+  par files, which carried the old default). Floating and ocean cells get
+  `W_til = W_til_max`, without the grounded margin ring of MARGIN_FILL (1). With ZERO (0),
+  ice that regrounded onto dry till went from N = 0 to the full overburden in one step (till
+  closure), so the grounding-line cell flipped between grounded and floating every step and
+  TROUGH-F17 with `ytill.cf_ref = 5` was killed by `dt_min`. Needs FastHydrology with
+  `bkt_floating_mode = 2`.
 - **API: model time in double precision.** The time arguments of the public
   routines are `real(dp)`: `yelmo_init`, `yelmo_init_topo`, `yelmo_init_state`,
   `yelmo_restart_init`, `yelmo_update`, `yelmo_update_equil` (`time`; `time_tot` and
