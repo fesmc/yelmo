@@ -57,11 +57,13 @@ enthalpy $E_c$ depends on `ytherm.enth_cp_method`:
   Eq. 4.39), so that $\partial E/\partial T = c(T)$ exactly;
 - `"const"`: $E_c = c_\mathrm{ref}\,T$ with $c_\mathrm{ref}$ = 2009 J kg$^{-1}$ K$^{-1}$.
 
+With `use_const_cp`, the heat capacity is `const_cp` everywhere, so
+$E_c = c\,T$ with $c$ = `const_cp`, whatever `enth_cp_method`.
+
 The thermal conductivity is $k(T) = 9.828\,e^{-0.0057\,T}$ W m$^{-1}$ K$^{-1}$
 (Greve and Blatter, 2009, Eq. 4.37). With `use_const_kt`, the constant
-`const_kt` is used instead. `use_const_cp` / `const_cp` apply to the other
-methods only (the Robin methods always use `const_kt` and `const_cp`); in the enthalpy solver, the heat capacity follows
-`enth_cp_method`. Yelmo expects
+`const_kt` is used instead (the Robin methods always use `const_kt` and
+`const_cp`). Yelmo expects
 conductivities in J a$^{-1}$ m$^{-1}$ K$^{-1}$, i.e. W m$^{-1}$ K$^{-1}$
 multiplied by `sec_year`.
 

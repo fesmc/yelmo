@@ -338,14 +338,14 @@
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
     gamma           = 1.0               ! [K] Scalar for the pressure melting point decay function
     strain_heating  = "full"          ! "full": from 3D viscosity and strain rate, "sia": SIA approx., "none": no strain heating
-    use_const_cp    = False             ! Use specified constant value of heat capacity?
+    use_const_cp    = False             ! Use specified constant value of heat capacity? (also the enthalpy, E = const_cp*T: overrides enth_cp_method)
     const_cp        = 2009.0            ! [J kg-1 K-1] Specific heat capacity 
     use_const_kt    = False             ! Use specified constant value of heat conductivity?
     const_kt        = 6.62e7            ! [J a-1 m-1 K-1] Thermal conductivity [W m-1 K-1 * sec_year] => [J a-1 m-1 K-1]
     enth_cr         = 1e-3              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
-    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
+    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT); ignored if use_const_cp
     basal_bc_method = "capacity"        ! Grounded basal BC: "capacity" (bmb_grnd* vs freeze-on capacity C) or "wtil" (till-water predictor, deprecated)
     cap_source      = "auto"            ! [capacity] C from: "auto" ("hyd" with water transport, else "till"), "hyd" (hydrology model), "till" (bucket W_til), "water" (water thickness W), "none" (C=0)
     cap_W_floor     = 0.0               ! [m] [capacity, "till"/"water"] floor subtracted from the water thickness

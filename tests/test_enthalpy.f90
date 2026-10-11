@@ -606,7 +606,7 @@ contains
                 end if
                 call setup_robin_column(col,c,H_ice,T_srf,smb,Qs(iq))
                 ! Initialize enth in the form the solver expects (A1 const or A2 integral)
-                call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,use_int2)
+                call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,use_int2,cp_ref)
                 time = 0.0_wp
                 do while (time .lt. time_end - 1e-6_wp)
                     ! Recompute T-dependent cp and kt each step, exactly as the
@@ -855,7 +855,7 @@ contains
             col%omega   = 0.005_wp
             col%T_ice(nz) = col%T_srf
             col%omega(nz) = 0.0_wp
-            call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,.TRUE.)
+            call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,.TRUE.,cp_ref)
 
             T_lim  = min(col%T_shlf,col%T_srf)
             dT_min = huge(1.0_wp)
