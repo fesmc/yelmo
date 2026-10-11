@@ -1005,7 +1005,7 @@ end if
         implicit none 
 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         real(wp), intent(IN) :: xc(:) 
         real(wp), intent(IN) :: yc(:)  
         real(wp), intent(IN) :: pc_eps
@@ -1028,7 +1028,7 @@ end if
         call nc_write_dim(filename,ynm,x=yc*1e-3,units="kilometers")
         call nc_write_attr(filename,ynm,"_CoordinateAxisType","GeoY")
         
-        call nc_write_dim(filename,"time",x=time,dx=1.0_wp,nx=1,units="years",unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",x=time,dx=1.0_dp,nx=1,units="years",unlimited=.TRUE.)
 
         call nc_write(filename, "pc_eps", pc_eps,dim1="pt")
         
@@ -1043,7 +1043,7 @@ end if
         implicit none 
 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time 
+        real(dp), intent(IN) :: time 
         real(wp), intent(IN) :: dt_now 
         real(wp), intent(IN) :: dt_adv
         real(wp), intent(IN) :: dt_pi 

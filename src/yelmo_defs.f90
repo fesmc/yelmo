@@ -197,6 +197,7 @@ module yelmo_defs
 
         integer    :: adv_lin_iter              ! Linear solver iterations of the thickness advection this step (predictor + corrector)
         integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
+        logical    :: advanced                  ! Ice thickness advanced this step (not topo_fixed and dt > 0)
 
     end type
 
@@ -1476,8 +1477,8 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: speed            ! [kyr / hr]
-        real(wp), intent(IN)  :: model_time0      ! [yr]
-        real(wp), intent(IN)  :: model_time1      ! [yr]
+        real(dp), intent(IN)  :: model_time0      ! [yr]
+        real(dp), intent(IN)  :: model_time1      ! [yr]
         real(8),    intent(IN)  :: cpu_time0        ! [sec]
         real(8),    intent(IN)  :: cpu_time1        ! [sec]
 

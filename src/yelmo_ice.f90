@@ -48,19 +48,20 @@ contains
         character(len=*),  intent(IN), optional :: file_diagnostics
 
         ! Local variables 
-        type(ytopo_class)  :: tpo_ref                   ! Topography and dynamics at the start of the
-        type(ydyn_class)   :: dyn_ref                   ! step, restored when the step is redone
+        type(ytopo_class)  :: tpo_ref                   ! Topography, dynamics and hydrology at the start
+        type(ydyn_class)   :: dyn_ref                   ! of the step, restored when the step is redone
+        type(hydro_class)  :: hyd_ref
 
         real(wp) :: dt_now, dt_max, dt_max_0
-        real(wp) :: time_now 
+        real(dp) :: time_now                            ! Model time (dp: steps stay exact at large |time|)
         integer  :: n, n_now, n_dtmin 
         integer  :: nstep_dtmin                         ! Steps this call would need at dt_min
         integer  :: n_dtmin_run                         ! Consecutive steps at dt_min
         integer  :: n_lim 
-        real(wp), parameter :: time_tol = 1e-5
+        real(dp), parameter :: time_tol = 1e-5_dp
 
         real(8)  :: cpu_time0, cpu_time1 
-        real(wp) :: model_time0 
+        real(dp) :: model_time0 
         real(wp) :: speed  
 
         real(wp) :: H_mean, T_mean 
@@ -110,7 +111,7 @@ contains
         ! used by the dt_min check below. It does not bound the time loop: 
         ! steps can be shorter than dt_min (eg, the last steps to reach time,
         ! or dt_min rounded down in limit_adaptive_timestep).
-        nstep_dtmin = ceiling( (time-time_now) / dom%par%dt_min )
+        nstep_dtmin = ceiling( (dble(time)-time_now) / dom%par%dt_min )
         nstep_dtmin = max(nstep_dtmin,1)  
         n_now       = 0  ! Number of timesteps done
         n_dtmin     = 0  ! Number of timesteps at dt_min
@@ -119,7 +120,7 @@ contains
         min_dt_used = 0.0_wp 
 
         ! Get initial estimate of maximum timestep
-        dt_max_0 = max(time-time_now,0.0_wp)
+        dt_max_0 = real(max(dble(time)-time_now,0.0_dp),wp)
 
         iter_redo_tot = 0   ! Number of times total this loop 
         n_ssa_fail    = 0
@@ -138,7 +139,7 @@ contains
         
         ! Stop on non-finite forcing (under -Ofast it would otherwise be
         ! turned into finite values without triggering a kill)
-        call yelmo_check_forcing(dom,time_now)
+        call yelmo_check_forcing(dom,real(time_now,wp))
 
         ! Rates of bedrock elevation and sea level since the previous call
         ! (kinematic boundary conditions of the vertical velocity)
@@ -165,16 +166,18 @@ contains
             call yelmo_cpu_time(cpu_time0) 
             model_time0 = time_now 
 
-            ! Store the state modified by the predictor-corrector (topography and
-            ! dynamics) in case the step is redone. The other components are only
-            ! updated after the step is accepted.
+            ! Store the state modified by the predictor-corrector (topography,
+            ! dynamics and the hydrology N set inside the velocity solve by the
+            ! N(u_b) hook) in case the step is redone. The other components are
+            ! only updated after the step is accepted.
             if (dom%par%pc_n_redo .gt. 1) then
                 tpo_ref = dom%tpo
                 dyn_ref = dom%dyn
+                hyd_ref = dom%hyd
             end if
 
             ! Update dt_max as a function of the total timestep 
-            dt_max = max(time-time_now,0.0_wp)
+            dt_max = real(max(dble(time)-time_now,0.0_dp),wp)
 
             ! === Diagnose different adaptive timestep limits ===
 
@@ -262,8 +265,16 @@ contains
                 ! so it is a good choice (not too high either allowing too many iterations).
 
                 ! Advance the local time variable
-                time_now = time_now + dt_now
-                if (abs(time-time_now) .lt. time_tol) time_now = time 
+                time_now = time_now + dble(dt_now)
+                if (abs(dble(time)-time_now) .lt. time_tol) time_now = dble(time)
+
+                ! Fail-safe: a positive step must advance the model time,
+                ! otherwise the time loop would not terminate
+                if (dt_now .gt. 0.0_wp .and. time_now .le. model_time0) then
+                    write(io_unit_err,*) "yelmo_update:: Error: the timestep did not advance the model time."
+                    write(io_unit_err,*) "time_now, dt_now, time = ", time_now, dt_now, time
+                    error stop 1
+                end if
                 
                 ! Calculate dt_zeta (ratio of current to previous timestep)
                 dom%tpo%par%dt_zeta  = dt_now / dom%time%pc_dt(1) 
@@ -326,7 +337,13 @@ contains
                 ! Step 4: Determine truncation error for ice thickness
 
 
-                if (.TRUE.) then 
+                if (.not. dom%tpo%par%advanced) then
+                    ! Ice thickness not advanced this step (topo_fixed or dt = 0):
+                    ! pred/corr were not refreshed, so there is no pc error
+                    ! (eta is then the eta_tol floor of calc_pc_eta)
+                    dom%time%pc_tau = 0.0_wp
+
+                else if (.TRUE.) then 
                     ! not rk4...
 
                     select case(trim(dom%par%pc_method))
@@ -394,6 +411,7 @@ contains
                     ! Reset yelmo and time variables to beginning of timestep
                     dom%tpo  = tpo_ref
                     dom%dyn  = dyn_ref
+                    dom%hyd  = hyd_ref
                     time_now = tpo_ref%par%time
                     dt_now   = max(dt_now*rho_now,dom%par%dt_min)
                     
@@ -431,7 +449,7 @@ contains
             call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"advance",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Update time averaging of instantaneous rates
-            call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=dom%par%log_mb_check)
+            call calc_ytopo_rates(dom%tpo,dom%bnd,real(time_now,wp),dt_now,step="step",check_mb=dom%par%log_mb_check)
 
             ! if (time_now .ge. 10.0) then 
             !     write(*,*) time_now
@@ -456,7 +474,7 @@ contains
             if (present(file_diagnostics)) then 
                 ! Write step of continuous restart file 
                 ! (initialized externally)
-                call yelmo_restart_write(dom,file_diagnostics,time_now,init=.FALSE.)
+                call yelmo_restart_write(dom,file_diagnostics,real(time_now,wp),init=.FALSE.)
             end if 
 
             ! Calculate model speed for this iteration
@@ -517,7 +535,7 @@ contains
             end if 
 
             ! Make sure model is still running well
-            call yelmo_check_kill(dom,time_now)
+            call yelmo_check_kill(dom,real(time_now,wp))
 
             ! Additionally check if minimum timestep is reached continuously
             ! when the minimum is set to a very small value.
@@ -535,14 +553,14 @@ contains
                     "Too many iterations of dt_min called continuously for this timestep.", &
                                         n_dtmin_run, " of ", n 
 
-                call yelmo_check_kill(dom,time_now,kill_request=kill_txt)
+                call yelmo_check_kill(dom,real(time_now,wp),kill_request=kill_txt)
 
             end if 
 
             ! Check if it is time to exit adaptive iterations
             ! (if current outer time step has been reached; also exits after
             ! one step if time is earlier than the model time)
-            if (time_now .ge. time - time_tol) exit 
+            if (time_now .ge. dble(time) - time_tol) exit 
 
         end do 
 
@@ -603,7 +621,7 @@ contains
         ! Write the numerics/speed metrics file (no-op unless write_metrics=.TRUE.;
         ! self-gated to the write_metrics_dt cadence). Suppressed during
         ! equilibration by yelmo_update_equil, where model time is inconsistent.
-        call yelmo_write_metrics(dom,time_now)
+        call yelmo_write_metrics(dom,real(time_now,wp))
 
         ! ! ajr: diagnostics 
         ! if (time .gt. 100.0 .and. dom%dyn%par%ssa_iter_now .ge. 5) then 
@@ -1050,8 +1068,8 @@ contains
 
         if (dom%par%log_timestep) then 
             ! Timestep file 
-            call yelmo_timestep_write_init(dom%time%log_timestep_file,time,real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
-            call yelmo_timestep_write(dom%time%log_timestep_file,time,0.0_wp,0.0_wp,dom%time%pc_dt(1), &
+            call yelmo_timestep_write_init(dom%time%log_timestep_file,dble(time),real(dom%grd%G%x,wp),real(dom%grd%G%y,wp),dom%par%pc_eps)
+            call yelmo_timestep_write(dom%time%log_timestep_file,dble(time),0.0_wp,0.0_wp,dom%time%pc_dt(1), &
                             dom%time%pc_eta(1),dom%time%pc_tau_masked,0.0_wp,0.0_wp,0.0_wp,dom%dyn%par%ssa_iter_now,0, &
                             0,0,dom%dyn%par%ssa_lim_n,0,0)
         end if 
@@ -1381,7 +1399,7 @@ contains
         ! Note: thermodynamic state has not been loaded yet, so mask_bed produced here
         ! will not contain regions of temperate ice. masks should be updated again
         ! after loaded remaining fields.
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,dble(time),topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
@@ -1549,25 +1567,25 @@ contains
             dom%thrm%par%rock_method = "equil" 
 
             ! Run topo and masks to make sure all fields are synchronized (masks, etc)
-            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,dble(time),topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Calculate initial thermodynamic information
             dom%thrm%par%time = dble(time) - dom%par%dt_min
-            call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,time)
+            call calc_ytherm(dom%thrm,dom%tpo,dom%dyn,dom%mat,dom%bnd,dom%hyd,dble(time))
 
             ! Initial basal hydrology step (fasthydrology), mirroring ytherm.
-            call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time)
+            call calc_yhyd(dom%hyd,dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dble(time))
 
             ! Calculate material information (with no dynamics)
 
             dom%mat%par%time     = dble(time) - dom%par%dt_min
 
-            call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time)
+            call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dble(time))
 
             ! Initialize the passive-tracer backends (needs H_ice) and take a first step
             dom%trc%par%time = dble(time) - dom%par%dt_min
             call ytrc_init(dom%trc,dom%grd,time,dom%tpo%now%H_ice)
-            call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,time)
+            call calc_ytrc(dom%trc,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dom%grd,dble(time))
 
             ! Calculate initial dynamic state
             ! (normally dynamics is called right after topo, but it needs thermodynamic information,
@@ -1580,7 +1598,7 @@ contains
                 dom%dyn%now%beta   = 1e5
             end if
 
-            call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,time)
+            call calc_ydyn(dom%dyn,dom%tpo,dom%mat,dom%thrm,dom%bnd,dom%hyd,dble(time))
 
             ! No previous velocity solution exists yet, so the initial
             ! solution also serves as the previous one (see pc_filter_vel)
@@ -1589,7 +1607,7 @@ contains
 
             ! Calculate material information again with updated dynamics
         
-            call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,time)
+            call calc_ymat(dom%mat,dom%tpo,dom%dyn,dom%thrm,dom%bnd,dble(time))
 
             ! Restore original model choices 
             ! Impose initialization choices 
@@ -1599,7 +1617,7 @@ contains
         end if 
 
         ! Re-run topo again to make sure all fields are synchronized (masks, etc)
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,dble(time),topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)

@@ -51,7 +51,7 @@ contains
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         type(grid_class),   intent(IN)    :: grd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         ! Local variables
         integer  :: nx, ny, nz_aa
@@ -67,8 +67,8 @@ contains
         if (trc%par%time .gt. time) trc%par%time = time
 
         ! Get time step and advance current time
-        dt           = real(time,wp) - real(trc%par%time,wp)
-        trc%par%time = real(time,dp)
+        dt           = real(time - trc%par%time,wp)
+        trc%par%time = time
 
         ! === 1. Eulerian backend ==========================================
         if (trc%par%use_euler .and. trc%par%calc_age .and. dt .gt. 0.0_wp) then
@@ -77,7 +77,7 @@ contains
             allocate(mask_tracers(nx,ny))
 
             ! Surface boundary condition is the current time
-            X_srf = time
+            X_srf = real(time,wp)
 
             ! Restrict tracing away from very fast-flowing ice (surface value imposed there)
             mask_tracers = .TRUE.
@@ -85,7 +85,7 @@ contains
 
             call calc_tracer_3D(trc%now%t_dep_euler,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
                 tpo%now%H_ice,tpo%now%bmb,trc%par%zeta_aa,trc%par%zeta_ac,trc%par%tracer_method, &
-                trc%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
+                trc%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),mask=mask_tracers)
 
             deallocate(X_srf,mask_tracers)
 
@@ -93,13 +93,13 @@ contains
 
         ! === 2. Lagrangian layer backend (elsa) ===========================
         if (trc%par%use_elsa) then
-            call ytrc_update_elsa(trc,tpo,dyn,time)
+            call ytrc_update_elsa(trc,tpo,dyn,real(time,wp))
             call ytrc_harmonize_elsa(trc)
         end if
 
         ! === 3. Lagrangian particle backend (tracer) ======================
         if (trc%par%use_tracer) then
-            call ytrc_update_tracer(trc,tpo,dyn,grd,time)
+            call ytrc_update_tracer(trc,tpo,dyn,grd,real(time,wp))
             call ytrc_harmonize_tracer(trc,grd)
             call ytrc_calc_stats(trc)   ! refresh gridded stats (no-op if stats off)
         end if
@@ -119,7 +119,7 @@ contains
 
         ! Diagnose isochrone depths from the authoritative deposition-time field
         call calc_isochrones(trc%now%depth_iso,trc%now%t_dep,tpo%now%H_ice,trc%par%time_iso, &
-                                                                        trc%par%zeta_aa,time)
+                                                                        trc%par%zeta_aa,real(time,wp))
 
         return
 

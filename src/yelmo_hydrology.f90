@@ -123,7 +123,7 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         ! Local scratch arrays sized to the yelmo grid
         real(wp), allocatable :: mask(:,:)
@@ -177,7 +177,7 @@ contains
 
         call hydro_update(hyd, tpo%now%H_ice, bnd%z_bed, bnd%z_sl,        &
                           tpo%now%f_ice, tpo%now%f_grnd, mask,            &
-                          bmb_w, G, q_T, i_eb, uxy_b, A_glen_b, time,     &
+                          bmb_w, G, q_T, i_eb, uxy_b, A_glen_b, real(time,wp), &
                           ux_b=ux_b, uy_b=uy_b, taub=dyn%now%taub,        &
                           c_till=dyn%now%cb_ref)
 

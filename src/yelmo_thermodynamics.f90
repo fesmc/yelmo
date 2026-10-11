@@ -30,7 +30,7 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ybound_class), intent(IN)    :: bnd
         type(hydro_class),  intent(IN)    :: hyd
-        real(wp),         intent(IN)    :: time
+        real(dp),         intent(IN)    :: time
 
         ! Local variables
         integer :: i, j, k, nx, ny
@@ -46,13 +46,13 @@ contains
         ny = thrm%par%ny
 
         ! Initialize time if necessary 
-        if (thrm%par%time .gt. dble(time)) then 
-            thrm%par%time = dble(time)
+        if (thrm%par%time .gt. time) then 
+            thrm%par%time = time
         end if 
 
         ! Get time step and advance current time 
-        dt            = dble(time) - thrm%par%time 
-        thrm%par%time = dble(time) 
+        dt            = time - thrm%par%time 
+        thrm%par%time = time 
         
 
         ! === Determine some thermal properties === 
