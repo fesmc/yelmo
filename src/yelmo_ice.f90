@@ -337,7 +337,13 @@ contains
                 ! Step 4: Determine truncation error for ice thickness
 
 
-                if (.TRUE.) then 
+                if (.not. dom%tpo%par%advanced) then
+                    ! Ice thickness not advanced this step (topo_fixed or dt = 0):
+                    ! pred/corr were not refreshed, so there is no pc error
+                    ! (eta is then the eta_tol floor of calc_pc_eta)
+                    dom%time%pc_tau = 0.0_wp
+
+                else if (.TRUE.) then 
                     ! not rk4...
 
                     select case(trim(dom%par%pc_method))

@@ -100,6 +100,10 @@ contains
         ! Get time step
         dt = time - tpo%par%time 
 
+        ! Is the ice thickness advanced this step? (Not for topo_fixed or dt = 0:
+        ! then pred/corr are not refreshed and yelmo_update measures no pc error)
+        tpo%par%advanced = (.not. topo_fixed .and. dt .gt. 0.0)
+
         ! Step 0: Get some diagnostic quantities for mass balance calculation --------
 
         ! Get ice thickness entering routine
@@ -107,7 +111,7 @@ contains
 
         ! Step 1: Go through predictor-corrector-advance steps
 
-        if ( .not. topo_fixed .and. dt .gt. 0.0 ) then 
+        if (tpo%par%advanced) then 
 
             ! Ice thickness evolution from dynamics alone
 
@@ -532,16 +536,16 @@ end if
         ! z_srf, difference it against the start-of-step snapshot z_srf_n.
         ! Same guard as the other rates; z_srf_n is set at step start (predictor)
         ! and is not modified by calc_ytopo_diagnostic.
-        if ( .not. topo_fixed .and. dt .gt. 0.0 ) then
+        if (tpo%par%advanced) then
             tpo%now%dzsdt = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
         end if
 
         ! Kinematic rates of the ice column's surface and base, the boundary
         ! conditions of the vertical velocity: vertical column change plus the
         ! bedrock and sea-level rates (no vertical change when the ice is not advanced)
-        if (topo_fixed .or. dt .le. 0.0) tpo%now%dHidt_vert = 0.0_wp
+        if (.not. tpo%par%advanced) tpo%now%dHidt_vert = 0.0_wp
         call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%mask_kin,tpo%now%dHidt_vert, &
-                    (.not. topo_fixed .and. dt .gt. 0.0),tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
+                    tpo%par%advanced,tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
                     tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! When the ice is not advanced this step -- initialization (pc_step="none")
@@ -552,7 +556,7 @@ end if
         ! forcing masked to the current ice, nothing is applied and H_ice is left
         ! untouched. mb_net stays zero (nothing applied) and bmb_grnd may still be
         ! zero at initialization (thermodynamics not yet computed); both expected.
-        if ( topo_fixed .or. dt .le. 0.0 ) then
+        if (.not. tpo%par%advanced) then
             call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
         end if
 
@@ -1731,6 +1735,7 @@ end if
 
         par%adv_lin_iter = 0
         par%adv_lin_fail = 0 
+        par%advanced     = .FALSE.
 
         return
 
