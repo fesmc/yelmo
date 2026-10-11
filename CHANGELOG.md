@@ -2,6 +2,12 @@
 
 ## Unreleased (dev)
 
+- **Till closure continuous at flotation** (`yhyd.bkt_N_closure = 3`, FastHydrology): N is
+  limited to the marine N with full connectivity (p = 1),
+  `rho_ice g H - rho_sw g max(z_sl - z_bed, 0)`, so it goes to 0 as grounded ice approaches
+  flotation instead of dropping from the till value to 0 when the cell floats. No change on
+  land; on marine-grounded ice the limit binds close to flotation and on dry till. Needs
+  FastHydrology with the capped `hydro_calc_N_till`.
 - **`yhyd.bkt_floating_mode` default 0 → 2 (SATURATED)** (input/yelmo_defaults.nml and all
   par files, which carried the old default). Floating and ocean cells get
   `W_til = W_til_max`, without the grounded margin ring of MARGIN_FILL (1). With ZERO (0),

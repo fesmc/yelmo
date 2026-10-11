@@ -146,7 +146,10 @@ The till water $W_\mathrm{til}$ (`hyd_W_til`) of floating and ocean cells is set
 `yhyd.bkt_floating_mode`: 0, none; 1, saturated (`yhyd.W_til_max`), together with
 the grounded cells next to floating ice (legacy); 2, saturated (**default**). With
 2, ice that grounds starts from saturated till, so $N_\mathrm{eff}$ does not jump
-from zero to the overburden pressure when a cell regrounds.
+from zero to the overburden pressure when a cell regrounds. The till closure is
+limited by the marine closure with full ocean connectivity ($p = 1$),
+$N_\mathrm{eff} \le \rho_i g H - \rho_{sw} g \max(z_{sl} - z_b, 0)$, so
+$N_\mathrm{eff}$ goes to zero continuously as grounded ice approaches flotation.
 
 With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
 the transport model. Its $N$ depends on the basal velocity, so with
