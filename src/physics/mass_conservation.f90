@@ -202,7 +202,7 @@ contains
 
     end subroutine apply_tendency
 
-    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice, &
+    subroutine calc_G_advec_simple(G_advec,H_ice,f_ice,ux,uy,mask_ice,H_ref, &
                                                     solver,boundaries,dx,dt,F,lin_iter,lin_status)
         ! Interface subroutine to update ice thickness through application
         ! of advection, vertical mass balance terms and calving.
@@ -216,7 +216,8 @@ contains
         real(wp),         intent(IN)    :: f_ice(:,:)           ! [--]  Ice area fraction 
         real(wp),         intent(IN)    :: ux(:,:)              ! [m/a] Depth-averaged velocity, x-direction (ac-nodes)
         real(wp),         intent(IN)    :: uy(:,:)              ! [m/a] Depth-averaged velocity, y-direction (ac-nodes)
-        integer,          intent(IN)    :: mask_ice(:,:)        ! Ice mask (bnd%mask_ice), only selects the border-cell equations
+        integer,          intent(IN)    :: mask_ice(:,:)        ! Ice mask (bnd%mask_ice), impl-lis only
+        real(wp),         intent(IN)    :: H_ref(:,:)           ! [m]   Ice thickness imposed in MASK_ICE_FIXED cells (impl-lis)
         character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
         character(len=*), intent(IN)    :: boundaries
         real(wp),         intent(IN)    :: dx                   ! [m]   Horizontal resolution
@@ -238,7 +239,7 @@ contains
         if (present(F)) F_now = F 
 
         ! Determine current advective rate of change (time=n)
-        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,mask_ice,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
+        call calc_advec2D(G_advec,H_ice,f_ice,ux,uy,F_now,mask_ice,H_ref,dx,dx,dt,solver,boundaries,lin_iter,lin_status)
 
         return 
 
@@ -859,7 +860,7 @@ contains
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
         character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
-        real(wp), intent(IN)  :: H_eff_min              ! [m]    Minimum H_eff of eligible cells
+        real(wp), intent(IN)  :: H_eff_min              ! [m]    Minimum H_eff of front cells
         real(wp), intent(IN)  :: dHdx                   ! [m/m]  Thickness gradient assumed at a full front
         real(wp), intent(IN)  :: dx                     ! [m]    Grid resolution
         real(wp), intent(IN)  :: dt                     ! [yr]   Timestep
