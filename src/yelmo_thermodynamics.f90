@@ -808,7 +808,7 @@ end if
 
         if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps
-            stop
+            error stop 1
         end if
 
         ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate
