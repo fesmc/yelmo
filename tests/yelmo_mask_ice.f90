@@ -286,6 +286,16 @@ contains
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"dHidt",ylmo%tpo%now%dHidt,units="m/yr",long_name="dH_ice/dt", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"dHidt_dyn",ylmo%tpo%now%dHidt_dyn,units="m/yr",long_name="dH_ice/dt from transport", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"mb_clip",ylmo%tpo%now%mb_clip,units="m/yr",long_name="Clip of negative thickness", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"cmb",ylmo%tpo%now%cmb,units="m/yr",long_name="Calving mass balance", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"mb_err",ylmo%tpo%now%mb_err,units="m/yr",long_name="Mass balance accounting error", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"ux_bar",ylmo%dyn%now%ux_bar,units="m/yr",long_name="Depth-averaged velocity, x (acx)", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"tau_relax",ylmo%tpo%now%tau_relax,units="yr",long_name="Relaxation timescale", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
