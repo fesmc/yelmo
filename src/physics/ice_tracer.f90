@@ -45,7 +45,7 @@ contains
 
         ! Local variables
         integer    :: i, j, k, nx, ny, nz_aa, nz_ac  
-        real(prec) :: X_base, f_diff    
+        real(prec) :: X_base
         real(prec), allocatable :: advecxy(:)   ! [X a-1 m-2] Horizontal advection  
         real(prec), allocatable :: X_prev(:,:,:) 
         
@@ -119,18 +119,6 @@ contains
 
                 end select 
 
-                ! Determine maximum allowed rate of change in tracer values
-                ! for numerical safety. Allowed rate is reduced for margin points. 
-                if (H_ice(i,j) .gt. 0.0_prec .and. count(H_ice(i-1:i+1,j-1:j+1).eq.0.0_prec).gt.0) then 
-                    ! Margin point
-                    f_diff    = 0.05_prec
-                else
-                    f_diff    = 0.1_prec 
-                end if 
-                
-                ! Check for tracer inconsistencies (usually for very fast-flowing regions)
-                call fix_tracer_violation(X_ice(i,j,:),X_prev(i,j,:),X_base,X_srf(i,j),dt,f_diff)
-
             else
                 ! Conditions not met for tracing, simply set column
                 ! equal to the surface values 
@@ -156,62 +144,6 @@ contains
         return 
 
     end subroutine calc_tracer_3D
-
-    subroutine fix_tracer_violation(X_ice,X_prev,X_base,X_srf,dt,f_diff)
-
-        implicit none 
-
-        real(prec), intent(INOUT) :: X_ice(:)           ! [units] Predicted values 
-        real(prec), intent(IN)    :: X_prev(:)          ! [units] Previous values
-        real(prec), intent(IN)    :: X_base             ! [units] Basal boundary value
-        real(prec), intent(IN)    :: X_srf              ! [units] Surface boudnary value 
-        real(prec), intent(IN)    :: dt                 ! [yr]    Timestep 
-        real(prec), intent(IN)    :: f_diff             ! Fraction difference in X/yr of allowed change in tracer value
-                                                        ! Typically f_diff = 0.1-0.2
-
-        ! Local variables
-        integer :: nz   
-        real(prec) :: X_min, X_max, X_mean                
-        logical    :: is_active 
-
-        nz = size(X_ice,1) 
-
-        if (minval(X_ice) .eq. X_srf .and. maxval(X_ice) .eq. X_srf) then 
-            ! This column had X_srf imposed everywhere, so ignore it.
-            is_active = .FALSE. 
-        else 
-            is_active = .TRUE. 
-        end if 
-
-        if (is_active) then 
-            ! Check this column for errors:
-            ! Column values cannot be outside of the range of
-            ! previous values or the boundary values. 
-
-            ! Determine mean value of column for previous timestep 
-            X_mean = abs(sum(X_prev) / real(nz,prec))
-            X_max  = abs(maxval(X_prev))
-
-            ! Limit any value change in X to eg 50% per year if X_mean .ne. 0.0
-            if (X_mean .ne. 0.0_prec) then  
-                where ( (X_ice-X_prev)/dt .gt. f_diff*X_mean )
-                    X_ice = X_prev + f_diff*X_mean*dt 
-                else where ( (X_ice-X_prev)/dt .lt. -f_diff*X_mean )
-                    X_ice = X_prev - f_diff*X_mean*dt 
-                end where
-            end if 
-
-            ! Finally, also reset tracer to previous value if value is too large, or appears problematic 
-            ! (likely redundant with previous check, but kept for safety)
-            if (maxval(abs(X_ice)) .gt. 1e10) then 
-                X_ice = X_srf 
-            end if 
-
-        end if 
-
-        return 
-
-    end subroutine fix_tracer_violation
 
     subroutine calc_tracer_column(X_ice,uz,advecxy,X_srf,X_base,H_ice,zeta_aa,zeta_ac,kappa,dt)
         ! Tracer solver for a given column of ice 
