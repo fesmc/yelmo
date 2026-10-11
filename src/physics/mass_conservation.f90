@@ -860,7 +860,7 @@ contains
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
         character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
-        real(wp), intent(IN)  :: H_eff_min              ! [m]    Minimum H_eff of eligible cells
+        real(wp), intent(IN)  :: H_eff_min              ! [m]    Minimum H_eff of front cells
         real(wp), intent(IN)  :: dHdx                   ! [m/m]  Thickness gradient assumed at a full front
         real(wp), intent(IN)  :: dx                     ! [m]    Grid resolution
         real(wp), intent(IN)  :: dt                     ! [yr]   Timestep

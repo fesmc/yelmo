@@ -226,9 +226,10 @@ contains
         ! With the level set, front cells entirely behind the front (a_lsf = 1)
         ! take no reference either: the level set sets their area fraction,
         ! so they are full (H_eff = H_ice, above H_eff_min).
-        ! H_eff >= H_eff_min in all eligible cells, and <= flotation in
-        ! floating front cells ("floating"). f_ice = min(H_ice/H_eff,1) in front
-        ! cells, 1 in other ice cells (H_ice > H_ice_eps), 0 elsewhere.
+        ! H_eff >= H_eff_min in front cells, and <= flotation in floating
+        ! front cells ("floating"); H_eff = H_ice in all other ice cells.
+        ! f_ice = min(H_ice/H_eff,1) in front cells, 1 in other ice cells
+        ! (H_ice > H_ice_eps), 0 elsewhere.
 
         implicit none 
 
@@ -240,7 +241,7 @@ contains
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
         character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
-        real(wp), intent(IN)  :: H_eff_min              ! [m]  Minimum H_eff of eligible cells
+        real(wp), intent(IN)  :: H_eff_min              ! [m]  Minimum H_eff of front cells
         real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
         real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
         character(len=*), intent(IN) :: boundaries
@@ -319,8 +320,8 @@ contains
 
             end if
 
-            ! Lower limit in all eligible cells (most fronts are at least a few tens of metres thick)
-            if (mask_elig(i,j)) H_eff(i,j) = max(H_eff(i,j), H_eff_min)
+            ! Lower limit in front cells (most fronts are at least a few tens of metres thick)
+            if (mask_cf(i,j)) H_eff(i,j) = max(H_eff(i,j), H_eff_min)
 
             ! Floating fronts do not exceed flotation (allows H_eff < H_eff_min in shallow water)
             if (is_flt .and. mask_cf(i,j)) H_eff(i,j) = min(H_eff(i,j), H_flot(i,j))
