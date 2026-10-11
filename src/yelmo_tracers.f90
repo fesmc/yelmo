@@ -76,16 +76,20 @@ contains
             allocate(X_srf(nx,ny))
             allocate(mask_tracers(nx,ny))
 
-            ! Surface boundary condition is the current time
-            X_srf = real(time,wp)
+            ! Surface boundary condition is the current time. The deposition time
+            ! is transported relative to t_ref_euler, so that its precision does
+            ! not depend on the absolute time.
+            X_srf = real(time - trc%par%t_ref_euler,wp)
 
             ! Restrict tracing away from very fast-flowing ice (surface value imposed there)
             mask_tracers = .TRUE.
             where (dyn%now%uxy_bar .gt. 500.0_wp) mask_tracers = .FALSE.
 
-            call calc_tracer_3D(trc%now%t_dep_euler,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
+            call calc_tracer_3D(trc%now%t_dep_euler_rel,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
                 tpo%now%H_ice,tpo%now%bmb,trc%par%zeta_aa,trc%par%zeta_ac,trc%par%tracer_method, &
                 trc%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),mask=mask_tracers)
+
+            call ytrc_euler_t_dep(trc)
 
             deallocate(X_srf,mask_tracers)
 
@@ -430,10 +434,15 @@ contains
             if (trim(restart) .ne. "None" .and. len_trim(restart) .gt. 0) is_restart = .TRUE.
         end if
 
-        ! Eulerian backend: seed deposition time to the current time on a cold
-        ! start. On a restart, t_dep_euler is read from the yelmo restart file by
-        ! yelmo_restart_read (which runs before this), so do not overwrite it.
-        if (.not. is_restart) trc%now%t_dep_euler = real(time,wp)
+        ! Eulerian backend: on a cold start, the reference time and the
+        ! deposition time are the current time. On a restart,
+        ! t_ref_euler and t_dep_euler_rel are read from the yelmo restart file by
+        ! yelmo_restart_read (which runs before this), so do not overwrite them.
+        if (.not. is_restart) then
+            trc%par%t_ref_euler     = time
+            trc%now%t_dep_euler_rel = 0.0_wp
+        end if
+        call ytrc_euler_t_dep(trc)
 
         ! Layer backend (elsa): allocate the layer stack (sized by par%time_end on
         ! a cold start, or read from the sidecar on a restart). With
@@ -496,12 +505,26 @@ contains
 
     end subroutine ytrc_init
 
+    subroutine ytrc_euler_t_dep(trc)
+        ! Absolute Eulerian deposition time from the transported field,
+        ! which is relative to the reference time t_ref_euler.
+
+        implicit none
+
+        type(ytrc_class), intent(INOUT) :: trc
+
+        trc%now%t_dep_euler = real(trc%par%t_ref_euler + real(trc%now%t_dep_euler_rel,dp),wp)
+
+        return
+
+    end subroutine ytrc_euler_t_dep
+
     subroutine ytrc_restart_write(trc,filename,time)
         ! Write the native restart state of each enabled backend to a sidecar
         ! file alongside the yelmo restart (e.g. yelmo_restart.nc ->
         ! yelmo_restart_elsa.nc / _tracer.nc). The Eulerian backend needs no
-        ! sidecar: its t_dep_euler field is written into the yelmo restart via
-        ! the io%trc table.
+        ! sidecar: its t_dep_euler_rel field is written into the yelmo restart via
+        ! the io%trc table, and t_ref_euler by yelmo_restart_write.
 
         implicit none
 
@@ -642,6 +665,9 @@ contains
         ! Define current time as unrealistic value
         par%time = 1000000000   ! [a] 1 billion years in the future
 
+        ! Reference time of the Eulerian tracer (set by ytrc_init or the restart)
+        par%t_ref_euler = 0.0_dp
+
         return
 
     end subroutine ytrc_par_load
@@ -657,15 +683,17 @@ contains
 
         allocate(now%t_dep(nx,ny,nz_aa))
         allocate(now%t_dep_euler(nx,ny,nz_aa))
+        allocate(now%t_dep_euler_rel(nx,ny,nz_aa))
         allocate(now%t_dep_trc(nx,ny,nz_aa))
         allocate(now%t_dep_elsa(nx,ny,nz_aa))
         allocate(now%depth_iso(nx,ny,n_iso))
 
-        now%t_dep       = 0.0
-        now%t_dep_euler = 0.0
-        now%t_dep_trc   = MV
-        now%t_dep_elsa  = MV
-        now%depth_iso   = 0.0
+        now%t_dep           = 0.0
+        now%t_dep_euler     = 0.0
+        now%t_dep_euler_rel = 0.0
+        now%t_dep_trc       = MV
+        now%t_dep_elsa      = MV
+        now%depth_iso       = 0.0
 
         return
 
@@ -677,11 +705,12 @@ contains
 
         type(ytrc_state_class), intent(INOUT) :: now
 
-        if (allocated(now%t_dep))        deallocate(now%t_dep)
-        if (allocated(now%t_dep_euler))  deallocate(now%t_dep_euler)
-        if (allocated(now%t_dep_trc))    deallocate(now%t_dep_trc)
-        if (allocated(now%t_dep_elsa))   deallocate(now%t_dep_elsa)
-        if (allocated(now%depth_iso))    deallocate(now%depth_iso)
+        if (allocated(now%t_dep))           deallocate(now%t_dep)
+        if (allocated(now%t_dep_euler))     deallocate(now%t_dep_euler)
+        if (allocated(now%t_dep_euler_rel)) deallocate(now%t_dep_euler_rel)
+        if (allocated(now%t_dep_trc))       deallocate(now%t_dep_trc)
+        if (allocated(now%t_dep_elsa))      deallocate(now%t_dep_elsa)
+        if (allocated(now%depth_iso))       deallocate(now%depth_iso)
 
         return
 

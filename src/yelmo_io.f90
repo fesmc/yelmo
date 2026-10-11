@@ -426,6 +426,9 @@ contains
         call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
         call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
+        ! Reference time of the Eulerian tracer (t_dep_euler = t_ref_euler + t_dep_euler_rel)
+        call nc_write(filename,"t_ref_euler",    dom%trc%par%t_ref_euler, units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+
         ! == ytopo variables ===
         do q = 1, size(io%tpo)
             call yelmo_write_var_io_ytopo(filename,io%tpo(q),dom,n,ncid,irange,jrange)
@@ -980,7 +983,15 @@ contains
 
         call nc_read_interp(filename,"f_shear_bar", dom%mat%now%f_shear_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
-        call nc_read_interp(filename,"t_dep_euler", dom%trc%now%t_dep_euler,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+        if (nc_exists_var(filename,"t_dep_euler_rel")) then
+            call nc_read(filename,"t_ref_euler", dom%trc%par%t_ref_euler,start=[n],count=[1],ncid=ncid)
+            call nc_read_interp(filename,"t_dep_euler_rel", dom%trc%now%t_dep_euler_rel,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+        else
+            ! Legacy restart (absolute deposition time only): take the restart time as reference
+            call nc_read_interp(filename,"t_dep_euler", dom%trc%now%t_dep_euler,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+            dom%trc%par%t_ref_euler     = time
+            dom%trc%now%t_dep_euler_rel = real(real(dom%trc%now%t_dep_euler,dp) - time,wp)
+        end if
         call nc_read_interp(filename,"depth_iso",   dom%trc%now%depth_iso,ncid=ncid,start=[1,1,1,n],count=[nx,ny,n_iso,1],map=mp) 
         
         call nc_read_interp(filename,"strn2D_dxx", dom%mat%now%strn2D%dxx,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
@@ -1813,6 +1824,9 @@ contains
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("t_dep_euler") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_euler(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("t_dep_euler_rel") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_euler_rel(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("t_dep_trc") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_trc(i1:i2,j1:j2,:), &
