@@ -731,6 +731,9 @@ module yelmo_defs
         real(wp), allocatable :: time_iso(:)         ! Target isochrone deposition times [ka]
         character(len=56)     :: tracer_method       ! "expl"|"impl"
         real(wp)              :: tracer_impl_kappa    ! Artificial diffusivity for implicit solver
+        integer               :: advecxy_order       ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        real(wp)              :: advecxy_cfl         ! Target Courant number per horizontal-advection sub-step
+        integer               :: advecxy_nmax        ! Max horizontal-advection sub-steps (safety cap)
 
         ! Sub-model namelist locations. elsa reads a named group (elsa_group);
         ! tracer always reads its fixed "trc" group, so only the file is needed.

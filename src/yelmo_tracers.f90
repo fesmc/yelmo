@@ -627,6 +627,9 @@ contains
         call nml_read(filename,group,"time_iso",          time_iso,              init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_method",     par%tracer_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_impl_kappa", par%tracer_impl_kappa, init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_order",     par%advecxy_order,     init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_cfl",       par%advecxy_cfl,       init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_nmax",      par%advecxy_nmax,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"elsa_nml",          par%elsa_nml,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"elsa_group",        par%elsa_group,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_nml",        par%tracer_nml,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
@@ -634,6 +637,21 @@ contains
         ! Validate parameter values
         call yelmo_check_enum(group,"t_dep_source",  par%t_dep_source,  "euler|trc|elsa")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
+
+        if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
+            error stop 1
+        end if
+
+        if (par%advecxy_cfl .le. 0.0_wp) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
+            error stop 1
+        end if
+
+        if (par%advecxy_nmax .lt. 1) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
+            error stop 1
+        end if
 
         ! Set internal parameters
         par%nx    = nx

@@ -320,6 +320,9 @@
     time_iso                = -11.7, -29.0, -57.0, -115.0    ! [ka] isochrone deposition times
     tracer_method           = "expl"        ! "expl", "impl": Eulerian age solver
     tracer_impl_kappa       = 1.5           ! [m2 a-1] Artificial diffusion term for implicit age solving
+    advecxy_order           = 2             ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+    advecxy_cfl             = 0.5           ! [--] Target Courant number per horizontal-advection sub-step
+    advecxy_nmax            = 10            ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
 
     ! Sub-model namelists (elsa reads elsa_group; tracer reads its fixed "trc" group)
     elsa_nml                = "None"        ! Path to elsa namelist file
