@@ -1216,8 +1216,11 @@ end if
         ! Upwind value of var at the face z_face between nodes ka < kb on the
         ! nonuniform grid z, with a minmod-limited linear reconstruction from the
         ! donor node (ka for u >= 0, kb for u < 0). The limiter compares the local
-        ! gradient across the face with the gradient upstream of the donor; with
-        ! no upstream node (column end) the donor value is used (first order).
+        ! gradient across the face with the gradient upstream of the donor. A
+        ! column-end donor (base or surface) is a boundary value with no node
+        ! upstream of it: the face value is then interpolated linearly between
+        ! the two nodes (second order, like the limited faces of a smooth
+        ! profile), so a linear profile gives no deferred correction.
 
         implicit none
 
@@ -1242,11 +1245,15 @@ end if
             ku = kb + 1
         end if
 
-        phi = 0.0_wp
-        if (ku .ge. 1 .and. ku .le. size(var) .and. grad_loc .ne. 0.0_wp) then
+        if (ku .lt. 1 .or. ku .gt. size(var)) then
+            ! Column-end donor: linear interpolation between ka and kb
+            phi = 1.0_wp
+        else if (grad_loc .ne. 0.0_wp) then
             grad_up = (var(kd) - var(ku)) / (z(kd) - z(ku))
             r       = grad_up / grad_loc
             phi     = max(0.0_wp, min(1.0_wp, r))
+        else
+            phi = 0.0_wp
         end if
 
         var_face = var(kd) + phi*grad_loc*(z_face - z(kd))
