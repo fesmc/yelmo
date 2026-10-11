@@ -651,14 +651,14 @@ end if
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         logical,  allocatable :: mask_kill(:,:)
-        real(wp), allocatable :: H_grnd_now(:,:)
+        real(wp), allocatable :: H_grnd_now(:,:), f_grnd_now(:,:)
 
         nx = size(tpo%now%H_ice,1) 
         ny = size(tpo%now%H_ice,2) 
 
         allocate(mbal_now(nx,ny)) 
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
-        allocate(mask_kill(nx,ny),H_grnd_now(nx,ny))
+        allocate(mask_kill(nx,ny),H_grnd_now(nx,ny),f_grnd_now(nx,ny))
         allocate(cmb_sd(nx,ny)) 
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
 
@@ -855,16 +855,28 @@ end if
         ! after the front advance: otherwise ice the advance moves into the region
         ! survives the step and is removed in the next one, so the front cell fills
         ! and empties on alternate steps. Flotation is evaluated on the current
-        ! H_ice, not tpo%now%f_grnd (start-of-step geometry), so ice that grounds
-        ! as it advances over a marine bed is not killed.
+        ! geometry, not tpo%now%f_grnd (start-of-step), and on the thickness of
+        ! the ice column, max(H_eff,H_ice): the front advance moves ice into the
+        ! ocean neighbour as a thin partial cell, whose cell-mean H_ice would
+        ! always float, so grounded marine ice could never advance. Floating
+        ! means no grounded area, with the grounded fraction of ytopo.gl_sep
+        ! (as f_grnd): with gl_sep = 3, a cell whose centre floats but that is
+        ! partly grounded is kept.
         select case(trim(tpo%par%calv_flt_method))
 
             case("kill","kill-pos")
 
-                call calc_H_grnd(H_grnd_now,tpo%now%H_ice,tpo%now%f_ice,bnd%z_bed,bnd%z_sl, &
+                call calc_H_grnd(H_grnd_now,max(tpo%now%H_eff,tpo%now%H_ice),tpo%now%f_ice,bnd%z_bed,bnd%z_sl, &
                                     bnd%c%rho_ice,bnd%c%rho_sw,use_f_ice=.FALSE.)
 
-                mask_kill = H_grnd_now .lt. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
+                select case(tpo%par%gl_sep)
+                    case(3)
+                        call calc_f_grnd_subgrid_area(f_grnd_now,H_grnd=H_grnd_now,boundaries=tpo%par%boundaries)
+                    case DEFAULT
+                        f_grnd_now = merge(1.0_wp,0.0_wp,H_grnd_now .ge. 0.0_wp)
+                end select
+
+                mask_kill = f_grnd_now .eq. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
                 if (trim(tpo%par%calv_flt_method) .eq. "kill-pos") mask_kill = mask_kill .and. bnd%calv_mask
 
                 call calc_calving_rate_kill(mbal_now,tpo%now%H_ice,mask_kill,tau=0.0_wp,dt=dt)
