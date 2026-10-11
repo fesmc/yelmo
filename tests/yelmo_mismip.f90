@@ -152,7 +152,7 @@ program yelmo_mismip
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init,load_topo=.FALSE., &
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(time_init),load_topo=.FALSE., &
                         domain=domain,grid_name=grid_name)
 
     if (trim(experiment) .eq. "RF") then
@@ -174,7 +174,7 @@ program yelmo_mismip
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize output file 
-    call yelmo_write_init(yelmo1,file2D,time_init=time_init,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(time_init),units="years")
     
     ! Intialize topography (bed always; the initial ice thickness only
     ! if it does not come from the restart file, loaded by yelmo_init)
@@ -196,7 +196,7 @@ program yelmo_mismip
     yelmo1%dyn%par%use_ssa = .TRUE. 
 
     ! Initialize the yelmo state (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")
 
     ! Write initial state (grounding line on the centreline y=0 and at the channel wall)
     x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
@@ -255,7 +255,7 @@ program yelmo_mismip
 
 
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
 
         x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
         x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
@@ -282,10 +282,10 @@ program yelmo_mismip
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
 
     ! Write a resart file for diagnostics
-    call yelmo_restart_write(yelmo1,file_restart,time)
+    call yelmo_restart_write(yelmo1,file_restart,dble(time))
     
     ! Finalize program
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)

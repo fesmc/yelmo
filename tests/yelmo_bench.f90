@@ -105,7 +105,7 @@ program yelmo_bench
 
     call nc_read(bch%fixture,"mask_ice",mask_ice)
 
-    call yelmo_init(yelmo1,filename=ctl%path_par,grid_def="none",time=ctl%time_init, &
+    call yelmo_init(yelmo1,filename=ctl%path_par,grid_def="none",time=dble(ctl%time_init), &
                     load_topo=.FALSE.,domain=domain,grid_name=grid_name,mask_ice=mask_ice)
 
     ! Boundary fields
@@ -139,9 +139,9 @@ program yelmo_bench
     if (nc_exists_var(bch%fixture,"T_ice")) then
         allocate(T_ice(nx,ny,size(yelmo1%thrm%par%z%zeta_aa)))
         call yelmo_read_remap(T_ice,yelmo1%grd,bch%fixture,"T_ice",yelmo1%thrm%par%z%zeta_aa,"zeta")
-        call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="prescribed",T_ice=T_ice)
+        call yelmo_init_state(yelmo1,time=dble(ctl%time_init),thrm_method="prescribed",T_ice=T_ice)
     else
-        call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="robin")
+        call yelmo_init_state(yelmo1,time=dble(ctl%time_init),thrm_method="robin")
     end if
 
     ! Compare the online forcing with the fixture values (fresh start only)
@@ -151,15 +151,15 @@ program yelmo_bench
 
     time = ctl%time_init
 
-    call yelmo_write_init(yelmo1,ctl%file2D,time_init=ctl%time_init,units="years")
-    call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
+    call yelmo_write_init(yelmo1,ctl%file2D,time_init=dble(ctl%time_init),units="years")
+    call yelmo_write_step(yelmo1,ctl%file2D,time=dble(ctl%time_init))
 
-    call yelmo_write_init(yelmo1,ctl%file3D,time_init=ctl%time_init,units="years")
-    call yelmo_write_step(yelmo1,ctl%file3D,time=ctl%time_init,nms=names3D)
+    call yelmo_write_init(yelmo1,ctl%file3D,time_init=dble(ctl%time_init),units="years")
+    call yelmo_write_step(yelmo1,ctl%file3D,time=dble(ctl%time_init),nms=names3D)
 
-    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years", &
+    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=dble(ctl%time_init),units="years", &
                                                 mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init)
+    call yelmo_write_reg_step(yelmo1,ctl%file1D,time=dble(ctl%time_init))
 
     ! === Time loop ======================================================
 
@@ -169,33 +169,33 @@ program yelmo_bench
 
         call bench_update_forcing(yelmo1,bch)
 
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
 
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
         if (mod(nint(time*100,int64),nint(ctl%dt2D_out*100,int64))==0) then
-            call yelmo_write_step(yelmo1,ctl%file2D,time=time)
-            call yelmo_write_step(yelmo1,ctl%file3D,time=time,nms=names3D)
+            call yelmo_write_step(yelmo1,ctl%file2D,time=dble(time))
+            call yelmo_write_step(yelmo1,ctl%file3D,time=dble(time),nms=names3D)
         end if
 
         if (mod(nint(time*100,int64),nint(ctl%dt1D_out*100,int64))==0) then
-            call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time)
+            call yelmo_write_reg_step(yelmo1,ctl%file1D,time=dble(time))
         end if
 
         ! Intermediate restarts, named by time (the final restart is written below)
         if (ctl%dt_restart .gt. 0.0_wp .and. time .lt. ctl%time_end) then
             if (mod(nint(time*100,int64),nint(ctl%dt_restart*100,int64))==0) then
                 write(file_restart_now,"(a,i0,a)") "yelmo_restart_", nint(time,int64), ".nc"
-                call yelmo_restart_write(yelmo1,file_restart_now,time=time)
+                call yelmo_restart_write(yelmo1,file_restart_now,time=dble(time))
             end if
         end if
 
     end do
 
     if (ctl%time_end .gt. ctl%time_init) then
-        call yelmo_restart_write(yelmo1,ctl%file_restart,time=time)
+        call yelmo_restart_write(yelmo1,ctl%file_restart,time=dble(time))
     end if
 
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
 

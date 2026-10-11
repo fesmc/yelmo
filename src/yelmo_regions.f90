@@ -153,7 +153,7 @@ contains
         implicit none 
 
         type(yelmo_class), intent(IN) :: ylmo
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         character(len=*),  intent(IN) :: units 
 
         ! Local variables
@@ -182,7 +182,7 @@ contains
         implicit none 
 
         type(yelmo_class), intent(INOUT) :: ylmo
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
         logical,           intent(IN), optional :: init
         character(len=*),  intent(IN), optional :: units 
 
@@ -476,7 +476,7 @@ contains
         type(yelmo_class), intent(IN) :: dom 
         character(len=*),  intent(IN) :: filename 
         character(len=*),  intent(IN) :: units
-        real(wp),          intent(IN) :: time_init
+        real(dp),          intent(IN) :: time_init
         logical,           intent(IN) :: mask(:,:) 
 
         ! Initialize netcdf file and dimensions
@@ -484,7 +484,7 @@ contains
         call nc_write_dim(filename,"xc",        x=dom%grd%G%x*1d-3,      units="kilometers")
         call nc_write_dim(filename,"yc",        x=dom%grd%G%y*1d-3,      units="kilometers")
         call nc_write_dim(filename,"zeta",      x=dom%par%zeta_aa,      units="1")
-        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_dp,nx=1,units=trim(units),unlimited=.TRUE.)
         
         ! Static information
         call nc_write(filename,"mask", mask,  units="1",long_name="Region mask",dim1="xc",dim2="yc")
@@ -499,7 +499,7 @@ contains
         
         type(yelmo_class),    intent(IN) :: dom 
         character(len=*),     intent(IN) :: filename
-        real(wp),             intent(IN) :: time
+        real(dp),             intent(IN) :: time
         logical, intent(IN), optional    :: mask(:,:) 
         type(yregions_class), intent(IN), optional :: reg_now 
 

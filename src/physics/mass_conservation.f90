@@ -50,7 +50,7 @@ contains
         real(wp), intent(IN) :: mb_clip(:,:)            ! Clip of negative H after transport
         real(wp), intent(IN) :: dx 
         real(wp), intent(IN) :: sec_year
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         real(wp), intent(IN) :: dt
         character(len=*), intent(IN) :: units 
         character(len=*), intent(IN) :: label 

@@ -93,13 +93,13 @@ contains
 
         ! === 2. Lagrangian layer backend (elsa) ===========================
         if (trc%par%use_elsa) then
-            call ytrc_update_elsa(trc,tpo,dyn,real(time,wp))
+            call ytrc_update_elsa(trc,tpo,dyn,time)
             call ytrc_harmonize_elsa(trc)
         end if
 
         ! === 3. Lagrangian particle backend (tracer) ======================
         if (trc%par%use_tracer) then
-            call ytrc_update_tracer(trc,tpo,dyn,grd,real(time,wp))
+            call ytrc_update_tracer(trc,tpo,dyn,grd,time)
             call ytrc_harmonize_tracer(trc,grd)
             call ytrc_calc_stats(trc)   ! refresh gridded stats (no-op if stats off)
         end if
@@ -134,11 +134,11 @@ contains
         type(ytrc_class),  intent(INOUT) :: trc
         type(ytopo_class), intent(IN)    :: tpo
         type(ydyn_class),  intent(IN)    :: dyn
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
 
         ! Pass the native arrays: elsa's generic interface handles the precision,
         ! integrates the rates in place and converts H_ice only when an update is due.
-        call elsa_update(trc%elsa,time,tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
+        call elsa_update(trc%elsa,real(time,wp),tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
                          tpo%now%smb,tpo%now%bmb)
 
         return
@@ -281,7 +281,7 @@ contains
         type(ytopo_class), intent(IN)    :: tpo
         type(ydyn_class),  intent(IN)    :: dyn
         type(grid_class),  intent(IN)    :: grd
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
 
         ! Local variables
         integer :: nx, ny
@@ -304,7 +304,7 @@ contains
         ! Gridded-stats output is off; the harmonized t_dep_trc is built afterwards.
         dep_now   = .FALSE.
         stats_now = .FALSE.
-        if (real(time,dp) .ge. trc%par%time_dep_next) then
+        if (time .ge. trc%par%time_dep_next) then
             dep_now = .TRUE.
             trc%par%time_dep_next = trc%par%time_dep_next + real(trc%trc%par%dt_dep,dp)
         end if
@@ -417,7 +417,7 @@ contains
 
         type(ytrc_class), intent(INOUT) :: trc
         type(grid_class), intent(IN)    :: grd
-        real(wp),         intent(IN)    :: time
+        real(dp),         intent(IN)    :: time
         real(wp),         intent(IN)    :: H_ice(:,:)
         character(len=*), intent(IN), optional :: restart
 
@@ -453,11 +453,11 @@ contains
             if (is_restart .and. trc%par%elsa_restart) then
                 elsa_rst = ytrc_restart_filename(restart,"elsa")
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               real(time,wp),trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
                                trc%par%zeta_aa,H_ice,"acx_acy",restart=trim(elsa_rst))
             else
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               real(time,wp),trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
                                trc%par%zeta_aa,H_ice,"acx_acy")
             end if
 
@@ -488,8 +488,8 @@ contains
             end if
 
             ! Initialize deposition/stats cadence trackers from the tracer namelist
-            trc%par%time_dep_next   = real(time,dp)
-            trc%par%time_stats_next = real(time,dp)
+            trc%par%time_dep_next   = time
+            trc%par%time_stats_next = time
         end if
 
         return
@@ -507,7 +507,7 @@ contains
 
         type(ytrc_class), intent(IN) :: trc
         character(len=*), intent(IN) :: filename
-        real(wp),         intent(IN) :: time
+        real(dp),         intent(IN) :: time
 
         ! Local variables
         integer            :: is

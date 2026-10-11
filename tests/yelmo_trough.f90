@@ -196,7 +196,7 @@ program yelmo_trough
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=ts%time,load_topo=.FALSE., &
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(ts%time),load_topo=.FALSE., &
                         domain=domain,grid_name=grid_name)
 
     ! Load boundary values
@@ -214,7 +214,7 @@ program yelmo_trough
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize output file 
-    call yelmo_write_init(yelmo1,file2D,time_init=ts%time,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(ts%time),units="years")
     
     ! Intialize topography (bed always; the initial ice thickness is
     ! applied below unless it comes from the restart file)
@@ -387,19 +387,19 @@ program yelmo_trough
         ! and dynamics)
         allocate(T_state, mold=yelmo1%thrm%now%T_ice)
         call nc_read(state_file,"T_ice",T_state)
-        call yelmo_init_state(yelmo1,time=ts%time,thrm_method="prescribed",T_ice=T_state)
+        call yelmo_init_state(yelmo1,time=dble(ts%time),thrm_method="prescribed",T_ice=T_state)
         call nc_read(state_file,"hyd_W_til",yelmo1%hyd%now%W_til)
         write(*,*) "TROUGH-F17: T_ice and hyd_W_til read from ", trim(state_file)
     else
-        call yelmo_init_state(yelmo1,time=ts%time,thrm_method=thrm_init)
+        call yelmo_init_state(yelmo1,time=dble(ts%time),thrm_method=thrm_init)
     end if
 
     ! Write initial state 
     call write_step_2D(yelmo1,file2D,time=ts%time) 
 
     ! 1D file 
-    call yelmo_write_reg_init(yelmo1,file1D,time_init=ts%time,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,file1D,time=ts%time)  
+    call yelmo_write_reg_init(yelmo1,file1D,time_init=dble(ts%time),units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
+    call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time))  
 
     ! Point/transect time-series file
     if (write_ts) then
@@ -432,7 +432,7 @@ if (.FALSE.) then
 end if 
 
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,ts%time)
+        call yelmo_update(yelmo1,dble(ts%time))
 
         ! == MODEL OUTPUT =======================================================
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
@@ -441,7 +441,7 @@ end if
         end if 
 
         if (mod(nint(ts%time_elapsed*100,int64),nint(dt1D_out*100,int64))==0) then 
-            call yelmo_write_reg_step(yelmo1,file1D,time=ts%time) 
+            call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time)) 
         end if
 
         if (write_ts) then
@@ -461,10 +461,10 @@ end if
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
 
     ! Write a restart file
-    call yelmo_restart_write(yelmo1,file_restart,ts%time)
+    call yelmo_restart_write(yelmo1,file_restart,dble(ts%time))
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=ts%time)
+    call yelmo_end(yelmo1,time=dble(ts%time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)

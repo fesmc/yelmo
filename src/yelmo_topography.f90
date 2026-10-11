@@ -1410,7 +1410,7 @@ end if
 
         type(ytopo_class),  intent(INOUT) :: tpo 
         type(ybound_class), intent(IN)    :: bnd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
         real(wp),           intent(IN)    :: dt 
         character(len=*),   intent(IN)    :: step 
         logical,            intent(IN)    :: check_mb 

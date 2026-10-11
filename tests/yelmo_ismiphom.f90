@@ -95,7 +95,7 @@ program yelmo_ismiphom
 !     stop 
 
     ! Initialize data objects (without loading topography, which will be defined inline below)
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init,load_topo=.FALSE.,domain=domain,grid_name=grid_name)
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(time_init),load_topo=.FALSE.,domain=domain,grid_name=grid_name)
     
     ! === Define initial topography =====
 
@@ -223,19 +223,19 @@ program yelmo_ismiphom
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize state variables (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")
 
-    call yelmo_update_equil(yelmo1,time_init,time_tot=1.0,dt=1.0,topo_fixed=.TRUE.)
+    call yelmo_update_equil(yelmo1,dble(time_init),time_tot=1.0,dt=1.0,topo_fixed=.TRUE.)
     
     ! == Write initial state ==
      
     ! 2D file 
-    call yelmo_write_init(yelmo1,file2D,time_init=time_init,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(time_init),units="years")
     call write_step_2D(yelmo1,file2D,time=time_init)  
     
     ! 1D file 
-    call yelmo_write_reg_init(yelmo1,file1D,time_init=time_init,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,file1D,time=time_init) 
+    call yelmo_write_reg_init(yelmo1,file1D,time_init=dble(time_init),units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
+    call yelmo_write_reg_step(yelmo1,file1D,time=dble(time_init)) 
 
     ! Advance timesteps
     do n = 1, ceiling((time_end-time_init)/dtt)
@@ -244,7 +244,7 @@ program yelmo_ismiphom
         time = time_init + n*dtt
         
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
 
         ! == MODEL OUTPUT =======================================================
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
@@ -253,7 +253,7 @@ program yelmo_ismiphom
         end if 
 
         if (mod(nint(time*100,int64),nint(dt1D_out*100,int64))==0) then 
-            call yelmo_write_reg_step(yelmo1,file1D,time=time) 
+            call yelmo_write_reg_step(yelmo1,file1D,time=dble(time)) 
         end if 
 
         if (mod(time,10.0)==0 .and. (.not. yelmo_log)) then
@@ -263,7 +263,7 @@ program yelmo_ismiphom
     end do 
 
     ! Write a restart file too
-    call yelmo_restart_write(yelmo1,file_restart,time=time)
+    call yelmo_restart_write(yelmo1,file_restart,time=dble(time))
 
     ! Write summary 
     write(*,*) "====== "//trim(domain)//"-"//trim(experiment)//" ======="
@@ -271,7 +271,7 @@ program yelmo_ismiphom
     write(*,*) "max(ux_s) = ", maxval(yelmo1%dyn%now%ux_s)
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
