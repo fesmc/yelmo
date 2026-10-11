@@ -22,6 +22,15 @@
   directly; `relax_update`, `optimize_set_transient_param` (libs) and the
   benchmark forcings (`eismint_boundaries`, `dome_boundaries`, `bueler_test_BC`)
   take `real(dp)` time.
+- **Eulerian tracer (`ytrc.use_euler`) fixed.** The explicit solver broke the
+  vertical Courant condition in thin ice and was unstable, and
+  `fix_tracer_violation` (removed) capped the change relative to the absolute
+  value, so `t_dep_euler` depended on the start time (EISMINT-moving, 5 kyr: up
+  to 4e4 yr between starts at 0 and -150 kyr; values outside [start, time]). The
+  vertical advection is sub-stepped, the basal layer is no longer advected
+  horizontally twice, and the deposition time is transported relative to
+  `t_ref_euler` (restart fields `t_dep_euler_rel`, `t_ref_euler`; older restarts
+  are read from `t_dep_euler`). Also affects `enh_bnd` (`enh_method = "*-tracer"`).
 - Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
   in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
 - New `yelmo_masks.dynamic_connected` (default off, on for Antarctica): dynamic cells not
