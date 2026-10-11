@@ -48,8 +48,9 @@ contains
         character(len=*),  intent(IN), optional :: file_diagnostics
 
         ! Local variables 
-        type(ytopo_class)  :: tpo_ref                   ! Topography and dynamics at the start of the
-        type(ydyn_class)   :: dyn_ref                   ! step, restored when the step is redone
+        type(ytopo_class)  :: tpo_ref                   ! Topography, dynamics and hydrology at the start
+        type(ydyn_class)   :: dyn_ref                   ! of the step, restored when the step is redone
+        type(hydro_class)  :: hyd_ref
 
         real(wp) :: dt_now, dt_max, dt_max_0
         real(dp) :: time_now                            ! Model time (dp: steps stay exact at large |time|)
@@ -165,12 +166,14 @@ contains
             call yelmo_cpu_time(cpu_time0) 
             model_time0 = time_now 
 
-            ! Store the state modified by the predictor-corrector (topography and
-            ! dynamics) in case the step is redone. The other components are only
-            ! updated after the step is accepted.
+            ! Store the state modified by the predictor-corrector (topography,
+            ! dynamics and the hydrology N set inside the velocity solve by the
+            ! N(u_b) hook) in case the step is redone. The other components are
+            ! only updated after the step is accepted.
             if (dom%par%pc_n_redo .gt. 1) then
                 tpo_ref = dom%tpo
                 dyn_ref = dom%dyn
+                hyd_ref = dom%hyd
             end if
 
             ! Update dt_max as a function of the total timestep 
@@ -402,6 +405,7 @@ contains
                     ! Reset yelmo and time variables to beginning of timestep
                     dom%tpo  = tpo_ref
                     dom%dyn  = dyn_ref
+                    dom%hyd  = hyd_ref
                     time_now = tpo_ref%par%time
                     dt_now   = max(dt_now*rho_now,dom%par%dt_min)
                     
