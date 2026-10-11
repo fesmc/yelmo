@@ -1045,13 +1045,10 @@ contains
         call ydata_par_load(dom%dta%par,filename,dom%par%nml_data,dom%par%domain,dom%par%grid_name,init=.TRUE.)
         call ydata_alloc(dom%dta%pd,dom%grd%G%nx,dom%grd%G%ny,dom%par%nz_aa,dom%dta%par%pd_age_n_iso)
 
-        ! Load data objects   
+        ! Load data objects (present-day topography as read: yelmo_init_topo
+        ! applies mask_ice to it and sets the reference topography)
         call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries,group=dom%par%nml_init_topo, &
                         topo_pd=topo_pd)
-
-        ! Set H_ice_ref and z_bed_ref to present-day ice thickness by default 
-        dom%bnd%H_ice_ref = dom%dta%pd%H_ice 
-        dom%bnd%z_bed_ref = dom%dta%pd%z_bed
 
         write(*,*) "yelmo_init:: data intialized (loaded data if desired)."
         
@@ -1265,11 +1262,18 @@ contains
 
         end if
 
-        ! Keep only the dynamic cells connected to the ice sheet (yelmo_masks.dynamic_connected),
-        ! from the present-day ice, else the initial ice. Before the restart is read,
-        ! so the mask is the same with and without one.
+        ! Final mask_ice and reference topography, before the restart is read so
+        ! that they are the same with and without one. Keep only the dynamic cells
+        ! connected to the ice sheet (yelmo_masks.dynamic_connected), from the
+        ! present-day ice as read, else the initial ice; then delete the
+        ! present-day ice where it is not allowed.
         call ybound_mask_ice_connected(dom%bnd,filename,dom%par%nml_masks,dom%dta%pd%H_ice,dom%tpo%now%H_ice, &
                                        dom%tpo%par%boundaries)
+        call ydata_mask_pd_topo(dom%dta,dom%bnd,real(dom%grd%G%dx,wp))
+
+        ! Set H_ice_ref and z_bed_ref to present-day ice thickness by default 
+        dom%bnd%H_ice_ref = dom%dta%pd%H_ice 
+        dom%bnd%z_bed_ref = dom%dta%pd%z_bed
 
         if (init_topo_load) then
 
