@@ -1244,7 +1244,17 @@ contains
             dom%tpo%now%H_ice = H_ice 
             dom%bnd%z_bed     = z_bed 
             dom%bnd%z_bed_sd  = z_bed_sd 
-                
+
+        end if
+
+        ! Keep only the dynamic cells connected to the ice sheet (yelmo_masks.dynamic_connected),
+        ! from the present-day ice, else the initial ice. Before the restart is read,
+        ! so the mask is the same with and without one.
+        call ybound_mask_ice_connected(dom%bnd,filename,dom%par%nml_masks,dom%dta%pd%H_ice,dom%tpo%now%H_ice, &
+                                       dom%tpo%par%boundaries)
+
+        if (init_topo_load) then
+
             ! Finally, calculate and apply all additional (generally artificial) ice thickness adjustments
             ! Set minimum ice thickness to 1m for safety to start. The thickness is taken
             ! at face value here (H_eff = H_ice, no subgrid front cells yet).

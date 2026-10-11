@@ -370,6 +370,7 @@
     relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
     relax_tau        = 0.0               ! [yr] relaxation timescale there
     mask_rmse        = "all"             ! where the error metrics are computed
+    dynamic_connected = False            ! keep only the dynamic cells connected to the ice sheet (largest region of present-day, else initial, ice); others no ice
 /
 
 &yelmo_init_topo
