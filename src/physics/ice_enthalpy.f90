@@ -3,9 +3,9 @@ module ice_enthalpy
 
     use yelmo_defs, only : wp
     use solver_tridiagonal, only : solve_tridiag 
-    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, &
-                               convert_to_enthalpy, convert_from_enthalpy_column, cp_ref, cp_a, cp_b, &
-                               convert_to_enthalpy_ice, convert_from_enthalpy_ice, enth_int_from_temp
+    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, cp_ref, &
+                               convert_to_enthalpy_ice, convert_from_enthalpy_ice, &
+                               enth_cold_from_temp, calc_cp_enth
 
     !use interp1D 
 
@@ -22,7 +22,7 @@ contains
     
     subroutine calc_temp_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,gl_temp)
+                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0,gl_temp)
         ! Thermodynamics solver for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -64,10 +64,12 @@ contains
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy for the enth output field?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp of the enth output field (default cp_ref)
         logical,  intent(IN), optional :: gl_temp         ! Grounded base next to the ocean: hold at T_pmp (ytherm.gl_temperate)
 
         ! Local variables
         logical :: use_int
+        real(wp) :: cp0
         integer  :: k, nz_aa, nz_ac
         real(wp) :: W_til_predicted
         logical  :: is_gl_temp
@@ -91,6 +93,8 @@ contains
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
         allocate(kappa_aa(nz_aa))
         allocate(Q_strn_now(nz_aa))
@@ -215,8 +219,8 @@ contains
         omega = 0.0 
 !             where (T_ice .ge. T_pmp) omega = omega_max 
 
-        ! Finally, get enthalpy too (A1 const cp_ref or A2 integral, per flag)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Finally, get enthalpy too (A1 constant cp0 or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Calculate heat flux at ice base as temperature gradient * conductivity [J a-1 m-2]
         if (H_ice .gt. 0.0_wp) then 
@@ -257,7 +261,7 @@ contains
         end if
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,enth_cold_from_temp(T_pmp,use_int,cp0),H_ice,zeta_aa)
 
         return 
 
@@ -549,7 +553,7 @@ end if
     subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
-                                basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
+                                enth_cp0,basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
                                 melt_int_out,gl_temp)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -593,6 +597,7 @@ end if
         real(wp), intent(IN)    :: sec_year  
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy definition?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (default cp_ref)
         character(len=*), intent(IN), optional :: basal_bc_method ! "wtil" (default) or "capacity"
         real(wp), intent(IN), optional :: C_cap          ! [m/a ice equiv.] Freeze-on capacity (capacity rule)
         real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (either rule)
@@ -622,11 +627,12 @@ end if
         logical  :: is_basal_flux
         logical  :: is_float
         logical  :: use_int
+        real(wp) :: cp0
 
         real(wp), allocatable :: kappa_cold(:)  ! aa-nodes: cold-ice diffusivity kt/(rho*cp)
         real(wp), allocatable :: Q_strn_now(:)  ! aa-nodes
         real(wp), allocatable :: enth_pmp(:)    ! aa-nodes
-        real(wp), allocatable :: cp_eff(:)      ! aa-nodes: reference cp (cp_ref or cp(T))
+        real(wp), allocatable :: cp_eff(:)      ! aa-nodes: heat capacity of the enthalpy definition (cp0 or cp(T))
 
         real(wp), parameter   :: T_min_lim = 200.00_wp   ! [K] Cold-side floor (matches calc_temp_column)
 
@@ -639,23 +645,20 @@ end if
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
         allocate(kappa_cold(nz_aa))
         allocate(Q_strn_now(nz_aa))
         allocate(enth_pmp(nz_aa))
         allocate(cp_eff(nz_aa))
 
-        ! Reference cp and reference enthalpy consistent with the chosen
-        ! enthalpy definition: A1 uses the constant cp_ref; A2 (integral) uses
-        ! the local T-dependent cp(T)=cp_a+cp_b*T so the diffusion reproduces
-        ! true variable-cp conduction.
-        if (use_int) then
-            cp_eff   = cp_a + cp_b*T_ice
-            enth_ref = enth_int_from_temp(273.15_wp)
-        else
-            cp_eff   = cp_ref
-            enth_ref = 273.15_wp * cp_ref
-        end if
+        ! Heat capacity and reference enthalpy consistent with the chosen
+        ! enthalpy definition: A1 uses the constant cp0 (cp_ref, or const_cp);
+        ! A2 (integral) uses the local T-dependent cp(T)=cp_a+cp_b*T so the
+        ! diffusion reproduces true variable-cp conduction.
+        cp_eff   = calc_cp_enth(T_ice,use_int,cp0)
+        enth_ref = enth_cold_from_temp(273.15_wp,use_int,cp0)
 
         ! Get basal frictional and bedrock heat fluxes in proper units.
         ! Q_b and Q_lith arrive in [mW m-2]; convert to [J m-2 a-1], exactly as
@@ -664,12 +667,8 @@ end if
         Q_b_now    = Q_b    * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
         Q_lith_now = Q_lith * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
 
-        ! Get enthalpy of the pressure melting point (A1 cp_ref or A2 integral)
-        if (use_int) then
-            enth_pmp = enth_int_from_temp(T_pmp)
-        else
-            enth_pmp = T_pmp*cp_ref
-        end if
+        ! Get enthalpy of the pressure melting point (A1 cp0 or A2 integral)
+        enth_pmp = enth_cold_from_temp(T_pmp,use_int,cp0)
 
         ! Find height of CTS - highest temperate layer
         k_cts = get_cts_index(enth,enth_pmp)
@@ -690,11 +689,7 @@ end if
 
         ! === Surface boundary condition =====================
 
-        if (use_int) then
-            val_srf = enth_int_from_temp(min(T_srf,T0))
-        else
-            val_srf = min(T_srf,T0) * cp_ref
-        end if
+        val_srf = enth_cold_from_temp(min(T_srf,T0),use_int,cp0)
 
         ! === Capacity-rule inputs (basal_bc_method="capacity") ===
         ! Set before the basal BC so that the grounded basal mass balance below
@@ -723,15 +718,11 @@ end if
             ! Floating or partially floating ice - hold the base at the marine
             ! interface temperature (pmp / T_shlf freezing point / weighted average).
             ! Convert that temperature to enthalpy with the SAME definition used for
-            ! val_srf, enth_ref and enth_pmp (A2 integral or A1 cp_ref); the previous
+            ! val_srf, enth_ref and enth_pmp (A2 integral or A1 cp0); the previous
             ! T*cp(1) form was on a different enthalpy scale, which was harmless while
             ! floating temperate columns always took the zero-gradient base branch but
             ! mis-scales the base once it is imposed as a Dirichlet (basal_freezing).
-            if (use_int) then
-                val_base = enth_int_from_temp(f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf)
-            else
-                val_base = (f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf) * cp_ref
-            end if
+            val_base = enth_cold_from_temp(f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf,use_int,cp0)
             is_basal_flux = .FALSE.
 
         else 
@@ -847,8 +838,8 @@ end if
         ! This should come out of routine, but it helps ensure stability to check it here.
         if (.not. is_float .and. enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
         
-        ! Get temperature and water content (constant cp_ref definition)
-        call convert_from_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Get temperature and water content (same enthalpy definition)
+        call convert_from_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Clamp unphysical cold excursions to a floor, mirroring the
         ! T_min_lim guard in calc_temp_column. Without it the enth solver has
@@ -881,7 +872,7 @@ end if
         if (omega(1) .gt. omega_max) omega(1) = omega_max 
 
         ! Finally, get enthalpy again too (to be consistent with new omega)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Calculate the conductive heat flux into the ice base [J a-1 m-2], positive up.
         ! Two discretizations are available; the temperature-gradient form is the
@@ -939,7 +930,7 @@ end if
         if (present(melt_int_out)) melt_int_out = melt_internal
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,enth_pmp,H_ice,zeta_aa)
 
         return 
 
@@ -1291,11 +1282,10 @@ end if
 
     end subroutine calc_split_coeffs
     
-    function calc_cts_height(enth,T_pmp,H_ice,zeta,integral) result(H_cts)
+    function calc_cts_height(enth,enth_pmp,H_ice,zeta) result(H_cts)
         ! Calculate the height of the cold-temperate transition surface (m)
         ! above the base (top of the basal temperate layer; 0 for a cold base).
-        ! enth_pmp uses the same enthalpy definition as the field: constant
-        ! cp_ref (A1) or the integral form (A2).
+        ! enth_pmp must use the same enthalpy definition as the field.
         !
         ! The CTS lies between the top temperate node k_cts and the cold node
         ! above. Linear interpolation of E-E_pmp between them places it too
@@ -1308,30 +1298,21 @@ end if
         implicit none
 
         real(wp), intent(IN) :: enth(:)
-        real(wp), intent(IN) :: T_pmp(:)
+        real(wp), intent(IN) :: enth_pmp(:)
         real(wp), intent(IN) :: H_ice
         real(wp), intent(IN) :: zeta(:)
-        logical,  intent(IN), optional :: integral
         real(wp) :: H_cts
 
         ! Local variables
         integer  :: k, nz
-        logical  :: use_int
         real(wp) :: zeta_cts, zeta_ext, de, slope
         real(wp), allocatable :: enth_prime(:)
 
         nz = size(enth,1)
 
-        use_int = .false.
-        if (present(integral)) use_int = integral
-
         ! Enthalpy relative to the pressure melting point (no water content)
         allocate(enth_prime(nz))
-        if (use_int) then
-            enth_prime = enth - enth_int_from_temp(T_pmp)
-        else
-            enth_prime = enth - T_pmp*cp_ref
-        end if
+        enth_prime = enth - enth_pmp
 
         if (enth_prime(1) .lt. 0.0_wp) then
             ! Cold base: no basal temperate layer

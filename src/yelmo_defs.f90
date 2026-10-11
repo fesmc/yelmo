@@ -808,8 +808,9 @@ module yelmo_defs
         real(wp)            :: enth_cr
         real(wp)            :: omega_max
         real(wp)            :: H_ice_thin       ! [m] Thickness threshold below which the column solver is skipped (linear profile imposed)
-        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
+        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT); "const" if use_const_cp
         logical             :: enth_integral    ! derived: enth_cp_method == "integral"
+        real(wp)            :: enth_cp0         ! derived: [J kg-1 K-1] A1 constant cp, const_cp if use_const_cp, else cp_ref
 
         ! Grounded basal boundary condition
         character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
