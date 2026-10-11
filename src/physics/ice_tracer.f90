@@ -380,25 +380,39 @@ contains
         real(prec), intent(IN)    :: zeta_ac(:)   ! nz_ac [--] Vertical sigma coordinates (zeta==height), layer boundary ac-nodes
         real(prec), intent(IN)    :: dt           ! [a] Time step 
 
-        ! Local variables 
-        integer :: k, nz_aa 
+        ! Local variables
+        integer    :: k, n, nz_aa, n_sub
+        real(prec) :: dt_sub
         real(prec), allocatable :: advecz(:)   ! nz_aa, for explicit vertical advection solving
 
         nz_aa = size(zeta_aa,1)
-        
+
         allocate(advecz(nz_aa))
 
         ! Update base and surface values
-        X_ice(1)     = X_base 
-        X_ice(nz_aa) = X_srf 
+        ! (X_base already includes the horizontal advection of the basal layer)
+        X_ice(1)     = X_base
+        X_ice(nz_aa) = X_srf
 
-        ! Calculate vertical advection 
-        call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+        ! Sub-step the vertical advection so that its Courant number is at most 1
+        ! (the time step of the host model does not limit it, e.g. for thin ice).
+        ! The horizontal advection (from the previous time step) is spread over the sub-steps.
+        n_sub  = max(1,ceiling(calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt)))
+        dt_sub = dt / real(n_sub,prec)
 
-        ! Use advection terms to advance column tracer value 
-        X_ice = X_ice - dt*advecxy - dt*advecz
+        do n = 1, n_sub
+
+            ! Calculate vertical advection
+            call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+
+            ! Use advection terms to advance the interior column tracer values
+            do k = 2, nz_aa-1
+                X_ice(k) = X_ice(k) - dt_sub*advecxy(k) - dt_sub*advecz(k)
+            end do
+
+        end do
 
         ! Ensure tiny values are removed to avoid underflow errors 
         where (abs(X_ice) .lt. 1e-5) X_ice = 0.0_prec 
@@ -450,6 +464,43 @@ contains
         return 
 
     end subroutine calc_advec_vertical_column_upwind1
+
+    function calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt) result(courant)
+        ! Maximum Courant number of the vertical upwind advection
+        ! (calc_advec_vertical_column_upwind1) over the internal cell centers
+
+        implicit none
+
+        real(prec), intent(IN) :: uz(:)          ! nz_ac: cell boundaries
+        real(prec), intent(IN) :: H_ice          ! Ice thickness
+        real(prec), intent(IN) :: zeta_aa(:)     ! nz_aa, cell centers
+        real(prec), intent(IN) :: dt             ! [a] Time step
+        real(prec) :: courant
+
+        ! Local variables
+        integer :: k, nz_aa
+        real(prec) :: u_aa
+
+        nz_aa = size(zeta_aa,1)
+
+        courant = 0.0_prec
+
+        ! Same upwind velocity and spacing as calc_advec_vertical_column_upwind1
+        do k = 2, nz_aa-1
+
+            u_aa = 0.5_prec*(uz(k)+uz(k+1))
+
+            if (u_aa < 0.0) then
+                courant = max(courant, abs(uz(k+1))*dt / (H_ice*(zeta_aa(k+1)-zeta_aa(k))))
+            else
+                courant = max(courant, abs(uz(k))*dt / (H_ice*(zeta_aa(k)-zeta_aa(k-1))))
+            end if
+
+        end do
+
+        return
+
+    end function calc_courant_vertical_upwind1
 
     subroutine calc_advec_vertical_column_upwind2(advecz,Q,uz,H_ice,zeta_aa)
         ! Calculate vertical advection term advecz, which enters
