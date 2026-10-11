@@ -138,7 +138,7 @@ contains
 
         ! Pass the native arrays: elsa's generic interface handles the precision,
         ! integrates the rates in place and converts H_ice only when an update is due.
-        call elsa_update(trc%elsa,real(time,wp),tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
+        call elsa_update(trc%elsa,time,tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
                          tpo%now%smb,tpo%now%bmb)
 
         return
@@ -309,7 +309,7 @@ contains
             trc%par%time_dep_next = trc%par%time_dep_next + real(trc%trc%par%dt_dep,dp)
         end if
 
-        call tracer_update(trc%trc,real(time,wp), &
+        call tracer_update(trc%trc,time, &
                            real(grd%G%x,wp),real(grd%G%y,wp),trc%par%zeta_aa, &
                            tpo%now%z_srf,tpo%now%H_ice, &
                            dyn%now%ux,dyn%now%uy,dyn%now%uz, &
@@ -338,7 +338,7 @@ contains
         ! Local variables
         integer  :: p, np, i, j, k, nx, ny, nz_aa
         real(wp) :: x0, y0, dx, dy, sig
-        real(wp), allocatable :: sum_t(:,:,:)
+        real(dp), allocatable :: sum_t(:,:,:)
         integer,  allocatable :: cnt(:,:,:)
 
         nx    = trc%par%nx
@@ -350,7 +350,7 @@ contains
         dx = real(grd%G%dx,wp)
         dy = real(grd%G%dy,wp)
 
-        allocate(sum_t(nx,ny,nz_aa)); sum_t = 0.0_wp
+        allocate(sum_t(nx,ny,nz_aa)); sum_t = 0.0_dp
         allocate(cnt(nx,ny,nz_aa));   cnt   = 0
 
         np = size(trc%trc%now%active,1)
@@ -374,7 +374,7 @@ contains
         end do
 
         where (cnt .gt. 0)
-            trc%now%t_dep_trc = sum_t / real(cnt,wp)
+            trc%now%t_dep_trc = real(sum_t / real(cnt,dp),wp)
         elsewhere
             trc%now%t_dep_trc = MV
         end where
@@ -453,11 +453,11 @@ contains
             if (is_restart .and. trc%par%elsa_restart) then
                 elsa_rst = ytrc_restart_filename(restart,"elsa")
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,wp),trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
                                trc%par%zeta_aa,H_ice,"acx_acy",restart=trim(elsa_rst))
             else
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,wp),trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
                                trc%par%zeta_aa,H_ice,"acx_acy")
             end if
 
@@ -479,12 +479,12 @@ contains
             ! Pass yelmo's isochrone targets (time_iso) so the tracer's gridded
             ! stats share the authoritative deposition-time axis, independent of
             ! the tracer namelist (see tracer_init).
-            call tracer_init(trc%trc,trim(trc%par%tracer_nml),real(time,wp), &
+            call tracer_init(trc%trc,trim(trc%par%tracer_nml),time, &
                              real(grd%G%x,wp),real(grd%G%y,wp),is_sigma=.TRUE.,grid=grd, &
                              time_iso=trc%par%time_iso)
 
             if (is_restart) then
-                call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),real(time,wp))
+                call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),time)
             end if
 
             ! Initialize deposition/stats cadence trackers from the tracer namelist
@@ -537,7 +537,7 @@ contains
             end if
             trc_tmp = trc%trc
             call tracer_write_init(trc_tmp,trim(fldr),trim(fname))
-            call tracer_write(trc_tmp,real(time,wp),trim(fldr),trim(fname))
+            call tracer_write(trc_tmp,time,trim(fldr),trim(fname))
         end if
 
         return

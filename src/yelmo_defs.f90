@@ -724,7 +724,7 @@ module yelmo_defs
         ! from (time_end - time)/layer_resolution and never grows it, so the run's
         ! end time must be known up front. Set to the simulation end time (default
         ! 0.0: present day; ytrc_init stops if it is not later than the start time).
-        real(wp)          :: time_end
+        real(dp)          :: time_end
 
         ! Eulerian backend parameters (migrated from ymat)
         logical               :: calc_age            ! Master switch for the Eulerian age tracer
