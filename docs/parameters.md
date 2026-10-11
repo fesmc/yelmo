@@ -44,6 +44,7 @@ basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
 | `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
 | `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |
 | `mask_rmse` | Where the error metrics are computed |
+| `dynamic_connected` | Keep only the dynamic cells connected to the ice sheet (the largest 4-connected region of present-day ice, else of the initial ice) through dynamic or fixed cells; the others get no ice (e.g. offshore islands) |
 
 Without layers the expressions can only be `"all"` or `"none"`. A driver may
 pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of

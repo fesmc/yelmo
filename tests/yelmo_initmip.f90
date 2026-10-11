@@ -28,7 +28,7 @@ program yelmo_test
 
     type ctrl_params
         character(len=56) :: run_step
-        real(wp) :: dtt
+        real(dp) :: dtt
         character(len=56) :: restart_mode   ! "state" or "continue"
 
         logical  :: with_ice_sheet 
@@ -428,11 +428,11 @@ contains
         character(len=*), intent(IN) :: restart_mode
         logical,          intent(IN) :: use_restart
         character(len=*), intent(IN) :: restart
-        real(wp),         intent(IN) :: time_init
+        real(dp),         intent(IN) :: time_init
 
         ! Local variables
         integer  :: nt
-        real(wp), allocatable :: time_rst(:)
+        real(dp), allocatable :: time_rst(:)
 
         select case(trim(restart_mode))
 
@@ -450,7 +450,7 @@ contains
                 allocate(time_rst(nt))
                 call nc_read(restart,"time",time_rst)
 
-                if (abs(time_rst(nt)-time_init) .gt. 1e-3_wp) then
+                if (abs(time_rst(nt)-time_init) .gt. 1e-3_dp) then
                     write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires ctrl.time_init &
                                          &to equal the time of the restart file."
                     write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
@@ -475,11 +475,11 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
 
         ! Local variables
         integer  :: ncid, n
-        real(wp) :: time_prev 
+        real(dp) :: time_prev 
 
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.TRUE.)

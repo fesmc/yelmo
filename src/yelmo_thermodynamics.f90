@@ -30,7 +30,7 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ybound_class), intent(IN)    :: bnd
         type(hydro_class),  intent(IN)    :: hyd
-        real(wp),         intent(IN)    :: time
+        real(dp),         intent(IN)    :: time
 
         ! Local variables
         integer :: i, j, k, nx, ny
@@ -46,13 +46,13 @@ contains
         ny = thrm%par%ny
 
         ! Initialize time if necessary 
-        if (thrm%par%time .gt. dble(time)) then 
-            thrm%par%time = dble(time)
+        if (thrm%par%time .gt. time) then 
+            thrm%par%time = time
         end if 
 
         ! Get time step and advance current time 
-        dt            = dble(time) - thrm%par%time 
-        thrm%par%time = dble(time) 
+        dt            = time - thrm%par%time 
+        thrm%par%time = time 
         
 
         ! === Determine some thermal properties === 
@@ -212,7 +212,7 @@ contains
                                 tpo%now%H_ice_dyn,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral, &
+                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral,thrm%par%enth_cp0, &
                                 thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
                                 thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp,thrm%now%melt_int, &
                                 thrm%par%gl_temperate)
@@ -225,7 +225,7 @@ contains
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
-                                       bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral)
+                                       bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral,enth_cp0=thrm%par%enth_cp0)
 
                 case("robin-cold")
                     ! Use Robin solution for ice temperature averaged with cold linear profile
@@ -234,14 +234,15 @@ contains
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
                                        thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
-                                       bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral)
+                                       bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral,enth_cp0=thrm%par%enth_cp0)
 
                 case("linear")
                     ! Use linear solution for ice temperature
 
                     ! Calculate the ice temperature (eventually water content and enthalpy too)
                     call define_temp_linear_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%cp,tpo%now%H_ice_dyn,bnd%T_srf,thrm%par%z%zeta_aa, &
-                                        bnd%c%T0,bnd%c%rho_ice,bnd%c%L_ice,bnd%c%T_pmp_beta,bnd%c%g,enth_integral=thrm%par%enth_integral)
+                                        bnd%c%T0,bnd%c%rho_ice,bnd%c%L_ice,bnd%c%T_pmp_beta,bnd%c%g,enth_integral=thrm%par%enth_integral, &
+                                        enth_cp0=thrm%par%enth_cp0)
 
                 case("fixed") 
                     ! Pass - do nothing, use the enth/temp/omega fields as they are defined
@@ -251,7 +252,7 @@ contains
                     ! cap at the melting point, omega = 0, consistent enthalpy
 
                     call define_temp_prescribed_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp, &
-                                                   bnd%c%L_ice,enth_integral=thrm%par%enth_integral)
+                                                   bnd%c%L_ice,enth_integral=thrm%par%enth_integral,enth_cp0=thrm%par%enth_cp0)
 
                 case DEFAULT 
 
@@ -326,7 +327,7 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral, &
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral,enth_cp0, &
                                         boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp,melt_int, &
                                         gl_temperate)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
@@ -382,6 +383,7 @@ contains
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
         character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
+        real(wp),         intent(IN) :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (cp_ref or const_cp)
         character(len=*), intent(IN) :: boundaries      ! Boundary treatment
         real(wp),         intent(IN) :: C_cap(:,:)      ! [m/a ice equiv.] Freeze-on capacity (basal_bc_method="capacity")
         real(wp),         intent(IN) :: Q_wat(:,:)      ! [mW m-2] Water-side basal heat, Q_diss + Q_sens
@@ -474,7 +476,7 @@ contains
                     call calc_enth_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                            zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0, &
                             basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps, &
                             bmb_grnd_star(i,j),bc_b(i,j),bmb_clamp(i,j),melt_int_out=melt_int(i,j),gl_temp=gl_temp)
 
@@ -483,7 +485,7 @@ contains
                     call calc_temp_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                            zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0, &
                             gl_temp=gl_temp)
                     bmb_grnd_star(i,j) = 0.0_wp
                     bc_b(i,j)          = 0.0_wp
@@ -507,7 +509,7 @@ contains
 
                 T_ice(i,j,:)  = define_temp_linear_column(T_srf(i,j),T_base,T_pmp(i,j,nz_aa),zeta_aa)
                 omega(i,j,:)  = 0.0_wp
-                call convert_to_enthalpy_ice(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),T_pmp(i,j,:),L_ice,enth_integral)
+                call convert_to_enthalpy_ice(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),T_pmp(i,j,:),L_ice,enth_integral,enth_cp0)
                 bmb_grnd(i,j) = 0.0_wp
                 Q_ice_b(i,j)  = 0.0_wp
                 H_cts(i,j)    = 0.0_wp
@@ -783,6 +785,18 @@ end if
         call nml_read(filename,group,"omega_max",      par%omega_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"H_ice_thin",     par%H_ice_thin,       init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"enth_cp_method",  par%enth_cp_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
+        call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
+
+        ! Enthalpy definition, used by every enthalpy <-> temperature conversion
+        ! (all methods): with use_const_cp, cp = const_cp everywhere, so the
+        ! enthalpy is linear, E = const_cp*T, whatever enth_cp_method. Otherwise
+        ! enth_cp_method selects E = cp_ref*T ("const") or E = int cp(T) dT ("integral").
+        if (par%use_const_cp) then
+            par%enth_cp_method = "const"
+            par%enth_cp0       = par%const_cp
+        else
+            par%enth_cp0       = cp_ref
+        end if
         par%enth_integral = (trim(par%enth_cp_method) .eq. "integral")
 
         call nml_read(filename,group,"basal_bc_method",par%basal_bc_method,  init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
@@ -808,7 +822,7 @@ end if
 
         if (par%cap_W_floor .lt. 0.0_wp .or. par%cap_eps .lt. 0.0_wp) then
             write(io_unit_err,*) "ytherm_par_load:: error: cap_W_floor and cap_eps must be >= 0; got ", par%cap_W_floor, par%cap_eps
-            stop
+            error stop 1
         end if
 
         ! Note: till_rate and H_w_max moved to &fhyd (par%bucket%till_rate
@@ -828,7 +842,6 @@ end if
         call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
-        call yelmo_check_enum(group,"enth_cp_method",  par%enth_cp_method,  "const|integral")
         call yelmo_check_enum(group,"strain_heating",  par%strain_heating,  "full|sia|none")
 
         if (par%nzr_aa .lt. 2) then

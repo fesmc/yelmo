@@ -27,7 +27,8 @@ built with `pic=1` in its own checkout.
   any other value the first.
 - **Strings** are null-terminated C strings (at most 1028 characters; variable
   names at most 56).
-- **Real numbers** are `double`. Yelmo converts them to its working precision.
+- **Real numbers** are `double`. Yelmo converts fields to its working precision;
+  the model time stays in double precision.
 - **Arrays** are in Fortran (column-major) order: a 2D field has shape
   `nx × ny` with $x$ varying fastest, a 3D field `nx × ny × nz` with the
   vertical index slowest. Staggered fields (e.g. `ux_bar` on the $x$ faces,

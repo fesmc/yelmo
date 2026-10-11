@@ -137,7 +137,7 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: p 
-        real(wp), intent(IN)  :: time 
+        real(dp), intent(IN)  :: time 
         real(wp), intent(IN)  :: time1 
         real(wp), intent(IN)  :: time2
         real(wp), intent(IN)  :: p1
@@ -188,7 +188,7 @@ contains
 
         type(relax_params),      intent(IN)    :: rlx 
         type(ytopo_param_class), intent(INOUT) :: tpo_par 
-        real(wp),                intent(IN)    :: time_elapsed 
+        real(dp),                intent(IN)    :: time_elapsed 
         integer,                 intent(IN)    :: topo_rel0 
         real(wp),                intent(IN)    :: topo_rel_tau0 
 
@@ -225,7 +225,7 @@ contains
         real(wp), intent(IN)    :: tf_max 
         real(wp), intent(IN)    :: dx 
         real(wp), intent(IN)    :: sigma
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
 
         ! Local variables
         integer  :: b, nb
@@ -354,7 +354,7 @@ contains
         real(wp), intent(IN)    :: tf_min 
         real(wp), intent(IN)    :: tf_max 
         integer,  intent(IN)    :: tf_basins(:) 
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
 
         ! Local variables
         integer  :: i, j, nx, ny, n  
@@ -500,7 +500,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                    ! [yr]
         real(wp), intent(IN)    :: H0                       ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 
@@ -759,7 +759,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                  ! [yr]
         real(wp), intent(IN)    :: H0                     ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 
@@ -998,7 +998,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                  ! [yr]
         real(wp), intent(IN)    :: H0                     ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 

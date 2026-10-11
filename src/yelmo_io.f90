@@ -51,7 +51,7 @@ contains
 
         type(yelmo_class), intent(IN) :: ylmo 
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time_init
+        real(dp),          intent(IN) :: time_init
         character(len=*),  intent(IN) :: units 
         integer,           intent(IN), optional :: irange(2)
         integer,           intent(IN), optional :: jrange(2)
@@ -77,7 +77,7 @@ contains
         end if
         call nc_write_dim(filename,"pc_steps",  x=1,dx=1,nx=3,          units="1")
         
-        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_dp,nx=1,units=trim(units),unlimited=.TRUE.)
 
         if (ylmo%grd%cs%is_projection) then
             call nc_write_attr(filename,"xc","standard_name","projection_x_coordinate")
@@ -255,7 +255,7 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo        
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         character(len=*),  intent(IN), optional :: nms(:)
         logical,           intent(IN), optional :: compare_pd
         integer,           intent(IN), optional :: irange(2)
@@ -351,7 +351,7 @@ contains
 
         type(yelmo_class), intent(IN) :: dom
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         logical,           intent(IN), optional :: init
         integer,           intent(IN), optional :: irange(2)
         integer,           intent(IN), optional :: jrange(2)
@@ -425,6 +425,9 @@ contains
         ! Previous-call state of ybound_update_rates (z_bed_n, z_sl_n are in the ybound table)
         call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
         call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+
+        ! Reference time of the Eulerian tracer (t_dep_euler = t_ref_euler + t_dep_euler_rel)
+        call nc_write(filename,"t_ref_euler",    dom%trc%par%t_ref_euler, units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
         ! == ytopo variables ===
         do q = 1, size(io%tpo)
@@ -552,7 +555,7 @@ contains
         character(len=*),   intent(IN)    :: domain
         character(len=*),   intent(IN)    :: grid_name
         character(len=*),   intent(IN)    :: filename 
-        real(wp),           intent(IN)    :: time  
+        real(dp),           intent(IN)    :: time  
 
         ! Local variables
         character(len=56) :: restart_domain 
@@ -627,7 +630,7 @@ contains
 
         type(yelmo_class), intent(INOUT) :: dom 
         character(len=*),  intent(IN)    :: filename 
-        real(wp),          intent(IN)    :: time 
+        real(dp),          intent(IN)    :: time 
         
         ! Local variables 
         character(len=56) :: restart_domain 
@@ -678,12 +681,12 @@ contains
         type(ybound_class), intent(INOUT) :: bnd 
         type(ytime_class),  intent(INOUT) :: tme
         character(len=*),  intent(IN)    :: filename 
-        real(wp),          intent(IN)    :: time 
+        real(dp),          intent(IN)    :: time 
         type(map_class), optional, intent(IN) :: mp 
 
         ! Local variables
         integer  :: ncid, n, nx, ny
-        real(wp) :: time_of_restart_file 
+        real(dp) :: time_of_restart_file 
         logical  :: is_continuation
 
         ! Read all yelmo data from file,
@@ -810,11 +813,12 @@ contains
         ! Previous-call state of ybound_update_rates, so the first call after the
         ! restart gives the same dz_bed_dt, dz_sl_dt as a straight run. Restored only
         ! for a true continuation: the model time at initialisation equals the restart
-        ! file's time (tolerance 1e-3 yr, or a few ulps of the single-precision time).
+        ! file's time (tolerance 1e-3 yr, or a few ulps of the time in single precision,
+        ! as written by earlier versions).
         ! Otherwise (restart used as a state at another time, or an old restart
         ! without it) keep rates_init = .FALSE. (zero rates on the first call).
         call nc_read(filename,"time",time_of_restart_file,start=[n],count=[1],ncid=ncid)
-        is_continuation = abs(time - time_of_restart_file) .le. max(1e-3_wp,4.0_wp*spacing(abs(time)))
+        is_continuation = abs(time - time_of_restart_file) .le. max(1e-3_dp,4.0_dp*spacing(real(abs(time),sp)))
         if (is_continuation .and. nc_exists_var(filename,"bnd_rates_init")) then
             call nc_read(filename,"bnd_rates_init", bnd%rates_init,start=[n],count=[1],ncid=ncid)
             call nc_read(filename,"bnd_time_n",     bnd%time_n,    start=[n],count=[1],ncid=ncid)
@@ -845,7 +849,7 @@ contains
 
         type(yelmo_class), intent(INOUT) :: dom 
         character(len=*),  intent(IN)    :: filename 
-        real(wp),          intent(IN)    :: time 
+        real(dp),          intent(IN)    :: time 
         type(map_class), optional, intent(IN) :: mp
 
         ! Local variables
@@ -979,7 +983,15 @@ contains
 
         call nc_read_interp(filename,"f_shear_bar", dom%mat%now%f_shear_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
-        call nc_read_interp(filename,"t_dep_euler", dom%trc%now%t_dep_euler,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+        if (nc_exists_var(filename,"t_dep_euler_rel")) then
+            call nc_read(filename,"t_ref_euler", dom%trc%par%t_ref_euler,start=[n],count=[1],ncid=ncid)
+            call nc_read_interp(filename,"t_dep_euler_rel", dom%trc%now%t_dep_euler_rel,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+        else
+            ! Legacy restart (absolute deposition time only): take the restart time as reference
+            call nc_read_interp(filename,"t_dep_euler", dom%trc%now%t_dep_euler,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)
+            dom%trc%par%t_ref_euler     = time
+            dom%trc%now%t_dep_euler_rel = real(real(dom%trc%now%t_dep_euler,dp) - time,wp)
+        end if
         call nc_read_interp(filename,"depth_iso",   dom%trc%now%depth_iso,ncid=ncid,start=[1,1,1,n],count=[nx,ny,n_iso,1],map=mp) 
         
         call nc_read_interp(filename,"strn2D_dxx", dom%mat%now%strn2D%dxx,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
@@ -1813,6 +1825,9 @@ contains
             case("t_dep_euler") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_euler(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("t_dep_euler_rel") ! 3D
+                call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_euler_rel(i1:i2,j1:j2,:), &
+                            start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("t_dep_trc") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%trc%now%t_dep_trc(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -2241,13 +2256,13 @@ contains
         implicit none
 
         type(yelmo_class), intent(INOUT) :: dom
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
 
         ! Local variables
         character(len=512)  :: filename
         integer             :: ncid, n
         logical             :: do_write
-        real(wp), parameter :: time_tol = 1e-5
+        real(dp), parameter :: time_tol = 1e-5_dp
 
         if (.not. dom%par%write_metrics) return
 
@@ -2256,7 +2271,7 @@ contains
         ! Create the file on first use; otherwise write on the write_metrics_dt cadence.
         if (.not. dom%time%metrics_init_done) then
             call yelmo_grid_write(dom%grd,filename,dom%par%domain,dom%par%grid_name,create=.TRUE.)
-            call nc_write_dim(filename,"time",x=time,dx=1.0_wp,nx=1,units="years",unlimited=.TRUE.)
+            call nc_write_dim(filename,"time",x=time,dx=1.0_dp,nx=1,units="years",unlimited=.TRUE.)
             do_write = .TRUE.
         else
             do_write = (time - dom%time%metrics_time_write) .ge. (dom%par%write_metrics_dt - time_tol)

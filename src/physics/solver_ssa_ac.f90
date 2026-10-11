@@ -71,7 +71,7 @@ contains
     end subroutine linear_solver_save_velocity
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx, &
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx, &
                             taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries, &
                             lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
@@ -91,6 +91,8 @@ contains
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] Mask to determine ssa solver actions (acy-nodes)
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  Ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
+        real(wp), intent(IN) :: z_bed(:,:)              ! [m] Bedrock elevation (aa-nodes)
+        real(wp), intent(IN) :: z_sl(:,:)               ! [m] Sea level (aa-nodes)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] Driving stress (acx nodes)
         real(wp), intent(IN) :: taud_acy(:,:)           ! [Pa] Driving stress (acy nodes)
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] Vertically integrated lateral stress (acx nodes)
@@ -225,7 +227,7 @@ contains
 
         ! Calculate the staggered depth-integrated viscosity 
         ! at the grid-cell corners (ab-nodes). 
-        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,z_bed,z_sl,boundaries)
         
 
         !-------- Assembly of the system of linear equations
@@ -1009,29 +1011,38 @@ contains
     
 ! === INTERNAL ROUTINES ==== 
 
-    subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,boundaries)
+    subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,z_bed,z_sl,boundaries)
         ! Stagger the (depth-integrated) viscosity from cell centres to the
         ! corners (ab-nodes), where it multiplies the shear strain rate.
-        ! The corner value is the mean over the four surrounding cells when
-        ! all of them are fully ice covered, and zero otherwise. A corner
-        ! touching an ice-free or partially covered cell lies on the ice
-        ! margin, which is traction free: there is no shear stress along the
-        ! front. A nonzero value there couples the front faces to the u = 0
-        ! faces of the ice-free cells and acts as a drag on the velocity along
-        ! the front (benchmark A2, docs/dev/benchmark-protocol).
+        ! A corner touching an ocean-side cell, i.e. an ice-free or partially
+        ! covered cell (f_ice < 1) with its bed below sea level (as for
+        ! ice-free points in calc_ice_front), lies on a calving front, which
+        ! is traction free: there is no shear stress along the front, and the
+        ! corner value is zero. A nonzero value there couples the front faces
+        ! to the u = 0 faces of the ice-free cells and acts as a drag on the
+        ! velocity along the front (benchmark A2, docs/dev/benchmark-protocol).
+        ! Elsewhere the corner value is the mean over the fully ice-covered
+        ! surrounding cells (zero if none), so that a land margin keeps its
+        ! lateral shear (e.g. narrow outlets between ice-free land).
+        ! The sum is formed in pairs, (1+2)+(3+4), so that it is exactly
+        ! mirror symmetric in x and y.
 
         implicit none 
 
         real(wp), intent(OUT) :: visc_ab(:,:) 
         real(wp), intent(IN)  :: visc(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
+        real(wp), intent(IN)  :: z_bed(:,:) 
+        real(wp), intent(IN)  :: z_sl(:,:) 
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: i, j
-        integer :: im1, ip1, jm1, jp1 
-        integer :: nx, ny 
-        integer :: BC
+        integer  :: i, j, k
+        integer  :: im1, ip1, jm1, jp1 
+        integer  :: nx, ny 
+        integer  :: BC
+        logical  :: is_ice(4), is_ocn(4)
+        real(wp) :: v(4)
 
         nx = size(visc,1)
         ny = size(visc,2)
@@ -1039,18 +1050,26 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,is_ice,is_ocn,v)
         do j = 1, ny 
         do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (f_ice(i,j)   .eq. 1.0_wp .and. f_ice(ip1,j)   .eq. 1.0_wp .and. &
-                f_ice(i,jp1) .eq. 1.0_wp .and. f_ice(ip1,jp1) .eq. 1.0_wp) then
-                visc_ab(i,j) = 0.25_wp*(visc(i,j)+visc(ip1,j)+visc(i,jp1)+visc(ip1,jp1))
-            else
+            ! Surrounding cells: (i,j), (ip1,j), (i,jp1), (ip1,jp1)
+            is_ice = [f_ice(i,j),f_ice(ip1,j),f_ice(i,jp1),f_ice(ip1,jp1)] .eq. 1.0_wp
+            is_ocn = (.not. is_ice) .and. &
+                     [z_bed(i,j),z_bed(ip1,j),z_bed(i,jp1),z_bed(ip1,jp1)] .lt. &
+                     [z_sl(i,j), z_sl(ip1,j), z_sl(i,jp1), z_sl(ip1,jp1)]
+
+            k = count(is_ice)
+
+            if (any(is_ocn) .or. k .eq. 0) then
                 visc_ab(i,j) = 0.0_wp
+            else
+                v = merge([visc(i,j),visc(ip1,j),visc(i,jp1),visc(ip1,jp1)],0.0_wp,is_ice)
+                visc_ab(i,j) = ((v(1)+v(2))+(v(3)+v(4))) / real(k,wp)
             end if
 
         end do

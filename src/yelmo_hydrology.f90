@@ -70,7 +70,7 @@ contains
         type(hydro_class),  intent(INOUT) :: hyd
         type(ybound_class), intent(IN)    :: bnd
         type(ytopo_class),  intent(IN)    :: tpo
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         call hydro_init_state(hyd, tpo%now%H_ice, bnd%z_bed, tpo%now%f_ice, tpo%now%f_grnd, time)
 
@@ -123,7 +123,7 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         ! Local scratch arrays sized to the yelmo grid
         real(wp), allocatable :: mask(:,:)

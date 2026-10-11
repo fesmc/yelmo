@@ -52,13 +52,13 @@ contains
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         type(hydro_class),  intent(INOUT) :: hyd   ! N updated inside the velocity solve for a hydrology that responds to u_b
-        real(wp),         intent(IN)    :: time
+        real(dp),         intent(IN)    :: time
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa, nz_ac   
         real(wp) :: dt 
         real(8)    :: cpu_time0, cpu_time1
-        real(wp) :: model_time0, model_time1 
+        real(dp) :: model_time0, model_time1 
 
         real(wp), allocatable :: uxy_prev(:,:) 
         real(wp), allocatable :: dzsdx_c(:,:), dzsdy_c(:,:)
@@ -358,8 +358,8 @@ contains
             ! Write diagnostic output every timestep
             ! This could also be called internal to each Picard iteration,
             ! but this lets us see a snapshot after each full dynamics solve.
-            call yelmo_write_init_ssa("ssa.nc",dyn%par%nx,dyn%par%ny,time)
-            call write_step_2D_ssa(tpo,dyn,"ssa.nc",time)
+            call yelmo_write_init_ssa("ssa.nc",dyn%par%nx,dyn%par%ny,real(time,wp))
+            call write_step_2D_ssa(tpo,dyn,"ssa.nc",real(time,wp))
         end if 
 
         return

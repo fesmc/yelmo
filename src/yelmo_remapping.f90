@@ -246,7 +246,7 @@ contains
         if (same_grid(filename,grd)) then
             var = var_in
         else
-            call yelmo_load_map(mp,grd,filename,trim(grd%name)//"-src",method=method)
+            call yelmo_load_map(mp,grd,filename,file_grid_name(filename,nx_in,ny_in),method=method)
             call yelmo_remap(var,var_in,mp,name=varname)
         end if
 
@@ -284,7 +284,7 @@ contains
         if (same_grid(filename,grd)) then
             call yelmo_remap(var,zeta,var_in,zeta_in,name=varname)
         else
-            call yelmo_load_map(mp,grd,filename,trim(grd%name)//"-src",method=method)
+            call yelmo_load_map(mp,grd,filename,file_grid_name(filename,nx_in,ny_in),method=method)
             call yelmo_remap(var,zeta,var_in,zeta_in,mp,name=varname)
         end if
 
@@ -372,6 +372,30 @@ contains
         return
 
     end subroutine read_axes_m
+
+    function file_grid_name(filename,nx,ny) result(name)
+        ! Source grid name of a file: its basename without extension and its
+        ! size (".../GRL-32KM_TOPO.nc" => "GRL-32KM_TOPO-53x91"). map_init caches
+        ! maps under maps/ by grid names, so each source file needs its own name.
+
+        implicit none
+
+        character(len=*), intent(IN) :: filename
+        integer,          intent(IN) :: nx, ny
+        character(len=256) :: name
+
+        ! Local variables
+        integer :: i0, i1
+
+        i0 = index(trim(filename),"/",back=.true.) + 1
+        i1 = index(trim(filename),".",back=.true.) - 1
+        if (i1 .lt. i0) i1 = len_trim(filename)
+
+        write(name,'(a,"-",i0,"x",i0)') filename(i0:i1), nx, ny
+
+        return
+
+    end function file_grid_name
 
     logical function same_grid(filename,grd)
         ! True if the file's xc/yc axes equal the axes of grd (to 1 m).

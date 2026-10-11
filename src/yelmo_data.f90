@@ -14,6 +14,7 @@ module yelmo_data
     private
     public :: ydata_alloc, ydata_dealloc
     public :: ydata_par_load, ydata_load 
+    public :: ydata_mask_pd_topo
     public :: ydata_compare
     public :: ydata_fill_topo_gaps
 
@@ -184,8 +185,6 @@ contains
         real(wp), allocatable :: tmp(:,:,:) 
         character(len=32) :: nml_group
 
-        real(wp), allocatable :: z_sl_pd(:,:)
-
         ! Make sure we know the namelist group for the yelmo_init_topo block
         if (present(group)) then
             nml_group = trim(group)
@@ -196,13 +195,14 @@ contains
         ! Allocate temporary array for loading monthly data 
         allocate(z_bed_sd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
         allocate(tmp(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2),12))
-        allocate(z_sl_pd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
 
-        z_sl_pd = 0.0_wp    ! [m] Define present day relative sea level as zero
+        ! Present-day topography supplied by the driver counts as loaded
+        if (present(topo_pd)) dta%par%pd_topo_load = .TRUE.
 
-        if (dta%par%pd_topo_load .or. present(topo_pd)) then
+        if (dta%par%pd_topo_load) then
             ! Load present-day data from specified files and fields,
-            ! or take them as supplied by the driver
+            ! or take them as supplied by the driver. Kept as read here:
+            ! ydata_mask_pd_topo applies mask_ice and derives the masks.
 
             if (present(topo_pd)) then
 
@@ -280,25 +280,6 @@ contains
             ! Adjust bedrock and ice thickness for smoothness
             call adjust_topography_gradients(dta%pd%z_bed,dta%pd%H_ice,grad_lim_zb,dx,boundaries)
 
-            ! Artificially delete ice from locations that are not allowed
-            where (bnd%mask_ice .eq. MASK_ICE_NONE)
-                dta%pd%H_ice = 0.0
-                dta%pd%z_srf = max(dta%pd%z_bed,0.0)
-            end where
-            
-            ! Calculate H_grnd (ice thickness overburden)
-            ! (extracted from `calc_H_grnd` in topography)
-            dta%pd%H_grnd = dta%pd%H_ice - (bnd%c%rho_sw/bnd%c%rho_ice)*max(z_sl_pd-dta%pd%z_bed,0.0_wp)
-
-            ! Calculate LSF
-            call LSFinit(dta%pd%lsf,dta%pd%H_ice,dta%pd%z_bed,z_sl_pd,dx)
-
-            ! Define the mask to be consistent with internal mask_bed calculations
-            dta%pd%mask_bed = mask_bed_ocean
-            where(dta%pd%H_ice .eq. 0.0 .and. dta%pd%z_srf .gt. 0.0)  dta%pd%mask_bed = mask_bed_land
-            where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .lt. 0.0) dta%pd%mask_bed = mask_bed_float
-            where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .ge. 0.0) dta%pd%mask_bed = mask_bed_frozen
-
         end if 
 
         if (dta%par%pd_tsrf_load) then 
@@ -367,18 +348,6 @@ contains
             where (dta%pd%ux_s .ne. mv .and. dta%pd%uy_s .ne. mv) &
                 dta%pd%uxy_s = sqrt(dta%pd%ux_s**2 + dta%pd%uy_s**2)
 
-            ! Make sure that velocity is zero where no ice exists 
-            ! (if data was loaded)
-            if (dta%par%pd_topo_load) then 
-
-                where (dta%pd%H_ice .lt. 1.0) 
-                    dta%pd%ux_s  = 0.0 
-                    dta%pd%uy_s  = 0.0 
-                    dta%pd%uxy_s = 0.0 
-                end where 
-
-            end if 
-
         end if 
 
         if (dta%par%pd_age_load) then 
@@ -406,7 +375,6 @@ contains
         write(*,*) "ydata_load:: range(z_srf):     ",   minval(dta%pd%z_srf),   maxval(dta%pd%z_srf)
         write(*,*) "ydata_load:: range(z_bed):     ",   minval(dta%pd%z_bed),   maxval(dta%pd%z_bed)
         write(*,*) "ydata_load:: range(z_bed_sd):  ",   minval(z_bed_sd),       maxval(z_bed_sd)
-        write(*,*) "ydata_load:: range(mask_bed):  ",   minval(dta%pd%mask_bed),maxval(dta%pd%mask_bed)
         write(*,*) "ydata_load:: scaling fac z_bed_f_sd: ", z_bed_f_sd  
         write(*,*) "ydata_load:: range(T_srf):     ",   minval(dta%pd%T_srf),   maxval(dta%pd%T_srf)
         write(*,*) "ydata_load:: range(smb):       ",   minval(dta%pd%smb,dta%pd%smb .ne. mv), &
@@ -421,6 +389,62 @@ contains
         return 
 
     end subroutine ydata_load
+
+    subroutine ydata_mask_pd_topo(dta,bnd,dx)
+        ! The present-day topography in the domain of the model, once
+        ! bnd%mask_ice is final: delete the ice where it is not allowed
+        ! (MASK_ICE_NONE), then derive H_grnd, lsf and mask_bed, and set the
+        ! velocity to zero where there is no ice.
+
+        implicit none
+
+        type(ydata_class),  intent(INOUT) :: dta
+        type(ybound_class), intent(IN)    :: bnd
+        real(wp),           intent(IN)    :: dx
+
+        ! Local variables
+        real(wp), allocatable :: z_sl_pd(:,:)
+
+        if (.not. dta%par%pd_topo_load) return
+
+        allocate(z_sl_pd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
+
+        z_sl_pd = 0.0_wp    ! [m] Define present day relative sea level as zero
+
+        ! Artificially delete ice from locations that are not allowed
+        where (bnd%mask_ice .eq. MASK_ICE_NONE)
+            dta%pd%H_ice = 0.0
+            dta%pd%z_srf = max(dta%pd%z_bed,0.0)
+        end where
+        
+        ! Calculate H_grnd (ice thickness overburden)
+        ! (extracted from `calc_H_grnd` in topography)
+        dta%pd%H_grnd = dta%pd%H_ice - (bnd%c%rho_sw/bnd%c%rho_ice)*max(z_sl_pd-dta%pd%z_bed,0.0_wp)
+
+        ! Calculate LSF
+        call LSFinit(dta%pd%lsf,dta%pd%H_ice,dta%pd%z_bed,z_sl_pd,dx)
+
+        ! Define the mask to be consistent with internal mask_bed calculations
+        dta%pd%mask_bed = mask_bed_ocean
+        where(dta%pd%H_ice .eq. 0.0 .and. dta%pd%z_srf .gt. 0.0)  dta%pd%mask_bed = mask_bed_land
+        where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .lt. 0.0) dta%pd%mask_bed = mask_bed_float
+        where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .ge. 0.0) dta%pd%mask_bed = mask_bed_frozen
+
+        if (dta%par%pd_vel_load) then
+            ! Make sure that velocity is zero where no ice exists
+            where (dta%pd%H_ice .lt. 1.0) 
+                dta%pd%ux_s  = 0.0 
+                dta%pd%uy_s  = 0.0 
+                dta%pd%uxy_s = 0.0 
+            end where 
+        end if
+
+        write(*,*) "ydata_mask_pd_topo:: range(H_ice):    ", minval(dta%pd%H_ice),    maxval(dta%pd%H_ice)
+        write(*,*) "ydata_mask_pd_topo:: range(mask_bed): ", minval(dta%pd%mask_bed), maxval(dta%pd%mask_bed)
+
+        return
+
+    end subroutine ydata_mask_pd_topo
 
     subroutine ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,rho_ice,rho_sw)
         ! Fill the gaps (missing values) of a topography dataset, e.g. outside

@@ -34,6 +34,7 @@ program test_ssa_energy
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
+    real(wp) :: z_bed(nx,ny), z_sl(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
 
@@ -49,6 +50,10 @@ program test_ssa_energy
     logical  :: passed
 
     dxdy = dx * dy
+
+    ! Bed below sea level: ice-free cells are ocean (calving fronts)
+    z_bed = -1000.0_wp
+    z_sl  = 0.0_wp
 
     ! ---- Build a synthetic (but plausible) input state ----
     !
@@ -74,11 +79,11 @@ program test_ssa_energy
 
     ! ---- Assemble both matrices ----
     call linear_solver_matrix_ssa_ac_csr_2D(lgs_res,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                 taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     ! ---- Compare matrices entry-by-entry ----
@@ -172,7 +177,7 @@ program test_ssa_energy
         end if
 
         call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
-                    ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,taud_acx,taud_acy, &
+                    ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
                     taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
         do j = 1, ny

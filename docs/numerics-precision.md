@@ -18,6 +18,17 @@ There is no build switch to change this. Interfaces between packages pass
 elsa works in double precision; Yelmo converts its fields at the elsa
 interface (`src/yelmo_tracers.f90`).
 
+## Model time
+
+The model time is `real(dp)` in Yelmo (the public routines, e.g. `yelmo_init`,
+`yelmo_init_state`, `yelmo_update`, `yelmo_restart_write`, and the clocks of
+the components), in the drivers' clock (fesm-utils `tstep_class`, `ts%time`, and
+`timeout`), in FastHydrology (`hydro_update`), in elsa (all entry points, also
+those for `sp` fields) and in tracer (`prec_time = dp`: the time, the
+deposition times and its archive). In single precision the spacing of
+floating-point numbers at |time| = 150 kyr is 0.016 yr, so steps would not be
+exact.
+
 Some solvers work internally in double precision:
 
 - Lis (`src/physics/solver_linear.F90`) solves in double precision; the matrix

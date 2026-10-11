@@ -2,8 +2,65 @@
 
 ## Unreleased (dev)
 
+- **K24 hydraulic potential referenced to sea level** (`yhyd.method_transport = 1`,
+  FastHydrology): `phi0 = rho_ice g H + rho_w g (z_bed - z_sl)`. K24's N depends on `phi0`
+  itself, and with the absolute bed elevation its value at flotation moved with `z_sl`; now it
+  is `(rho_sw - rho_w) g (z_sl - z_bed)` for any `z_sl`. No change for `z_sl = 0`; a uniform
+  `z_sl` leaves the routing unchanged. Needs FastHydrology with `z_sl` in `calc_k24`.
+- **Till closure continuous at flotation** (`yhyd.bkt_N_closure = 3`, FastHydrology): N is
+  limited to `N_marine/till_delta`, with the marine N for full connectivity (p = 1),
+  `N_marine = rho_ice g H - rho_sw g max(z_sl - z_bed, 0)`, so it goes to 0 as grounded ice
+  approaches flotation instead of dropping from the till value to 0 when the cell floats. The
+  limit binds only where `N_marine < till_delta * N_till`, i.e. within a height above
+  flotation of `till_delta * H` at most; no change on land or farther from flotation. Needs
+  FastHydrology with the capped `hydro_calc_N_till`.
+- **`yhyd.bkt_floating_mode` default 0 → 2 (SATURATED)** (input/yelmo_defaults.nml and all
+  par files, which carried the old default). Floating and ocean cells get
+  `W_til = W_til_max`, without the grounded margin ring of MARGIN_FILL (1). With ZERO (0),
+  ice that regrounded onto dry till went from N = 0 to the full overburden in one step (till
+  closure), so the grounding-line cell flipped between grounded and floating every step and
+  TROUGH-F17 with `ytill.cf_ref = 5` was killed by `dt_min`. Needs FastHydrology with
+  `bkt_floating_mode = 2`.
+- **API: model time in double precision.** The time arguments of the public
+  routines are `real(dp)`: `yelmo_init`, `yelmo_init_topo`, `yelmo_init_state`,
+  `yelmo_restart_init`, `yelmo_update`, `yelmo_update_equil` (`time`; `time_tot` and
+  `dt` stay `wp`), `yelmo_set_time`, `yelmo_end`, `yelmo_restart_write`,
+  `yelmo_restart_read`, `yelmo_restart_read_topo_bnd`, `yelmo_write_init`,
+  `yelmo_write_step`, `yelmo_write_metrics`, `yelmo_regions_write_init`,
+  `yelmo_regions_write`, `yelmo_write_reg_init` and `yelmo_write_reg_step`. Drivers
+  must pass `real(dp)` time. The internal clock was already `real(dp)`; now no
+  step rounds it to single precision (at |time| = 150 kyr the single-precision
+  spacing is 0.016 yr). Needs FastHydrology with `real(dp)` time (`hydro_update`,
+  `hydro_init_state`). The C API is unchanged (already `double`).
+- **Model time in double precision in the dependencies.** Needs fesm-utils with
+  `real(dp)` time and step in `timestepping`/`timeout` (`ts%time`, `tstep_init`,
+  `tstep_update` `dt`, `timeout_init`, `timeout_check`), elsa with `real(dp)`
+  time in all entry points, and tracer with `prec_time = dp` (time and deposition
+  times, also in its archive). `%trc` passes the `real(dp)` time to elsa and
+  tracer, `ytrc.time_end` is `real(dp)` and `t_dep_trc` is averaged in `dp`. The
+  drivers use `ts%time` directly and their main step `dtt` is `real(dp)`;
+  `relax_update`, `optimize_set_transient_param` (libs) and the benchmark
+  forcings (`eismint_boundaries`, `dome_boundaries`, `bueler_test_BC`) take
+  `real(dp)` time.
+- **Eulerian tracer (`ytrc.use_euler`) fixed.** The explicit solver broke the
+  vertical Courant condition in thin ice and was unstable, and
+  `fix_tracer_violation` (removed) capped the change relative to the absolute
+  value, so `t_dep_euler` depended on the start time (EISMINT-moving, 5 kyr: up
+  to 4e4 yr between starts at 0 and -150 kyr; values outside [start, time]). The
+  vertical advection is sub-stepped, the basal layer is no longer advected
+  horizontally twice, and the deposition time is transported relative to
+  `t_ref_euler` (restart fields `t_dep_euler_rel`, `t_ref_euler`; older restarts
+  are read from `t_dep_euler`). The horizontal advection is that of the
+  thermodynamics (`calc_advec_horizontal_3D`: flux-limited, on the face
+  velocities, sub-cycled), with new `&ytrc` parameters `advecxy_order`,
+  `advecxy_cfl`, `advecxy_nmax` (same defaults as `&ytherm`); the unlimited
+  second-order upwind undershot (HALFAR: -3e-3 yr). Periodic borders are solved,
+  not copied. Also affects `enh_bnd` (`enh_method = "*-tracer"`, with the
+  `&ytherm` advection parameters).
 - Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
   in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
+- New `yelmo_masks.dynamic_connected` (default off, on for Antarctica): dynamic cells not
+  connected to the ice sheet (e.g. offshore islands) get no ice.
 
 Mostly fixes from a whole-source audit (2026-09). Most default runs change a
 little. MISMIP3D and DIVA runs change more.
@@ -152,16 +209,20 @@ little. MISMIP3D and DIVA runs change more.
   precision). CalvingMIP Exp1, MISMIP+ Ice0, MISMIP3D Stnd and A2: unchanged (volume
   differences <= 2e-5).
 
-- **No shear stress at ice-margin corners in the SSA solvers** (`stagger_visc_aa_ab`,
+- **No shear stress at calving-front corners in the SSA solvers** (`stagger_visc_aa_ab`,
   both assemblers). The corner viscosity was the mean over the ice-covered cells around
   the corner, so corners on a calving front coupled the front faces to the u = 0 faces of
-  the ice-free cells: a drag on the velocity along the front. It is now the mean over the
-  four cells when all are fully ice covered, and zero otherwise (traction-free margin).
+  the ice-free cells: a drag on the velocity along the front. It is now zero at a corner
+  that touches an ocean-side cell (f_ice < 1 and bed below sea level; traction-free front),
+  and elsewhere still the mean over the fully ice-covered cells, so land margins (e.g.
+  narrow outlets between ice-free land) keep their lateral shear. The mean is summed in
+  mirror-symmetric pairs. Both assemblers take `z_bed` and `z_sl` as new arguments.
   Found with benchmark A2 (radial floating shelf, docs/dev/benchmark-protocol): rms error
   44 % (energy) / 15 % (residual) → 0.07 %. CalvingMIP Exp1 (25 km, 10 kyr): grounding-line
   radius 573 → 539 km, axis-to-diagonal spread 39 → 28 km (no orientation trend), volume
   −15 %. TROUGH-F17: volume −1.5 %, max speed 971 → 781 m/yr. MISMIP+ Ice0 and MISMIP3D
-  Stnd unchanged (straight fronts).
+  Stnd unchanged (straight fronts). (Numbers with zero viscosity at all margin corners,
+  before land margins were restored.)
 
 - **`ytherm.use_strain_sia` replaced by `ytherm.strain_heating = "full" | "sia" | "none"`**
   (default `"full"`, same as `use_strain_sia = False`). `"none"` switches strain heating

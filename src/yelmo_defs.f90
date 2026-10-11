@@ -197,6 +197,7 @@ module yelmo_defs
 
         integer    :: adv_lin_iter              ! Linear solver iterations of the thickness advection this step (predictor + corrector)
         integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
+        logical    :: advanced                  ! Ice thickness advanced this step (not topo_fixed and dt > 0)
 
     end type
 
@@ -723,13 +724,16 @@ module yelmo_defs
         ! from (time_end - time)/layer_resolution and never grows it, so the run's
         ! end time must be known up front. Set to the simulation end time (default
         ! 0.0: present day; ytrc_init stops if it is not later than the start time).
-        real(wp)          :: time_end
+        real(dp)          :: time_end
 
         ! Eulerian backend parameters (migrated from ymat)
         logical               :: calc_age            ! Master switch for the Eulerian age tracer
         real(wp), allocatable :: time_iso(:)         ! Target isochrone deposition times [ka]
         character(len=56)     :: tracer_method       ! "expl"|"impl"
         real(wp)              :: tracer_impl_kappa    ! Artificial diffusivity for implicit solver
+        integer               :: advecxy_order       ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        real(wp)              :: advecxy_cfl         ! Target Courant number per horizontal-advection sub-step
+        integer               :: advecxy_nmax        ! Max horizontal-advection sub-steps (safety cap)
 
         ! Sub-model namelist locations. elsa reads a named group (elsa_group);
         ! tracer always reads its fixed "trc" group, so only the file is needed.
@@ -743,6 +747,7 @@ module yelmo_defs
 
         ! Internal parameters
         real(dp)   :: time
+        real(dp)   :: t_ref_euler                    ! [yr] Reference time of the Eulerian tracer (its cold start)
         real(wp)   :: dx, dy
         integer    :: nx, ny, nz_aa, nz_ac
         integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
@@ -756,7 +761,8 @@ module yelmo_defs
 
         ! Model-agnostic harmonized fields, all on the host (nx,ny,nz_aa) sigma grid.
         real(wp), allocatable :: t_dep(:,:,:)        ! Authoritative deposition time (copy of chosen source)
-        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian native field (also the restart variable)
+        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian deposition time (t_ref_euler + t_dep_euler_rel)
+        real(wp), allocatable :: t_dep_euler_rel(:,:,:) ! Eulerian native field, relative to t_ref_euler (also the restart variable)
         real(wp), allocatable :: t_dep_trc(:,:,:)    ! Gridded from Lagrangian particles (gappy diagnostic)
         real(wp), allocatable :: t_dep_elsa(:,:,:)   ! Gridded from the isochrone layer stack (diagnostic)
         real(wp), allocatable :: depth_iso(:,:,:)    ! Authoritative isochrone depths (nx,ny,n_iso)
@@ -808,8 +814,9 @@ module yelmo_defs
         real(wp)            :: enth_cr
         real(wp)            :: omega_max
         real(wp)            :: H_ice_thin       ! [m] Thickness threshold below which the column solver is skipped (linear profile imposed)
-        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
+        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT); "const" if use_const_cp
         logical             :: enth_integral    ! derived: enth_cp_method == "integral"
+        real(wp)            :: enth_cp0         ! derived: [J kg-1 K-1] A1 constant cp, const_cp if use_const_cp, else cp_ref
 
         ! Grounded basal boundary condition
         character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
@@ -974,7 +981,7 @@ module yelmo_defs
         ! Internal variables
         real(wp), allocatable :: z_bed_corr(:,:) 
         real(wp), allocatable :: dzbdt_corr(:,:) 
-        real(wp) :: restart_relax_init
+        real(dp) :: restart_relax_init
 
         ! Rates of bedrock elevation and sea level between yelmo_update calls
         real(wp), allocatable :: z_bed_n(:,:)       ! [m] Bedrock elevation at the previous call
@@ -1204,7 +1211,7 @@ module yelmo_defs
         logical :: pc_active
 
         ! Metrics output state (yelmo_metrics.nc)
-        real(wp) :: metrics_time_write   ! Model time of the last metrics record
+        real(dp) :: metrics_time_write   ! Model time of the last metrics record
         logical  :: metrics_init_done    ! Has the metrics file been created yet?
 
     end type
@@ -1475,8 +1482,8 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: speed            ! [kyr / hr]
-        real(wp), intent(IN)  :: model_time0      ! [yr]
-        real(wp), intent(IN)  :: model_time1      ! [yr]
+        real(dp), intent(IN)  :: model_time0      ! [yr]
+        real(dp), intent(IN)  :: model_time1      ! [yr]
         real(8),    intent(IN)  :: cpu_time0        ! [sec]
         real(8),    intent(IN)  :: cpu_time1        ! [sec]
 

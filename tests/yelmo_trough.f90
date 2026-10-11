@@ -22,7 +22,8 @@ program yelmo_trough
     character(len=256) :: outfldr, file2D, file1D, file_restart, file_ts
     character(len=512) :: path_par 
     character(len=56)  :: experiment, res  
-    real(wp) :: time_init, time_end, dt1D_out, dt2D_out
+    real(dp) :: time_init, time_end
+    real(wp) :: dt1D_out, dt2D_out
     logical  :: write_ts                            ! Write TROUGH-F17 point/transect time series?
     real(wp) :: dtts_out                            ! [yr] Frequency of time-series output
     real(wp) :: pts_x(3)                            ! [km] Points on the centreline (y=0)
@@ -32,7 +33,7 @@ program yelmo_trough
     character(len=512) :: state_file                ! TROUGH-F17: file with a state (H_ice, z_bed, T_ice, hyd_W_til) on the model grid ("None": not used)
     character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
     logical  :: full_domain                         ! TROUGH-F17: full symmetric domain x = [-lx,lx] (divide inside)?
-    real(wp) :: dtt
+    real(dp) :: dtt
     integer  :: n
 
     ! Control parameters 
@@ -135,7 +136,7 @@ program yelmo_trough
     ! === Initialize timestepping ===
     
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
-                                            time_ref=1950.0_wp,const_rel=0.0_wp,const_cal=1950.0_wp)
+                                            time_ref=1950.0_dp,const_rel=0.0_dp,const_cal=1950.0_dp)
 
     
     ! Define default grid name for completeness 
@@ -714,7 +715,7 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
 
         ! Local variables
         integer  :: ncid, n, i, j, nx, ny  
@@ -962,13 +963,13 @@ end if
         type(yelmo_class), intent(IN) :: ylmo
         real(wp),          intent(IN) :: pts_x(:)       ! [km] Points on the centreline (y=0)
         real(wp),          intent(IN) :: sec_x          ! [km] Position of the cross-section
-        real(wp),          intent(IN) :: time_init
+        real(dp),          intent(IN) :: time_init
 
         call nc_create(filename)
         call nc_write_dim(filename,"pt",  x=pts_x,units="kilometers",long_name="Point position on the centreline (y=0)")
         call nc_write_dim(filename,"xsec",x=sec_x,dx=1.0_wp,nx=1,units="kilometers",long_name="Cross-section position")
         call nc_write_dim(filename,"yc",  x=ylmo%grd%G%y*1d-3,units="kilometers")
-        call nc_write_dim(filename,"time",x=time_init,dx=1.0_wp,nx=1,units="years",unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",x=time_init,dx=1.0_dp,nx=1,units="years",unlimited=.TRUE.)
 
         return
 
@@ -987,7 +988,7 @@ end if
         type(yelmo_class), intent(IN) :: ylmo
         real(wp),          intent(IN) :: pts_x(:)       ! [km] Points on the centreline (y=0)
         real(wp),          intent(IN) :: sec_x          ! [km] Position of the cross-section
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
 
         ! Local variables
         integer  :: ncid, n, i, j, j0, nx, ny

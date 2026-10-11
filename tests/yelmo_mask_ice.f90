@@ -22,7 +22,9 @@ program yelmo_mask_ice
     character(len=512) :: path_par
 
     ! Timing
-    real(wp) :: time_init, time_end, dtt, dt1D_out, dt2D_out
+    real(dp) :: time_init, time_end
+    real(dp) :: dtt
+    real(wp) :: dt1D_out, dt2D_out
 
     ! Geometry
     real(wp) :: lx, ly, dx
@@ -179,7 +181,7 @@ program yelmo_mask_ice
 
     ! === Initialize timestepping ===
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
-                                            time_ref=0.0_wp,const_rel=0.0_wp,const_cal=0.0_wp)
+                                            time_ref=0.0_dp,const_rel=0.0_dp,const_cal=0.0_dp)
 
     ! === Write initial state ===
     call yelmo_write_init(yelmo1,file2D,time_init=ts%time,units="years")
@@ -251,7 +253,7 @@ contains
 
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
 
         integer :: ncid, n
 
@@ -285,6 +287,16 @@ contains
         call nc_write(filename,"mb_relax",ylmo%tpo%now%mb_relax,units="m/yr",long_name="Relaxation mass balance", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"dHidt",ylmo%tpo%now%dHidt,units="m/yr",long_name="dH_ice/dt", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"dHidt_dyn",ylmo%tpo%now%dHidt_dyn,units="m/yr",long_name="dH_ice/dt from transport", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"mb_clip",ylmo%tpo%now%mb_clip,units="m/yr",long_name="Clip of negative thickness", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"cmb",ylmo%tpo%now%cmb,units="m/yr",long_name="Calving mass balance", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"mb_err",ylmo%tpo%now%mb_err,units="m/yr",long_name="Mass balance accounting error", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
+        call nc_write(filename,"ux_bar",ylmo%dyn%now%ux_bar,units="m/yr",long_name="Depth-averaged velocity, x (acx)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         call nc_write(filename,"tau_relax",ylmo%tpo%now%tau_relax,units="yr",long_name="Relaxation timescale", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)

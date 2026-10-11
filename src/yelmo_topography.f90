@@ -51,7 +51,7 @@ contains
         type(ytherm_class), intent(IN)    :: thrm  
         type(ybound_class), intent(IN)    :: bnd
         type(ydata_class),  intent(IN)    :: dta 
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
         logical,            intent(IN)    :: topo_fixed  
         character(len=*),   intent(IN)    :: pc_step 
         logical, optional,  intent(IN)    :: use_H_pred
@@ -88,8 +88,8 @@ contains
         if (present(filter_vel)) filt = filter_vel
 
         ! Initialize time if necessary 
-        if (tpo%par%time .gt. dble(time)) then 
-            tpo%par%time = dble(time) 
+        if (tpo%par%time .gt. time) then 
+            tpo%par%time = time 
         end if 
         
         ! Initialize rk4 object if necessary 
@@ -98,7 +98,11 @@ contains
         end if 
 
         ! Get time step
-        dt = dble(time) - tpo%par%time 
+        dt = time - tpo%par%time 
+
+        ! Is the ice thickness advanced this step? (Not for topo_fixed or dt = 0:
+        ! then pred/corr are not refreshed and yelmo_update measures no pc error)
+        tpo%par%advanced = (.not. topo_fixed .and. dt .gt. 0.0)
 
         ! Step 0: Get some diagnostic quantities for mass balance calculation --------
 
@@ -107,7 +111,7 @@ contains
 
         ! Step 1: Go through predictor-corrector-advance steps
 
-        if ( .not. topo_fixed .and. dt .gt. 0.0 ) then 
+        if (tpo%par%advanced) then 
 
             ! Ice thickness evolution from dynamics alone
 
@@ -131,11 +135,11 @@ contains
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,bnd%H_ice_ref,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                 bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                 bnd%mask_ice,bnd%H_ice_ref,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                  lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = lin_iter
                     tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
@@ -177,10 +181,10 @@ end if
 
 if (use_rk4) then
                     call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                bnd%mask_ice,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
+                                                bnd%mask_ice,bnd%H_ice_ref,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
 else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
-                                                bnd%mask_ice,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
+                                                bnd%mask_ice,bnd%H_ice_ref,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                 lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
                     tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
@@ -286,7 +290,7 @@ end if
                     ! Calculate and apply calving
                     if (tpo%par%use_lsf) then
                         ! Level-set function as calving
-                        call calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,time)
+                        call calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,real(time,wp))
                     else
                         ! Mass balance calving
                         call calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
@@ -532,16 +536,16 @@ end if
         ! z_srf, difference it against the start-of-step snapshot z_srf_n.
         ! Same guard as the other rates; z_srf_n is set at step start (predictor)
         ! and is not modified by calc_ytopo_diagnostic.
-        if ( .not. topo_fixed .and. dt .gt. 0.0 ) then
+        if (tpo%par%advanced) then
             tpo%now%dzsdt = (tpo%now%z_srf - tpo%now%z_srf_n) / dt
         end if
 
         ! Kinematic rates of the ice column's surface and base, the boundary
         ! conditions of the vertical velocity: vertical column change plus the
         ! bedrock and sea-level rates (no vertical change when the ice is not advanced)
-        if (topo_fixed .or. dt .le. 0.0) tpo%now%dHidt_vert = 0.0_wp
+        if (.not. tpo%par%advanced) tpo%now%dHidt_vert = 0.0_wp
         call calc_column_kinematic_rates(tpo%now%dzsdt_kin,tpo%now%dzbdt_kin,tpo%now%mask_kin,tpo%now%dHidt_vert, &
-                    (.not. topo_fixed .and. dt .gt. 0.0),tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
+                    tpo%par%advanced,tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
                     tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! When the ice is not advanced this step -- initialization (pc_step="none")
@@ -552,7 +556,7 @@ end if
         ! forcing masked to the current ice, nothing is applied and H_ice is left
         ! untouched. mb_net stays zero (nothing applied) and bmb_grnd may still be
         ! zero at initialization (thermodynamics not yet computed); both expected.
-        if ( topo_fixed .or. dt .le. 0.0 ) then
+        if (.not. tpo%par%advanced) then
             call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
         end if
 
@@ -566,10 +570,10 @@ end if
         if (trim(pc_step) .eq. "advance") then 
             ! Advance timestep here whether topo_fixed was true or not...
 
-            call yelmo_calc_speed(tpo%par%speed,real(tpo%par%time,wp),time,0.0d0,tpo%par%cpu_step)
+            call yelmo_calc_speed(tpo%par%speed,tpo%par%time,time,0.0d0,tpo%par%cpu_step)
             
             ! Update ytopo time to current time 
-            tpo%par%time = dble(time)
+            tpo%par%time = time
             
         end if
 
@@ -647,13 +651,14 @@ end if
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         logical,  allocatable :: mask_kill(:,:)
+        real(wp), allocatable :: H_grnd_now(:,:), f_grnd_now(:,:)
 
         nx = size(tpo%now%H_ice,1) 
         ny = size(tpo%now%H_ice,2) 
 
         allocate(mbal_now(nx,ny)) 
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
-        allocate(mask_kill(nx,ny))
+        allocate(mask_kill(nx,ny),H_grnd_now(nx,ny),f_grnd_now(nx,ny))
         allocate(cmb_sd(nx,ny)) 
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
 
@@ -849,12 +854,29 @@ end if
         ! floating ice, "kill-pos": floating ice where bnd%calv_mask). Applied last,
         ! after the front advance: otherwise ice the advance moves into the region
         ! survives the step and is removed in the next one, so the front cell fills
-        ! and empties on alternate steps.
+        ! and empties on alternate steps. Flotation is evaluated on the current
+        ! geometry, not tpo%now%f_grnd (start-of-step), and on the thickness of
+        ! the ice column, max(H_eff,H_ice): the front advance moves ice into the
+        ! ocean neighbour as a thin partial cell, whose cell-mean H_ice would
+        ! always float, so grounded marine ice could never advance. Floating
+        ! means no grounded area, with the grounded fraction of ytopo.gl_sep
+        ! (as f_grnd): with gl_sep = 3, a cell whose centre floats but that is
+        ! partly grounded is kept.
         select case(trim(tpo%par%calv_flt_method))
 
             case("kill","kill-pos")
 
-                mask_kill = tpo%now%f_grnd .eq. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
+                call calc_H_grnd(H_grnd_now,max(tpo%now%H_eff,tpo%now%H_ice),tpo%now%f_ice,bnd%z_bed,bnd%z_sl, &
+                                    bnd%c%rho_ice,bnd%c%rho_sw,use_f_ice=.FALSE.)
+
+                select case(tpo%par%gl_sep)
+                    case(3)
+                        call calc_f_grnd_subgrid_area(f_grnd_now,H_grnd=H_grnd_now,boundaries=tpo%par%boundaries)
+                    case DEFAULT
+                        f_grnd_now = merge(1.0_wp,0.0_wp,H_grnd_now .ge. 0.0_wp)
+                end select
+
+                mask_kill = f_grnd_now .eq. 0.0_wp .and. tpo%now%H_ice .gt. 0.0_wp
                 if (trim(tpo%par%calv_flt_method) .eq. "kill-pos") mask_kill = mask_kill .and. bnd%calv_mask
 
                 call calc_calving_rate_kill(mbal_now,tpo%now%H_ice,mask_kill,tau=0.0_wp,dt=dt)
@@ -1406,7 +1428,7 @@ end if
 
         type(ytopo_class),  intent(INOUT) :: tpo 
         type(ybound_class), intent(IN)    :: bnd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
         real(wp),           intent(IN)    :: dt 
         character(len=*),   intent(IN)    :: step 
         logical,            intent(IN)    :: check_mb 
@@ -1731,6 +1753,7 @@ end if
 
         par%adv_lin_iter = 0
         par%adv_lin_fail = 0 
+        par%advanced     = .FALSE.
 
         return
 

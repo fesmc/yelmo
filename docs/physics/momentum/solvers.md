@@ -25,9 +25,11 @@ Yelmo uses the Arakawa C / staggered AC grid:
 - **acx-nodes** (right face of each aa-cell): $\bar u$, $\tau_{d,x}$, $\beta_{\mathrm{eff},x}$.
 - **acy-nodes** (top face): $\bar v$, $\tau_{d,y}$, $\beta_{\mathrm{eff},y}$.
 - **ab-nodes** (cell corners): cross-coupling viscosity
-  $(\bar\mu H)^{\mathrm{ab}}$, the average of $\bar\mu\,H$ over its four
-  neighbouring aa-cells if all four are fully ice covered, and zero otherwise
-  (`stagger_visc_aa_ab`), so that an ice margin carries no shear traction.
+  $(\bar\mu H)^{\mathrm{ab}}$, zero if any of its four neighbouring aa-cells
+  is on the ocean side (not fully ice covered, bed below sea level), so that
+  a calving front carries no shear traction, and otherwise the average of
+  $\bar\mu\,H$ over the fully ice-covered neighbours (`stagger_visc_aa_ab`),
+  so that a land margin keeps its lateral shear.
 
 The two unknowns per cell ($\bar u$ at the right face and $\bar v$ at the
 top face) are interleaved into a single state vector

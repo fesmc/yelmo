@@ -7,13 +7,14 @@ module yelmo_boundaries
     use coords,  only : grid_class
     use regions, only : regions_class, region_mask_class, regions_init, regions_init_nml, regions_select, &
                         regions_basin_ids, regions_find, regions_end
-    use yelmo_tools, only : boundary_code, get_periodic_directions
+    use yelmo_tools, only : boundary_code, get_periodic_directions, get_neighbor_indices_bc_codes
 
     implicit none
     
     private
     public :: ybound_define_physical_constants
     public :: ybound_load_masks
+    public :: ybound_mask_ice_connected
     public :: ybound_define_mask_ice
     public :: ybound_alloc, ybound_dealloc
     public :: ybound_update_rates
@@ -250,6 +251,160 @@ contains
         return 
 
     end subroutine ybound_load_masks
+
+    subroutine ybound_mask_ice_connected(bnd,nml_path,nml_group,H_ice_pd,H_ice_init,boundaries)
+        ! With dynamic_connected (masks group nml_group), keep only the dynamic
+        ! cells connected to the ice sheet: the others (e.g. offshore islands and
+        ! banks) become MASK_ICE_NONE. The ice sheet is the largest 4-connected
+        ! region of ice in the allowed cells (mask_ice /= MASK_ICE_NONE), from the
+        ! present-day ice if there is any, else from the initial ice. Connected
+        ! means through allowed cells (4 neighbours, periodic directions wrap):
+        ! fixed cells conduct and are always kept.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        character(len=*),   intent(IN)    :: nml_path, nml_group
+        real(wp),           intent(IN)    :: H_ice_pd(:,:)
+        real(wp),           intent(IN)    :: H_ice_init(:,:)
+        character(len=*),   intent(IN)    :: boundaries
+
+        ! Local variables
+        logical :: dynamic_connected
+        integer :: nx, ny, n_ice, n_allowed, k_sheet, k_keep, n_removed
+        character(len=56) :: source
+        logical, allocatable :: allowed(:,:), ice(:,:)
+        integer, allocatable :: lab_ice(:,:), lab_allowed(:,:)
+
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_masks = "yelmo_masks"
+
+        call nml_read(nml_path,nml_group,"dynamic_connected",dynamic_connected,defaults_file=def_file,defaults_group=def_masks)
+
+        if (.not. dynamic_connected) return
+
+        nx = size(bnd%mask_ice,1)
+        ny = size(bnd%mask_ice,2)
+        allocate(allowed(nx,ny),ice(nx,ny),lab_ice(nx,ny),lab_allowed(nx,ny))
+
+        allowed = bnd%mask_ice .ne. MASK_ICE_NONE
+
+        ice    = H_ice_pd .gt. 0.0_wp .and. allowed
+        source = "present-day ice"
+        if (.not. any(ice)) then
+            ice    = H_ice_init .gt. 0.0_wp .and. allowed
+            source = "initial ice"
+        end if
+
+        if (.not. any(ice)) then
+            write(io_unit_err,*) "ybound_mask_ice_connected:: Error: dynamic_connected needs an ice sheet, &
+                                 &but there is no present-day or initial ice in the allowed cells."
+            error stop 1
+        end if
+
+        ! The ice sheet: the largest region of ice (the first one if tied)
+        call label_regions(lab_ice,n_ice,ice,boundaries)
+        k_sheet = maxloc(count_labels(lab_ice,n_ice),1)
+
+        ! Keep the region of allowed cells that holds it
+        call label_regions(lab_allowed,n_allowed,allowed,boundaries)
+        k_keep = maxval(lab_allowed,mask=lab_ice .eq. k_sheet)
+
+        n_removed = count(bnd%mask_ice .eq. MASK_ICE_DYNAMIC .and. lab_allowed .ne. k_keep)
+        where (bnd%mask_ice .eq. MASK_ICE_DYNAMIC .and. lab_allowed .ne. k_keep) bnd%mask_ice = MASK_ICE_NONE
+
+        write(*,*) "ybound_mask_ice_connected:: ice sheet from ", trim(source), ": ", count(lab_ice .eq. k_sheet), " cells"
+        write(*,*) "ybound_mask_ice_connected:: dynamic cells not connected to it, removed: ", n_removed
+
+        return
+
+    end subroutine ybound_mask_ice_connected
+
+    subroutine label_regions(lab,n_lab,mask,boundaries)
+        ! The 4-connected regions of mask: lab = 1..n_lab in the mask, 0 outside.
+        ! Neighbours follow the boundary treatment (periodic directions wrap).
+
+        implicit none
+
+        integer,          intent(OUT) :: lab(:,:)
+        integer,          intent(OUT) :: n_lab
+        logical,          intent(IN)  :: mask(:,:)
+        character(len=*), intent(IN)  :: boundaries
+
+        ! Local variables
+        integer :: nx, ny, BC, i, j, i1, j1, q, n
+        integer :: im1, ip1, jm1, jp1
+        integer :: inb(4), jnb(4)
+        integer, allocatable :: stack(:,:)
+
+        nx = size(mask,1)
+        ny = size(mask,2)
+        BC = boundary_code(boundaries)
+
+        ! Each cell is pushed once (labelled when pushed)
+        allocate(stack(2,nx*ny))
+
+        lab   = 0
+        n_lab = 0
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (.not. mask(i,j) .or. lab(i,j) .gt. 0) cycle
+
+            ! Flood fill a new region from (i,j)
+            n_lab    = n_lab + 1
+            lab(i,j) = n_lab
+            n        = 1
+            stack(:,n) = [i,j]
+
+            do while (n .gt. 0)
+                i1 = stack(1,n)
+                j1 = stack(2,n)
+                n  = n - 1
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i1,j1,nx,ny,BC)
+                inb = [im1,ip1,i1,i1]
+                jnb = [j1,j1,jm1,jp1]
+
+                do q = 1, 4
+                    if (mask(inb(q),jnb(q)) .and. lab(inb(q),jnb(q)) .eq. 0) then
+                        lab(inb(q),jnb(q)) = n_lab
+                        n = n + 1
+                        stack(:,n) = [inb(q),jnb(q)]
+                    end if
+                end do
+            end do
+
+        end do
+        end do
+
+        return
+
+    end subroutine label_regions
+
+    function count_labels(lab,n_lab) result(n)
+        ! Number of cells of each label 1..n_lab
+
+        implicit none
+
+        integer, intent(IN) :: lab(:,:)
+        integer, intent(IN) :: n_lab
+        integer :: n(n_lab)
+
+        ! Local variables
+        integer :: i, j
+
+        n = 0
+        do j = 1, size(lab,2)
+        do i = 1, size(lab,1)
+            if (lab(i,j) .gt. 0) n(lab(i,j)) = n(lab(i,j)) + 1
+        end do
+        end do
+
+        return
+
+    end function count_labels
 
     subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border)
         ! Treatment of the domain border in mask_ice (ice dynamic, MASK_ICE_DYNAMIC,

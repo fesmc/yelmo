@@ -142,11 +142,25 @@ the closure is chosen with `yhyd.bkt_N_closure`:
 | 2 | Marine closure (Leguy et al., 2014), exponent `yhyd.marine_p` |
 | 3 | Till closure (Bueler and van Pelt, 2015), parameters `yhyd.till_*` (**default**) |
 
+The till water $W_\mathrm{til}$ (`hyd_W_til`) of floating and ocean cells is set by
+`yhyd.bkt_floating_mode`: 0, none; 1, saturated (`yhyd.W_til_max`), together with
+the grounded cells next to floating ice (legacy); 2, saturated (**default**). With
+2, ice that grounds starts from saturated till, so $N_\mathrm{eff}$ does not jump
+from zero to the overburden pressure when a cell regrounds. The till closure is
+limited to $N_\mathrm{eff} \le N_m/\delta$, with
+$N_m = \rho_i g H - \rho_{sw} g \max(z_{sl} - z_b, 0)$ the marine closure for full
+ocean connectivity ($p = 1$) and $\delta$ = `yhyd.till_delta`, so $N_\mathrm{eff}$
+goes to zero continuously as grounded ice approaches flotation. The limit only
+applies within a height above flotation of $\delta H$.
+
 With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
 the transport model. Its $N$ depends on the basal velocity, so with
 `yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
 velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
-iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. A
+iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. The
+hydraulic potential is referenced to sea level,
+$\phi_0 = \rho_i g H + \rho_w g (z_b - z_{sl})$, so $N$ near the grounding line does
+not depend on the sea level. A
 host model that owns the hydrology can do the same through the C-API callback
 `yelmo_set_neff_callback`. With `ydyn.neff_nxi` > 0, the cell value of
 $N_\mathrm{eff}$ is the average of the hydrology's $N$ interpolated to sub-grid

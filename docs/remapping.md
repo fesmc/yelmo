@@ -180,7 +180,8 @@ Yelmo grid:
 - `yelmo_read_remap(var, grd, filename, varname, [zeta, zeta_name], [method])`
   reads a 2D or 3D field (the last time record, if there is a time dimension)
   and maps it onto the Yelmo grid. The field is remapped horizontally only if
-  the file's axes differ from the Yelmo grid.
+  the file's axes differ from the Yelmo grid. The map is cached in `maps/`
+  under the source grid name `<file basename>-<nx>x<ny>`.
 
 For example, to initialize the ice temperature from a field `T_ice` on the
 levels `zeta` of another file:

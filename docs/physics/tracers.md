@@ -17,9 +17,16 @@ the Yelmo vertical grid. The backend selected by `t_dep_source` (`"euler"`,
 `"trc"` or `"elsa"`) is copied to `t_dep`, from which the depths of the
 isochrones at the times `time_iso` [ka] are diagnosed (`depth_iso`; with
 `calc_age = False`, only the first time is used). The Eulerian solver is
-explicit (`tracer_method = "expl"`) or implicit in the vertical with an
-artificial diffusion `tracer_impl_kappa` (`"impl"`); the horizontal advection
-is explicit upwind in both cases. Where the depth-averaged speed exceeds
+explicit (`tracer_method = "expl"`, vertical advection sub-stepped to a Courant
+number of at most 1) or implicit in the vertical with an
+artificial diffusion `tracer_impl_kappa` (`"impl"`). In both cases the
+horizontal advection is explicit and is that of the
+[thermodynamics](thermodynamics.md) (flux-limited second order on the face
+velocities, sub-cycled), with its own parameters `advecxy_order`,
+`advecxy_cfl` and `advecxy_nmax` (same defaults). It transports the deposition
+time relative to the time of its cold start, `t_ref_euler`
+(`t_dep_euler_rel`; both are in the restart file), so its precision does not
+depend on the absolute time; `t_dep_euler` is the absolute deposition time. Where the depth-averaged speed exceeds
 500 m a$^{-1}$, the Eulerian tracer is set to the surface value. The elsa
 layer stack is sized by the simulation end time `time_end`, which must be
 later than the start time. On a restart, the state of the Lagrangian

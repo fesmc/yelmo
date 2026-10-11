@@ -33,7 +33,9 @@ program yelmo_benchmarks
     real(wp), allocatable :: H_sym(:,:)
     type(sym_metrics_class) :: sym_met
     logical    :: sym_pass
-    real(wp) :: time_init, time_end, dtt, dt2D_out, dt1D_out
+    real(dp) :: time_init, time_end
+    real(dp) :: dtt
+    real(wp) :: dt2D_out, dt1D_out
     real(wp) :: period, dt_test, alpha, omega, L, amp 
     real(wp) :: bumps_L, bumps_A 
     integer    :: n  
@@ -98,7 +100,7 @@ program yelmo_benchmarks
     ! === Initialize timestepping ===
     
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
-                                            time_ref=1950.0_wp,const_rel=0.0_wp,const_cal=1950.0_wp)
+                                            time_ref=1950.0_dp,const_rel=0.0_dp,const_cal=1950.0_dp)
 
     ! Define the model domain based on the experiment we are running
     select case(trim(experiment))
@@ -251,7 +253,7 @@ end if
 
             ! Initialize BUELER-B 
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -269,7 +271,7 @@ end if
 
             ! Initialize BUELER-B (but with HALFAR conditions)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -287,7 +289,7 @@ end if
 
             ! Initialize BUELER-B (but with conditions between Bueler-B and HALFAR - not too big, not too small)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -332,7 +334,7 @@ end if
             ! Initialize eismint boundary values 
             call eismint_boundaries(yelmo1%bnd%T_srf,yelmo1%bnd%smb,yelmo1%bnd%Q_geo, &
                                     yelmo1%grd%x,yelmo1%grd%y,yelmo1%tpo%now%H_ice, &
-                                    experiment=experiment,time=0.0_wp,period=period,dT_test=dT_test)
+                                    experiment=experiment,time=0.0_dp,period=period,dT_test=dT_test)
 
 
     end select 
@@ -572,7 +574,7 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         type(bueler_test_type), intent(IN), optional :: buel 
 
         ! Local variables
@@ -891,7 +893,7 @@ contains
         type(yelmo_class),      intent(IN) :: ylmo
         type(bueler_test_type), intent(IN) :: buel 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         
         ! Local variables
         integer    :: ncid, n, i, j, nx, ny  
