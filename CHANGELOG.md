@@ -9,10 +9,19 @@
   `yelmo_restart_read`, `yelmo_restart_read_topo_bnd`, `yelmo_write_init`,
   `yelmo_write_step`, `yelmo_write_metrics`, `yelmo_regions_write_init`,
   `yelmo_regions_write`, `yelmo_write_reg_init` and `yelmo_write_reg_step`. Drivers
-  must pass `real(dp)` time (e.g. `dble(ts%time)`). The internal clock was already
-  `real(dp)`; now no step rounds it to single precision (at |time| = 150 kyr the
-  single-precision spacing is 0.016 yr). Needs FastHydrology with `real(dp)` time
-  (`hydro_update`, `hydro_init_state`). The C API is unchanged (already `double`).
+  must pass `real(dp)` time. The internal clock was already `real(dp)`; now no
+  step rounds it to single precision (at |time| = 150 kyr the single-precision
+  spacing is 0.016 yr). Needs FastHydrology with `real(dp)` time (`hydro_update`,
+  `hydro_init_state`). The C API is unchanged (already `double`).
+- **Model time in double precision in the dependencies.** Needs fesm-utils with
+  `real(dp)` time in `timestepping`/`timeout` (`ts%time`, `tstep_init`,
+  `timeout_init`, `timeout_check`), elsa with `real(dp)` time in all entry points,
+  and tracer with `prec_time = dp` (time and deposition times, also in its
+  archive). `%trc` passes the `real(dp)` time to elsa and tracer, `ytrc.time_end`
+  is `real(dp)` and `t_dep_trc` is averaged in `dp`. The drivers use `ts%time`
+  directly; `relax_update`, `optimize_set_transient_param` (libs) and the
+  benchmark forcings (`eismint_boundaries`, `dome_boundaries`, `bueler_test_BC`)
+  take `real(dp)` time.
 - Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
   in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
 - New `yelmo_masks.dynamic_connected` (default off, on for Antarctica): dynamic cells not
