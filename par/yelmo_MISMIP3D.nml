@@ -274,7 +274,7 @@
     enth_cr         = 1e-3              ! [--] Conductivity ratio for temperate ice (kappa_temp     = enth_cr*kappa_cold)
     omega_max       = 0.01              ! [--] Maximum allowed water content fraction 
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
-    enth_cp_method  = "integral"        ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
+    enth_cp_method  = "const"           ! Enthalpy heat capacity: "const" (cp_ref) or "integral" (int cp(T) dT)
 
     rock_method     = "equil"           ! "equil" (not active bedrock), "active", or "fixed"
     nzr_aa          = 5                 ! Number of vertical points in bedrock 

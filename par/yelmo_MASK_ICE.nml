@@ -305,7 +305,7 @@
     enth_cr         = 1e-3
     omega_max       = 0.01
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
-    enth_cp_method  = "integral"
+    enth_cp_method  = "const"   
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"
