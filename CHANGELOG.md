@@ -31,7 +31,13 @@
   vertical advection is sub-stepped, the basal layer is no longer advected
   horizontally twice, and the deposition time is transported relative to
   `t_ref_euler` (restart fields `t_dep_euler_rel`, `t_ref_euler`; older restarts
-  are read from `t_dep_euler`). Also affects `enh_bnd` (`enh_method = "*-tracer"`).
+  are read from `t_dep_euler`). The horizontal advection is that of the
+  thermodynamics (`calc_advec_horizontal_3D`: flux-limited, on the face
+  velocities, sub-cycled), with new `&ytrc` parameters `advecxy_order`,
+  `advecxy_cfl`, `advecxy_nmax` (same defaults as `&ytherm`); the unlimited
+  second-order upwind undershot (HALFAR: -3e-3 yr). Periodic borders are solved,
+  not copied. Also affects `enh_bnd` (`enh_method = "*-tracer"`, with the
+  `&ytherm` advection parameters).
 - Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
   in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
 - New `yelmo_masks.dynamic_connected` (default off, on for Antarctica): dynamic cells not

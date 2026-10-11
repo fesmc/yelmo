@@ -19,8 +19,11 @@ isochrones at the times `time_iso` [ka] are diagnosed (`depth_iso`; with
 `calc_age = False`, only the first time is used). The Eulerian solver is
 explicit (`tracer_method = "expl"`, vertical advection sub-stepped to a Courant
 number of at most 1) or implicit in the vertical with an
-artificial diffusion `tracer_impl_kappa` (`"impl"`); the horizontal advection
-is explicit second-order upwind in both cases. It transports the deposition
+artificial diffusion `tracer_impl_kappa` (`"impl"`). In both cases the
+horizontal advection is explicit and is that of the
+[thermodynamics](thermodynamics.md) (flux-limited second order on the face
+velocities, sub-cycled), with its own parameters `advecxy_order`,
+`advecxy_cfl` and `advecxy_nmax` (same defaults). It transports the deposition
 time relative to the time of its cold start, `t_ref_euler`
 (`t_dep_euler_rel`; both are in the restart file), so its precision does not
 depend on the absolute time; `t_dep_euler` is the absolute deposition time. Where the depth-averaged speed exceeds
