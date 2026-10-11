@@ -976,7 +976,7 @@ module yelmo_defs
         ! Internal variables
         real(wp), allocatable :: z_bed_corr(:,:) 
         real(wp), allocatable :: dzbdt_corr(:,:) 
-        real(wp) :: restart_relax_init
+        real(dp) :: restart_relax_init
 
         ! Rates of bedrock elevation and sea level between yelmo_update calls
         real(wp), allocatable :: z_bed_n(:,:)       ! [m] Bedrock elevation at the previous call
@@ -1206,7 +1206,7 @@ module yelmo_defs
         logical :: pc_active
 
         ! Metrics output state (yelmo_metrics.nc)
-        real(wp) :: metrics_time_write   ! Model time of the last metrics record
+        real(dp) :: metrics_time_write   ! Model time of the last metrics record
         logical  :: metrics_init_done    ! Has the metrics file been created yet?
 
     end type

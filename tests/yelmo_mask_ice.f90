@@ -110,7 +110,7 @@ program yelmo_mask_ice
                             y0=-0.5_wp*ly,dy=dx,ny=ny)
 
     ! === Initialize ice sheet model (no topo loading) ===
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init, &
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(time_init), &
                         load_topo=.FALSE.,domain=domain,grid_name=grid_name)
 
     nx = yelmo1%grd%G%nx
@@ -175,26 +175,26 @@ program yelmo_mask_ice
     call yelmo_print_bound(yelmo1%bnd)
 
     ! === Initialize state (dyn, therm, mat) ===
-    call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")
 
     ! === Initialize timestepping ===
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
                                             time_ref=0.0_wp,const_rel=0.0_wp,const_cal=0.0_wp)
 
     ! === Write initial state ===
-    call yelmo_write_init(yelmo1,file2D,time_init=ts%time,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(ts%time),units="years")
     call write_step_2D(yelmo1,file2D,time=ts%time)
 
-    call yelmo_write_reg_init(yelmo1,file1D,time_init=ts%time,units="years", &
+    call yelmo_write_reg_init(yelmo1,file1D,time_init=dble(ts%time),units="years", &
                               mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,file1D,time=ts%time)
+    call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time))
 
     ! === Advance timesteps ===
     do while (.not. ts%is_finished)
 
         call tstep_update(ts,dtt,verbose=.FALSE.)
 
-        call yelmo_update(yelmo1,ts%time)
+        call yelmo_update(yelmo1,dble(ts%time))
 
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
         if (mod(nint(ts%time_elapsed*100,int64),nint(dt2D_out*100,int64))==0) then
@@ -202,7 +202,7 @@ program yelmo_mask_ice
         end if
 
         if (mod(nint(ts%time_elapsed*100,int64),nint(dt1D_out*100,int64))==0) then
-            call yelmo_write_reg_step(yelmo1,file1D,time=ts%time)
+            call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time))
         end if
 
         if (mod(ts%time,100.0)==0 .and. (.not. yelmo_log)) then
@@ -217,8 +217,8 @@ program yelmo_mask_ice
         mask_bnd_w, mask_bnd_e, mask_bnd_s, mask_bnd_n, "  ======="
     write(*,*) "H_ice min/max = ", minval(yelmo1%tpo%now%H_ice), maxval(yelmo1%tpo%now%H_ice)
 
-    call yelmo_restart_write(yelmo1,file_restart,time=ts%time)
-    call yelmo_end(yelmo1,time=ts%time)
+    call yelmo_restart_write(yelmo1,file_restart,time=dble(ts%time))
+    call yelmo_end(yelmo1,time=dble(ts%time))
 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
     write(*,"(a,f12.3,a)") "Time  = ",cpu_dtime/60.0 ," min"

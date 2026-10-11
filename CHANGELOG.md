@@ -2,6 +2,17 @@
 
 ## Unreleased (dev)
 
+- **API: model time in double precision.** The time arguments of the public
+  routines are `real(dp)`: `yelmo_init`, `yelmo_init_topo`, `yelmo_init_state`,
+  `yelmo_restart_init`, `yelmo_update`, `yelmo_update_equil` (`time`; `time_tot` and
+  `dt` stay `wp`), `yelmo_set_time`, `yelmo_end`, `yelmo_restart_write`,
+  `yelmo_restart_read`, `yelmo_restart_read_topo_bnd`, `yelmo_write_init`,
+  `yelmo_write_step`, `yelmo_write_metrics`, `yelmo_regions_write_init`,
+  `yelmo_regions_write`, `yelmo_write_reg_init` and `yelmo_write_reg_step`. Drivers
+  must pass `real(dp)` time (e.g. `dble(ts%time)`). The internal clock was already
+  `real(dp)`; now no step rounds it to single precision (at |time| = 150 kyr the
+  single-precision spacing is 0.016 yr). Needs FastHydrology with `real(dp)` time
+  (`hydro_update`, `hydro_init_state`). The C API is unchanged (already `double`).
 - Grid output (`yelmo_grid_write`): the CRS gets `k0`, and the false easting/northing
   in km like the axes; transverse-Mercator grids (e.g. SRG) stopped on the first write.
 - New `yelmo_masks.dynamic_connected` (default off, on for Antarctica): dynamic cells not

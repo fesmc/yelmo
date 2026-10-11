@@ -70,7 +70,7 @@ contains
         type(hydro_class),  intent(INOUT) :: hyd
         type(ybound_class), intent(IN)    :: bnd
         type(ytopo_class),  intent(IN)    :: tpo
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         call hydro_init_state(hyd, tpo%now%H_ice, bnd%z_bed, tpo%now%f_ice, tpo%now%f_grnd, time)
 
@@ -177,7 +177,7 @@ contains
 
         call hydro_update(hyd, tpo%now%H_ice, bnd%z_bed, bnd%z_sl,        &
                           tpo%now%f_ice, tpo%now%f_grnd, mask,            &
-                          bmb_w, G, q_T, i_eb, uxy_b, A_glen_b, real(time,wp), &
+                          bmb_w, G, q_T, i_eb, uxy_b, A_glen_b, time,     &
                           ux_b=ux_b, uy_b=uy_b, taub=dyn%now%taub,        &
                           c_till=dyn%now%cb_ref)
 

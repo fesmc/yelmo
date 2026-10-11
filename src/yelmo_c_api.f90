@@ -105,7 +105,7 @@ contains
     
     call yelmo_set_alias(alias)
 
-    call yelmo_init(ylmo, filename=trim(f_filename), grid_def=trim(f_grid_def), time=real(time, wp))
+    call yelmo_init(ylmo, filename=trim(f_filename), grid_def=trim(f_grid_def), time=time)
 
     nullify(ylmo)
 
@@ -126,7 +126,7 @@ contains
 
     call yelmo_set_alias(alias)
 
-    call yelmo_init_state(ylmo, time=real(time, wp), thrm_method=trim(f_thrm_method))
+    call yelmo_init_state(ylmo, time=time, thrm_method=trim(f_thrm_method))
 
     nullify(ylmo)
 
@@ -159,7 +159,7 @@ contains
 
     call yelmo_set_alias(alias)
 
-    call yelmo_update(ylmo, real(time, wp))
+    call yelmo_update(ylmo, time)
 
     nullify(ylmo)
 
@@ -179,7 +179,7 @@ contains
     character(len=1028) :: f_filename
     f_filename = trim(c_to_f_string(filename))
     call yelmo_set_alias(alias)
-    call yelmo_restart_write(ylmo, trim(f_filename), real(time, wp))
+    call yelmo_restart_write(ylmo, trim(f_filename), time)
     nullify(ylmo)
   end subroutine yelmo_restart_write_wrapper
 
