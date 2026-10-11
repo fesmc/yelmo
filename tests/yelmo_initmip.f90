@@ -28,7 +28,7 @@ program yelmo_test
 
     type ctrl_params
         character(len=56) :: run_step
-        real(wp) :: dtt
+        real(dp) :: dtt
         character(len=56) :: restart_mode   ! "state" or "continue"
 
         logical  :: with_ice_sheet 
@@ -372,7 +372,7 @@ program yelmo_test
                                                     yelmo1%tpo%now%dHidt,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
                                                     yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd, &
                                                     opt%cf_min,opt%cf_max,yelmo1%tpo%par%dx,opt%sigma_err,opt%sigma_vel,opt%tau_c,opt%H0, &
-                                                    dt=ctl%dtt,fill_method=opt%fill_method,fill_dist=opt%sigma_err,cb_tgt=yelmo1%dyn%now%cb_tgt)
+                                                    dt=real(ctl%dtt,wp),fill_method=opt%fill_method,fill_dist=opt%sigma_err,cb_tgt=yelmo1%dyn%now%cb_tgt)
                     
                 end if
 

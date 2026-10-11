@@ -23,7 +23,8 @@ program yelmo_mask_ice
 
     ! Timing
     real(dp) :: time_init, time_end
-    real(wp) :: dtt, dt1D_out, dt2D_out
+    real(dp) :: dtt
+    real(wp) :: dt1D_out, dt2D_out
 
     ! Geometry
     real(wp) :: lx, ly, dx

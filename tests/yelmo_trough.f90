@@ -33,7 +33,7 @@ program yelmo_trough
     character(len=512) :: state_file                ! TROUGH-F17: file with a state (H_ice, z_bed, T_ice, hyd_W_til) on the model grid ("None": not used)
     character(len=56) :: thrm_init                  ! Initial ice temperature: "robin-cold", "robin", "linear"
     logical  :: full_domain                         ! TROUGH-F17: full symmetric domain x = [-lx,lx] (divide inside)?
-    real(wp) :: dtt
+    real(dp) :: dtt
     integer  :: n
 
     ! Control parameters 

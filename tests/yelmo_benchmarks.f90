@@ -34,7 +34,8 @@ program yelmo_benchmarks
     type(sym_metrics_class) :: sym_met
     logical    :: sym_pass
     real(dp) :: time_init, time_end
-    real(wp) :: dtt, dt2D_out, dt1D_out
+    real(dp) :: dtt
+    real(wp) :: dt2D_out, dt1D_out
     real(wp) :: period, dt_test, alpha, omega, L, amp 
     real(wp) :: bumps_L, bumps_A 
     integer    :: n  
