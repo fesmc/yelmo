@@ -296,7 +296,8 @@ contains
 
     subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,ux,uy,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
         ! Explicit horizontal advection u.grad(var), returned as the source term consumed
-        ! by the implicit vertical enthalpy/temperature solve.
+        ! by the implicit vertical enthalpy/temperature solve (and by the Eulerian
+        ! tracer column solve, ice_tracer::calc_tracer_3D).
         !
         ! The explicit term is CFL-limited, and in fast shelf/stream flow the thermal
         ! Courant number over the thermodynamics timestep dt can exceed 1. To keep it
@@ -349,7 +350,7 @@ contains
         nsub = max(1, ceiling(cfl/cfl_safe))
         if (nsub .gt. nmax) then
             write(io_unit_err,"(a,i0,a,g12.4,a,g12.4)") &
-                "calc_advec_horizontal_3D:: warning: thermal-advection sub-steps capped at nmax=",nmax, &
+                "calc_advec_horizontal_3D:: warning: horizontal-advection sub-steps capped at nmax=",nmax, &
                 "; cfl=",cfl,", dt=",dt
             nsub = nmax
         end if
