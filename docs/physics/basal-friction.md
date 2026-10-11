@@ -155,7 +155,10 @@ With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
 the transport model. Its $N$ depends on the basal velocity, so with
 `yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
 velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
-iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. A
+iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. The
+hydraulic potential is referenced to sea level,
+$\phi_0 = \rho_i g H + \rho_w g (z_b - z_{sl})$, so $N$ near the grounding line does
+not depend on the sea level. A
 host model that owns the hydrology can do the same through the C-API callback
 `yelmo_set_neff_callback`. With `ydyn.neff_nxi` > 0, the cell value of
 $N_\mathrm{eff}$ is the average of the hydrology's $N$ interpolated to sub-grid

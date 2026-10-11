@@ -2,6 +2,11 @@
 
 ## Unreleased (dev)
 
+- **K24 hydraulic potential referenced to sea level** (`yhyd.method_transport = 1`,
+  FastHydrology): `phi0 = rho_ice g H + rho_w g (z_bed - z_sl)`. K24's N depends on `phi0`
+  itself, and with the absolute bed elevation its value at flotation moved with `z_sl`; now it
+  is `(rho_sw - rho_w) g (z_sl - z_bed)` for any `z_sl`. No change for `z_sl = 0`; a uniform
+  `z_sl` leaves the routing unchanged. Needs FastHydrology with `z_sl` in `calc_k24`.
 - **Till closure continuous at flotation** (`yhyd.bkt_N_closure = 3`, FastHydrology): N is
   limited to the marine N with full connectivity (p = 1),
   `rho_ice g H - rho_sw g max(z_sl - z_bed, 0)`, so it goes to 0 as grounded ice approaches
