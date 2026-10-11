@@ -132,7 +132,7 @@ program yelmo_test
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects and load initial topography
-    call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=dble(ts%time))
+    call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=ts%time)
 
     ! Par-file relaxation settings, restored once a spin-up relaxation ends
     topo_rel0     = yelmo1%tpo%par%topo_rel
@@ -221,7 +221,7 @@ program yelmo_test
 
     ! Initialize state variables (dyn,therm,mat)
     ! (initial temperature from the robin solution, optionally with a cold base)
-    call yelmo_init_state(yelmo1,time=dble(ts%time),thrm_method=ctl%init_temp)
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=ctl%init_temp)
 
     ! ===== basal friction optimization ======
     if (trim(ctl%equil_method) .eq. "opt") then 
@@ -262,10 +262,10 @@ program yelmo_test
     if (.not. yelmo1%par%use_restart) then
 
         ! Run full model (tpo,dyn,thrm) without advection to clean initial topo via mass balance
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=10.0_wp,dt=1.0_wp,topo_fixed=.FALSE.,tpo_solver="none")
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=10.0_wp,dt=1.0_wp,topo_fixed=.FALSE.,tpo_solver="none")
         
         ! Run full model with correct solver (tpo,dyn,thrm)
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=1.0_wp,dt=0.2_wp,topo_fixed=.FALSE.)
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=1.0_wp,dt=0.2_wp,topo_fixed=.FALSE.)
 
         ! Next equilibrate thermodynamics further and maintain constant ice topopgraphy (for speed)
         !call yelmo_update_equil(yelmo1,ts%time,time_tot=1e3,dt=10.0_wp,topo_fixed=.TRUE.)
@@ -278,21 +278,21 @@ program yelmo_test
         write(*,*) "Running restart topo smoothing step..."
 
         ! Run model with no advection
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=10.0_wp,dt=1.0_wp, &
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=10.0_wp,dt=1.0_wp, &
                               tpo_solver="none",topo_fixed=.FALSE.,dyn_solver="ssa")
 
         ! Run thermodynamics with SSA solver very briefly to smooth it out
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=10.0_wp,dt=1.0_wp, &
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=10.0_wp,dt=1.0_wp, &
                                                 topo_fixed=.TRUE.,dyn_solver="ssa")
 
         ! Run full model (tpo,dyn,thrm) with SSA solver very briefly to smooth it out
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=1.0_wp,dt=0.2_wp, &
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=1.0_wp,dt=0.2_wp, &
                                                 topo_fixed=.FALSE.,dyn_solver="ssa")
 
         if (yelmo1%grd%G%dx .le. 8e3_wp) then 
             ! Perform additional ssa smoothing step for higher resolution simulations
 
-            call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=100.0_wp,dt=1.0_wp, &
+            call yelmo_update_equil(yelmo1,ts%time,time_tot=100.0_wp,dt=1.0_wp, &
                                                 topo_fixed=.FALSE.,dyn_solver="ssa")
 
         end if 
@@ -302,13 +302,13 @@ program yelmo_test
 
     ! Initialize output files
 
-    call yelmo_regions_write_init(yelmo1,dble(ts%time),units="years")
+    call yelmo_regions_write_init(yelmo1,ts%time,units="years")
 
     if (t2Dsm%active) then
-        call yelmo_write_init(yelmo1,t2Dsm%filename,time_init=dble(ts%time),units="years")
+        call yelmo_write_init(yelmo1,t2Dsm%filename,time_init=ts%time,units="years")
     end if
     if (t2D%active) then
-        call yelmo_write_init(yelmo1,t2D%filename,time_init=dble(ts%time),units="years")
+        call yelmo_write_init(yelmo1,t2D%filename,time_init=ts%time,units="years")
     end if
     
     ! if (with_anom) then 
@@ -330,11 +330,11 @@ program yelmo_test
         ! == MODEL OUTPUT =======================================================
 
         if (timeout_check(t1D,ts%time)) then 
-            call yelmo_regions_write(yelmo1,dble(ts%time))
+            call yelmo_regions_write(yelmo1,ts%time)
         end if 
 
         if (timeout_check(t2Dsm,ts%time)) then 
-            call yelmo_write_step(yelmo1,t2Dsm%filename,dble(ts%time),compare_pd=.TRUE.)
+            call yelmo_write_step(yelmo1,t2Dsm%filename,ts%time,compare_pd=.TRUE.)
         end if
 
         if (timeout_check(t2D,ts%time)) then
@@ -342,7 +342,7 @@ program yelmo_test
         end if
 
         if (timeout_check(trst,ts%time) .or. ts%is_finished) then
-            call yelmo_restart_write(yelmo1,file_restart,dble(ts%time))
+            call yelmo_restart_write(yelmo1,file_restart,ts%time)
         end if
 
         if (ts%is_finished) exit
@@ -398,7 +398,7 @@ program yelmo_test
 
         ! == UPDATE YELMO =======================================================
 
-        if (ctl%with_ice_sheet) call yelmo_update(yelmo1,dble(ts%time))
+        if (ctl%with_ice_sheet) call yelmo_update(yelmo1,ts%time)
 
         if (mod(ts%time,10.0)==0 .and. (.not. yelmo_log)) then
             write(*,"(a,f14.4)") "yelmo:: time = ", ts%time
@@ -408,7 +408,7 @@ program yelmo_test
     ! == Finished time loop == 
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=dble(ts%time))
+    call yelmo_end(yelmo1,time=ts%time)
     
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
@@ -428,11 +428,11 @@ contains
         character(len=*), intent(IN) :: restart_mode
         logical,          intent(IN) :: use_restart
         character(len=*), intent(IN) :: restart
-        real(wp),         intent(IN) :: time_init
+        real(dp),         intent(IN) :: time_init
 
         ! Local variables
         integer  :: nt
-        real(wp), allocatable :: time_rst(:)
+        real(dp), allocatable :: time_rst(:)
 
         select case(trim(restart_mode))
 
@@ -450,7 +450,7 @@ contains
                 allocate(time_rst(nt))
                 call nc_read(restart,"time",time_rst)
 
-                if (abs(time_rst(nt)-time_init) .gt. 1e-3_wp) then
+                if (abs(time_rst(nt)-time_init) .gt. 1e-3_dp) then
                     write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires ctrl.time_init &
                                          &to equal the time of the restart file."
                     write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
@@ -475,11 +475,11 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
 
         ! Local variables
         integer  :: ncid, n
-        real(wp) :: time_prev 
+        real(dp) :: time_prev 
 
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.TRUE.)

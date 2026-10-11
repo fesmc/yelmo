@@ -137,7 +137,7 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: p 
-        real(wp), intent(IN)  :: time 
+        real(dp), intent(IN)  :: time 
         real(wp), intent(IN)  :: time1 
         real(wp), intent(IN)  :: time2
         real(wp), intent(IN)  :: p1
@@ -188,7 +188,7 @@ contains
 
         type(relax_params),      intent(IN)    :: rlx 
         type(ytopo_param_class), intent(INOUT) :: tpo_par 
-        real(wp),                intent(IN)    :: time_elapsed 
+        real(dp),                intent(IN)    :: time_elapsed 
         integer,                 intent(IN)    :: topo_rel0 
         real(wp),                intent(IN)    :: topo_rel_tau0 
 

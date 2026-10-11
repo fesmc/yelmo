@@ -33,7 +33,8 @@ program yelmo_benchmarks
     real(wp), allocatable :: H_sym(:,:)
     type(sym_metrics_class) :: sym_met
     logical    :: sym_pass
-    real(wp) :: time_init, time_end, dtt, dt2D_out, dt1D_out
+    real(dp) :: time_init, time_end
+    real(wp) :: dtt, dt2D_out, dt1D_out
     real(wp) :: period, dt_test, alpha, omega, L, amp 
     real(wp) :: bumps_L, bumps_A 
     integer    :: n  
@@ -98,7 +99,7 @@ program yelmo_benchmarks
     ! === Initialize timestepping ===
     
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
-                                            time_ref=1950.0_wp,const_rel=0.0_wp,const_cal=1950.0_wp)
+                                            time_ref=1950.0_dp,const_rel=0.0_dp,const_cal=1950.0_dp)
 
     ! Define the model domain based on the experiment we are running
     select case(trim(experiment))
@@ -157,7 +158,7 @@ program yelmo_benchmarks
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects (without loading topography, which will be defined inline below)
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(ts%time),load_topo=.FALSE.,domain=domain,grid_name=grid_name)
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=ts%time,load_topo=.FALSE.,domain=domain,grid_name=grid_name)
     
     ! Initialize Bueler test type 
     call bueler_init(buel,yelmo1%grd%G%nx,yelmo1%grd%G%ny)
@@ -251,7 +252,7 @@ end if
 
             ! Initialize BUELER-B 
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -269,7 +270,7 @@ end if
 
             ! Initialize BUELER-B (but with HALFAR conditions)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -287,7 +288,7 @@ end if
 
             ! Initialize BUELER-B (but with conditions between Bueler-B and HALFAR - not too big, not too small)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -332,7 +333,7 @@ end if
             ! Initialize eismint boundary values 
             call eismint_boundaries(yelmo1%bnd%T_srf,yelmo1%bnd%smb,yelmo1%bnd%Q_geo, &
                                     yelmo1%grd%x,yelmo1%grd%y,yelmo1%tpo%now%H_ice, &
-                                    experiment=experiment,time=0.0_wp,period=period,dT_test=dT_test)
+                                    experiment=experiment,time=0.0_dp,period=period,dT_test=dT_test)
 
 
     end select 
@@ -362,7 +363,7 @@ end if
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize state variables (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=dble(ts%time),thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin")
 
     ! For dome experiment, let it equilibrate for several thousand years
     if (trim(experiment) .eq. "dome") then 
@@ -372,23 +373,23 @@ end if
                         yelmo1%grd%x,yelmo1%grd%y,yelmo1%tpo%now%H_ice, &
                         experiment="dome",time=ts%time,smb_max=0.3_wp,rad_el=300.0_wp,period=period,dT_test=dT_test)
 
-        call yelmo_update_equil(yelmo1,dble(ts%time),time_tot=real(5e3,wp), &
+        call yelmo_update_equil(yelmo1,ts%time,time_tot=real(5e3,wp), &
                                                 dt=5.0_wp,topo_fixed=.FALSE.)  
     end if 
 
     ! == Write initial state ==
      
     ! 2D file 
-    call yelmo_write_init(yelmo1,file2D,time_init=dble(ts%time),units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=ts%time,units="years")
     call write_step_2D(yelmo1,file2D,time=ts%time)  
     !call yelmo_write_step(yelmo1,file2D,ts%time) 
             
     ! 1D file 
-    call yelmo_write_reg_init(yelmo1,file1D,time_init=dble(ts%time),units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time)) 
+    call yelmo_write_reg_init(yelmo1,file1D,time_init=ts%time,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
+    call yelmo_write_reg_step(yelmo1,file1D,time=ts%time) 
 
     ! Comparison file 
-    call yelmo_write_init(yelmo1,file_compare,time_init=dble(ts%time),units="years")
+    call yelmo_write_init(yelmo1,file_compare,time_init=ts%time,units="years")
     call write_step_2D_bueler(yelmo1,buel,file_compare,ts%time)
     
     ! Store default bedrock solver method, to be activated after several years 
@@ -416,7 +417,7 @@ end if
         end if 
 
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,dble(ts%time))
+        call yelmo_update(yelmo1,ts%time)
         
         ! Accumulate H_ice for the symmetry check (final step only if symmetry_avg_time=0)
         if (symmetry_check) then
@@ -507,7 +508,7 @@ end if
         end if 
 
         if (mod(nint(ts%time*100,int64),nint(dt1D_out*100,int64))==0) then 
-            call yelmo_write_reg_step(yelmo1,file1D,time=dble(ts%time)) 
+            call yelmo_write_reg_step(yelmo1,file1D,time=ts%time) 
         end if 
 
         if (mod(ts%time,10.0)==0 .and. (.not. yelmo_log)) then
@@ -553,10 +554,10 @@ end if
     end if
 
     ! Write a restart file too
-    call yelmo_restart_write(yelmo1,file_restart,time=dble(ts%time))
+    call yelmo_restart_write(yelmo1,file_restart,time=ts%time)
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=dble(ts%time))
+    call yelmo_end(yelmo1,time=ts%time)
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
@@ -572,7 +573,7 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         type(bueler_test_type), intent(IN), optional :: buel 
 
         ! Local variables
@@ -891,7 +892,7 @@ contains
         type(yelmo_class),      intent(IN) :: ylmo
         type(bueler_test_type), intent(IN) :: buel 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         
         ! Local variables
         integer    :: ncid, n, i, j, nx, ny  
