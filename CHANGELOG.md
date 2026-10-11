@@ -8,10 +8,11 @@
   is `(rho_sw - rho_w) g (z_sl - z_bed)` for any `z_sl`. No change for `z_sl = 0`; a uniform
   `z_sl` leaves the routing unchanged. Needs FastHydrology with `z_sl` in `calc_k24`.
 - **Till closure continuous at flotation** (`yhyd.bkt_N_closure = 3`, FastHydrology): N is
-  limited to the marine N with full connectivity (p = 1),
-  `rho_ice g H - rho_sw g max(z_sl - z_bed, 0)`, so it goes to 0 as grounded ice approaches
-  flotation instead of dropping from the till value to 0 when the cell floats. No change on
-  land; on marine-grounded ice the limit binds close to flotation and on dry till. Needs
+  limited to `N_marine/till_delta`, with the marine N for full connectivity (p = 1),
+  `N_marine = rho_ice g H - rho_sw g max(z_sl - z_bed, 0)`, so it goes to 0 as grounded ice
+  approaches flotation instead of dropping from the till value to 0 when the cell floats. The
+  limit binds only where `N_marine < till_delta * N_till`, i.e. within a height above
+  flotation of `till_delta * H` at most; no change on land or farther from flotation. Needs
   FastHydrology with the capped `hydro_calc_N_till`.
 - **`yhyd.bkt_floating_mode` default 0 → 2 (SATURATED)** (input/yelmo_defaults.nml and all
   par files, which carried the old default). Floating and ocean cells get
