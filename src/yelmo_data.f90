@@ -377,7 +377,8 @@ contains
         write(*,*) "ydata_load:: range(z_bed):     ",   minval(dta%pd%z_bed),   maxval(dta%pd%z_bed)
         write(*,*) "ydata_load:: range(z_bed_sd):  ",   minval(z_bed_sd),       maxval(z_bed_sd)
         write(*,*) "ydata_load:: scaling fac z_bed_f_sd: ", z_bed_f_sd  
-        write(*,*) "ydata_load:: range(T_srf):     ",   minval(dta%pd%T_srf),   maxval(dta%pd%T_srf)
+        write(*,*) "ydata_load:: range(T_srf):     ",   minval(dta%pd%T_srf,dta%pd%T_srf .ne. mv), &
+                                                        maxval(dta%pd%T_srf,dta%pd%T_srf .ne. mv)
         write(*,*) "ydata_load:: range(smb):       ",   minval(dta%pd%smb,dta%pd%smb .ne. mv), &
                                                         maxval(dta%pd%smb,dta%pd%smb .ne. mv)
         write(*,*) "ydata_load:: range(uxy_s):     ",   minval(dta%pd%uxy_s,dta%pd%uxy_s .ne. mv), &

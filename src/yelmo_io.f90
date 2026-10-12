@@ -2206,10 +2206,10 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("pd_T_srf")
                 call nc_write(filename,trim(v%varname),ylmo%dta%pd%T_srf(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,missing_value=mv,ncid=ncid)
             case("pd_smb_ref")
                 call nc_write(filename,trim(v%varname),ylmo%dta%pd%smb(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,missing_value=mv,ncid=ncid)
             case("pd_depth_iso") ! 3D
                 call nc_write(filename,trim(v%varname),ylmo%dta%pd%depth_iso(i1:i2,j1:j2,:), &
                             start=[1,1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
@@ -2224,7 +2224,7 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("pd_err_smb_ref")
                 call nc_write(filename,trim(v%varname),ylmo%dta%pd%err_smb(i1:i2,j1:j2), &
-                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,missing_value=mv,ncid=ncid)
             case("pd_err_uxy_s")
                 call nc_write(filename,trim(v%varname),ylmo%dta%pd%err_uxy_s(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
