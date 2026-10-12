@@ -160,9 +160,9 @@
 
 &yelmo_data 
     pd_topo_path      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
-    pd_tsrf_path      = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
+    pd_tsrf_path      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
     pd_tsrf_monthly   = True                         ! RACMO monthly file
-    pd_smb_path       = "ice_data/{domain}/{grid_name}/{grid_name}_RACMO23-ERAINT-HYBRID_1981-2010.nc"
+    pd_smb_path       = "ice_data/v2/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
     pd_smb_monthly    = True                         ! RACMO monthly file
     pd_vel_path       = "ice_data/v2/{domain}/{grid_name}/{grid_name}_Velocity-Rignot2011.nc"
 /
