@@ -13,9 +13,10 @@
   1961-1990 annual means), now with `pd_smb_monthly = pd_tsrf_monthly = True`; initmip ANT
   `SMB-RACMO2.3p2-1981-2010` (was RACMO2.3 ERA-Interim hybrid), `T_srf` now the skin
   temperature (was 2 m). Initmip ANT basal melt `BasalMelt-Rignot2013` with the new key
-  `set_ant_pd.name_bmelt = "bmelt_reese"` (was the hard-coded `bm_ac_reese`, which in v1
-  held the steady-state basin means; `bmelt_reese` is the 2007-2008 means, 1.35 vs
-  0.91 m/a over the floating cells of ANT-32KM). Initmip GRL `file_ghf` =
+  `set_ant_pd.name_bmelt = "bmelt_eq_reese"`, the steady-state means over groups of basins
+  (as the hard-coded v1 `bm_ac_reese`, which held the same values as `bm_eq_reese`; the
+  2007-2008 means `bmelt_reese` would give 1.35 instead of 0.91 m/a over the floating cells
+  of ANT-32KM). Initmip GRL `file_ghf` =
   `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per

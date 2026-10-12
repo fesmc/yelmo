@@ -60,7 +60,7 @@
     bmb_shlf_const  = -0.2              ! [m/a] Basal mass balance of ice shelves
     load_bmelt      = True              ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     file_bmelt      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BasalMelt-Rignot2013.nc"
-    name_bmelt      = "bmelt_reese"     ! Variable name in file_bmelt [m/a], positive for melting
+    name_bmelt      = "bmelt_eq_reese"  ! Variable name in file_bmelt [m/a], positive for melting
     load_ghf        = True              ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
     file_ghf        = "ice_data/v2/{domain}/{grid_name}/{grid_name}_GHF-Shapiro2004.nc"
     name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]

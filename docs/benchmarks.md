@@ -267,8 +267,8 @@ observed positions, bounds `ytill.cf_min = 0.001` and `ytill.cf_ref = 1` for the
 optimized friction, the geothermal heat flux of Shapiro and Ritzwoller (2004)
 (`load_ghf`, `file_ghf` in the `set_ant_*` groups; otherwise 50 mW/m2), the
 1981-2010 monthly climatology of RACMO2.3p2 for the surface mass balance and
-surface (skin) temperature, and the ice-shelf basal melt of Rignot et al. (2013)
-averaged over groups of basins (`set_ant_pd`: `file_bmelt`, `name_bmelt = "bmelt_reese"`).
+surface (skin) temperature, and the steady-state ice-shelf basal melt of Rignot et al.
+(2013) averaged over groups of basins (`set_ant_pd`: `file_bmelt`, `name_bmelt = "bmelt_eq_reese"`).
 
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
