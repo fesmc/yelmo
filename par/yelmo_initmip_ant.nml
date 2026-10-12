@@ -20,7 +20,7 @@
     set_nm          = "set_ant_pd"      ! Climate set: "set_ant_pd" or "set_ant_lgm"
 
     load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
-    file_cb_ref     = "ice_data/{domain}/{grid_name}/{grid_name}_cf_ref_opt.nc"  ! Filename holding cf_ref to load
+    file_cb_ref     = ""                ! Filename holding cf_ref to load (required with load_cb_ref)
 /
 
 &set_ant_pd
