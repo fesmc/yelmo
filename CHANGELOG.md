@@ -18,6 +18,17 @@
   2007-2008 means `bmelt_reese` would give 1.35 instead of 0.91 m/a over the floating cells
   of ANT-32KM). Initmip GRL `file_ghf` =
   `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
+- **initmip: smb and T_srf remapped to the surface elevation** (answer-changing for
+  initmip GRL and ANT): new `ctrl.smb_method` for both fields, `"zremap"` (default),
+  `"fixed"` (the present-day fields, the previous behaviour) or `"out_const"` (smb =
+  `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
+  (needs fesm-utils with `zremap`): profiles f(z) built once from the present-day fields on
+  the RCM ice (`f_ice >= ctrl.f_ice_min`, 0.5) at the RCM surface elevation (`z_srf`,
+  both from `yelmo_data.pd_smb_path`), evaluated at `tpo%now%z_srf` every `dtt`, also
+  during the spin-up. Parameters in `zremap_smb` and `zremap_tsrf` (sigma 100 km, bins
+  0-4000 m every 100 m, sigma_z 200 m, w_full 0.25; smb gradient 2 mm w.e./a/m below the
+  data and 0 above, T_srf -6.5 K/km). The Greenland 2 m/a extra melt beyond the
+  present-day ice applies only to `"fixed"`.
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
   year); before, monthly data were taken as per day and annual data as per year. Missing or

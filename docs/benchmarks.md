@@ -214,6 +214,22 @@ bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
 melt of 2 m/a. Present-day surface mass balance and surface temperature are the
 1981-2010 monthly climatology of MAR v3.14 (the `yelmo_data` defaults).
 
+Both fields follow the changing surface elevation (`ctrl.smb_method = "zremap"`,
+the default for Greenland and Antarctica). The fesm-utils `zremap` module builds
+local profiles f(z) once from the present-day fields on the ice of the regional
+climate model (ice fraction `f_ice >= ctrl.f_ice_min`) at its own surface
+elevation (`f_ice` and `z_srf` of `yelmo_data.pd_smb_path`), and evaluates them
+at the current surface elevation every `ctrl.dtt`, also during the spin-up. The
+profiles are kernel means over about 100 km (`sigma`), so even at the
+reference elevation the fields are smoothed versions of the input. Below and
+above the data, and far from the ice, they continue with the gradients
+`dfdz_lo`, `dfdz_hi`: 2 mm w.e./a/m and 0 for smb (given in m i.e./a/m), and
+-6.5 K/km for `T_srf`. The parameters are in the groups `zremap_smb` and
+`zremap_tsrf`. The alternatives are `"fixed"` (the present-day fields; for
+Greenland with 2 m/a less smb where there is no present-day ice) and
+`"out_const"` (the present-day fields, with smb = `ctrl.smb_out` outside the
+ice of the regional climate model).
+
 Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid
 by uncommenting the desired line:
 
@@ -269,6 +285,8 @@ optimized friction, the geothermal heat flux of Shapiro and Ritzwoller (2004)
 1981-2010 monthly climatology of RACMO2.3p2 for the surface mass balance and
 surface (skin) temperature, and the steady-state ice-shelf basal melt of Rignot et al.
 (2013) averaged over groups of basins (`set_ant_pd`: `file_bmelt`, `name_bmelt = "bmelt_eq_reese"`).
+The surface mass balance and temperature are remapped to the surface elevation as
+for Greenland (`ctrl.smb_method = "zremap"`).
 
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
