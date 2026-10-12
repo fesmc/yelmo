@@ -100,7 +100,7 @@
 
 ! === Overrides of input/yelmo_defaults.nml ===
 ! (The default yelmo_init_topo and yelmo_data files are the Greenland ones: BedMachine v6
-! topography, MARv3.11 annual means, Joughin2018 velocities.)
+! topography, MARv3.14 1981-2010 monthly climatology, Joughin2018 velocities.)
 
 &yelmo
     domain          = "Greenland"
