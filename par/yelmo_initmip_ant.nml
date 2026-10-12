@@ -1,6 +1,6 @@
 ! initMIP Antarctica: present-day (or LGM) spin-up with basal friction optimization.
 ! Driver: tests/yelmo_initmip.f90 (make initmip, runme alias "initmip").
-! Driver groups (ctrl, set_ant_pd, set_ant_lgm, t1D, trst, t2Dsm, t2D, opt, relax) are complete here;
+! Driver groups (ctrl, zremap_smb, zremap_tsrf, set_ant_pd, set_ant_lgm, t1D, trst, t2Dsm, t2D, opt, relax) are complete here;
 ! the yelmo groups list only overrides of input/yelmo_defaults.nml.
 
 &ctrl
@@ -21,6 +21,39 @@
 
     load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
     file_cb_ref     = ""                ! Filename holding cf_ref to load (required with load_cb_ref)
+
+    smb_method      = "zremap"          ! smb and T_srf from the present-day (RCM) fields: "zremap" (remapped to the surface elevation
+                                        ! every dtt, [zremap_smb] and [zremap_tsrf]), "fixed" (as loaded), "out_const" (as loaded, smb_out outside the RCM ice)
+    f_ice_min       = 0.5               ! [1] "zremap", "out_const": RCM ice = f_ice (in yelmo_data.pd_smb_path) >= f_ice_min
+    smb_out         = -1.0              ! [m i.e./a] "out_const": smb outside the RCM ice
+/
+
+&zremap_smb
+    ! Elevation remapping of smb (fesm-utils zremap), units of smb [m i.e./a]. Profiles from
+    ! yelmo_data.pd_smb on the RCM ice at the RCM surface elevation (z_srf in pd_smb_path)
+    sigma           = 100e3             ! [m] Width of the horizontal Gaussian kernel (cut at 3 sigma)
+    z_min           = 0.0               ! [m] Lowest elevation bin
+    z_max           = 4000.0            ! [m] Highest elevation bin
+    dz              = 100.0             ! [m] Bin spacing
+    sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
+    w_full          = 0.25              ! [1] Support from which the profiles are fully used
+    stride          = 1                 ! [-] Table spacing in grid points
+    dfdz_lo         = 2.198e-3          ! [m i.e./a m-1] Gradient below the data (and without data): 2.0 mm w.e./a m-1
+    dfdz_hi         = 0.0               ! [m i.e./a m-1] Gradient above the data
+/
+
+&zremap_tsrf
+    ! Elevation remapping of T_srf (fesm-utils zremap), units of T_srf [K]. Profiles from
+    ! yelmo_data.pd_tsrf on the RCM ice at the RCM surface elevation (z_srf in pd_smb_path)
+    sigma           = 100e3             ! [m] Width of the horizontal Gaussian kernel (cut at 3 sigma)
+    z_min           = 0.0               ! [m] Lowest elevation bin
+    z_max           = 4000.0            ! [m] Highest elevation bin
+    dz              = 100.0             ! [m] Bin spacing
+    sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
+    w_full          = 0.25              ! [1] Support from which the profiles are fully used
+    stride          = 1                 ! [-] Table spacing in grid points
+    dfdz_lo         = -6.5e-3           ! [K m-1] Gradient below the data (and without data)
+    dfdz_hi         = -6.5e-3           ! [K m-1] Gradient above the data
 /
 
 &set_ant_pd
