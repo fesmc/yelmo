@@ -7,8 +7,16 @@
   `Stratigraphy-MacGregor2025` (`pd_age_names = "age" "depth_iso"`), GHF
   `GHF-Shapiro2004` (initmip ANT; mean change 0.25 mW/m2 over ice). The repo copies in
   `input/Greenland/GRL-16KM` and `input/Antarctica/ANT-32KM` are the v2 files; the v1
-  files and `cf_ref_opt` are removed. Present-day smb/T_srf, ANT basal melt and GRL GHF
-  stay on v1 for now.
+  files and `cf_ref_opt` are removed.
+- **Input data v2: present-day smb/T_srf, ANT basal melt, GRL GHF** (answer-changing for
+  initmip): `yelmo_data` defaults (Greenland) `SMB-MARv3.14-1981-2010` (was MARv3.11
+  1961-1990 annual means), now with `pd_smb_monthly = pd_tsrf_monthly = True`; initmip ANT
+  `SMB-RACMO2.3p2-1981-2010` (was RACMO2.3 ERA-Interim hybrid), `T_srf` now the skin
+  temperature (was 2 m). Initmip ANT basal melt `BasalMelt-Rignot2013` with the new key
+  `set_ant_pd.name_bmelt = "bmelt_reese"` (was the hard-coded `bm_ac_reese`, which in v1
+  held the steady-state basin means; `bmelt_reese` is the 2007-2008 means, 1.35 vs
+  0.91 m/a over the floating cells of ANT-32KM). Initmip GRL `file_ghf` =
+  `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
   year); before, monthly data were taken as per day and annual data as per year. Missing or

@@ -211,7 +211,8 @@ settings that differ from `input/yelmo_defaults.nml`: no flow enhancement
 (`ymat.enh_shear = enh_stream = 1`), calving fronts held at the observed
 positions (`ycalv.calv_flt_method = calv_grnd_method = "equil"`), a lower
 bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
-melt of 2 m/a.
+melt of 2 m/a. Present-day surface mass balance and surface temperature are the
+1981-2010 monthly climatology of MAR v3.14 (the `yelmo_data` defaults).
 
 Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid
 by uncommenting the desired line:
@@ -263,8 +264,11 @@ As for Greenland, `par/yelmo_initmip_ant.nml` lists only the settings that
 differ from `input/yelmo_defaults.nml`: no flow enhancement
 (`ymat.enh_shear = enh_stream = enh_shlf = 1`), calving fronts held at the
 observed positions, bounds `ytill.cf_min = 0.001` and `ytill.cf_ref = 1` for the
-optimized friction, and the geothermal heat flux of Shapiro and Ritzwoller (2004)
-(`load_ghf`, `file_ghf` in the `set_ant_*` groups; otherwise 50 mW/m2).
+optimized friction, the geothermal heat flux of Shapiro and Ritzwoller (2004)
+(`load_ghf`, `file_ghf` in the `set_ant_*` groups; otherwise 50 mW/m2), the
+1981-2010 monthly climatology of RACMO2.3p2 for the surface mass balance and
+surface (skin) temperature, and the ice-shelf basal melt of Rignot et al. (2013)
+averaged over groups of basins (`set_ant_pd`: `file_bmelt`, `name_bmelt = "bmelt_reese"`).
 
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
