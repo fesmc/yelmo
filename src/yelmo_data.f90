@@ -52,7 +52,11 @@ contains
 
         dta%pd%err_H_ice   = tpo%now%H_ice - dta%pd%H_ice 
         dta%pd%err_z_srf   = tpo%now%z_srf - dta%pd%z_srf 
-        dta%pd%err_smb     = bnd%smb - dta%pd%smb 
+        where (dta%pd%smb .ne. mv)
+            dta%pd%err_smb = bnd%smb - dta%pd%smb
+        elsewhere
+            dta%pd%err_smb = mv
+        end where
         dta%pd%err_uxy_s   = dyn%now%uxy_s - dta%pd%uxy_s 
         
         ! Isochronal layer error 
@@ -183,6 +187,7 @@ contains
         real(wp)            :: z_bed_f_sd
         real(wp), allocatable :: z_bed_sd(:,:) 
         real(wp), allocatable :: tmp(:,:,:) 
+        real(wp)            :: smb_conv
         character(len=32) :: nml_group
 
         ! Make sure we know the namelist group for the yelmo_init_topo block
@@ -293,7 +298,7 @@ contains
             if (dta%par%pd_tsrf_monthly) then
                 ! Monthly data => annual mean 
                 call nc_read(filename,nms(1), tmp, missing_value=mv)
-                dta%pd%T_srf = sum(tmp,dim=3) / 12.0
+                call ydata_annual_mean(dta%pd%T_srf,tmp)
             else 
                 ! Annual mean 
                 call nc_read(filename,nms(1), dta%pd%T_srf, missing_value=mv)
@@ -302,7 +307,7 @@ contains
             ! Make sure temperatures are in Kelvin 
             if (minval(dta%pd%T_srf,mask=dta%pd%T_srf .ne. mv) .lt. 100.0) then
                 ! Probably in Celcius, convert...
-                dta%pd%T_srf = dta%pd%T_srf + 273.15 
+                where (dta%pd%T_srf .ne. mv) dta%pd%T_srf = dta%pd%T_srf + 273.15
             end if 
 
         end if 
@@ -317,21 +322,17 @@ contains
 
             if (dta%par%pd_smb_monthly) then 
                 call nc_read(filename,nms(1), tmp, missing_value=mv)
-                dta%pd%smb = sum(tmp,dim=3) / 12.0
-
-                ! Convert from mm we / day to m ie / a 
-                dta%pd%smb = dta%pd%smb * bnd%c%conv_mmdwe_maie
-
+                call ydata_annual_mean(dta%pd%smb,tmp)
             else 
                 call nc_read(filename,nms(1), dta%pd%smb, missing_value=mv)
-
-                ! Convert from mm we / a to m ie / a 
-                dta%pd%smb = dta%pd%smb * bnd%c%conv_mmawe_maie
-
             end if 
 
+            ! Convert from the units of the file (mm we per day or year) to m ie / a
+            smb_conv = smb_units_conv(filename,nms(1),bnd%c)
+            where (dta%pd%smb .ne. mv) dta%pd%smb = dta%pd%smb * smb_conv
+
             ! Clean smb to avoid tiny values 
-            where (abs(dta%pd%smb) .lt. 1e-3) dta%pd%smb = 0.0
+            where (dta%pd%smb .ne. mv .and. abs(dta%pd%smb) .lt. 1e-3) dta%pd%smb = 0.0
             
         end if 
 
@@ -445,6 +446,70 @@ contains
         return
 
     end subroutine ydata_mask_pd_topo
+
+    subroutine ydata_annual_mean(var,var_mon)
+        ! Annual mean of monthly data, missing wherever any month is missing.
+
+        implicit none
+
+        real(wp), intent(OUT) :: var(:,:)
+        real(wp), intent(IN)  :: var_mon(:,:,:)
+
+        where (any(var_mon .eq. mv,dim=3))
+            var = mv
+        elsewhere
+            var = sum(var_mon,dim=3) / real(size(var_mon,3),wp)
+        end where
+
+        return
+
+    end subroutine ydata_annual_mean
+
+    function smb_units_conv(filename,varname,c) result(conv)
+        ! Factor converting an smb rate in mm water equivalent (= kg m-2) per
+        ! day or per year, as given by the units attribute of the variable,
+        ! to [m ie / a].
+
+        implicit none
+
+        character(len=*),         intent(IN) :: filename
+        character(len=*),         intent(IN) :: varname
+        type(ybound_const_class), intent(IN) :: c
+        real(wp) :: conv
+
+        character(len=256) :: units, key
+        integer :: i
+
+        if (.not. nc_exists_attr(filename,varname,"units")) then
+            write(io_unit_err,*) "smb_units_conv:: Error: smb variable has no units attribute."
+            write(io_unit_err,*) "filename: ", trim(filename)
+            write(io_unit_err,*) "varname:  ", trim(varname)
+            error stop 1
+        end if
+        call nc_read_attr(filename,varname,"units",units)
+
+        ! Drop blanks and exponent markers: "kg m**-2 d**-1" => "kgm-2d-1"
+        key = ""
+        do i = 1, len_trim(units)
+            if (units(i:i) .eq. " " .or. units(i:i) .eq. "*") cycle
+            key = trim(key)//units(i:i)
+        end do
+
+        select case(trim(key))
+            case("kgm-2d-1","mmd-1","mmw.e.d-1")
+                conv = c%conv_mmdwe_maie
+            case("kgm-2yr-1","kgm-2a-1","mmyr-1","mma-1","mmw.e.yr-1","mmw.e.a-1")
+                conv = c%conv_mmawe_maie
+            case default
+                write(io_unit_err,*) "smb_units_conv:: Error: smb units not recognized: ", trim(units)
+                write(io_unit_err,*) "filename: ", trim(filename)
+                write(io_unit_err,*) "varname:  ", trim(varname)
+                error stop 1
+        end select
+
+        return
+
+    end function smb_units_conv
 
     subroutine ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,rho_ice,rho_sw)
         ! Fill the gaps (missing values) of a topography dataset, e.g. outside

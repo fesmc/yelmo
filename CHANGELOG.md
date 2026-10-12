@@ -2,6 +2,12 @@
 
 ## Unreleased (dev)
 
+- **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
+  m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
+  year); before, monthly data were taken as per day and annual data as per year. Missing or
+  unknown units stop the run. Monthly `pd_smb`/`pd_T_srf` are missing where any month is
+  missing, missing values are no longer converted (smb, degC to K), and `pd_err_smb_ref` is
+  missing where `pd_smb` is.
 - **K24 hydraulic potential referenced to sea level** (`yhyd.method_transport = 1`,
   FastHydrology): `phi0 = rho_ice g H + rho_w g (z_bed - z_sl)`. K24's N depends on `phi0`
   itself, and with the absolute bed elevation its value at flotation moved with `z_sl`; now it
