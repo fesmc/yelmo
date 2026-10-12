@@ -38,8 +38,8 @@
     sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
     w_full          = 0.25              ! [1] Support from which the profiles are fully used
     stride          = 1                 ! [-] Table spacing in grid points
-    dfdz_lo         = 2.198e-3          ! [m i.e./a m-1] Gradient below the data (and without data): 2.0 mm w.e./a m-1
-    dfdz_hi         = 0.0               ! [m i.e./a m-1] Gradient above the data
+    dfdz_lo         = 2.198e-3          ! [m i.e./a m-1] Gradient below the data (and below z_ref without data): 2.0 mm w.e./a m-1
+    dfdz_hi         = 0.0               ! [m i.e./a m-1] Gradient above the data (and above z_ref without data)
 /
 
 &zremap_tsrf
@@ -52,8 +52,8 @@
     sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
     w_full          = 0.25              ! [1] Support from which the profiles are fully used
     stride          = 1                 ! [-] Table spacing in grid points
-    dfdz_lo         = -6.5e-3           ! [K m-1] Gradient below the data (and without data)
-    dfdz_hi         = -6.5e-3           ! [K m-1] Gradient above the data
+    dfdz_lo         = -6.5e-3           ! [K m-1] Gradient below the data (and below z_ref without data)
+    dfdz_hi         = -6.5e-3           ! [K m-1] Gradient above the data (and above z_ref without data)
 /
 
 &set_ant_pd
