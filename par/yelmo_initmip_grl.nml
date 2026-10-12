@@ -20,7 +20,7 @@
     set_nm          = "set_grl_pd"      ! Climate set: "set_grl_pd"
 
     load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
-    file_cb_ref     = "ice_data/{domain}/{grid_name}/{grid_name}_cf_ref_opt.nc"  ! Filename holding cf_ref to load
+    file_cb_ref     = ""                ! Filename holding cf_ref to load (required with load_cb_ref)
 /
 
 &set_grl_pd
@@ -99,8 +99,8 @@
 /
 
 ! === Overrides of input/yelmo_defaults.nml ===
-! (The default yelmo_init_topo and yelmo_data files are the Greenland ones: M17 topography,
-! MARv3.11 annual means, J18 velocities.)
+! (The default yelmo_init_topo and yelmo_data files are the Greenland ones: BedMachine v6
+! topography, MARv3.11 annual means, Joughin2018 velocities.)
 
 &yelmo
     domain          = "Greenland"

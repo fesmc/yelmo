@@ -16,7 +16,7 @@ int polar_stereographic ;
 
 ## Naming files
 
-For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids `ANT-32KM` or `ANT-16KM` for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., `CLIM` or `TOPO`, finally followed by more descriptive information about the specific dataset `IPSL-14Ma` or `IPSL-PD-CTRL`. For example, the RTopo-2.0.1 topography dataset processed onto the 32 km grid is called `ANT-32KM_TOPO-RTOPO-2.0.1.nc`.
+For grids used by Yelmo, we generally use an abbreviation for the domain name followed by the resolution. So for Antarctica, we could have the grids `ANT-32KM` or `ANT-16KM` for a 32km or 16km grid, respectively. Data that have been projected onto these grids are saved with the grid name as a prefix followed by a general name that specifies the type of data, e.g., `CLIM` or `TOPO`, finally followed by more descriptive information about the specific dataset `IPSL-14Ma` or `IPSL-PD-CTRL`. For example, the BedMachine v4 topography dataset processed onto the 32 km grid is called `ANT-32KM_TOPO-BedMachine-v4.nc`.
 
 ## Fields Yelmo needs
 

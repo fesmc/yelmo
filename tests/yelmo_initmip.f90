@@ -79,7 +79,7 @@ program yelmo_test
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
     
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
-    call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref)        ! Filename holding cb_ref to load 
+    call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref,init=.TRUE.)  ! Filename holding cb_ref to load ("" = none)
 
 
     ! Load climate (eg, set_ant_pd or set_ant_lgm); the data files are set in
@@ -239,6 +239,11 @@ program yelmo_test
         ! Load or define cb_ref 
 
         if (ctl%load_cb_ref) then 
+
+            if (trim(ctl%file_cb_ref) .eq. "" .or. trim(ctl%file_cb_ref) .eq. "none") then
+                write(io_unit_err,*) "yelmo_initmip:: Error: load_cb_ref=True requires ctrl.file_cb_ref."
+                error stop 1
+            end if
 
             ! Parse filename with grid information
             call yelmo_parse_path(ctl%file_cb_ref,yelmo1%par%domain,yelmo1%par%grid_name)
