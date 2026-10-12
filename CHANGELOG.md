@@ -2,6 +2,13 @@
 
 ## Unreleased (dev)
 
+- **Input data v2 (`ice_data/v2`, FesmData)**: surface velocity `Velocity-Joughin2018`
+  (defaults) and `Velocity-Rignot2011` (initmip ANT), isochrones
+  `Stratigraphy-MacGregor2025` (`pd_age_names = "age" "depth_iso"`), GHF
+  `GHF-Shapiro2004` (initmip ANT; mean change 0.25 mW/m2 over ice). The repo copies in
+  `input/Greenland/GRL-16KM` and `input/Antarctica/ANT-32KM` are the v2 files; the v1
+  files and `cf_ref_opt` are removed. Present-day smb/T_srf, ANT basal melt and GRL GHF
+  stay on v1 for now.
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
   year); before, monthly data were taken as per day and annual data as per year. Missing or
