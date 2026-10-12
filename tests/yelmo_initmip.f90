@@ -42,6 +42,7 @@ program yelmo_test
 
         logical :: load_bmelt
         character(len=256) :: file_bmelt
+        character(len=56)  :: name_bmelt
 
         logical :: load_ghf
         character(len=256) :: file_ghf
@@ -86,8 +87,10 @@ program yelmo_test
     ! yelmo_init_topo and yelmo_data of the domain's parameter file
     call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
     call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
-    if (ctl%load_bmelt) &
+    if (ctl%load_bmelt) then
         call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
+        call nml_read(path_par,ctl%set_nm,  "name_bmelt",  ctl%name_bmelt)                ! Name of the bmelt variable [m/a], positive for melting
+    end if
     call nml_read(path_par,ctl%set_nm,  "load_ghf",        ctl%load_ghf)                  ! Load geothermal heat flux from file (else 50 mW/m2)?
     if (ctl%load_ghf) then
         call nml_read(path_par,ctl%set_nm,  "file_ghf",    ctl%file_ghf)                  ! Filename holding the geothermal heat flux field
@@ -169,7 +172,7 @@ program yelmo_test
         ! Parse filenames with grid information
         call yelmo_parse_path(ctl%file_bmelt,yelmo1%par%domain,yelmo1%par%grid_name)
  
-        call nc_read(ctl%file_bmelt,"bm_ac_reese",yelmo1%bnd%bmb_shlf)
+        call nc_read(ctl%file_bmelt,ctl%name_bmelt,yelmo1%bnd%bmb_shlf)
         yelmo1%bnd%bmb_shlf = -yelmo1%bnd%bmb_shlf      ! Negative because bmb = -bmelt 
     else 
         yelmo1%bnd%bmb_shlf = ctl%bmb_shlf_const        ! [m.i.e./a]
