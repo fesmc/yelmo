@@ -144,7 +144,7 @@
 &yelmo_masks
     regions_group    = "yelmo_regions"   ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
     basins           = "Zwally2012.group" ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
-    mask_ice_dynamic = "region:Greenland,Canadian_Arctic_Archipelago"  ! where ice is dynamic, else no ice
+    mask_ice_dynamic = "region:Greenland" ! where ice is dynamic, else no ice (no Canadian Arctic Archipelago)
     mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
     relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
     relax_tau        = 0.0               ! [yr] relaxation timescale there

@@ -31,6 +31,8 @@
   0-4000 m every 100 m, sigma_z 200 m, w_full 0.25; smb gradient 2 mm w.e./a/m below the
   data and 0 above, T_srf -6.5 K/km). The Greenland 2 m/a extra melt beyond the
   present-day ice applies only to `"fixed"`.
+- **initmip GRL: ice only in Greenland** (answer-changing): `yelmo_masks.mask_ice_dynamic =
+  "region:Greenland"` (was `"region:Greenland,Canadian_Arctic_Archipelago"`).
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
   year); before, monthly data were taken as per day and annual data as per year. Missing or
