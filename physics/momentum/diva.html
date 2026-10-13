@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -554,7 +560,7 @@ F_m \;\equiv\; \int_b^s \frac{1}{\mu(z)}\!\left(\frac{s-z}{H}\right)^{\!m}\,\mat
 <li>adds the <a href="../../physics/momentum/solvers.html#velocity-limit">velocity-limit drag</a>, and assembles and solves the linear system for <span class="math inline">\bar{\mathbf u}</span> (see <a href="../../physics/momentum/solvers.html">Numerical solution</a>);</li>
 <li>relaxes <span class="math inline">\bar{\mathbf u}</span> against the previous iterate with the factor <code>ydyn.ssa_iter_rel</code> (default 0.7; <code>picard_relax_vel</code>);</li>
 <li>updates the basal stress and the basal velocity;</li>
-<li>with an effective pressure that depends on the basal velocity, re-evaluates <span class="math inline">N</span> from <span class="math inline">u_b</span>, and with it the friction coefficient <code>c_bed</code> (<code>neff_hook</code>). This happens with the K24 hydrology (<code>yhyd.method_transport = 1</code>) and <code>yhyd.k24_ub_hook = True</code> (default), or when a host has registered a callback with <code>yelmo_set_neff_callback</code> (C API). With <code>k24_ub_hook = False</code>, <span class="math inline">N</span> is evaluated once per time step.</li>
+<li>with an effective pressure that depends on the basal velocity, re-evaluates <span class="math inline">N</span> from <span class="math inline">u_b</span>, and with it the friction coefficient <code>c_bed</code> (<code>neff_hook</code>). This happens with the K24 hydrology (<code>yhyd.method_transport = 1</code>) and <code>yhyd.k24_N_ub_coupled = True</code> (default), or when a host has registered a callback with <code>yelmo_set_neff_callback</code> (C API). With <code>k24_N_ub_coupled = False</code>, <span class="math inline">N</span> is evaluated once per time step.</li>
 </ol>
 <p>The iteration stops when the relative L2 change of the velocity, <span class="math inline">\lVert \bar{\mathbf u}^{k} - \bar{\mathbf u}^{k-1}\rVert / \lVert \bar{\mathbf u}^{k-1}\rVert</span> (De Smedt et al., 2010), over the solved faces faster than <span class="math inline">10^{-5}</span> m a<span class="math inline">^{-1}</span>, is below <code>ydyn.ssa_iter_conv</code> (default <span class="math inline">10^{-2}</span>), or after <code>ydyn.ssa_iter_max</code> (default 20) iterations. With the hook of step 7, the relative L1 change of <code>c_bed</code> must also be below <code>ssa_iter_conv</code>. The hook is used only with DIVA, not with the SSA or hybrid solvers.</p>
 <p>When the iteration converges, the basal stress <span class="math inline">\boldsymbol\tau_b = \beta_\mathrm{eff}\bar{\mathbf u}</span> and basal velocity <span class="math inline">u_b = \bar u - \tau_{b,x}\,F_2</span> are diagnosed, and the 3D horizontal velocity field is reconstructed by integrating the vertical-shear closure from the bed upward:</p>

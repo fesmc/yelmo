@@ -350,6 +350,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -606,6 +612,7 @@ window.Quarto = {
 <section id="initmip-grl" class="level2">
 <h2 class="anchored" data-anchor-id="initmip-grl">initmip-grl</h2>
 <p>Greenland initialization benchmark following the initMIP-Greenland protocol (<a href="https://doi.org/10.5194/tc-12-1433-2018">Goelzer et al., 2018</a>). Spins the ice sheet up toward a present-day steady state using the optimization-based initialization scheme (<code>ctrl.equil_method = "opt"</code>, see <a href="./optimization.html">Basal friction optimization</a>) with present-day boundary conditions. Default settings: 10-yr outer timestep, 1000-yr simulation, steady-state forcing.</p>
+<p>The parameter file <code>par/yelmo_initmip_grl.nml</code> lists only the Greenland settings that differ from <code>input/yelmo_defaults.nml</code>: no flow enhancement (<code>ymat.enh_shear = enh_stream = 1</code>), calving fronts held at the observed positions (<code>ycalv.calv_flt_method = calv_grnd_method = "equil"</code>), a lower bound <code>ytill.cf_min = 0.02</code> for the optimized friction and an ice-shelf basal melt of 2 m/a.</p>
 <p>Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid by uncommenting the desired line:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="va">grid</span><span class="op">=</span>GRL-32KM</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=GRL-16KM</span></span>
@@ -614,14 +621,11 @@ window.Quarto = {
 <span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-<span class="va">$grid</span> <span class="dt">\</span></span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Greenland yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip_grl.nml <span class="at">-o</span> output/initmip-grl-<span class="va">$grid</span> <span class="dt">\</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> yelmo.log_timestep=True yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To run all four resolutions as an ensemble:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-grl-ens <span class="dt">\</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_grl_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Greenland <span class="dt">\</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip_grl.nml <span class="at">-o</span> output/initmip-grl-ens <span class="dt">\</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> yelmo.log_timestep=True yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="initmip-grl-performance" class="level3">
 <h3 class="anchored" data-anchor-id="initmip-grl-performance">Performance</h3>
 <div class="quarto-figure quarto-figure-center">
@@ -630,12 +634,13 @@ window.Quarto = {
 <figcaption>Mean time step (a) and model speed (b) versus grid resolution for 1-kyr initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ Levante shared node). Grey: DIVA in Robinson et al.&nbsp;(2022), Fig. 3, on one processor. The lines are fits of <span class="math inline">\Delta t \propto \Delta x^p</span>.</figcaption>
 </figure>
 </div>
-<p>The runs use <code>par/yelmo_initmip.nml</code> with <code>ctrl.time_end=1000</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
+<p>The runs used the shared initmip parameter file of dev 6d0b30d6 (before the split into <code>par/yelmo_initmip_grl.nml</code> and <code>par/yelmo_initmip_ant.nml</code>) with <code>ctrl.time_end=1000</code>. The mean time step is the simulated time divided by the number of time steps, and the model speed is the simulated time per hour of wall time of the main loop. The time step is set by the predictor-corrector controller (<code>yelmo.pc_eps = 0.02</code>) and the Courant cap (<code>yelmo.pc_cfl_max</code>). It scales as <span class="math inline">\Delta x^{1.0}</span>, against <span class="math inline">\Delta x^{1.8}</span> in Robinson et al.&nbsp;(2022), so the high-resolution grids gain the most. Data and plotting script: <code>analysis/timing/</code>.</p>
 </section>
 </section>
 <section id="initmip-ant" class="level2">
 <h2 class="anchored" data-anchor-id="initmip-ant">initmip-ant</h2>
-<p>Antarctica initialization benchmark following the initMIP-Antarctica protocol (<a href="https://doi.org/10.5194/tc-13-1441-2019">Seroussi et al., 2019</a>). Same optimization-based spin-up as initmip-grl, but on the Antarctic domain with <code>set_nm = "set_ant_pd"</code>.</p>
+<p>Antarctica initialization benchmark following the initMIP-Antarctica protocol (<a href="https://doi.org/10.5194/tc-13-1441-2019">Seroussi et al., 2019</a>). Same optimization-based spin-up as initmip-grl, but on the Antarctic domain with <code>par/yelmo_initmip_ant.nml</code> (present day: <code>ctrl.set_nm = "set_ant_pd"</code>, the default; glacial: <code>"set_ant_lgm"</code>).</p>
+<p>As for Greenland, <code>par/yelmo_initmip_ant.nml</code> lists only the settings that differ from <code>input/yelmo_defaults.nml</code>: no flow enhancement (<code>ymat.enh_shear = enh_stream = enh_shlf = 1</code>), calving fronts held at the observed positions, bounds <code>ytill.cf_min = 0.001</code> and <code>ytill.cf_ref = 1</code> for the optimized friction, and the geothermal heat flux of Shapiro and Ritzwoller (2004) (<code>load_ghf</code>, <code>file_ghf</code> in the <code>set_ant_*</code> groups; otherwise 50 mW/m2).</p>
 <p>Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km configuration is not yet available.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="va">grid</span><span class="op">=</span>ANT-32KM</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co">#grid=ANT-16KM</span></span>
@@ -643,14 +648,11 @@ window.Quarto = {
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean</span>
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> initmip</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-<span class="va">$grid</span> <span class="dt">\</span></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Antarctica yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip_ant.nml <span class="at">-o</span> output/initmip-ant-<span class="va">$grid</span> <span class="dt">\</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> yelmo.log_timestep=True yelmo.grid_name=<span class="va">$grid</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To run all three resolutions as an ensemble:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip.nml <span class="at">-o</span> output/initmip-ant-ens <span class="dt">\</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> ctrl.set_nm=set_ant_pd yelmo.log_timestep=True <span class="dt">\</span></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>       yelmo.domain=Antarctica <span class="dt">\</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">runme</span> <span class="at">-r</span> <span class="at">-e</span> initmip <span class="at">-n</span> par/yelmo_initmip_ant.nml <span class="at">-o</span> output/initmip-ant-ens <span class="dt">\</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">-p</span> yelmo.log_timestep=True yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="initmip-ant-performance" class="level3">
 <h3 class="anchored" data-anchor-id="initmip-ant-performance">Performance</h3>
 <div class="quarto-figure quarto-figure-center">
@@ -691,13 +693,17 @@ window.Quarto = {
 </tr>
 <tr class="even">
 <td><code>kleiner-b</code></td>
-<td>Kleiner et al.&nbsp;(2015) Experiment B: steady polythermal column, CTS height and basal water content compared with the analytic solution</td>
+<td>Kleiner et al.&nbsp;(2015) Experiment B: steady polythermal column, CTS height (within 0.5 m) and basal water content (within 5 %) compared with the analytic solution, and a steady CTS over the last 1 kyr; passes from 201 vertical points</td>
 </tr>
 <tr class="odd">
 <td><code>thin-margin</code></td>
 <td>Stability of a thin polythermal margin column, over a range of thickness and horizontal advection</td>
 </tr>
 <tr class="even">
+<td><code>shelf-freeze</code></td>
+<td>Thin floating temperate columns refrozen from the ocean base and the cold surface: no node may cool below the coldest boundary</td>
+</tr>
+<tr class="odd">
 <td><code>robin-column</code></td>
 <td>Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers</td>
 </tr>
@@ -705,7 +711,7 @@ window.Quarto = {
 </table>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> enthalpy</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./libyelmo/bin/test_enthalpy.x</span> kleiner-b enth 201 1e-4</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The arguments are the experiment, the solver, the number of vertical points (default 51) and optionally the conductivity ratio of temperate ice (<code>enth_cr</code>). The solver (<code>temp</code> or <code>enth</code>, default <code>enth</code>) applies to <code>kleiner-a</code> and <code>kleiner-b</code>; the other experiments ignore it (<code>cold-limit</code>, <code>thin-margin</code> and <code>robin-column</code> run both solvers, <code>kleiner-a-cap</code> the enthalpy solver). Output is written to <code>output/test_enthalpy_&lt;experiment&gt;_&lt;solver&gt;.nc</code> (not for <code>thin-margin</code> and <code>robin-column</code>, which only print their results), and the program reports whether the comparison with the reference passes.</p>
+<p>The arguments are the experiment, the solver, the number of vertical points (default 51) and optionally the conductivity ratio of temperate ice (<code>enth_cr</code>). The solver (<code>temp</code> or <code>enth</code>, default <code>enth</code>) applies to <code>kleiner-a</code> and <code>kleiner-b</code>; the other experiments ignore it (<code>cold-limit</code>, <code>thin-margin</code> and <code>robin-column</code> run both solvers, <code>kleiner-a-cap</code> and <code>shelf-freeze</code> the enthalpy solver). Output is written to <code>output/test_enthalpy_&lt;experiment&gt;_&lt;solver&gt;.nc</code> (not for <code>thin-margin</code>, <code>shelf-freeze</code> and <code>robin-column</code>, which only print their results), and the program reports whether the comparison with the reference passes.</p>
 
 
 </section>

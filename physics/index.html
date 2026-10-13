@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -439,6 +445,7 @@ window.Quarto = {
   <li><a href="#time-stepping" id="toc-time-stepping" class="nav-link" data-scroll-target="#time-stepping">Time stepping</a></li>
   <li><a href="#thermodynamics" id="toc-thermodynamics" class="nav-link" data-scroll-target="#thermodynamics">Thermodynamics</a></li>
   <li><a href="#basal-friction" id="toc-basal-friction" class="nav-link" data-scroll-target="#basal-friction">Basal friction</a></li>
+  <li><a href="#grounded-fraction" id="toc-grounded-fraction" class="nav-link" data-scroll-target="#grounded-fraction">Grounded fraction</a></li>
   <li><a href="#calving" id="toc-calving" class="nav-link" data-scroll-target="#calving">Calving</a></li>
   <li><a href="#notation-used-throughout" id="toc-notation-used-throughout" class="nav-link" data-scroll-target="#notation-used-throughout">Notation used throughout</a></li>
   </ul></li>
@@ -524,6 +531,10 @@ w(z) = \underbrace{\frac{\partial b}{\partial t} + u_b \frac{\partial b}{\partia
 <section id="basal-friction" class="level2">
 <h2 class="anchored" data-anchor-id="basal-friction">Basal friction</h2>
 <p>The <a href="../physics/basal-friction.html">basal friction</a> coefficient <span class="math inline">\beta</span> follows from a friction law (linear, pseudo-plastic or regularized Coulomb), a bed coefficient that depends on the till properties and the effective pressure, and a reduction of sliding below the pressure melting point.</p>
+</section>
+<section id="grounded-fraction" class="level2">
+<h2 class="anchored" data-anchor-id="grounded-fraction">Grounded fraction</h2>
+<p>The <a href="../physics/grounded-fraction.html">grounded fraction</a> of cells and velocity faces sets where basal friction acts and how the basal mass balance is split at the grounding line. It is either binary per cell (<code>ytopo.gl_sep = 1</code>) or the grounded area of the flotation thickness interpolated bilinearly between cell centres (<code>gl_sep = 3</code>).</p>
 </section>
 <section id="calving" class="level2">
 <h2 class="anchored" data-anchor-id="calving">Calving</h2>

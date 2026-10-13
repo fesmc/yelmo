@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>grounded-fraction – Yelmo</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../physics/thermodynamics.html" rel="next">
+<link href="../physics/basal-friction.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-f10a1527f7bd505c1346410c89cb625b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">Yelmo</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="../getting-started.html" aria-current="page"> 
+<span class="menu-text">Installation</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../physics/index.html"> 
+<span class="menu-text">Physics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../yelmo-variables.html"> 
+<span class="menu-text">Variables</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../benchmarks.html"> 
+<span class="menu-text">Benchmarks</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/grounded-fraction.html">Grounded fraction</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../getting-started.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Installation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../configme-install-details.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What <code>configme install yelmo</code> does</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../hpc-notes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">HPC Notes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../benchmarks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Benchmarks</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../parameters.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parameters</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-config.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">yelmo-config</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction optimization</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../c-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C API</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../physics/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Physics</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Momentum balance</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/momentum/diva.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DIVA — Depth-Integrated Viscosity Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/momentum/ssa.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SSA — Shallow Shelf Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/momentum/sia.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SIA — Shallow Ice Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/momentum/solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical solution of DIVA / SSA</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Mass conservation</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/mass_conservation/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mass conservation — continuity equation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/mass_conservation/solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical solution of the continuity equation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/vertical-velocity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Vertical velocity — <code>uz</code> and <code>uz_star</code></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/timestepping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Time stepping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/basal-friction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basal friction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Thermodynamics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/calving.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Calving</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../physics/tracers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Passive tracers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../yelmo-variables.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variables</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ybound.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ybound</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytopo.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytopo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ydyn.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ydyn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ymat.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ymat</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytrc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytrc</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ytherm.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ytherm</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-yhyd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">yhyd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-variables-ydata.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ydata</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../notes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notes</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../yelmo-io.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Yelmo IO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../remapping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Remapping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../numerics-precision.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Numerical precision</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#grounded-fraction" id="toc-grounded-fraction" class="nav-link active" data-scroll-target="#grounded-fraction">Grounded fraction</a>
+  <ul class="collapse">
+  <li><a href="#methods" id="toc-methods" class="nav-link" data-scroll-target="#methods">Methods</a></li>
+  <li><a href="#subgrid-interpolation-gl_sep-3" id="toc-subgrid-interpolation-gl_sep-3" class="nav-link" data-scroll-target="#subgrid-interpolation-gl_sep-3">Subgrid interpolation (<code>gl_sep = 3</code>)</a></li>
+  <li><a href="#grounded-area-of-a-quarter" id="toc-grounded-area-of-a-quarter" class="nav-link" data-scroll-target="#grounded-area-of-a-quarter">Grounded area of a quarter</a></li>
+  <li><a href="#difference-from-the-cism-implementation" id="toc-difference-from-the-cism-implementation" class="nav-link" data-scroll-target="#difference-from-the-cism-implementation">Difference from the CISM implementation</a></li>
+  <li><a href="#gl_sep-2-removed" id="toc-gl_sep-2-removed" class="nav-link" data-scroll-target="#gl_sep-2-removed"><code>gl_sep = 2</code> (removed)</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/grounded-fraction.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../physics/index.html">Physics</a></li><li class="breadcrumb-item"><a href="../physics/grounded-fraction.html">Grounded fraction</a></li></ol></nav></header>
+
+
+
+
+<section id="grounded-fraction" class="level1">
+<h1>Grounded fraction</h1>
+<p>The grounded fraction <span class="math inline">f_\mathrm{grnd} \in [0,1]</span> is the part of a cell where the ice rests on the bed. It is defined on the cells (<code>f_grnd</code>), on the velocity faces (<code>f_grnd_acx</code>, <code>f_grnd_acy</code>) and on the cell corners (<code>f_grnd_ab</code>). It sets where the basal friction acts (<span class="math inline">\beta = 0</span> where <span class="math inline">f_\mathrm{grnd} = 0</span>, and the friction at grounding-line cells and faces through <code>ydyn.beta_gl_scale</code> and <code>beta_gl_stag</code>, see <a href="../physics/basal-friction.html">Basal friction</a>), which faces are grounded or floating in the SSA masks, and how the basal mass balance is split between the grounded and the floating part of a cell (<code>ytopo.bmb_gl_method</code>, see <a href="../physics/mass_conservation/index.html">Mass conservation</a>).</p>
+<p>The grounded fraction follows from the flotation thickness <code>H_grnd</code> (<code>calc_H_grnd</code>): the ice thickness minus the thickness that would float in the water column, <span class="math inline">H - (\rho_\mathrm{sw}/\rho_i)(z_\mathrm{sl} - z_b)</span>, where the bed is below sea level, and the ice thickness plus the bed elevation above sea level elsewhere. Ice is grounded where <span class="math inline">H_\mathrm{grnd} \ge 0</span>.</p>
+<section id="methods" class="level2">
+<h2 class="anchored" data-anchor-id="methods">Methods</h2>
+<p><code>ytopo.gl_sep</code> selects how <span class="math inline">f_\mathrm{grnd}</span> is computed:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>gl_sep</code></th>
+<th>Cells (<code>f_grnd</code>)</th>
+<th>Faces (<code>f_grnd_acx</code>, <code>f_grnd_acy</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1 (default)</td>
+<td>1 where <span class="math inline">H_\mathrm{grnd} \ge 0</span>, 0 elsewhere</td>
+<td>fraction of the distance between the two cell centres where <span class="math inline">H_\mathrm{grnd}</span>, interpolated linearly, is <span class="math inline">\ge 0</span></td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td>grounded area of <span class="math inline">H_\mathrm{grnd}</span> interpolated bilinearly between cell centres (below)</td>
+<td>grounded area of the face’s control volume, same interpolant</td>
+</tr>
+</tbody>
+</table>
+<p>The grounded fraction used for the basal mass balance (<code>f_grnd_bmb</code>) is the <code>gl_sep = 3</code> area for every <code>gl_sep</code>. <code>gl_sep = 2</code> has been removed (see <a href="#gl_sep-2-removed">below</a>); a parameter file with <code>gl_sep = 2</code> stops in <code>ytopo_par_load</code>.</p>
+</section>
+<section id="subgrid-interpolation-gl_sep-3" class="level2">
+<h2 class="anchored" data-anchor-id="subgrid-interpolation-gl_sep-3">Subgrid interpolation (<code>gl_sep = 3</code>)</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="../img/grounded-fraction-grid.png" class="img-fluid figure-img"></p>
+<figcaption>(a) The interpolant of <span class="math inline">H_\mathrm{grnd}</span> on cell (i,j). Between the four cell centres around each cell corner (red), <span class="math inline">H_\mathrm{grnd}</span> is interpolated bilinearly. Each quarter of the cell lies in one of these squares, so the interpolant is bilinear on the quarter, with the cell centre, two face midpoints and the cell corner as its nodes. (b) A cell, a face (acx) and a corner (ab) each cover four quarters.</figcaption>
+</figure>
+</div>
+<p><span class="math inline">H_\mathrm{grnd}</span> is interpolated bilinearly between the cell centres (as in CISM, Leguy et al., 2021). Each cell is split into four quarters (SW, SE, NW, NE). A quarter lies within one square between four cell centres, so the interpolant is bilinear on the quarter, with nodes</p>
+<ul>
+<li>the cell centre: <span class="math inline">H_\mathrm{grnd}(i,j)</span>,</li>
+<li>the two face midpoints: the mean of the two centres on either side of the face,</li>
+<li>the cell corner: the mean of the four centres around it.</li>
+</ul>
+<p>The grounded area of each quarter is computed once (<code>bilinear_grounded_fraction</code>, below). The fraction of a cell is the mean over its four quarters, that of an acx face the mean over the two east quarters of cell <span class="math inline">i</span> and the two west quarters of cell <span class="math inline">i+1</span> (the face’s control volume), likewise for acy faces, and that of a corner the mean over the four quarters around it (<code>calc_f_grnd_subgrid_area</code>).</p>
+<p>Since the interpolant passes through the cell-centre value, a cell with <span class="math inline">H_\mathrm{grnd} \ge 0</span> at its centre always has <span class="math inline">f_\mathrm{grnd} &gt; 0</span>, also where all its neighbours float.</p>
+</section>
+<section id="grounded-area-of-a-quarter" class="level2">
+<h2 class="anchored" data-anchor-id="grounded-area-of-a-quarter">Grounded area of a quarter</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="../img/grounded-fraction-quarter.png" class="img-fluid figure-img"></p>
+<figcaption>(a) A quarter mapped to the unit square, with corner values (in m) and the grounded part <span class="math inline">H_\mathrm{grnd} \ge 0</span> (grey). On a vertical line (blue), <span class="math inline">H_\mathrm{grnd}</span> is linear in <span class="math inline">y</span> from <span class="math inline">B(x)</span> to <span class="math inline">T(x)</span>. The roots of <span class="math inline">B</span> and <span class="math inline">T</span> (red) split <span class="math inline">[0,1]</span> into pieces where the grounded length of the line is 0, <span class="math inline">P/D</span> or 1. (b) The grounded length along <span class="math inline">x</span>; its integral is the grounded area.</figcaption>
+</figure>
+</div>
+<p>Mapped to the unit square, the interpolant on a quarter is</p>
+<p><span class="math display">
+h(x,y) = h_{00}(1-x)(1-y) + h_{10}\,x(1-y) + h_{01}(1-x)\,y + h_{11}\,xy ,
+</span></p>
+<p>with the node values <span class="math inline">h_{00}, h_{10}, h_{01}, h_{11}</span> at the corners <span class="math inline">(0,0), (1,0), (0,1), (1,1)</span>. On each vertical line <span class="math inline">x = \text{const}</span>, <span class="math inline">h</span> is linear in <span class="math inline">y</span>, from the bottom edge value <span class="math inline">B(x) = h(x,0)</span> to the top edge value <span class="math inline">T(x) = h(x,1)</span>. The grounded length of the line (<span class="math inline">h \ge 0</span>) is therefore</p>
+<p><span class="math display">
+\ell(x) =
+\begin{cases}
+1 &amp; B \ge 0,\ T \ge 0 \\
+0 &amp; B &lt; 0,\ T &lt; 0 \\
+P/D &amp; \text{otherwise}, \quad P = \max(B,T),\ D = |B - T| ,
+\end{cases}
+</span></p>
+<p>and the grounded fraction of the quarter is <span class="math inline">\int_0^1 \ell(x)\,dx</span>. <span class="math inline">B</span> and <span class="math inline">T</span> are linear in <span class="math inline">x</span>, so <span class="math inline">\ell</span> changes form only at their roots: these split <span class="math inline">[0,1]</span> into at most three pieces, on each of which <span class="math inline">\ell</span> is 0, 1, or the ratio of two linear functions. On such a mixed piece of length <span class="math inline">w</span>, with <span class="math inline">P = P_a + P_s t</span> and <span class="math inline">D = D_a + D_s t</span> (<span class="math inline">0 \le t \le w</span>, and <span class="math inline">D &gt; 0</span> inside the piece),</p>
+<p><span class="math display">
+\int_0^w \frac{P_a + P_s t}{D_a + D_s t}\,dt
+= \frac{w}{D_a}\left[P_a\,\psi(z) + P_s\,w\,\chi(z)\right], \qquad
+z = \frac{D_s w}{D_a},
+</span></p>
+<p><span class="math display">
+\psi(z) = \frac{\ln(1+z)}{z}, \qquad
+\chi(z) = \frac{z - \ln(1+z)}{z^2} .
+</span></p>
+<p>The integral is taken from the end of the piece where <span class="math inline">D</span> is larger, so that <span class="math inline">-1 \le z \le 0</span>. For <span class="math inline">|z| &lt; 10^{-4}</span>, <span class="math inline">\psi</span> and <span class="math inline">\chi</span> are evaluated from their Taylor series (<span class="math inline">\psi = 1 - z/2 + z^2/3</span>, <span class="math inline">\chi = 1/2 - z/3 + z^2/4</span>), so that <span class="math inline">z \to 0</span> (e.g.&nbsp;a straight grounding line, where <span class="math inline">h</span> is linear and <span class="math inline">D_s = 0</span>) needs no special treatment: the result is then the mean of <span class="math inline">P/D</span> over the piece. <span class="math inline">z = -1</span> means <span class="math inline">D = 0</span> at the far end of the piece, which inside a mixed piece requires <span class="math inline">B = T = 0</span> there. <span class="math inline">P</span> and <span class="math inline">D</span> then have a common root, and <span class="math inline">P/D = P_s/D_s</span> is constant on the piece; this is the degenerate saddle where two straight zero lines of <span class="math inline">h</span> cross.</p>
+<p>The result is exact for the bilinear interpolant, independent of the orientation of the quarter (it is the same for all rotations and reflections of the square), and counts <span class="math inline">H_\mathrm{grnd} = 0</span> as grounded, as <code>gl_sep = 1</code> does. <code>tests/test_f_grnd.f90</code> (<code>make f_grnd</code>) checks it against analytical values (linear fields, the hyperbola <span class="math inline">xy = 1/4</span>, exact saddles), the symmetries of the square, and dense sampling of the interpolant (fesm-utils <code>calc_subgrid_array_quad</code>, also used for the grounding-zone melt of <code>bmb_gl_method = "pmpt"</code>).</p>
+</section>
+<section id="difference-from-the-cism-implementation" class="level2">
+<h2 class="anchored" data-anchor-id="difference-from-the-cism-implementation">Difference from the CISM implementation</h2>
+<p>The interpolant, the quarters and the averaging to cells, faces and corners are those of Leguy et al.&nbsp;(2021), as implemented in CISM. Until this change, Yelmo used a port of the IMAU-ICE version of the CISM routine (<code>determine_grounded_fractions</code>). Only the area of a quarter is computed differently.</p>
+<p>CISM writes the bilinear function as <span class="math inline">h = a + bx + cy + dxy</span> and rotates the quarter until its sign pattern is one of four cases: one corner grounded, three corners grounded, two adjacent corners grounded, or two diagonal corners grounded. Each case has a closed-form area, e.g.&nbsp;for one grounded corner</p>
+<p><span class="math display">
+\frac{(bc - ad)\ln\left|1 - \dfrac{ad}{bc}\right| + ad}{d^2} .
+</span></p>
+<p>These expressions are <span class="math inline">0/0</span> as <span class="math inline">d \to 0</span>, i.e.&nbsp;wherever <span class="math inline">H_\mathrm{grnd}</span> is locally planar (on a quarter, <span class="math inline">d = 0</span> exactly when the cross difference of the neighbouring centre values vanishes, e.g.&nbsp;along a straight grounding line), and at the degenerate saddle (<span class="math inline">bc = ad</span>). The ported code therefore</p>
+<ul>
+<li>moved corner values within <span class="math inline">10^{-4}</span> of zero to <span class="math inline">\pm 10^{-4}</span>, and zero to <span class="math inline">+10^{-4}</span>, i.e.&nbsp;floating;</li>
+<li>shifted one corner by 0.1 (in m of <span class="math inline">H_\mathrm{grnd}</span>) when <span class="math inline">|d| &lt; 10^{-4}</span>;</li>
+<li>had a separate formula for a grounding line parallel to an axis;</li>
+<li>stopped the model (<code>error stop</code>) when the area was NaN or outside <span class="math inline">[0,1]</span>. This happened for an exact saddle, e.g.&nbsp;<span class="math inline">H_\mathrm{grnd} = 1, -3,
+-3, 9</span> m on a 2 × 2 block of cells (more likely in idealised setups with round numbers).</li>
+</ul>
+<p>Yelmo instead sorts the quarter by the roots of the two edge lines <span class="math inline">B</span> and <span class="math inline">T</span>, not by the signs of its corners. One formula covers all sign patterns. Small <span class="math inline">d</span> needs no perturbation: it enters through <span class="math inline">z</span>, which <span class="math inline">\psi</span> and <span class="math inline">\chi</span> handle by their series. The only special case is the exact common root of <span class="math inline">P</span> and <span class="math inline">D</span>, where the integrand is constant. On a GRL-16KM state, the two methods differ by at most <span class="math inline">1.05 \times 10^{-4}</span> in <span class="math inline">f_\mathrm{grnd}</span> (from the perturbations above); exact saddles no longer stop the model, and <span class="math inline">H_\mathrm{grnd} = 0</span> counts as grounded. The code is about 190 lines, against about 430 for the port.</p>
+</section>
+<section id="gl_sep-2-removed" class="level2">
+<h2 class="anchored" data-anchor-id="gl_sep-2-removed"><code>gl_sep = 2</code> (removed)</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="../img/grounded-fraction-island.png" class="img-fluid figure-img"></p>
+<figcaption>A cell grounded at its centre (<span class="math inline">H_\mathrm{grnd} = 40</span> m) surrounded by deep ocean (<span class="math inline">-150</span> m). (a) Interpolated between the cell-corner means, as with <code>gl_sep = 2</code>, <span class="math inline">H_\mathrm{grnd}</span> is negative everywhere in the cell, so <span class="math inline">f_\mathrm{grnd} = 0</span>. (b) Interpolated between the cell centres (<code>gl_sep = 3</code>), the cell keeps a grounded patch (black: <span class="math inline">H_\mathrm{grnd} =
+0</span>).</figcaption>
+</figure>
+</div>
+<p><code>gl_sep = 2</code> sampled the grounded area of a bilinear interpolant between the four cell-corner means of <span class="math inline">H_\mathrm{grnd}</span> only, and set the face fractions to the mean of the two cells. The corner means smooth out the cell’s own value: a cell grounded at its centre next to deep ocean, e.g.&nbsp;ice on a small coastal island, had <span class="math inline">f_\mathrm{grnd} = 0</span>, so no basal friction, while its surface elevation was that of grounded ice. In a GRL-16KM ISMIP7 spin-up such cells were driven at up to 21 km/yr. <code>gl_sep = 3</code> uses the same kind of subgrid area, but with the interpolant that passes through the cell-centre values.</p>
+<p>The figures are made with <code>analysis/grounded-fraction/gf_schematics.jl</code>.</p>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li>Leguy, G. R., Lipscomb, W. H., and Asay-Davis, X. S. (2021). Marine ice sheet experiments with the Community Ice Sheet Model. The Cryosphere, 15, 3229–3253.</li>
+</ul>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/fesmc\.github\.io\/yelmo\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../physics/basal-friction.html" class="pagination-link" aria-label="Basal friction">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Basal friction</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
+        <span class="nav-page-text">Thermodynamics</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/physics/grounded-fraction.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

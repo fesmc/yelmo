@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -474,7 +480,7 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p>All backends are off by default. Each one gives a deposition-time field on the Yelmo vertical grid. The backend selected by <code>t_dep_source</code> (<code>"euler"</code>, <code>"trc"</code> or <code>"elsa"</code>) is copied to <code>t_dep</code>, from which the depths of the isochrones at the times <code>time_iso</code> [ka] are diagnosed (<code>depth_iso</code>; with <code>calc_age = False</code>, only the first time is used). The Eulerian solver is explicit (<code>tracer_method = "expl"</code>) or implicit in the vertical with an artificial diffusion <code>tracer_impl_kappa</code> (<code>"impl"</code>); the horizontal advection is explicit upwind in both cases. Where the depth-averaged speed exceeds 500 m a<span class="math inline">^{-1}</span>, the Eulerian tracer is set to the surface value. The elsa layer stack is sized by the simulation end time <code>time_end</code>, which must be later than the start time. On a restart, the state of the Lagrangian backends is read from separate files next to the restart file (for <code>restart.nc</code>: <code>restart_tracer.nc</code>, and <code>restart_elsa.nc</code> with <code>elsa_restart = True</code>).</p>
+<p>All backends are off by default. Each one gives a deposition-time field on the Yelmo vertical grid. The backend selected by <code>t_dep_source</code> (<code>"euler"</code>, <code>"trc"</code> or <code>"elsa"</code>) is copied to <code>t_dep</code>, from which the depths of the isochrones at the times <code>time_iso</code> [ka] are diagnosed (<code>depth_iso</code>; with <code>calc_age = False</code>, only the first time is used). The Eulerian solver is explicit (<code>tracer_method = "expl"</code>, vertical advection sub-stepped to a Courant number of at most 1) or implicit in the vertical with an artificial diffusion <code>tracer_impl_kappa</code> (<code>"impl"</code>). In both cases the horizontal advection is explicit and is that of the <a href="../physics/thermodynamics.html">thermodynamics</a> (flux-limited second order on the face velocities, sub-cycled), with its own parameters <code>advecxy_order</code>, <code>advecxy_cfl</code> and <code>advecxy_nmax</code> (same defaults). It transports the deposition time relative to the time of its cold start, <code>t_ref_euler</code> (<code>t_dep_euler_rel</code>; both are in the restart file), so its precision does not depend on the absolute time; <code>t_dep_euler</code> is the absolute deposition time. Where the depth-averaged speed exceeds 500 m a<span class="math inline">^{-1}</span>, the Eulerian tracer is set to the surface value. The elsa layer stack is sized by the simulation end time <code>time_end</code>, which must be later than the start time. On a restart, the state of the Lagrangian backends is read from separate files next to the restart file (for <code>restart.nc</code>: <code>restart_tracer.nc</code>, and <code>restart_elsa.nc</code> with <code>elsa_restart = True</code>).</p>
 <p>The tracers are updated after the material properties and before the thermodynamics in each <a href="../physics/timestepping.html">time step</a>. The variables are listed in the <a href="../yelmo-variables-ytrc.html">tracer variable table</a>.</p>
 
 

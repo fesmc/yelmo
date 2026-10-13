@@ -350,6 +350,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -504,7 +510,7 @@ window.Quarto = {
 <ul>
 <li><strong>Instances.</strong> The library holds two Yelmo instances. Every routine takes an <code>alias</code> string as its last argument: <code>"ylmo2"</code> selects the second instance, any other value the first.</li>
 <li><strong>Strings</strong> are null-terminated C strings (at most 1028 characters; variable names at most 56).</li>
-<li><strong>Real numbers</strong> are <code>double</code>. Yelmo converts them to its working precision.</li>
+<li><strong>Real numbers</strong> are <code>double</code>. Yelmo converts fields to its working precision; the model time stays in double precision.</li>
 <li><strong>Arrays</strong> are in Fortran (column-major) order: a 2D field has shape <code>nx × ny</code> with <span class="math inline">x</span> varying fastest, a 3D field <code>nx × ny × nz</code> with the vertical index slowest. Staggered fields (e.g.&nbsp;<code>ux_bar</code> on the <span class="math inline">x</span> faces, acx-nodes) have the same <code>nx × ny</code> shape, with the value of cell <span class="math inline">(i,j)</span> on its right (<span class="math inline">x</span>) or top (<span class="math inline">y</span>) face. The caller allocates all buffers.</li>
 <li><strong>Integer arguments</strong> are passed by value, except in <code>yelmo_init_grid</code> and <code>yelmo_get_grid_sizes</code>, which take pointers.</li>
 <li><strong>Units</strong> are those of the <a href="./yelmo-variables.html">variable tables</a>.</li>
@@ -588,7 +594,7 @@ window.Quarto = {
 <tr class="odd">
 <td><code>bnd_</code></td>
 <td><code>bnd</code></td>
-<td><code>z_bed</code>, <code>z_bed_sd</code>, <code>z_sl</code>, <code>H_sed</code>, <code>smb_ref</code>, <code>T_srf</code>, <code>bmb_shlf</code>, <code>fmb_shlf</code>, <code>T_shlf</code>, <code>Q_geo</code>, <code>enh_srf</code>, <code>basins</code>, <code>basin_mask</code>, <code>regions</code>, <code>region_mask</code>, <code>H_ice_ref</code>, <code>z_bed_ref</code>, <code>calv_mask</code>, <code>tau_relax</code>, <code>z_bed_corr</code>, <code>dzbdt_corr</code>, <code>mask_ice</code></td>
+<td><code>z_bed</code>, <code>z_bed_sd</code>, <code>z_sl</code>, <code>H_sed</code>, <code>smb_ref</code>, <code>T_srf</code>, <code>bmb_shlf</code>, <code>fmb_shlf</code>, <code>T_shlf</code>, <code>Q_geo</code>, <code>enh_srf</code>, <code>basins</code>, <code>basin_mask</code>, <code>regions</code>, <code>H_ice_ref</code>, <code>z_bed_ref</code>, <code>calv_mask</code>, <code>tau_relax</code>, <code>z_bed_corr</code>, <code>dzbdt_corr</code>, <code>mask_ice</code></td>
 </tr>
 <tr class="even">
 <td><code>dta_</code></td>
@@ -678,7 +684,7 @@ window.Quarto = {
 <tr class="odd">
 <td><code>bnd_</code></td>
 <td><code>bnd</code></td>
-<td><code>z_bed</code>, <code>z_bed_sd</code>, <code>z_sl</code>, <code>H_sed</code>, <code>smb_ref</code>, <code>T_srf</code>, <code>bmb_shlf</code>, <code>fmb_shlf</code>, <code>T_shlf</code>, <code>Q_geo</code>, <code>enh_srf</code>, <code>basins</code>, <code>basin_mask</code>, <code>regions</code>, <code>region_mask</code>, <code>H_ice_ref</code>, <code>z_bed_ref</code>, <code>calv_mask</code>, <code>tau_relax</code>, <code>z_bed_corr</code>, <code>dzbdt_corr</code>, <code>mask_ice</code></td>
+<td><code>z_bed</code>, <code>z_bed_sd</code>, <code>z_sl</code>, <code>H_sed</code>, <code>smb_ref</code>, <code>T_srf</code>, <code>bmb_shlf</code>, <code>fmb_shlf</code>, <code>T_shlf</code>, <code>Q_geo</code>, <code>enh_srf</code>, <code>basins</code>, <code>basin_mask</code>, <code>regions</code>, <code>H_ice_ref</code>, <code>z_bed_ref</code>, <code>calv_mask</code>, <code>tau_relax</code>, <code>z_bed_corr</code>, <code>dzbdt_corr</code>, <code>mask_ice</code></td>
 </tr>
 <tr class="even">
 <td><code>tpo_</code></td>
@@ -737,7 +743,7 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>a <span class="op">=</span> <span class="st">"ylmo1"</span><span class="op">;</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> nx<span class="op">,</span> ny<span class="op">,</span> nz_aa<span class="op">,</span> nz_ac<span class="op">,</span> nzr_aa<span class="op">,</span> nzr_ac<span class="op">;</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>yelmo_init<span class="op">(</span><span class="st">"par/yelmo_initmip.nml"</span><span class="op">,</span> <span class="st">"file"</span><span class="op">,</span> <span class="fl">0.0</span><span class="op">,</span> a<span class="op">);</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>yelmo_init<span class="op">(</span><span class="st">"par/yelmo_initmip_grl.nml"</span><span class="op">,</span> <span class="st">"file"</span><span class="op">,</span> <span class="fl">0.0</span><span class="op">,</span> a<span class="op">);</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>yelmo_get_grid_sizes<span class="op">(&amp;</span>nx<span class="op">,</span> <span class="op">&amp;</span>ny<span class="op">,</span> <span class="op">&amp;</span>nz_aa<span class="op">,</span> <span class="op">&amp;</span>nz_ac<span class="op">,</span> <span class="op">&amp;</span>nzr_aa<span class="op">,</span> <span class="op">&amp;</span>nzr_ac<span class="op">,</span> a<span class="op">);</span></span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">double</span> <span class="op">*</span>smb  <span class="op">=</span> malloc<span class="op">(</span><span class="kw">sizeof</span><span class="op">(</span><span class="dt">double</span><span class="op">)</span> <span class="op">*</span> nx <span class="op">*</span> ny<span class="op">);</span></span>

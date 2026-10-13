@@ -272,6 +272,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -388,7 +394,10 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#parameters" id="toc-parameters" class="nav-link active" data-scroll-target="#parameters">Parameters</a></li>
+  <li><a href="#parameters" id="toc-parameters" class="nav-link active" data-scroll-target="#parameters">Parameters</a>
+  <ul class="collapse">
+  <li><a href="#masks" id="toc-masks" class="nav-link" data-scroll-target="#masks">Masks</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/fesmc/yelmo/edit/main/parameters.md" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/fesmc/yelmo/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -465,6 +474,52 @@ ul.task-list li input[type="checkbox"] {
 </table>
 <p>Each group can be renamed in <code>&amp;yelmo</code> (e.g.&nbsp;<code>nml_ydyn = "ydyn_north"</code> reads the dynamics parameters from <code>&amp;ydyn_north</code>), so that several Yelmo domains can share one parameter file. Physical constants are read from <code>input/yelmo_phys_const.nml</code>, in the group given by <code>yelmo.phys_const</code> (default <code>"Earth"</code>; groups for the benchmark experiments, e.g.&nbsp;<code>"EISMINT"</code>, <code>"MISMIP3D"</code>, are also available).</p>
 <p>Groups used only by a driver program, such as <code>&amp;ctrl</code>, are not read by Yelmo.</p>
+<section id="masks" class="level2">
+<h2 class="anchored" data-anchor-id="masks">Masks</h2>
+<p><code>&amp;yelmo_masks</code> makes Yelmo’s masks once at init from the regions, zones and basins of <a href="https://github.com/fesmc/FesmData">FesmData</a> (fesm-utils <code>regions</code>), with selection expressions such as <code>"region:Greenland &amp; ~zone:open_ocean"</code>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>regions_group</code></td>
+<td>Group of the regions (<code>path_regions</code>, <code>path_basins</code>, <code>basin_sets</code>, <code>layers</code>, <code>masks</code>, …; see fesm-utils <code>regions</code>); <code>"None"</code> = no layers</td>
+</tr>
+<tr class="even">
+<td><code>basins</code></td>
+<td>Basin ids of <code>bnd%basins</code>: a layer of the regions, e.g.&nbsp;<code>"&lt;set&gt;"</code> or <code>"&lt;set&gt;.group"</code> (<code>"Zwally2012.group"</code>); <code>"None"</code> = none, <code>"domain"</code> = one basin (1)</td>
+</tr>
+<tr class="odd">
+<td><code>mask_ice_dynamic</code></td>
+<td>Where ice is dynamic; elsewhere no ice (<code>bnd%mask_ice</code>)</td>
+</tr>
+<tr class="even">
+<td><code>mask_ice_fixed</code></td>
+<td>Where ice thickness is prescribed (over <code>mask_ice_dynamic</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>relax</code>, <code>relax_tau</code></td>
+<td>Where ice relaxes to <code>H_ice_ref</code> and the timescale [yr] (<code>bnd%tau_relax</code>, used with <code>ytopo.topo_rel = -1</code>)</td>
+</tr>
+<tr class="even">
+<td><code>mask_rmse</code></td>
+<td>Where the error metrics are computed</td>
+</tr>
+<tr class="odd">
+<td><code>dynamic_connected</code></td>
+<td>Keep only the dynamic cells connected to the ice sheet (the largest 4-connected region of present-day ice, else of the initial ice) through dynamic or fixed cells; the others get no ice (e.g.&nbsp;offshore islands)</td>
+</tr>
+</tbody>
+</table>
+<p>Without layers the expressions can only be <code>"all"</code> or <code>"none"</code>. A driver may pass the regions (<code>yelmo_init(..., reg=)</code>, on the Yelmo grid) instead of <code>regions_group</code>, and <code>mask_ice</code> instead of the mask_ice expressions. The named masks of the regions (<code>masks</code>, <code>mask_&lt;name&gt;</code>) become Yelmo’s regional output domains. <code>bnd%regions</code> holds the codes of the layer <code>region</code> (FesmData: the deepest level), 0 without one.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -480,6 +535,7 @@ Tip
 </div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

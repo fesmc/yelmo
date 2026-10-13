@@ -33,7 +33,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../physics/thermodynamics.html" rel="next">
+<link href="../physics/grounded-fraction.html" rel="next">
 <link href="../physics/timestepping.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -438,7 +444,12 @@ window.Quarto = {
   <li><a href="#frozen-bed-sliding" id="toc-frozen-bed-sliding" class="nav-link" data-scroll-target="#frozen-bed-sliding">Frozen-bed sliding</a></li>
   </ul></li>
   <li><a href="#bed-coefficient" id="toc-bed-coefficient" class="nav-link" data-scroll-target="#bed-coefficient">Bed coefficient</a></li>
-  <li><a href="#effective-pressure" id="toc-effective-pressure" class="nav-link" data-scroll-target="#effective-pressure">Effective pressure</a></li>
+  <li><a href="#effective-pressure" id="toc-effective-pressure" class="nav-link" data-scroll-target="#effective-pressure">Effective pressure</a>
+  <ul class="collapse">
+  <li><a href="#till-water-closures" id="toc-till-water-closures" class="nav-link" data-scroll-target="#till-water-closures">Till-water closures</a></li>
+  <li><a href="#water-transport" id="toc-water-transport" class="nav-link" data-scroll-target="#water-transport">Water transport</a></li>
+  <li><a href="#external-effective-pressure" id="toc-external-effective-pressure" class="nav-link" data-scroll-target="#external-effective-pressure">External effective pressure</a></li>
+  </ul></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul></li>
   </ul>
@@ -514,6 +525,7 @@ window.Quarto = {
 <li>set to zero for floating ice and limited to at least <code>beta_min</code> (default 100 Pa a m<span class="math inline">^{-1}</span>) for grounded ice.</li>
 </ol>
 <p>Steps 1–3 are skipped for <code>beta_method = -1</code>. <span class="math inline">\beta</span> is then staggered to the velocity faces (<code>beta_gl_stag</code>): −1, <code>beta_acx</code>/<code>beta_acy</code> are imposed externally and not computed; 0, mean of the two cells; 1 (default), the upstream (grounded) value at grounding-line faces; 2, the downstream value; 3, a mix of the grounded and floating values weighted by the square of the grounded fraction of the face; 4, weighted by the grounded share of the velocity across the face (Gladstone et al., 2010).</p>
+<p>The grounded fractions of cells and faces are set by <code>ytopo.gl_sep</code> (1: binary per cell, 3: grounded area of the flotation thickness interpolated bilinearly between cell centres), see <a href="../physics/grounded-fraction.html">Grounded fraction</a>.</p>
 <section id="frozen-bed-sliding" class="level3">
 <h3 class="anchored" data-anchor-id="frozen-bed-sliding">Frozen-bed sliding</h3>
 <p>With <code>ydyn.frz_scale = True</code> (default), sliding is reduced where the bed is below the pressure melting point. After the friction law, <span class="math inline">\beta</span> is multiplied by <span class="math inline">f_\mathrm{slide}^{-q}</span>, with</p>
@@ -550,7 +562,37 @@ c_b = \tan\!\left(\frac{\pi}{180}\,c_{b,\mathrm{ref}}\right)N_\mathrm{eff},
 </section>
 <section id="effective-pressure" class="level2">
 <h2 class="anchored" data-anchor-id="effective-pressure">Effective pressure</h2>
-<p><span class="math inline">N_\mathrm{eff}</span> comes from the basal hydrology (FastHydrology, group <code>&amp;yhyd</code>). With the till-water bucket and no water transport (<code>yhyd.method_transport = 0</code>), the closure is chosen with <code>yhyd.bkt_N_closure</code>:</p>
+<p><span class="math inline">N_\mathrm{eff}</span> always comes from the basal hydrology (FastHydrology, group <code>&amp;yhyd</code>); the dynamics has no closure of its own. Before each velocity solve, the dynamics takes the hydrology’s effective pressure <span class="math inline">N</span> (<code>hyd_N</code>) in one of three ways:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th><span class="math inline">N_\mathrm{eff}</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>yhyd.method_transport = 0</code> (<strong>default</strong>)</td>
+<td>Closure <code>yhyd.bkt_N_closure</code> on the till water <span class="math inline">W_\mathrm{til}</span></td>
+</tr>
+<tr class="even">
+<td><code>yhyd.method_transport = 1</code></td>
+<td>Water transport model (Kazmierczak et al., 2024; K24)</td>
+</tr>
+<tr class="odd">
+<td><code>yhyd.bkt_N_closure = -1</code></td>
+<td>Set externally by a host model</td>
+</tr>
+</tbody>
+</table>
+<p>With <code>ydyn.neff_nxi</code> &gt; 0, the cell value of <span class="math inline">N_\mathrm{eff}</span> is the average of <span class="math inline">N</span> interpolated to sub-grid points (1: the four Gauss points, &gt; 1: an <code>neff_nxi</code> × <code>neff_nxi</code> grid; default 0, no interpolation).</p>
+<section id="till-water-closures" class="level3">
+<h3 class="anchored" data-anchor-id="till-water-closures">Till-water closures</h3>
+<p>Without water transport, <span class="math inline">N_\mathrm{eff}</span> is computed from the till water <span class="math inline">W_\mathrm{til}</span> (<code>hyd_W_til</code>) with the closure <code>yhyd.bkt_N_closure</code>. The closure is evaluated again on the current ice geometry at each velocity solve. <span class="math inline">W_\mathrm{til}</span> is advanced by the till-water bucket (<code>yhyd.method_til = 1</code>, default) or set by the host (<code>method_til = 0</code>).</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -564,28 +606,34 @@ c_b = \tan\!\left(\frac{\pi}{180}\,c_{b,\mathrm{ref}}\right)N_\mathrm{eff},
 </thead>
 <tbody>
 <tr class="odd">
-<td>-1</td>
-<td>Set externally (host model, via <code>yelmo_set_var2D("hyd_N")</code>)</td>
-</tr>
-<tr class="even">
 <td>0</td>
 <td>Constant, <code>yhyd.const_N</code> (grounded ice)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>1</td>
 <td>Overburden pressure, <span class="math inline">\rho_i g H</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>2</td>
 <td>Marine closure (Leguy et al., 2014), exponent <code>yhyd.marine_p</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>3</td>
 <td>Till closure (Bueler and van Pelt, 2015), parameters <code>yhyd.till_*</code> (<strong>default</strong>)</td>
 </tr>
 </tbody>
 </table>
-<p>With water transport (<code>method_transport = 1</code>), <span class="math inline">N_\mathrm{eff}</span> is computed by the transport model. Its <span class="math inline">N</span> depends on the basal velocity, so with <code>yhyd.k24_ub_hook = True</code> (default) the <a href="../physics/momentum/diva.html#picard-iteration">DIVA</a> velocity iteration re-evaluates <span class="math inline">N</span>, and with it <span class="math inline">c_b</span>, from <span class="math inline">u_b</span> in every iteration; with <code>k24_ub_hook = False</code>, <span class="math inline">N</span> is evaluated once per time step. A host model that owns the hydrology can do the same through the C-API callback <code>yelmo_set_neff_callback</code>. With <code>ydyn.neff_nxi</code> &gt; 0, the cell value of <span class="math inline">N_\mathrm{eff}</span> is the average of the hydrology’s <span class="math inline">N</span> interpolated to sub-grid points (1: the four Gauss points, &gt; 1: an <code>neff_nxi</code> × <code>neff_nxi</code> grid; default 0, no interpolation).</p>
+<p>The till water of floating and ocean cells is set by <code>yhyd.bkt_floating_mode</code>: 0, zero; 1, saturated (<code>yhyd.W_til_max</code>), together with the grounded cells next to floating ice (legacy); 2, saturated (<strong>default</strong>). With 2, ice that grounds starts from saturated till, so <span class="math inline">N_\mathrm{eff}</span> does not jump from zero to the overburden pressure when a cell regrounds. The till closure is limited to <span class="math inline">N_\mathrm{eff} \le N_m/\delta</span>, with <span class="math inline">N_m = \rho_i g H - \rho_{sw} g \max(z_{sl} - z_b, 0)</span> the marine closure for full ocean connectivity (<span class="math inline">p = 1</span>) and <span class="math inline">\delta</span> = <code>yhyd.till_delta</code>, so <span class="math inline">N_\mathrm{eff}</span> goes to zero continuously as grounded ice approaches flotation. The limit only applies within a height above flotation of <span class="math inline">\delta H</span>.</p>
+</section>
+<section id="water-transport" class="level3">
+<h3 class="anchored" data-anchor-id="water-transport">Water transport</h3>
+<p>With <code>method_transport = 1</code>, <span class="math inline">N</span> is computed by the K24 transport model in the hydrology step, and <code>bkt_N_closure</code> is not used (-1 is not allowed). The hydraulic potential is referenced to sea level, <span class="math inline">\phi_0 = \rho_i g H + \rho_w g (z_b - z_{sl})</span>, so <span class="math inline">N</span> near the grounding line does not depend on the sea level. <span class="math inline">N</span> depends on the basal velocity, so with <code>yhyd.k24_N_ub_coupled = True</code> (default) the <a href="../physics/momentum/diva.html#picard-iteration">DIVA</a> velocity iteration re-evaluates <span class="math inline">N</span>, and with it <span class="math inline">c_b</span>, from <span class="math inline">u_b</span> in every iteration, with the water routing of the last hydrology step. With <code>k24_N_ub_coupled = False</code>, or with a solver other than DIVA, <span class="math inline">N</span> is evaluated once per time step.</p>
+<p>The bucket still advances <span class="math inline">W_\mathrm{til}</span> (with <code>method_til = 1</code>), but this does not affect <span class="math inline">N_\mathrm{eff}</span>, and the bucket overflow is not a source for the transport model. <span class="math inline">W_\mathrm{til}</span> is then used only for the <a href="#frozen-bed-sliding">frozen-bed sliding</a> and, with <code>ytherm.cap_source = "till"</code>, for the <a href="../physics/thermodynamics.html">basal freezing capacity</a>.</p>
+</section>
+<section id="external-effective-pressure" class="level3">
+<h3 class="anchored" data-anchor-id="external-effective-pressure">External effective pressure</h3>
+<p>With <code>bkt_N_closure = -1</code>, <span class="math inline">N</span> is set by a host model, e.g.&nbsp;with <code>yelmo_set_var2D("hyd_N")</code> (see <a href="../c-api.html">C API</a>). A host whose <span class="math inline">N</span> depends on the basal velocity can register a callback with <code>yelmo_set_neff_callback</code>; the DIVA iteration then passes <span class="math inline">u_b</span> to the host and takes <span class="math inline">N</span> back in every iteration, as for K24.</p>
+</section>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>
@@ -594,6 +642,7 @@ c_b = \tan\!\left(\frac{\pi}{180}\,c_{b,\mathrm{ref}}\right)N_\mathrm{eff},
 <li>Gladstone, R. M., Payne, A. J., and Cornford, S. L. (2010). Parameterising the grounding line in flow-line ice sheet models. The Cryosphere, 4, 605–619.</li>
 <li>Gladstone, R. M., et al.&nbsp;(2017). Marine ice sheet model performance depends on basal sliding physics and sub-shelf melting. The Cryosphere, 11, 319–329.</li>
 <li>Joughin, I., Smith, B. E., and Schoof, C. G. (2019). Regularized Coulomb friction laws for ice sheet sliding. Geophys. Res. Lett., 46, 4764–4771.</li>
+<li>Kazmierczak, E., Gregov, T., Coulon, V., and Pattyn, F. (2024). A fast and simplified subglacial hydrological model for the Antarctic Ice Sheet and outlet glaciers. The Cryosphere, 18, 5887–5911.</li>
 <li>Leguy, G. R., Asay-Davis, X. S., and Lipscomb, W. H. (2014). Parameterization of basal friction near grounding lines in a one-dimensional ice sheet model. The Cryosphere, 8, 1239–1259.</li>
 <li>Winkelmann, R., et al.&nbsp;(2011). The Potsdam Parallel Ice Sheet Model (PISM-PIK), Part 1: Model description. The Cryosphere, 5, 715–726.</li>
 </ul>
@@ -1015,8 +1064,8 @@ c_b = \tan\!\left(\frac{\pi}{180}\,c_{b,\mathrm{ref}}\right)N_\mathrm{eff},
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../physics/thermodynamics.html" class="pagination-link" aria-label="Thermodynamics">
-        <span class="nav-page-text">Thermodynamics</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../physics/grounded-fraction.html" class="pagination-link" aria-label="Grounded fraction">
+        <span class="nav-page-text">Grounded fraction</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

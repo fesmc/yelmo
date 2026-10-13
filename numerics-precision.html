@@ -306,6 +306,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -425,6 +431,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#numerical-precision" id="toc-numerical-precision" class="nav-link active" data-scroll-target="#numerical-precision">Numerical precision</a>
   <ul class="collapse">
   <li><a href="#working-precision" id="toc-working-precision" class="nav-link" data-scroll-target="#working-precision">Working precision</a></li>
+  <li><a href="#model-time" id="toc-model-time" class="nav-link" data-scroll-target="#model-time">Model time</a></li>
   <li><a href="#symmetry-regression-check" id="toc-symmetry-regression-check" class="nav-link" data-scroll-target="#symmetry-regression-check">Symmetry regression check</a></li>
   <li><a href="#building-in-double-precision-for-regression-checks" id="toc-building-in-double-precision-for-regression-checks" class="nav-link" data-scroll-target="#building-in-double-precision-for-regression-checks">Building in double precision (for regression checks)</a></li>
   </ul></li>
@@ -484,6 +491,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>There is no build switch to change this. Interfaces between packages pass <code>wp</code> arrays, so yelmo, fesm-utils, FastHydrology and tracer must agree on <code>wp</code>. elsa works in double precision; Yelmo converts its fields at the elsa interface (<code>src/yelmo_tracers.f90</code>).</p>
+</section>
+<section id="model-time" class="level2">
+<h2 class="anchored" data-anchor-id="model-time">Model time</h2>
+<p>The model time is <code>real(dp)</code> in Yelmo (the public routines, e.g.&nbsp;<code>yelmo_init</code>, <code>yelmo_init_state</code>, <code>yelmo_update</code>, <code>yelmo_restart_write</code>, and the clocks of the components), in the drivers’ clock (fesm-utils <code>tstep_class</code>, <code>ts%time</code>, and <code>timeout</code>), in FastHydrology (<code>hydro_update</code>), in elsa (all entry points, also those for <code>sp</code> fields) and in tracer (<code>prec_time = dp</code>: the time, the deposition times and its archive). In single precision the spacing of floating-point numbers at |time| = 150 kyr is 0.016 yr, so steps would not be exact.</p>
 <p>Some solvers work internally in double precision:</p>
 <ul>
 <li>Lis (<code>src/physics/solver_linear.F90</code>) solves in double precision; the matrix is assembled in <code>wp</code> and converted.</li>

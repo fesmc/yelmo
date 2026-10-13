@@ -272,6 +272,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -500,7 +506,7 @@ ul.task-list li input[type="checkbox"] {
 <td>basins</td>
 <td>xc, yc</td>
 <td>-</td>
-<td>Basin identification numbers</td>
+<td>Basin ids (0 = none)</td>
 </tr>
 <tr class="odd">
 <td>13</td>
@@ -514,52 +520,45 @@ ul.task-list li input[type="checkbox"] {
 <td>regions</td>
 <td>xc, yc</td>
 <td>-</td>
-<td>Region identification numbers</td>
+<td>Region codes, deepest level (0 = none)</td>
 </tr>
 <tr class="odd">
 <td>15</td>
-<td>region_mask</td>
-<td>xc, yc</td>
-<td>-</td>
-<td>Mask for regions</td>
-</tr>
-<tr class="even">
-<td>16</td>
 <td>calv_mask</td>
 <td>xc, yc</td>
 <td>-</td>
 <td>Locations where calving is not allowed</td>
 </tr>
-<tr class="odd">
-<td>17</td>
+<tr class="even">
+<td>16</td>
 <td>H_ice_ref</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Reference ice thickness for relaxation routines</td>
 </tr>
-<tr class="even">
-<td>18</td>
+<tr class="odd">
+<td>17</td>
 <td>z_bed_ref</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Reference bedrock elevation for relaxation routines</td>
 </tr>
-<tr class="odd">
-<td>19</td>
+<tr class="even">
+<td>18</td>
 <td>mask_ice</td>
 <td>xc, yc</td>
 <td>-</td>
 <td>Ice mask (0=none, 1=fixed, 2=dynamic)</td>
 </tr>
-<tr class="even">
-<td>20</td>
+<tr class="odd">
+<td>19</td>
 <td>z_bed_n</td>
 <td>xc, yc</td>
 <td>m</td>
 <td>Bedrock elevation at the previous yelmo_update call</td>
 </tr>
-<tr class="odd">
-<td>21</td>
+<tr class="even">
+<td>20</td>
 <td>z_sl_n</td>
 <td>xc, yc</td>
 <td>m</td>

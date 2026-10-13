@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../../physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../../physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -498,7 +504,7 @@ window.Quarto = {
 </section>
 <section id="basal-mass-balance" class="level2">
 <h2 class="anchored" data-anchor-id="basal-mass-balance">Basal mass balance</h2>
-<p>The grounded basal mass balance (<code>bmb_grnd</code>, from the thermodynamics) and the floating basal mass balance (<code>bnd%bmb_shlf</code>) are combined into <code>bmb</code> by <code>calc_bmb_total</code> according to <code>ytopo.bmb_gl_method</code>, which sets the melt in partially grounded cells: <code>"pmp"</code> (default; partial melt, weighted by the grounded fraction), <code>"fmp"</code> (full melt), <code>"fcmp"</code> (flotation criterion), <code>"pmpt"</code> (partial melt over a grounding-zone transition, <code>gz_Hg0</code>, <code>gz_Hg1</code>) or <code>"nmp"</code> (no melt). With <code>ytopo.use_bmb = False</code>, the basal and the frontal mass balance are not applied.</p>
+<p>The grounded basal mass balance (<code>bmb_grnd</code>, from the thermodynamics) and the floating basal mass balance (<code>bnd%bmb_shlf</code>) are combined into <code>bmb</code> by <code>calc_bmb_total</code> according to <code>ytopo.bmb_gl_method</code>, which sets the melt in partially grounded cells: <code>"pmp"</code> (default; partial melt, weighted by the grounded fraction), <code>"fmp"</code> (full melt), <code>"fcmp"</code> (flotation criterion), <code>"pmpt"</code> (partial melt over a grounding-zone transition, <code>gz_Hg0</code>, <code>gz_Hg1</code>, on <code>gz_nx</code>² subgrid points of <span class="math inline">H_\mathrm{grnd}</span> interpolated bilinearly between cell centres, see <a href="../../physics/grounded-fraction.html">Grounded fraction</a>) or <code>"nmp"</code> (no melt). With <code>ytopo.use_bmb = False</code>, the basal and the frontal mass balance are not applied.</p>
 </section>
 <section id="frontal-mass-balance" class="level2">
 <h2 class="anchored" data-anchor-id="frontal-mass-balance">Frontal mass balance</h2>

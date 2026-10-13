@@ -307,6 +307,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -546,12 +552,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="building-a-parameter-file" class="level3">
 <h3 class="anchored" data-anchor-id="building-a-parameter-file">Building a parameter file</h3>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> write <span class="at">-o</span> par/complete.nml        <span class="co"># full default parameter file</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> write par/yelmo_initmip.nml      <span class="co"># defaults + initmip overrides</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> write par/yelmo_initmip_grl.nml  <span class="co"># defaults + initmip overrides</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="comparing-parameter-sets" class="level3">
 <h3 class="anchored" data-anchor-id="comparing-parameter-sets">Comparing parameter sets</h3>
 <p><code>diff</code> compares the <em>effective</em> configuration (defaults + each file’s overrides), so it shows only meaningful differences:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> diff par/yelmo_initmip.nml       <span class="co"># a file vs the defaults</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> diff par/yelmo_initmip_grl.nml   <span class="co"># a file vs the defaults</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> diff runA.nml runB.nml           <span class="co"># two runs</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> diff <span class="at">--raw</span> runA.nml runB.nml     <span class="co"># only params literally written</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also compare a single group, even across differently-named groups:</p>
@@ -559,7 +565,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="validating-a-parameter-file" class="level3">
 <h3 class="anchored" data-anchor-id="validating-a-parameter-file">Validating a parameter file</h3>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> check par/yelmo_initmip.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">yelmo-config</span> check par/yelmo_initmip_grl.nml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>check</code> reports unknown parameters, enum / range / ordering violations, type mismatches, an unset <code>domain</code> / <code>grid_name</code>, and (with <code>--files</code>) missing input files. Only the Yelmo library groups are validated; driver groups such as <code>&amp;ctrl</code> are reported once as informational pass-throughs.</p>
 </section>
 <section id="output-formats" class="level3">

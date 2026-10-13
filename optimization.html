@@ -315,6 +315,12 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./physics/grounded-fraction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Grounded fraction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./physics/thermodynamics.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Thermodynamics</span></a>
   </div>
@@ -449,7 +455,7 @@ window.Quarto = {
 
 <section id="basal-friction-optimization" class="level1">
 <h1>Basal friction optimization</h1>
-<p>Yelmo can adjust the basal friction coefficient <code>cb_ref</code> during a simulation so that the simulated ice thickness approaches an observed thickness. The method follows Lipscomb et al.&nbsp;(2021) and is implemented in <code>optimize_cb_ref</code> (<a href="https://github.com/fesmc/yelmo/blob/main/libs/ice_optimization.f90"><code>libs/ice_optimization.f90</code></a>). It is a spin-up option of <code>yelmo_initmip.x</code>, with <code>ctrl.equil_method = "opt"</code> and the <code>&amp;opt</code> group of <code>par/yelmo_initmip.nml</code> (see the initmip <a href="./benchmarks.html">benchmarks</a>). initmip sets <code>ytill.method = -1</code>, so that <code>cb_ref</code> is not recomputed by Yelmo.</p>
+<p>Yelmo can adjust the basal friction coefficient <code>cb_ref</code> during a simulation so that the simulated ice thickness approaches an observed thickness. The method follows Lipscomb et al.&nbsp;(2021) and is implemented in <code>optimize_cb_ref</code> (<a href="https://github.com/fesmc/yelmo/blob/main/libs/ice_optimization.f90"><code>libs/ice_optimization.f90</code></a>). It is a spin-up option of <code>yelmo_initmip.x</code>, with <code>ctrl.equil_method = "opt"</code> and the <code>&amp;opt</code> group of <code>par/yelmo_initmip_grl.nml</code> and <code>par/yelmo_initmip_ant.nml</code> (see the initmip <a href="./benchmarks.html">benchmarks</a>). initmip sets <code>ytill.method = -1</code>, so that <code>cb_ref</code> is not recomputed by Yelmo.</p>
 <section id="update-of-cb_ref" class="level2">
 <h2 class="anchored" data-anchor-id="update-of-cb_ref">Update of <code>cb_ref</code></h2>
 <p>At every outer time step <code>dt</code>, <code>cb_ref</code> is updated in each cell where the simulated speed is non-zero and the observed ice is grounded:</p>
