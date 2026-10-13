@@ -214,8 +214,11 @@ bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
 melt of 2 m/a. Present-day surface mass balance and surface temperature are the
 1981-2010 monthly climatology of MAR v3.14 (the `yelmo_data` defaults).
 
-Both fields follow the changing surface elevation (`ctrl.smb_method = "zremap"`,
-the default for Greenland and Antarctica). The fesm-utils `zremap` module builds
+For Greenland both fields are held at the present day by default
+(`ctrl.smb_method = "fixed"`). With `"zremap"` (the Antarctic default) both
+fields follow the changing surface elevation; in 20-kyr Greenland spin-ups
+with the current tuning this loses land margins in the north and southwest
+through the SMB-elevation feedback. The fesm-utils `zremap` module builds
 local profiles f(z) once from the present-day fields on the ice of the regional
 climate model (ice fraction `f_ice >= ctrl.f_ice_min`, within the regions
 `ctrl.region_rcm`: Greenland only for Greenland, so the profiles do not use

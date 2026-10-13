@@ -19,7 +19,8 @@
   of ANT-32KM). Initmip GRL `file_ghf` =
   `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
 - **initmip: smb and T_srf remapped to the surface elevation** (answer-changing for
-  initmip GRL and ANT): new `ctrl.smb_method` for both fields, `"zremap"` (default),
+  initmip ANT): new `ctrl.smb_method` for both fields, `"zremap"` (default for ANT; GRL
+  keeps `"fixed"`, zremap loses GRL land margins with the current tuning),
   `"fixed"` (the present-day fields, the previous behaviour) or `"out_const"` (smb =
   `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
   (needs fesm-utils with `zremap`): profiles f(z) built once from the present-day fields on
