@@ -130,42 +130,73 @@ With `ytill.method = -1`, `cb_ref` is set externally, e.g. by the
 
 ## Effective pressure
 
-$N_\mathrm{eff}$ comes from the basal hydrology (FastHydrology, group `&yhyd`).
-With the till-water bucket and no water transport (`yhyd.method_transport = 0`),
-the closure is chosen with `yhyd.bkt_N_closure`:
+$N_\mathrm{eff}$ always comes from the basal hydrology (FastHydrology, group
+`&yhyd`); the dynamics has no closure of its own. Before each velocity solve,
+the dynamics takes the hydrology's effective pressure $N$ (`hyd_N`) in one of
+three ways:
+
+| Setting | $N_\mathrm{eff}$ |
+|---|---|
+| `yhyd.method_transport = 0` (**default**) | Closure `yhyd.bkt_N_closure` on the till water $W_\mathrm{til}$ |
+| `yhyd.method_transport = 1` | Water transport model (Kazmierczak et al., 2024; K24) |
+| `yhyd.bkt_N_closure = -1` | Set externally by a host model |
+
+With `ydyn.neff_nxi` > 0, the cell value of $N_\mathrm{eff}$ is the average of
+$N$ interpolated to sub-grid points (1: the four Gauss points, > 1: an
+`neff_nxi` × `neff_nxi` grid; default 0, no interpolation).
+
+### Till-water closures
+
+Without water transport, $N_\mathrm{eff}$ is computed from the till water
+$W_\mathrm{til}$ (`hyd_W_til`) with the closure `yhyd.bkt_N_closure`. The
+closure is evaluated again on the current ice geometry at each velocity solve.
+$W_\mathrm{til}$ is advanced by the till-water bucket (`yhyd.method_til = 1`,
+default) or set by the host (`method_til = 0`).
 
 | `bkt_N_closure` | $N_\mathrm{eff}$ |
 |---|---|
-| -1 | Set externally (host model, via `yelmo_set_var2D("hyd_N")`) |
 | 0 | Constant, `yhyd.const_N` (grounded ice) |
 | 1 | Overburden pressure, $\rho_i g H$ |
 | 2 | Marine closure (Leguy et al., 2014), exponent `yhyd.marine_p` |
 | 3 | Till closure (Bueler and van Pelt, 2015), parameters `yhyd.till_*` (**default**) |
 
-The till water $W_\mathrm{til}$ (`hyd_W_til`) of floating and ocean cells is set by
-`yhyd.bkt_floating_mode`: 0, none; 1, saturated (`yhyd.W_til_max`), together with
-the grounded cells next to floating ice (legacy); 2, saturated (**default**). With
-2, ice that grounds starts from saturated till, so $N_\mathrm{eff}$ does not jump
-from zero to the overburden pressure when a cell regrounds. The till closure is
-limited to $N_\mathrm{eff} \le N_m/\delta$, with
+The till water of floating and ocean cells is set by `yhyd.bkt_floating_mode`:
+0, zero; 1, saturated (`yhyd.W_til_max`), together with the grounded cells next
+to floating ice (legacy); 2, saturated (**default**). With 2, ice that grounds
+starts from saturated till, so $N_\mathrm{eff}$ does not jump from zero to the
+overburden pressure when a cell regrounds. The till closure is limited to
+$N_\mathrm{eff} \le N_m/\delta$, with
 $N_m = \rho_i g H - \rho_{sw} g \max(z_{sl} - z_b, 0)$ the marine closure for full
 ocean connectivity ($p = 1$) and $\delta$ = `yhyd.till_delta`, so $N_\mathrm{eff}$
 goes to zero continuously as grounded ice approaches flotation. The limit only
 applies within a height above flotation of $\delta H$.
 
-With water transport (`method_transport = 1`), $N_\mathrm{eff}$ is computed by
-the transport model. Its $N$ depends on the basal velocity, so with
-`yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
-velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
-iteration; with `k24_N_ub_coupled = False`, $N$ is evaluated once per time step. The
+### Water transport
+
+With `method_transport = 1`, $N$ is computed by the K24 transport model in the
+hydrology step, and `bkt_N_closure` is not used (-1 is not allowed). The
 hydraulic potential is referenced to sea level,
 $\phi_0 = \rho_i g H + \rho_w g (z_b - z_{sl})$, so $N$ near the grounding line does
-not depend on the sea level. A
-host model that owns the hydrology can do the same through the C-API callback
-`yelmo_set_neff_callback`. With `ydyn.neff_nxi` > 0, the cell value of
-$N_\mathrm{eff}$ is the average of the hydrology's $N$ interpolated to sub-grid
-points (1: the four Gauss points, > 1: an `neff_nxi` × `neff_nxi` grid; default 0,
-no interpolation).
+not depend on the sea level. $N$ depends on the basal velocity, so with
+`yhyd.k24_N_ub_coupled = True` (default) the [DIVA](momentum/diva.md#picard-iteration)
+velocity iteration re-evaluates $N$, and with it $c_b$, from $u_b$ in every
+iteration, with the water routing of the last hydrology step. With
+`k24_N_ub_coupled = False`, or with a solver other than DIVA, $N$ is evaluated
+once per time step.
+
+The bucket still advances $W_\mathrm{til}$ (with `method_til = 1`), but this does
+not affect $N_\mathrm{eff}$, and the bucket overflow is not a source for the
+transport model. $W_\mathrm{til}$ is then used only for the
+[frozen-bed sliding](#frozen-bed-sliding) and, with `ytherm.cap_source = "till"`,
+for the [basal freezing capacity](thermodynamics.md).
+
+### External effective pressure
+
+With `bkt_N_closure = -1`, $N$ is set by a host model, e.g. with
+`yelmo_set_var2D("hyd_N")` (see [C API](../c-api.md)). A host whose $N$ depends
+on the basal velocity can register a callback with `yelmo_set_neff_callback`;
+the DIVA iteration then passes $u_b$ to the host and takes $N$ back in every
+iteration, as for K24.
 
 ## References
 
@@ -177,6 +208,9 @@ no interpolation).
   basal sliding physics and sub-shelf melting. The Cryosphere, 11, 319–329.
 - Joughin, I., Smith, B. E., and Schoof, C. G. (2019). Regularized Coulomb
   friction laws for ice sheet sliding. Geophys. Res. Lett., 46, 4764–4771.
+- Kazmierczak, E., Gregov, T., Coulon, V., and Pattyn, F. (2024). A fast and
+  simplified subglacial hydrological model for the Antarctic Ice Sheet and
+  outlet glaciers. The Cryosphere, 18, 5887–5911.
 - Leguy, G. R., Asay-Davis, X. S., and Lipscomb, W. H. (2014). Parameterization of
   basal friction near grounding lines in a one-dimensional ice sheet model. The
   Cryosphere, 8, 1239–1259.
