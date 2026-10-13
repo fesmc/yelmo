@@ -11,6 +11,9 @@ program yelmo_test
 
     use yelmo
     use basal_dragging 
+    use topography, only : calc_z_srf_max
+    use zremap
+    use regions, only : regions_class, regions_init_nml, regions_select
     
     use ice_optimization 
     
@@ -25,6 +28,13 @@ program yelmo_test
     character(len=256) :: file_restart 
     
     logical,  allocatable :: mask_noice(:,:)  
+    logical,  allocatable :: mask_rcm(:,:)      ! RCM ice (f_ice >= f_ice_min in pd_smb_path, in ctrl.region_rcm)
+    type(regions_class)   :: reg_rcm            ! Regions of yelmo_masks.regions_group (for ctrl.region_rcm)
+    character(len=256)    :: regions_group
+    real(wp), allocatable :: z_rcm(:,:)         ! [m] RCM surface elevation (z_srf in pd_smb_path)
+    real(wp), allocatable :: f_ice_rcm(:,:)     ! [1] RCM ice fraction (f_ice in pd_smb_path)
+    real(wp), allocatable :: z_srf0(:,:)        ! [m] Initial surface elevation
+    type(zremap_class)    :: zr_smb, zr_tsrf    ! Elevation remapping of smb and T_srf
 
     type ctrl_params
         character(len=56) :: run_step
@@ -40,8 +50,14 @@ program yelmo_test
         logical :: load_cb_ref 
         character(len=256) :: file_cb_ref 
 
+        character(len=56) :: smb_method     ! smb and T_srf: "zremap", "fixed" or "out_const"
+        real(wp) :: smb_out                 ! [m i.e./a] "out_const": smb outside the RCM ice
+        real(wp) :: f_ice_min               ! [1] RCM ice fraction of an RCM ice point
+        character(len=1000) :: region_rcm   ! Where the RCM ice is used (selection expression on the regions)
+
         logical :: load_bmelt
         character(len=256) :: file_bmelt
+        character(len=56)  :: name_bmelt
 
         logical :: load_ghf
         character(len=256) :: file_ghf
@@ -81,13 +97,23 @@ program yelmo_test
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
     call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref,init=.TRUE.)  ! Filename holding cb_ref to load ("" = none)
 
+    call nml_read(path_par,"ctrl","smb_method",     ctl%smb_method)         ! smb and T_srf: "zremap", "fixed" or "out_const"
+    if (trim(ctl%smb_method) .ne. "fixed") then
+        call nml_read(path_par,"ctrl","f_ice_min",  ctl%f_ice_min)          ! [1] RCM ice fraction of an RCM ice point
+        call nml_read(path_par,"ctrl","region_rcm", ctl%region_rcm)         ! Where the RCM ice is used (selection expression on the regions)
+    end if
+    if (trim(ctl%smb_method) .eq. "out_const") &
+        call nml_read(path_par,"ctrl","smb_out",    ctl%smb_out)            ! [m i.e./a] smb outside the RCM ice
+
 
     ! Load climate (eg, set_ant_pd or set_ant_lgm); the data files are set in
     ! yelmo_init_topo and yelmo_data of the domain's parameter file
     call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
     call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
-    if (ctl%load_bmelt) &
+    if (ctl%load_bmelt) then
         call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
+        call nml_read(path_par,ctl%set_nm,  "name_bmelt",  ctl%name_bmelt)                ! Name of the bmelt variable [m/a], positive for melting
+    end if
     call nml_read(path_par,ctl%set_nm,  "load_ghf",        ctl%load_ghf)                  ! Load geothermal heat flux from file (else 50 mW/m2)?
     if (ctl%load_ghf) then
         call nml_read(path_par,ctl%set_nm,  "file_ghf",    ctl%file_ghf)                  ! Filename holding the geothermal heat flux field
@@ -160,16 +186,12 @@ program yelmo_test
         yelmo1%bnd%Q_geo = 50.0_wp                              ! [mW/m2]
     end if
 
-    ! Impose present-day surface mass balance and present-day temperature field plus any anomaly
-    yelmo1%bnd%smb      = yelmo1%dta%pd%smb                 ! [m.i.e./a]
-    yelmo1%bnd%T_srf    = yelmo1%dta%pd%T_srf + ctl%dT_ann  ! [K]
-    
     if (ctl%load_bmelt) then
 
         ! Parse filenames with grid information
         call yelmo_parse_path(ctl%file_bmelt,yelmo1%par%domain,yelmo1%par%grid_name)
  
-        call nc_read(ctl%file_bmelt,"bm_ac_reese",yelmo1%bnd%bmb_shlf)
+        call nc_read(ctl%file_bmelt,ctl%name_bmelt,yelmo1%bnd%bmb_shlf)
         yelmo1%bnd%bmb_shlf = -yelmo1%bnd%bmb_shlf      ! Negative because bmb = -bmelt 
     else 
         yelmo1%bnd%bmb_shlf = ctl%bmb_shlf_const        ! [m.i.e./a]
@@ -179,25 +201,12 @@ program yelmo_test
 
     if (ctl%dT_ann .lt. 0.0) yelmo1%bnd%T_shlf   = yelmo1%bnd%c%T0 + ctl%dT_ann*0.25_wp      ! [K] Oceanic temp anomaly
     
-    call yelmo_print_bound(yelmo1%bnd)
-
     ! Define no-ice mask from present-day data
     allocate(mask_noice(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mask_noice = .FALSE. 
     ! Present-day
     if (ctl%dT_ann .ge. 0.0) then
         where(yelmo1%dta%pd%H_ice .le. 0.0) mask_noice = .TRUE. 
-    end if 
-
-    ! Special treatment for Greenland
-    if (trim(yelmo1%par%domain) .eq. "Greenland") then 
-        
-        ! Present-day
-        if (ctl%dT_ann .ge. 0.0) then 
-            ! Impose additional negative mass balance to no ice points of 2 [m.i.e./a] melting
-            where(mask_noice) yelmo1%bnd%smb = yelmo1%dta%pd%smb - 2.0 
-        end if 
-
     end if 
 
     ! Special treatment for Antarctica
@@ -209,15 +218,59 @@ program yelmo_test
             where(mask_noice) yelmo1%bnd%bmb_shlf = -2.0                ! [m/a]        
         end if 
 
-        ! LGM
-        if (ctl%dT_ann .lt. 0.0) then 
-            where(yelmo1%bnd%smb .le. 0.1) yelmo1%bnd%smb = 0.1         ! [m/a]
-        end if 
-
-        ! Present-day and LGM: negative smb where no ice is allowed (the open ocean)
-        where(yelmo1%bnd%mask_ice .eq. MASK_ICE_NONE) yelmo1%bnd%smb = -1.0        ! [m/a]
-
     end if 
+
+    ! Surface mass balance and surface temperature (ctrl.smb_method) from the
+    ! present-day (RCM) fields. "zremap" and "out_const" also use the RCM ice
+    ! (f_ice >= f_ice_min) of pd_smb_path, within ctrl.region_rcm (an expression
+    ! on the regions of yelmo_masks.regions_group); "zremap" builds the profiles once
+    ! from the present-day fields at the RCM surface elevation (z_srf of pd_smb_path).
+    allocate(mask_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    mask_rcm = .TRUE. 
+
+    select case(trim(ctl%smb_method))
+
+        case("fixed")
+            ! Nothing to prepare
+
+        case("out_const","zremap")
+
+            allocate(f_ice_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+            call nc_read(yelmo1%dta%par%pd_smb_path,"f_ice",f_ice_rcm,missing_value=mv)
+            call nml_read(path_par,yelmo1%par%nml_masks,"regions_group",regions_group)
+            call regions_init_nml(reg_rcm,path_par,regions_group,domain=yelmo1%par%domain, &
+                                  grid_name=yelmo1%par%grid_name,grid=yelmo1%grd)
+            mask_rcm = f_ice_rcm .ge. ctl%f_ice_min .and. regions_select(reg_rcm,ctl%region_rcm)
+
+            if (trim(ctl%smb_method) .eq. "zremap") then
+
+                allocate(z_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+                call nc_read(yelmo1%dta%par%pd_smb_path,"z_srf",z_rcm,missing_value=mv)
+
+                ! Parameters in the units of the fields: smb [m i.e./a], T_srf [K]
+                call zremap_init(zr_smb, path_par,"zremap_smb", yelmo1%grd%G%nx,yelmo1%grd%G%ny,real(yelmo1%grd%G%dx,wp))
+                call zremap_init(zr_tsrf,path_par,"zremap_tsrf",yelmo1%grd%G%nx,yelmo1%grd%G%ny,real(yelmo1%grd%G%dx,wp))
+
+                call zremap_update(zr_smb, yelmo1%dta%pd%smb,  z_rcm,mask_rcm)
+                call zremap_update(zr_tsrf,yelmo1%dta%pd%T_srf,z_rcm,mask_rcm)
+
+            end if
+
+        case DEFAULT
+            write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.smb_method must be 'zremap', 'fixed' or 'out_const'; got ", &
+                                 trim(ctl%smb_method)
+            error stop 1
+
+    end select
+
+    ! Initial surface elevation (tpo%now%z_srf is only diagnosed in yelmo_init_state)
+    allocate(z_srf0(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    call calc_z_srf_max(z_srf0,yelmo1%tpo%now%H_ice,1.0_wp,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl, &
+                        yelmo1%bnd%c%rho_ice,yelmo1%bnd%c%rho_sw)
+
+    call set_srf_forcing(yelmo1%bnd,yelmo1%dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice,z_srf0,yelmo1%par%domain)
+
+    call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize state variables (dyn,therm,mat)
     ! (initial temperature from the robin solution, optionally with a cold base)
@@ -401,6 +454,14 @@ program yelmo_test
 
         end select 
 
+        ! == UPDATE BOUNDARY CONDITIONS =========================================
+
+        ! smb and T_srf remapped to the current surface elevation
+        if (trim(ctl%smb_method) .eq. "zremap") then
+            call set_srf_forcing(yelmo1%bnd,yelmo1%dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice, &
+                                 yelmo1%tpo%now%z_srf,yelmo1%par%domain)
+        end if
+
         ! == UPDATE YELMO =======================================================
 
         if (ctl%with_ice_sheet) call yelmo_update(yelmo1,ts%time)
@@ -473,6 +534,72 @@ contains
         return
 
     end subroutine check_restart_mode
+
+    subroutine set_srf_forcing(bnd,dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice,z_srf,domain)
+        ! Surface mass balance and surface temperature from the present-day (RCM)
+        ! fields dta%pd%smb [m i.e./a] and dta%pd%T_srf [K], for ctl%smb_method:
+        !   "fixed":     the fields as loaded; Greenland: 2 m/a less smb where
+        !                there is no present-day ice (mask_noice)
+        !   "out_const": the fields as loaded; smb = ctl%smb_out outside the RCM ice
+        !   "zremap":    the fields remapped to the surface elevation z_srf
+        ! T_srf is shifted by dT_ann. Antarctica: minimum smb at the LGM and
+        ! negative smb where no ice is allowed.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        type(ydata_class),  intent(IN)    :: dta
+        type(ctrl_params),  intent(IN)    :: ctl
+        type(zremap_class), intent(IN)    :: zr_smb
+        type(zremap_class), intent(IN)    :: zr_tsrf
+        logical,            intent(IN)    :: mask_rcm(:,:)      ! RCM ice
+        logical,            intent(IN)    :: mask_noice(:,:)    ! No present-day ice
+        real(wp),           intent(IN)    :: z_srf(:,:)         ! [m] Surface elevation
+        character(len=*),   intent(IN)    :: domain
+
+        select case(trim(ctl%smb_method))
+
+            case("fixed")
+
+                bnd%smb   = dta%pd%smb
+                bnd%T_srf = dta%pd%T_srf
+
+                if (trim(domain) .eq. "Greenland") then
+                    ! Impose additional negative mass balance to no ice points of 2 [m.i.e./a] melting
+                    where(mask_noice) bnd%smb = dta%pd%smb - 2.0
+                end if
+
+            case("out_const")
+
+                bnd%smb   = dta%pd%smb
+                bnd%T_srf = dta%pd%T_srf
+
+                where(.not. mask_rcm) bnd%smb = ctl%smb_out
+
+            case("zremap")
+
+                call zremap_map(zr_smb, bnd%smb,  z_srf)
+                call zremap_map(zr_tsrf,bnd%T_srf,z_srf)
+
+        end select
+
+        bnd%T_srf = bnd%T_srf + ctl%dT_ann
+
+        if (trim(domain) .eq. "Antarctica") then
+
+            ! LGM
+            if (ctl%dT_ann .lt. 0.0) then
+                where(bnd%smb .le. 0.1) bnd%smb = 0.1           ! [m/a]
+            end if
+
+            ! Present-day and LGM: negative smb where no ice is allowed (the open ocean)
+            where(bnd%mask_ice .eq. MASK_ICE_NONE) bnd%smb = -1.0      ! [m/a]
+
+        end if
+
+        return
+
+    end subroutine set_srf_forcing
 
     subroutine write_step_2D(ylmo,filename,time)
 

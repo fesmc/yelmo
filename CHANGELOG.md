@@ -7,8 +7,32 @@
   `Stratigraphy-MacGregor2025` (`pd_age_names = "age" "depth_iso"`), GHF
   `GHF-Shapiro2004` (initmip ANT; mean change 0.25 mW/m2 over ice). The repo copies in
   `input/Greenland/GRL-16KM` and `input/Antarctica/ANT-32KM` are the v2 files; the v1
-  files and `cf_ref_opt` are removed. Present-day smb/T_srf, ANT basal melt and GRL GHF
-  stay on v1 for now.
+  files and `cf_ref_opt` are removed.
+- **Input data v2: present-day smb/T_srf, ANT basal melt, GRL GHF** (answer-changing for
+  initmip): `yelmo_data` defaults (Greenland) `SMB-MARv3.14-1981-2010` (was MARv3.11
+  1961-1990 annual means), now with `pd_smb_monthly = pd_tsrf_monthly = True`; initmip ANT
+  `SMB-RACMO2.3p2-1981-2010` (was RACMO2.3 ERA-Interim hybrid), `T_srf` now the skin
+  temperature (was 2 m). Initmip ANT basal melt `BasalMelt-Rignot2013` with the new key
+  `set_ant_pd.name_bmelt = "bmelt_eq_reese"`, the steady-state means over groups of basins
+  (as the hard-coded v1 `bm_ac_reese`, which held the same values as `bm_eq_reese`; the
+  2007-2008 means `bmelt_reese` would give 1.35 instead of 0.91 m/a over the floating cells
+  of ANT-32KM). Initmip GRL `file_ghf` =
+  `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
+- **initmip: option to remap smb and T_srf to the surface elevation**: new
+  `ctrl.smb_method` for both fields, `"fixed"` (default for GRL and ANT: the present-day
+  fields, the previous behaviour), `"zremap"` (not yet validated: loses GRL land margins
+  with the current tuning) or `"out_const"` (smb = `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
+  (needs fesm-utils with `zremap`): profiles f(z) built once from the present-day fields on
+  the RCM ice (`f_ice >= ctrl.f_ice_min`, 0.5, within the regions `ctrl.region_rcm`:
+  `"region:Greenland"` for GRL, `"all"` for ANT) at the RCM surface elevation (`z_srf`,
+  both from `yelmo_data.pd_smb_path`), evaluated at `tpo%now%z_srf` every `dtt`, also
+  during the spin-up; as an anomaly on the RCM ice (present-day fields reproduced at
+  `z_srf`). Parameters in `zremap_smb` and `zremap_tsrf` (sigma 100 km, bins
+  0-4000 m every 100 m, sigma_z 200 m, w_full 0.25; smb gradient 2 mm w.e./a/m below the
+  data and 0 above, T_srf -6.5 K/km). The Greenland 2 m/a extra melt beyond the
+  present-day ice applies only to `"fixed"`.
+- **initmip GRL: ice only in Greenland** (answer-changing): `yelmo_masks.mask_ice_dynamic =
+  "region:Greenland"` (was `"region:Greenland,Canadian_Arctic_Archipelago"`).
 - **Present-day smb units read from the file** (`yelmo_data`): `pd_smb` is converted to
   m i.e./yr from the `units` attribute of the variable (mm w.e. or kg m-2, per day or per
   year); before, monthly data were taken as per day and annual data as per year. Missing or
