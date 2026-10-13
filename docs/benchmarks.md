@@ -217,12 +217,15 @@ melt of 2 m/a. Present-day surface mass balance and surface temperature are the
 Both fields follow the changing surface elevation (`ctrl.smb_method = "zremap"`,
 the default for Greenland and Antarctica). The fesm-utils `zremap` module builds
 local profiles f(z) once from the present-day fields on the ice of the regional
-climate model (ice fraction `f_ice >= ctrl.f_ice_min`) at its own surface
-elevation (`f_ice` and `z_srf` of `yelmo_data.pd_smb_path`), and evaluates them
-at the current surface elevation every `ctrl.dtt`, also during the spin-up. The
-profiles are kernel means over about 100 km (`sigma`), so even at the
-reference elevation the fields are smoothed versions of the input. Below and
-above the data, and far from the ice, they continue with the gradients
+climate model (ice fraction `f_ice >= ctrl.f_ice_min`, within the regions
+`ctrl.region_rcm`: Greenland only for Greenland, so the profiles do not use
+the Canadian ice caps) at its own surface elevation (`f_ice` and `z_srf` of
+`yelmo_data.pd_smb_path`), and evaluates them at the current surface elevation
+every `ctrl.dtt`, also during the spin-up. On that ice the profiles give only
+the change with elevation, added to the present-day field, which is thus
+reproduced on the present-day surface; elsewhere the fields are the profiles
+(kernel means over about 100 km, `sigma`). Below and above the data, and far
+from the ice, they continue with the gradients
 `dfdz_lo`, `dfdz_hi`: 2 mm w.e./a/m and 0 for smb (given in m i.e./a/m), and
 -6.5 K/km for `T_srf`. The parameters are in the groups `zremap_smb` and
 `zremap_tsrf`. The alternatives are `"fixed"` (the present-day fields; for

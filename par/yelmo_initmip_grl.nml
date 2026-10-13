@@ -25,6 +25,7 @@
     smb_method      = "zremap"          ! smb and T_srf from the present-day (RCM) fields: "zremap" (remapped to the surface elevation
                                         ! every dtt, [zremap_smb] and [zremap_tsrf]), "fixed" (as loaded), "out_const" (as loaded, smb_out outside the RCM ice)
     f_ice_min       = 0.5               ! [1] "zremap", "out_const": RCM ice = f_ice (in yelmo_data.pd_smb_path) >= f_ice_min
+    region_rcm      = "region:Greenland"  ! "zremap", "out_const": RCM ice only within these regions (yelmo_masks.regions_group)
     smb_out         = -1.0              ! [m i.e./a] "out_const": smb outside the RCM ice
 /
 

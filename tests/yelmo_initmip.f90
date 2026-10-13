@@ -13,6 +13,7 @@ program yelmo_test
     use basal_dragging 
     use topography, only : calc_z_srf_max
     use zremap
+    use regions, only : regions_class, regions_init_nml, regions_select
     
     use ice_optimization 
     
@@ -27,7 +28,9 @@ program yelmo_test
     character(len=256) :: file_restart 
     
     logical,  allocatable :: mask_noice(:,:)  
-    logical,  allocatable :: mask_rcm(:,:)      ! RCM ice (f_ice >= f_ice_min in pd_smb_path)
+    logical,  allocatable :: mask_rcm(:,:)      ! RCM ice (f_ice >= f_ice_min in pd_smb_path, in ctrl.region_rcm)
+    type(regions_class)   :: reg_rcm            ! Regions of yelmo_masks.regions_group (for ctrl.region_rcm)
+    character(len=256)    :: regions_group
     real(wp), allocatable :: z_rcm(:,:)         ! [m] RCM surface elevation (z_srf in pd_smb_path)
     real(wp), allocatable :: f_ice_rcm(:,:)     ! [1] RCM ice fraction (f_ice in pd_smb_path)
     real(wp), allocatable :: z_srf0(:,:)        ! [m] Initial surface elevation
@@ -50,6 +53,7 @@ program yelmo_test
         character(len=56) :: smb_method     ! smb and T_srf: "zremap", "fixed" or "out_const"
         real(wp) :: smb_out                 ! [m i.e./a] "out_const": smb outside the RCM ice
         real(wp) :: f_ice_min               ! [1] RCM ice fraction of an RCM ice point
+        character(len=1000) :: region_rcm   ! Where the RCM ice is used (selection expression on the regions)
 
         logical :: load_bmelt
         character(len=256) :: file_bmelt
@@ -94,8 +98,10 @@ program yelmo_test
     call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref,init=.TRUE.)  ! Filename holding cb_ref to load ("" = none)
 
     call nml_read(path_par,"ctrl","smb_method",     ctl%smb_method)         ! smb and T_srf: "zremap", "fixed" or "out_const"
-    if (trim(ctl%smb_method) .ne. "fixed") &
+    if (trim(ctl%smb_method) .ne. "fixed") then
         call nml_read(path_par,"ctrl","f_ice_min",  ctl%f_ice_min)          ! [1] RCM ice fraction of an RCM ice point
+        call nml_read(path_par,"ctrl","region_rcm", ctl%region_rcm)         ! Where the RCM ice is used (selection expression on the regions)
+    end if
     if (trim(ctl%smb_method) .eq. "out_const") &
         call nml_read(path_par,"ctrl","smb_out",    ctl%smb_out)            ! [m i.e./a] smb outside the RCM ice
 
@@ -216,7 +222,8 @@ program yelmo_test
 
     ! Surface mass balance and surface temperature (ctrl.smb_method) from the
     ! present-day (RCM) fields. "zremap" and "out_const" also use the RCM ice
-    ! (f_ice >= f_ice_min) of pd_smb_path; "zremap" builds the profiles once
+    ! (f_ice >= f_ice_min) of pd_smb_path, within ctrl.region_rcm (an expression
+    ! on the regions of yelmo_masks.regions_group); "zremap" builds the profiles once
     ! from the present-day fields at the RCM surface elevation (z_srf of pd_smb_path).
     allocate(mask_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mask_rcm = .TRUE. 
@@ -230,7 +237,10 @@ program yelmo_test
 
             allocate(f_ice_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
             call nc_read(yelmo1%dta%par%pd_smb_path,"f_ice",f_ice_rcm,missing_value=mv)
-            mask_rcm = f_ice_rcm .ge. ctl%f_ice_min
+            call nml_read(path_par,yelmo1%par%nml_masks,"regions_group",regions_group)
+            call regions_init_nml(reg_rcm,path_par,regions_group,domain=yelmo1%par%domain, &
+                                  grid_name=yelmo1%par%grid_name,grid=yelmo1%grd)
+            mask_rcm = f_ice_rcm .ge. ctl%f_ice_min .and. regions_select(reg_rcm,ctl%region_rcm)
 
             if (trim(ctl%smb_method) .eq. "zremap") then
 

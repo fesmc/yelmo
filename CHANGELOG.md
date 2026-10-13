@@ -23,9 +23,11 @@
   `"fixed"` (the present-day fields, the previous behaviour) or `"out_const"` (smb =
   `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
   (needs fesm-utils with `zremap`): profiles f(z) built once from the present-day fields on
-  the RCM ice (`f_ice >= ctrl.f_ice_min`, 0.5) at the RCM surface elevation (`z_srf`,
+  the RCM ice (`f_ice >= ctrl.f_ice_min`, 0.5, within the regions `ctrl.region_rcm`:
+  `"region:Greenland"` for GRL, `"all"` for ANT) at the RCM surface elevation (`z_srf`,
   both from `yelmo_data.pd_smb_path`), evaluated at `tpo%now%z_srf` every `dtt`, also
-  during the spin-up. Parameters in `zremap_smb` and `zremap_tsrf` (sigma 100 km, bins
+  during the spin-up; as an anomaly on the RCM ice (present-day fields reproduced at
+  `z_srf`). Parameters in `zremap_smb` and `zremap_tsrf` (sigma 100 km, bins
   0-4000 m every 100 m, sigma_z 200 m, w_full 0.25; smb gradient 2 mm w.e./a/m below the
   data and 0 above, T_srf -6.5 K/km). The Greenland 2 m/a extra melt beyond the
   present-day ice applies only to `"fixed"`.
