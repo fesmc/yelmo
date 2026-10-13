@@ -18,11 +18,10 @@
   2007-2008 means `bmelt_reese` would give 1.35 instead of 0.91 m/a over the floating cells
   of ANT-32KM). Initmip GRL `file_ghf` =
   `GHF-Martos2018` (`load_ghf = False` by default). The products are gap-free.
-- **initmip: smb and T_srf remapped to the surface elevation** (answer-changing for
-  initmip ANT): new `ctrl.smb_method` for both fields, `"zremap"` (default for ANT; GRL
-  keeps `"fixed"`, zremap loses GRL land margins with the current tuning),
-  `"fixed"` (the present-day fields, the previous behaviour) or `"out_const"` (smb =
-  `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
+- **initmip: option to remap smb and T_srf to the surface elevation**: new
+  `ctrl.smb_method` for both fields, `"fixed"` (default for GRL and ANT: the present-day
+  fields, the previous behaviour), `"zremap"` (not yet validated: loses GRL land margins
+  with the current tuning) or `"out_const"` (smb = `ctrl.smb_out` outside the RCM ice). `"zremap"` uses the fesm-utils `zremap` module
   (needs fesm-utils with `zremap`): profiles f(z) built once from the present-day fields on
   the RCM ice (`f_ice >= ctrl.f_ice_min`, 0.5, within the regions `ctrl.region_rcm`:
   `"region:Greenland"` for GRL, `"all"` for ANT) at the RCM surface elevation (`z_srf`,

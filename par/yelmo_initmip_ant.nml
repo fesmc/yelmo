@@ -22,7 +22,7 @@
     load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
     file_cb_ref     = ""                ! Filename holding cf_ref to load (required with load_cb_ref)
 
-    smb_method      = "zremap"          ! smb and T_srf from the present-day (RCM) fields: "zremap" (remapped to the surface elevation
+    smb_method      = "fixed"           ! smb and T_srf from the present-day (RCM) fields: "zremap" (remapped to the surface elevation
                                         ! every dtt, [zremap_smb] and [zremap_tsrf]), "fixed" (as loaded), "out_const" (as loaded, smb_out outside the RCM ice)
     f_ice_min       = 0.5               ! [1] "zremap", "out_const": RCM ice = f_ice (in yelmo_data.pd_smb_path) >= f_ice_min
     region_rcm      = "all"               ! "zremap", "out_const": RCM ice only within these regions (yelmo_masks.regions_group)
