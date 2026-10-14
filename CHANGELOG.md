@@ -2,6 +2,9 @@
 
 ## Unreleased (dev)
 
+- pd smb and T_srf units from the units attribute via fesm-utils `fesmdata_flux_conv` /
+  `fesmdata_temp_ref` (replaces `smb_units_conv` and the T_srf < 100 K guess; mm/d uses
+  1 yr = 365.25 d). Needs fesm-utils with these helpers.
 - **Input data path `fesmdata`**: the FesmData products moved from `ice_data/v2` to
   `$FESMDATA/products`; all paths are now `fesmdata/{domain}/{grid_name}/...`, a new link
   in the checkout (`ln -s <path>/fesmdata/products fesmdata`; `input` holds the GRL-16KM

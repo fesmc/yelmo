@@ -8,6 +8,7 @@ module yelmo_data
     use topography 
     use lsf_module
     use interp2D, only : fill_nearest
+    use fesmdata, only : fesmdata_flux_conv, fesmdata_temp_ref
     
     implicit none
     
@@ -187,7 +188,7 @@ contains
         real(wp)            :: z_bed_f_sd
         real(wp), allocatable :: z_bed_sd(:,:) 
         real(wp), allocatable :: tmp(:,:,:) 
-        real(wp)            :: smb_conv
+        real(wp)            :: smb_conv, t_ref
         character(len=32) :: nml_group
 
         ! Make sure we know the namelist group for the yelmo_init_topo block
@@ -304,11 +305,9 @@ contains
                 call nc_read(filename,nms(1), dta%pd%T_srf, missing_value=mv)
             end if 
 
-            ! Make sure temperatures are in Kelvin 
-            if (minval(dta%pd%T_srf,mask=dta%pd%T_srf .ne. mv) .lt. 100.0) then
-                ! Probably in Celcius, convert...
-                where (dta%pd%T_srf .ne. mv) dta%pd%T_srf = dta%pd%T_srf + 273.15
-            end if 
+            ! Convert from the units of the file to Kelvin
+            t_ref = fesmdata_temp_ref(filename,nms(1))
+            where (dta%pd%T_srf .ne. mv) dta%pd%T_srf = dta%pd%T_srf + t_ref
 
         end if 
 
@@ -328,7 +327,7 @@ contains
             end if 
 
             ! Convert from the units of the file (mm we per day or year) to m ie / a
-            smb_conv = smb_units_conv(filename,nms(1),bnd%c)
+            smb_conv = fesmdata_flux_conv(filename,nms(1),"mm yr-1") * bnd%c%conv_mmawe_maie
             where (dta%pd%smb .ne. mv) dta%pd%smb = dta%pd%smb * smb_conv
 
             ! Clean smb to avoid tiny values 
@@ -465,52 +464,6 @@ contains
         return
 
     end subroutine ydata_annual_mean
-
-    function smb_units_conv(filename,varname,c) result(conv)
-        ! Factor converting an smb rate in mm water equivalent (= kg m-2) per
-        ! day or per year, as given by the units attribute of the variable,
-        ! to [m ie / a].
-
-        implicit none
-
-        character(len=*),         intent(IN) :: filename
-        character(len=*),         intent(IN) :: varname
-        type(ybound_const_class), intent(IN) :: c
-        real(wp) :: conv
-
-        character(len=256) :: units, key
-        integer :: i
-
-        if (.not. nc_exists_attr(filename,varname,"units")) then
-            write(io_unit_err,*) "smb_units_conv:: Error: smb variable has no units attribute."
-            write(io_unit_err,*) "filename: ", trim(filename)
-            write(io_unit_err,*) "varname:  ", trim(varname)
-            error stop 1
-        end if
-        call nc_read_attr(filename,varname,"units",units)
-
-        ! Drop blanks and exponent markers: "kg m**-2 d**-1" => "kgm-2d-1"
-        key = ""
-        do i = 1, len_trim(units)
-            if (units(i:i) .eq. " " .or. units(i:i) .eq. "*") cycle
-            key = trim(key)//units(i:i)
-        end do
-
-        select case(trim(key))
-            case("kgm-2d-1","mmd-1","mmw.e.d-1")
-                conv = c%conv_mmdwe_maie
-            case("kgm-2yr-1","kgm-2a-1","mmyr-1","mma-1","mmw.e.yr-1","mmw.e.a-1")
-                conv = c%conv_mmawe_maie
-            case default
-                write(io_unit_err,*) "smb_units_conv:: Error: smb units not recognized: ", trim(units)
-                write(io_unit_err,*) "filename: ", trim(filename)
-                write(io_unit_err,*) "varname:  ", trim(varname)
-                error stop 1
-        end select
-
-        return
-
-    end function smb_units_conv
 
     subroutine ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,rho_ice,rho_sw)
         ! Fill the gaps (missing values) of a topography dataset, e.g. outside
