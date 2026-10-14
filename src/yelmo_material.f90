@@ -29,7 +29,7 @@ contains
         type(ydyn_class),   intent(IN)    :: dyn 
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd     
-        real(wp),           intent(IN)    :: time    ! Current time (for age tracing)
+        real(dp),           intent(IN)    :: time    ! Current time (for age tracing)
 
         ! Local variables
         integer  :: k, nz_aa
@@ -53,8 +53,8 @@ contains
         end if 
 
         ! Get time step and advance current time 
-        dt            = dble(time) - mat%par%time 
-        mat%par%time  = dble(time) 
+        dt            = time - mat%par%time 
+        mat%par%time  = time 
 
         ! Note: the age tracer (dep_time) moved to the ytrc subsystem (yelmo_tracers)
         ! for v2.0. The Eulerian solver is still used below for the enh_bnd
@@ -117,7 +117,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "calc_ymat:: Error: enhancement method not recognized: "//trim(mat%par%enh_method)
-                stop 
+                error stop 1
 
         end select 
 
@@ -146,7 +146,8 @@ contains
 
                     call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
+                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),thrm%par%advecxy_order, &
+                                        thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
 
                 end if 
 
@@ -211,7 +212,7 @@ contains
                     &is prescribed (ydyn.visc_method=0) and ymat.n_glen=1.0."
                     write(*,*) "ydyn.visc_method = ", dyn%par%visc_method 
                     write(*,*) "ymat.n_glen      = ", mat%par%n_glen 
-                    stop 
+                    error stop 1
                 end if 
 
                 ! ATT = (2.0*visc_eff)^(-1) 
@@ -224,7 +225,7 @@ contains
 
                 write(*,*) "calc_ymat:: Error: rf_method not recognized."
                 write(*,*) "rf_method = ", mat%par%rf_method
-                stop 
+                error stop 1
 
         end select 
 
@@ -232,12 +233,16 @@ contains
         ! Note: this viscosity which is used for material and thermodynamic properties may be
         ! different than the visocity calculated locally in the dynamics module
         
-        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,tpo%now%H_ice,tpo%now%f_ice, &
+        ! On the active ice geometry of the last velocity solution (dyn%now%H_ice_solv,
+        ! f_ice_solv), where the strain rate was computed (the predicted geometry, not
+        ! the start-of-step geometry restored in tpo): partial front cells get their
+        ! own viscosity, and so do cells that filled during the step
+        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,dyn%now%f_ice_solv, &
                                                             mat%par%n_glen,mat%par%visc_min,dyn%par%eps_0)
-        
+
         ! Calculate visc_bar and visc_int (vertically integrated visc) as diagnostic quantities
         mat%now%visc_bar = calc_vertical_integrated_2D(mat%now%visc,mat%par%zeta_aa)
-        call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice,tpo%now%f_ice, &
+        call calc_visc_int(mat%now%visc_int,mat%now%visc,dyn%now%H_ice_solv,dyn%now%f_ice_solv, &
                                                     mat%par%zeta_aa,dyn%par%boundaries)
 
         ! 3. Calculate the deviatoric stress tensor and 2D average
@@ -246,7 +251,6 @@ contains
         ! ajr: for now, only calculate the 2D stress tensor directly. This is 
         ! currently only used for calving, and so only horizontal stresses are
         ! needed (ie, assume constant vertical profile for horizontal velocity)
-        !call calc_stress_tensor(mat%now%strs,mat%now%strs2D,mat%now%visc,mat%now%strn,mat%par%zeta_aa) 
         call calc_stress_tensor_2D(mat%now%strs2D,mat%now%visc_bar,mat%now%strn2D)
 
         return
@@ -302,14 +306,14 @@ contains
 
         if (par%n_glen .le. 0.0_wp) then
             write(io_unit_err,*) "ymat_par_load:: error: n_glen must be > 0; got ", par%n_glen
-            stop "Program stopped."
+            error stop 1
         end if
         ! The '*-tracer' enh methods use enh_umin/enh_umax as the velocity transition range
         ! for the enh_bnd tracer mask (see calc_ymat), so enforce the ordering there.
         if (index(trim(par%enh_method),"-tracer") > 0 .and. par%enh_umin .ge. par%enh_umax) then
             write(io_unit_err,*) "ymat_par_load:: error: enh_umin must be < enh_umax for &
                                  &'*-tracer' enh_method; got ", par%enh_umin, par%enh_umax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! Set internal parameters

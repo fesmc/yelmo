@@ -34,4 +34,4 @@ q_geo = 0.042 W m⁻². Surface-temperature phases: I (0–100 ka) −30 °C, II
   `enth` vs `time` (header notes `T_ref = 173.15 K`).
 
 Used by the standalone column test driver `tests/test_enthalpy.f90` (tests T3/T4;
-see `docs/physics/enthalpy-transition-plan.md`).
+see `docs/physics/thermodynamics.md`).

@@ -1,0 +1,410 @@
+# Yelmo benchmark protocol (draft)
+
+*Status: draft for iteration, 2026-10-05. Nothing here is implemented yet unless marked "exists".*
+
+## Purpose
+
+This protocol defines a ladder of benchmark tests that verifies Yelmo in the configuration it is used in for production runs. The EISMINT experiments are based on the shallow-ice approximation and use artificial forcing, while MISMIP3D and MISMIP+ depend strongly on the treatment of lateral walls. Neither is a good test of the full momentum solver with land, marine and floating margins together. Here we define tests that are quick to run, detect symmetry and conservation errors directly, and end with the full production physics on a closed domain.
+
+## Design principles
+
+1. **No lateral boundaries.** Every domain is either a closed island surrounded by open ocean, with a calving mask that keeps ice away from the domain border, or periodic in y. The result therefore does not depend on wall conditions.
+2. **Symmetry built in.** Geometry and forcing are invariant under the D4 group of the square grid (rotations by 90° and reflections about the axes and diagonals) wherever possible. Any asymmetry in the solution is then a model error. A transposed grid (x↔y) must reproduce the transposed solution to round-off, which detects i/j indexing errors.
+3. **Production defaults as the base.** All tests use the default parameter file `input/yelmo_defaults.nml`, which holds the production physics (momentum solver, enthalpy, friction law, grounding-line treatment, front subgrid scheme, calving). The parameter file of each test lists only the settings it changes: geometry, forcing and the one ingredient it isolates. The ladder thus ends at the production setup and not at a test-only configuration.
+4. **Short by design.** Tests with a known steady state start from it and measure drift. Symmetry errors grow exponentially, so they appear within about 1 kyr. Diagnostic tests need a single velocity solve.
+5. **One ingredient per step.** Each tier adds one component, so that a failure points to its cause.
+6. **Isothermal and coupled pairs.** Every prognostic test runs isothermally (constant rate factor) and with coupled enthalpy. A failure only in the coupled run points to the thermodynamics or the thermomechanical coupling, as found for EISMINT EXPF with the enthalpy solver.
+7. **Inputs are generated externally.** Geometry, forcing, initial states and analytic reference fields are generated in Julia before the run and read as input. The Julia code follows the conventions of IceSheetBenchmarks.jl, where the tests will move once they are established. The protocol thus does not require the analytic solutions (e.g., IceColumnSolutions.jl) to be implemented in Yelmo.
+
+## Overview
+
+| Tier | Test | Isolates | Reference | Cost |
+|---|---|---|---|---|
+| 0 | Column tests (exists) | Vertical thermodynamics | IceColumnSolutions.jl, Robin (1955) | s |
+| A | A1 Slab (exists) | Grounded momentum balance, friction | Analytic (Schoof, 2006) | s |
+| A | A2 Radial floating shelf | Floating momentum balance, calving-front stress condition, staircase front | Analytic | s |
+| A | A3 ISLAND4 diagnostic | Full solver on land, marine and floating ice | D4 symmetry to round-off | s |
+| A | A4 3D thermodynamics strip | 3D enthalpy solver, vertical velocity, transients | IceColumnSolutions.jl | s–min |
+| B | B1 ISLAND4-L land dome | Land margin, sliding, thermomechanical coupling | Symmetry, mass conservation | min |
+| B | B2 Marine flowline | Grounding-line dynamics | Schoof (2007), Tsai et al. (2015) | min |
+| B | B3 CalvingMIP circular Exp1 (exists) | Floating front, front advection | Front fixed at r = 750 km, symmetry | min |
+| C | C0 ISLAND4 spin-up | Full production setup | Run once per version | h |
+| C | C1 Control from C0 | Drift, symmetry, conservation | Zero drift | min |
+| C | C2 Perturbations from C0 | Response of all margin types | Resolution convergence, regression | min |
+| C | C3 Grid tests | Grid orientation and indexing | Transposed and rotated runs | min |
+| D | GRL, ANT at 32 km | Realistic geometry | Regression, budget closure, timing | min |
+
+## Common setup
+
+### Grids
+
+The grid must be symmetric about the origin, with nx = ny and x_i = −x_{nx+1−i}. The origin can lie on a cell center (nx odd) or on a cell corner (nx even). Both are used in C3. Standard resolutions for the ISLAND4 domain (x, y ∈ [−800, 800] km) are 32, 16 and 8 km.
+
+### Metrics
+
+Every test writes the same diagnostics, which the scorecard script reads.
+
+- **Symmetry error.** For each element g of D4 and each field f, e_g(f) = max|f − g·f| / max|f|. Scalar fields are mapped directly. Velocity components change sign and swap between the x- and y-faces of the C-grid, as described in [`tests/README_symcheck.md`](../../../tests/README_symcheck.md). Fields checked: H_ice, ux, uy, enthalpy (all layers), f_grnd. For the ISLAND4 domain we report the maximum over all eight group elements and its time evolution.
+- **Mass budget residual.** r_M = [ΔV − ∫(SMB + BMB − calving) dt] / V over each output interval, from the Yelmo budget terms.
+- **Integrated state.** Ice volume V, grounded area A_g, floating area A_f, and the grounding-line and calving-front radii along the axes and diagonals.
+- **Solver statistics.** Picard iterations per solve, mean and minimum time step, wall time.
+
+### Scorecard
+
+`scripts/scorecard.jl` (to be written) reads each run, computes the metrics and prints one pass/fail line per test. The symmetry operators generalize `tests/symcheck.jl` from mirror reflections to the full D4 group.
+
+### Pass criteria
+
+Thresholds are set empirically after the first round of runs and recorded here. The provisional targets are e_g < 1e-10 for diagnostic tests, e_g growing by less than a factor of 10 per kyr in prognostic tests, and |r_M| < 1e-6 per output interval.
+
+## Tier 0: column tests (exists)
+
+`tests/test_icetemp.f90` (experiment `ics`) and `tests/test_enthalpy.f90` (`robin-column`) referee the column solvers against IceColumnSolutions.jl (Moreno-Parada et al., 2024) and the Robin (1955) solution. The driver `analysis/compare_column_analytic.jl` measures the order of accuracy over an nz sweep. These tests cover cold columns only. Temperate and polythermal columns are checked by `robin-column` and indirectly by the coupled runs in tiers B and C.
+
+## Tier A: diagnostic tests
+
+### A1 Slab (exists)
+
+Tilted slab on a periodic domain (Schoof, 2006), as documented in `docs/benchmarks.md`. It tests the grounded momentum balance and the friction law against an analytic solution.
+
+### A2 Radial floating shelf
+
+A2 tests the floating momentum balance and the calving-front stress condition against an exact solution. The setup is a circular shelf of constant thickness H and radius R_s on a Cartesian grid. The front is therefore a staircase, which is the configuration found in production runs.
+
+For constant H and constant rate factor A, the exact solution is isotropic spreading, u = ε̇ x and v = ε̇ y. The membrane stresses are uniform, so the interior momentum balance holds trivially, and the front condition sets ε̇. With ε̇_xx = ε̇_yy = ε̇, the effective strain rate is ε̇_e = √3 ε̇ and the front condition can be written as
+
+$$6\,\eta\,\dot\varepsilon = S, \qquad S = \tfrac{1}{2}\,\rho_i g H \left(1 - \frac{\rho_i}{\rho_w}\right), \qquad \eta = \tfrac{1}{2} A^{-1/n} \dot\varepsilon_e^{(1-n)/n},$$
+
+which gives
+
+$$\dot\varepsilon = A\, S^n\, 3^{-(n+1)/2},$$
+
+where ρ_i and ρ_w are the densities of ice and seawater and n is the flow-law exponent. For n = 3, ε̇ = A S³/9. For comparison, the one-dimensional unconfined shelf gives A S³/8 (Weertman, 1957). *This derivation needs to be checked against the Yelmo definitions of η and ε̇_e before use.*
+
+A shelf that is floating everywhere has a nullspace (rigid translation and rotation). We remove it with a small uniform basal friction β_reg. This modifies the solution by a relative amount of order β_reg R_s² / (η H), so β_reg is chosen to make this term smaller than about 1e-4 while keeping the system well conditioned.
+
+Proposed values: H = 400 m, R_s = 300 km, domain ±400 km, dx = 20, 10 and 5 km, n = 3, A constant. Metrics: relative error of u and v against the analytic solution in the interior and at the front, and D4 symmetry error.
+
+### A3 ISLAND4 diagnostic
+
+A3 runs a single velocity solve with the full production solver on the ISLAND4 geometry (see below), with prescribed thickness and enthalpy. The thickness is a Vialov profile, H(r) = H_0 [1 − (r/R_i)^{(n+1)/n}]^{n/(2n+2)}, with H_0 = 3500 m and R_i = 650 km. Ice floats wherever the flotation criterion is met. Prognostic runs (B1, C0) start from the same profile without the floating part (`init = :vialov_grounded`), so that the shelves form during the run. This produces grounded ice on land and below sea level, a grounding line and small shelves in the embayments. The enthalpy field is the stationary column solution of IceColumnSolutions.jl in each column, computed from the local H, SMB, T_srf and Q_geo. It is written to an input file.
+
+The test passes if all D4 symmetry errors are at round-off level. The same solve on ISLAND4-R (rotated by 45°) gives the dependence on grid orientation, measured by the integrated speed and the grounding-line flux.
+
+### A4 3D thermodynamics strip
+
+A4 tests the 3D enthalpy solver against exact transient and stationary solutions. The column tests in Tier 0 do not reach the 3D code path, the staggering of the vertical velocity or the coupling to the bedrock layer. A4 is designed so that every column satisfies the assumptions of the analytic solution exactly: linear vertical velocity, no horizontal advection of enthalpy, cold base.
+
+The domain is a strip with x ∈ [−L_x, L_x] and y ∈ [0, L_y]. The parameters H, SMB, T_srf and Q_geo vary along y only. The velocity is prescribed (dynamics fixed, thickness fixed) as
+
+$$u = c(y)\,x, \qquad v = 0, \qquad c(y) = \frac{\mathrm{SMB}(y)}{H(y)},$$
+
+with zero basal mass balance. The horizontal divergence equals SMB/H, so continuity gives the linear vertical velocity u_z = −SMB ζ. The thickness is steady, since ∇·(uH) = SMB. Enthalpy varies along y only and v = 0, so horizontal advection is exactly zero, also in the discrete equations. Each row of the strip is thus an independent column case, and a single run covers a range of Péclet numbers and basal heat fluxes. Strain heating is switched off (`ytherm.strain_heating = "none"`). The parameters are chosen so that every base stays below the pressure-melting point.
+
+- **A4a Stationary.** Initialize with the stationary analytic solution and run 5 kyr. The drift must be small. A second run starts from a linear profile and is compared with the analytic solution once it is stationary.
+- **A4b Transient.** Start from the stationary state of parameter set P1 and switch to P2 (T_srf − 10 K, or SMB × 2). Compare with the transient solution (Moreno-Parada et al., 2024, Appendix A) at t = 1, 5, 10 and 50 kyr.
+- **A4c Strain heating (optional).** With a constant rate factor, plug flow gives depth-uniform strain heating, which the stationary solution includes through the Brinkman number. This tests the strain-heating term.
+
+Each parameter set occupies three identical rows, and only the middle row is compared, in the columns at least two cells from the x-borders. The default vertical velocity (`ydyn.uz_method = 3`) averages the divergence over neighbouring cells, with weights 1/4, 1/2, 1/4 across rows, so a single row per set would mix the parameter sets of adjacent rows (see Status). The strip is symmetric under x → −x, and a transposed run tests the y-direction.
+
+## ISLAND4 domain
+
+ISLAND4 is a closed island with land-terminating, marine-terminating and floating margins, and it is invariant under the D4 group of the grid. It consists of a radial base profile with four V-shaped troughs cut along the diagonals. The bed elevation is defined as
+
+$$z_b(x,y) = B_c - (B_c - B_l)\frac{r^2}{R_0^2} - \sum_{k=1}^{4} D(\xi_k)\, T(\xi_k,\eta_k),$$
+
+$$T(\xi,\eta) = \tfrac{1}{2}\left[1 + \tanh\!\left(\frac{(\xi - r_h)\tan(\alpha/2) - \sqrt{\eta^2 + \ell^2}}{\ell}\right)\right], \qquad D(\xi) = D_0 + B_{od} \exp\!\left(-\frac{(\xi - r_{od})^2}{w_{od}^2}\right),$$
+
+where (ξ_k, η_k) are the coordinates along and across the k-th diagonal, and T is a smoothed indicator of the trough. Its walls are straight lines from the apex at ξ = r_h with opening angle α, smoothed over the width ℓ. The parameters are given in the table below.
+
+| Parameter | Value | Meaning |
+|---|---|---|
+| B_c | 900 m | Bed elevation at the center |
+| B_l | −2000 m | Bed elevation of the base profile at R_0 |
+| R_0 | 1000 km | Radius scale of the base profile |
+| r_h | 250 km | Radius of the trough head |
+| α | 120° | Opening angle of the troughs |
+| ℓ | 50 km | Width of the trough walls and head |
+| D_0 | 1000 m | Trough depth below the base profile |
+| B_od | 0 or 700 m | Depth of the overdeepening (0: off) |
+| r_od | 350 km | Radius of the deepest point of the overdeepening |
+| w_od | 60 km | Half-width of the overdeepening |
+
+The island forms a four-pointed star (Fig. 1a). The coast reaches r ≈ 556 km along the axes and r ≈ 290 km along the diagonals. Ice in the troughs grounds below sea level and feeds the shelves. With the control forcing, the ice also grounds beyond the coast of the peninsulas, so a continuous shelf surrounds the island out to r_lim. Land-terminating margins are therefore tested in ISLAND4-L (B1). The wide opening angle gives smooth, concave coastlines, so that the geometry does not favor the onset of instabilities. With B_od = 0, the trough beds deepen monotonically seaward, so the steady state is unique, which a regression test needs. Setting B_od > 0 adds an overdeepening with a retrograde bed between r ≈ 360 and 448 km (Fig. 1b, d), which tests marine ice-sheet instability. A single parameter thus switches the instability test on and off.
+
+Rotating the troughs by 45° (ISLAND4-R) places them along the grid axes (Fig. 1c). The base profile and the forcing are radial, so ISLAND4-R has the same solution as ISLAND4 in the continuum, rotated by 45°. Differences between the two runs measure the dependence of the discrete solution on grid orientation.
+
+![ISLAND4 geometry. (a) Bed elevation with the coastline (black), the equilibrium line r_ela (red dashed) and the calving mask r_lim (black dotted). (b) The overdeepened variant (B_od = 700 m). (c) ISLAND4-R, rotated by 45°. (d) Bed profiles along the axis and the diagonal (lines in a, b) and the SMB profile (red, right axis). (e) Bed across the trough at r = 450 km, without (solid) and with (dashed) overdeepening.](figures/island4.png)
+
+### Forcing
+
+The forcing is radial or depends on the local state only, so it preserves the D4 symmetry. Fixed fields are generated in Julia with the geometry. Forcing that depends on the evolving ice geometry is computed during the run by a Fortran function in the driver. Each online function has a Julia counterpart, so that the forcing written by the model can be checked against the specification.
+
+- **Surface mass balance (fixed).** SMB(r) = SMB_0 (1 − r/r_ela), with SMB_0 = 0.5 m a⁻¹ and r_ela = 800 km (350 km for ISLAND4-L). Since r_ela lies beyond r_lim, the SMB is positive everywhere inside r_lim (0.03 m a⁻¹ at r_lim), and the marine margins are set by melt and calving. ISLAND4-L uses r_ela = 350 km, since its land margin needs ablation inside r_lim. We chose an SMB that does not depend on surface elevation, which avoids the elevation feedback and multiple steady states.
+- **Surface temperature (online).** T_srf = T_sl − Γ z_s, with T_sl = −10 °C and Γ = 8 K km⁻¹. The temperature follows the evolving surface, which keeps it consistent with the ice geometry. Its feedback on the dynamics acts through the thermodynamics only and is weak.
+- **Geothermal heat flux (fixed).** Q_geo = 50 mW m⁻², uniform.
+- **Sub-shelf melt (online).** The MISMIP+ Ice1 parameterization (Asay-Davis et al., 2016), m = Ω tanh(H_c/H_c0) max(z_0 − z_d, 0), with Ω = 0.01 a⁻¹, H_c0 = 75 m and z_0 = −200 m, where z_d is the depth of the ice base and H_c the water-column thickness. We chose it because it is a community standard, and the tanh term reduces the melt smoothly toward the grounding line. The MISMIP+ values (Ω = 0.2 a⁻¹, z_0 = −100 m) are sized for the ice flux of MISMIP+, and on ISLAND4 they remove about 30 times more ice than the island supplies (about 3e10 m³ a⁻¹ per trough with r_ela = 450 km). The values used here give no melt below shelves thinner than about 225 m, about 1.5 m a⁻¹ below 400 m of ice and about 7 m a⁻¹ at a grounding line 1 km deep.
+- **Calving.** The calving law of the default parameter file, together with a fixed calving mask that removes all ice at r ≥ r_lim = 750 km. The mask keeps ice away from the domain border.
+- **Friction.** The friction law of the default parameter file with spatially uniform parameters.
+
+The values of r_ela, Ω and z_0 come from a sweep of 5-kyr runs at 32 km (2026-10-05). With the original values (r_ela = 450 km and the MISMIP+ melt), the shelves were about 50–65 m thick on average and ended inside r_lim. With the values above, the shelves reach r_lim, with a mean thickness of about 150 m and about 90 m at the front. Weaker melt or more accumulation increases this only slightly. The shelf thickness is limited by the geometry: beyond the coast the shelves are unconfined and spread under their own weight (strain rate ∝ H^n), so they thin to a few hundred meters within one or two cells of the grounding line. Raising B_l to −840 m extends the peninsulas to about 660 km, but the troughs then form 90° sectors between narrow spurs and give little lateral support (mean shelf thickness about 165 m, about 110 m at the front). We therefore kept B_l = −2000 m. Thin unconfined shelves are the physical solution of this geometry, and they still test the floating momentum balance, calving at r_lim and sub-shelf melt.
+
+The first C0 spin-ups (50 kyr, 32/16/8 km, D_0 = 1500 m, r_ela = 650 km) converged with resolution to a grounding line at the coast everywhere, so the troughs held no grounded ice below sea level. The marine grounded ice at 32 and 16 km was a resolution artifact. A sweep at 16 km with `uz_method = 4` (50 kyr, 2026-10-07) showed that the trough depth controls the grounding line; B_l changes the trough floor by only about 100 m. With D_0 = 1000 m the grounding line rests on the trough floor at r ≈ 440–465 km, with about 0.3e6 km² of grounded ice below sea level, compared with r ≈ 305 km and 0.1e6 km² for D_0 = 1500 m. With D_0 = 700 m it reaches the axis coast, and one run had not reached a steady state after 50 kyr. Raising r_ela from 650 to 800 km moves the grounding line by about 25 km and thickens the shelves by about 25 m. Lowering z_0 from −200 to −400 m changes the shelf thickness by about 10 m. We chose D_0 = 1000 m and r_ela = 800 km. The grounding line then lies just seaward of the retrograde section of the overdeepened variant (r ≈ 358–448 km).
+
+## Tier B: one margin type at a time
+
+### B1 ISLAND4-L land dome
+
+ISLAND4-L is ISLAND4 with the bed raised by 2500 m, so that all ice inside r_lim rests on land. The bed keeps its D4 structure, so the flow is not radial and the transposed and rotated tests remain meaningful. The ice starts from a Vialov profile with R_i = 450 km (650 km in A3) and the column enthalpy from IceColumnSolutions.jl, and the run lasts 5 kyr with the production solver and sliding.
+
+With r_ela = 450 km and the Vialov profile of A3, the coupled dome spread to the calving mask within 300 yr: its stationary-column start had a temperate base in about half of the grounded area, and the soft ice advanced before ablation could act. A smaller r_ela alone does not prevent this, since less accumulation gives a warmer start. With r_ela = 350 km and R_i = 450 km (32 km, coupled, 5 kyr), the dome starts close to its balance size (V from 1.47 to 1.25e6 km³), the temperate fraction of the bed is 0.22 at the start and at most 0.49 (at 0.3 kyr), and the margin stays between 448 and 588 km, at least 160 km inside r_lim.
+
+The run is not in thermal equilibrium after 5 kyr. However, symmetry and conservation do not require equilibrium, and the transient margin adjustment exercises the land margin. Metrics: growth of the symmetry error over time (isothermal and coupled), mass budget residual, and comparison with ISLAND4-L-R.
+
+### B2 Marine flowline
+
+B2 tests grounding-line dynamics in a strip that is periodic in y, with three cells across the flow. It follows the MISMIP experiment 1 setup (Pattyn et al., 2012): bed b(x) = 720 − 778.5 |x|/750 km, accumulation a = 0.3 m a⁻¹ everywhere, no basal melt, n = 3, ρ_i = 900 and ρ_w = 1000 kg m⁻³, g = 9.8 m s⁻² (`phys_const = "MISMIP3D"`). A fixed calving front at |x| = 1700 km (rounded to the nearest cell edge, 1696 km for the one-sided domain at 8 km) is set by `mask_ice`, with `calv_flt_method = "zero"`. The runs are isothermal (`rf_method = 0`, `ytherm.method = "fixed"`) and use the SSA solver (`ydyn.solver = "ssa"`), since the reference of Schoof (2007) assumes sliding without vertical shear; with the default DIVA solver, the softest case (A = 4.6416e-24) has a divide about 600 m lower than the reference profile (see Status).
+
+The default domain is one-sided, x ∈ [0, 1800] km, with the ice divide at x = 0 on the face between the first two cells (cell centres at −dx/2, dx/2, …). It uses the existing MISMIP3D boundary treatment (`yelmo.experiment = "MISMIP3D"`): the first cell mirrors the second (H and β), the SSA has ux = 0 on the divide face (no-slip at the low-x border), the far x-border is ice-free and y is periodic. `yelmo.mask_border = "dynamic"` keeps the fixture mask on the borders, so that the mirror cell stays dynamic. No source change is needed. The symmetric domain, x ∈ [−1800, 1800] km with the divide on a cell centre and no divide boundary condition (`yelmo.experiment = "periodic-y"`), remains an option (`domain = :symmetric`); it costs twice as much and is needed for the transposed test (periodic-x), for which Yelmo has no one-sided counterpart.
+
+The friction law is the power law τ_b = C |u|^(m−1) u with C = 7.624e6 Pa m^(−1/3) s^(1/3) and m = 1/3. In Yelmo (`beta_method = 2`) β = c_bed (|u|/u_0)^q / |u|, so the power law follows with q = m, u_0 = 1 m a⁻¹ and c_bed = C sec_year^(−m) = 24126 Pa (m a⁻¹)^(−1/3), with c_bed = `cf_ref` × N_eff, a constant N_eff = 1 Pa (`yhyd.bkt_N_closure = 0`) and no frozen-bed scaling (`frz_scale = False`). We use A = 4.6416e-24, 4.6416e-25 and 4.6416e-26 Pa⁻³ s⁻¹ (MISMIP steps 1, 4 and 7), for which the reference grounding line lies at x_g = 1052.5, 1226.7 and 1492.8 km.
+
+The reference is the boundary-layer flux of Schoof (2007, Eq. 29), q_g = [A (ρ_i g)^(n+1) (1 − ρ_i/ρ_w)^n / (4^n C)]^(1/(m+1)) h_g^((m+n+3)/(m+1)), with the steady grounding line where q_g(x_g) = a x_g. For a Coulomb friction law it is the flux of Tsai et al. (2015) (not yet implemented). The run starts from the semi-analytic steady profile, computed in Julia (`FlowlineBenchmark`): the outer solution of Schoof (2007), C (a x/h)^m = −ρ_i g h d(h + b)/dx, integrated upstream from h(x_g) = h_g, and the unconfined shelf, d(uh)/dx = a and du/dx = A [ρ_i g (1 − ρ_i/ρ_w) h/4]^n, integrated downstream to the calving front. This shortens the run to the adjustment time instead of a full spin-up from zero.
+
+A start from the reference profile does not show whether the model has a unique steady grounding line. For each A and resolution, B2 therefore has three starts: the reference profile (`ref`), and the same construction with the grounding line shifted by +100 km (advanced, `adv`) and −100 km (retreated, `ret`), i.e., the outer solution integrated upstream from h_f(x_g ± 100 km) and the shelf downstream of it (keyword `dxg_start`). The resolutions are 8, 4 and 2 km. A run is stationary when |dx_g/dt| averaged over the last 2 kyr is below 1e-3 m a⁻¹ (one 2-km cell in 2 Myr); 20 kyr meet this for all runs. The test reports the final grounding line against the reference, dx_g/dt, and the model flux across the grounding line against q_g(h_g). The grounding line is the zero of the thickness above flotation, interpolated linearly between cell centres (as `f_grnd_acx`), and the flux is |ux_bar| H on the face between the last grounded and the first floating cell, with the upwind thickness as in the thickness advection, so that it equals a x_g in steady state. The boundary-layer formulas are asymptotic and agree with converged SSA solutions to within a few percent, so the tolerance must allow for this.
+
+```bash
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1-ref.nc flowline A=4.6416e-24
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/flowline-8km-a1-adv.nc flowline A=4.6416e-24 dxg_start=100e3
+runme -r -e bench -n par/yelmo_bench_FLOWLINE.nml -o output/b2/os-8km-a1-ref \
+      -p bench.fixture=input/bench/flowline-8km-a1-ref.nc ymat.rf_const=1.464746277216e-16 ctrl.time_end=20e3
+julia --project=tests/bench tests/bench/check_flowline.jl input/bench/flowline-8km-a1-ref.nc output/b2/os-8km-a1-ref
+julia --project=docs/dev/benchmark-protocol/scripts docs/dev/benchmark-protocol/scripts/b2_plots.jl output/b2 input/bench
+```
+
+The fixture attributes `rf_const` and `cf_ref` give the parameter values for its A and C, and `experiment` the value of `yelmo.experiment` for its domain; `check_flowline.jl` warns if the run used other values. For dx = 4 and 2 km add `dx_km=4` (`2`) to the fixture and `yelmo.grid_name=FLOWLINE-4KM` to the run.
+
+### B3 CalvingMIP circular Exp1 (exists)
+
+The driver `tests/yelmo_calving.f90` runs CalvingMIP Experiment 1 on the circular domain, where the calving rate equals the front velocity so that the front stays at r = 750 km. Metrics: front radius along the axes and diagonals, and the symmetry error from `tests/symcheck.jl`.
+
+## Tier C: integrated ISLAND4
+
+Tier C runs the production setup on ISLAND4. It is the main target of the protocol.
+
+- **C0 Spin-up.** The run continues until the drift criterion is met (|dV/dt|/V < 0.1 % kyr⁻¹). The restarts are stored and used by C1–C3.
+  - At 32 and 16 km (routine), C0 starts from the Vialov profile and column enthalpy of A3 and runs 50 kyr; the criterion is met after about 35 kyr, as the thermal adjustment is slow. This takes about 0.5 and 1 h on 16 threads, and is repeated for each model version.
+  - At 8 km, C0 is a resolution check, not part of the routine suite. A run from the Vialov profile takes 4–8 h on 16 threads. The 8 km run therefore starts from the 16 km C0 restart, interpolated onto the 8 km grid by the restart interpolation of Yelmo, so that the thermal state is already close to equilibrium. It runs until the drift criterion is met, expected after about 10 kyr (to be confirmed). It is repeated when a change is expected to affect the resolution dependence, e.g., of the grounding line.
+- **C1 Control.** 1 kyr from the C0 restart without changes. Metrics: drift in V, A_g and A_f, symmetry error and mass budget residual.
+- **C2 Perturbations.** 500 yr from the C0 restart.
+  - C2a Ocean: Ω × 2.
+  - C2b Shelf removal: all floating ice removed at each time step (as in ABUMIP).
+  - C2c Surface: SMB − 0.1 m a⁻¹ everywhere (r_ela moves to 640 km).
+  - C2d Reversibility (optional): C2a followed by 500 yr of control forcing.
+
+  The references are resolution convergence (32, 16, 8 km) and a regression envelope against the previous model version. The run length of 500 yr will be shortened if the signals become clear earlier.
+- **C3 Grid tests.**
+  - C3a Transposed grid: must reproduce the transposed C1 solution to round-off.
+  - C3b ISLAND4-R: C0 and C1 on the rotated geometry. The differences in V, A_g, A_f and the grounding-line radii (axes and diagonals exchanged) measure the dependence on grid orientation.
+  - C3c Half-cell shift: origin on a cell corner instead of a cell center.
+
+Isothermal versions of C1 and C2 are not part of the standard suite. They are run to diagnose a failure of the coupled runs.
+
+## Tier D: realistic domains
+
+Greenland and Antarctica at 32 km, 100 yr from a production restart (as in initMIP). Metrics: mass budget residual, time-step statistics, wall time and regression of V, A_g and A_f against the previous version. This tier checks that the production configuration still runs. It does not verify the physics.
+
+## Thermodynamics in each tier
+
+| Tier | Isothermal | Coupled |
+|---|---|---|
+| 0 | – | Column tests |
+| A | A1, A2 | A3 (prescribed enthalpy), A4 |
+| B | B1, B2, B3 against their references | B1, B2, B3 for symmetry, conservation and drift |
+| C | C1, C2 for diagnosis only | C0–C3 |
+| D | – | All |
+
+The analytic references of A1, A2 and B2 assume a constant rate factor, so they apply to the isothermal runs only. The coupled runs are evaluated against symmetry, conservation and drift.
+
+## Implementation
+
+### Driver
+
+All tests in tiers A–C run with one Fortran driver, `tests/yelmo_bench.f90`. The driver contains no geometry. It reads a fixture file generated in Julia, sets the boundary fields and the initial state from it, and runs Yelmo with the time stepping of the parameter file. Forcing that depends on the evolving state (the surface temperature and sub-shelf melt of ISLAND4) is computed by functions in a small Fortran module, selected in the parameter file. A test is therefore defined by its fixture and its parameter file only. This avoids code duplication between tests and gives a single executable for CI testing. The column tests (Tier 0) and the realistic domains (Tier D, `yelmo_initmip`) keep their own drivers.
+
+The fixture holds the grid (xc, yc), the boundary fields (z_bed, z_sl, smb_ref, T_srf, Q_geo, bmb_shlf, T_shlf, H_sed, calv_mask) and the initial ice thickness, with the field names of IceSheetBenchmarks.jl. Optional fields are read when present: a 3D enthalpy or temperature field (A3, A4, B1, C0), a prescribed 3D velocity field for `ydyn.solver = "fixed"` (A4) and a basal friction field (A2). Perturbation experiments (C2) restart from C0 with a different fixture.
+
+The existing slab (A1) and CalvingMIP Exp1 (B3) tests move into the same driver once it works.
+
+### Fixtures
+
+Each test is a Julia type that subtypes `AbstractBenchmark` from IceSheetBenchmarks.jl and implements `state(b, t)` and `write_fixture!(b, path)`, e.g., `Island4Benchmark(:ctrl; dx_km = 16, B_od = 0, rot = 0)`. Helper functions for the geometry (`island4_bed`) and the forcing are exported, as for the existing benchmarks. These include the Julia counterparts of the online Fortran forcing functions, which the scorecard applies to the model state to check the forcing written by the model. The code lives in `tests/bench/` as a Julia project that depends on IceSheetBenchmarks.jl. The types can thus move to IceSheetBenchmarks.jl without changes.
+
+### Running
+
+```bash
+make bench
+julia --project=tests/bench -e 'import Pkg; Pkg.instantiate()'
+julia --project=tests/bench tests/bench/make_fixture.jl input/bench/island4-16km.nc island4 dx_km=16
+runme -r -e bench -n par/yelmo_bench_ISLAND4.nml -o output/bench/a3-16km
+julia --project=tests/bench tests/bench/check_symmetry.jl output/bench/a3-16km
+```
+
+Fixtures are written to `input/bench/` (not tracked), which runme links into every run directory. Keyword arguments of the benchmark constructor are passed as `key=value` (e.g., `B_od=700`, `rot=45`, `land=true`, `exp=smb`). With `time_end = time_init`, the run is diagnostic (A3). At the start of a fresh run, the driver prints the difference between its online forcing and the fixture values computed by the Julia counterparts. Partially ice-covered front cells are excluded from this check, since Yelmo defines their surface elevation with the effective front thickness.
+
+### Status
+
+The ISLAND4 fixture holds the initial ice temperature (`T_ice` on 51 uniform ζ levels) from the stationary column solution of IceColumnSolutions.jl, with w0 = max(SMB, 0) for grounded columns and a linear profile from T_shlf for floating columns. The driver maps it onto the Yelmo levels with `yelmo_read_remap` and initializes with `thrm_method = "prescribed"`.
+
+First A3 run (2026-10-05, ISLAND4, 16 km, Vialov thickness, Robin temperature):
+
+- H_ice and z_srf are exactly D4-symmetric, and the velocity components are symmetric to ~1e-7, which is the precision of the single-precision output.
+- The online T_srf and bmb_shlf agree with the Julia counterparts to ~3e-5 K and ~2e-4 m a⁻¹ (100 front cells excluded).
+- The initial SSA solve needs 21 Picard iterations, one more than the default `ydyn.ssa_iter_max = 20`.
+
+First A2 run (2026-10-05, 10 km, H = 400 m, R_s = 300 km, A = 1e-18, β_reg = 1e-3, Picard converged to 1e-5):
+
+- The velocity is D4-symmetric to output precision, but does not reproduce the analytical solution. With the default energy assembler, the interior speed is ~13–33 % of the exact value (rms error 44 %); with `ssa_solver = "residual"` the rms error is ~15 %. DIVA and SSA give the same result.
+- The viscosity agrees with Glen's law for the simulated strain rates, so A and n are applied correctly. The membrane stress N_rr diagnosed from the output is ~1.2 H S near the front and ~0.5 H S at the centre, which implies a distributed resistance of ~190 Pa inside the shelf (β_reg u is ~0.1 Pa).
+- The result does not change with `front_subgrid`, with a linear-solver tolerance of 1e-10, or with `ssa_lat_bc` ("all", "floating", "marine", "none") for the energy assembler.
+- Cause: the corner (shear) viscosity on the ice margin coupled the front faces to the u = 0 faces of the ice-free cells, a drag on the velocity along the front. With zero corner viscosity on the margin (dev eb2879de), both assemblers match the analytical solution to ~0.07 % (rms).
+
+Prognostic symmetry (2026-10-05, ISLAND4, 32 km, 20–100 yr). With the default solver tolerances and the Vialov initial state including floating ice, the symmetry error reached 2.6 % after 20 yr with a driver step `dtt = 10` (1e-5 with `dtt = 1`). The diagnosis found three contributions:
+
+- The default tolerances (Picard `ssa_iter_conv = 1e-2`, linear solver `-tol 1.0e-2`) determine the velocity only to ~1 %, so a single solve can turn a round-off asymmetry of 1e-6 into 1e-3, with symmetric masks and inputs.
+- The Vialov initial state puts up to ~3 km of floating ice in the troughs, with speeds at the velocity limit and fast-moving fronts, which amplify round-off.
+- A cell holding a round-off amount of ice became a front cell with the full reference thickness, so the front force jumped by one cell (fixed with `H_ice_eps = 1 mm`, as CISM's `eps11`).
+
+The ISLAND4 parameter file therefore uses tight solver tolerances (Picard 1e-5, linear 1e-8), and prognostic runs start from `init = :vialov_grounded` (Vialov profile where grounded, no initial floating ice; A3 keeps `init = vialov`). With these, the symmetry error stays at ~1e-5 (H) and ~7e-5 (velocity) over 100 yr with `dtt = 10`, which is round-off growth in single precision.
+
+A double-precision build (docs/numerics-precision.md) separates round-off from real asymmetry: any error above about 1e-12 points to the code. It showed a deterministic asymmetry of about 1e-5 after 100 yr, which was traced through the level-set calving and the principal stress to the 3D strain rates. At a front with ice on the low-index side, the one-sided stencil in `calc_jacobian_vel_3D_uxyterms` tested `f_ice` of cell i−2 instead of i−1, while the mirror case tests i+1 (fixed in dev 987f3a8c). The strain rates near fronts were thus not mirror-symmetric, which switched the calving rate of single front cells.
+
+Symmetry after the fix (2026-10-05, ISLAND4, 32 km, 1 kyr, `dtt = 10`, albedo):
+
+| Run | 100 yr | 300 yr | 500 yr | 1000 yr |
+|---|---|---|---|---|
+| Double, tight tolerances | 3e-14 / 1e-12 | 1e-13 / 6e-13 | 2e-12 / 4e-12 | 6e-13 / 1e-11 |
+| Double, default tolerances | 7e-15 / 7e-14 | 3e-10 / 6e-10 | 4e-11 / 6e-11 | 1e-8 / 7e-8 |
+| Single, tight tolerances | 4e-6 / 4e-5 | 9e-7 / 1e-5 | 6e-3 / 3e-3 | 3e-3 / 0.9 |
+| Single, default tolerances | 4e-7 / 6e-6 | 2e-5 / 1e-4 | 1e-3 / 7e-3 | 3e-2 / 1.0 |
+
+The values are the maximum D4 errors of H and velocity. In double precision the solution stays symmetric to round-off over 1 kyr. In single precision the error stays at round-off level for about 300 yr and then jumps at isolated cells, where round-off differences switch a threshold (front cells, calving) in the thin outer shelf. These runs used the original forcing. With the tuned forcing (thicker shelves ending at r_lim), the single-precision error stays below about 2e-6 (H) and 4e-6 (velocity) over 1 kyr with tight tolerances, which is round-off level. With default tolerances it stays bounded at about 1e-3, the precision to which these tolerances determine the velocity. The single-precision breakdown was thus caused by the thin fronts of the original forcing. The H_ice_eps floor and the Jacobian fix change the final states of CalvingMIP Exp1, MISMIP+, MISMIP3D, TROUGH-F17 and A2 by less than 3e-5 in volume, with identical grounded and floating areas.
+
+A4 (2026-10-05, 10 km, 7 × 38 cells, 12 parameter sets with Pe ≈ 0.5–33, T_srf = −40 °C, Q_geo = 50 mW m⁻²):
+
+- With a single row per parameter set, the default vertical velocity (`uz_method = 3`) gave a surface uz of up to 5 times −SMB next to a jump in SMB/H between rows, and temperature errors of ~7 K after 5 kyr. Methods 2 and 3 average the divergence over the neighbouring cells; method 1 uses the face differences of the thickness equation and is exact here. In realistic flow the averaging is an advantage: method 3 gives a 1.5–4 times smaller surface mismatch `uz_srf_err` and a 2–5 times smoother uz than method 1 in Greenland (16 km, 1 kyr), ISLAND4 (16 km, 1 kyr) and TROUGH-F17 (4 km, 5 kyr). Both methods leave a mismatch of several m a⁻¹ at grounding lines and outlet margins, since neither is the discrete flux divergence of the thickness equation. The method also changes the ISLAND4 state after 1 kyr considerably (temperate basal fraction 0.17 with method 1 and 0.08 with method 3, volume difference 9 %), which shows the thermomechanical sensitivity of the early spin-up. We kept method 3 and use three rows per parameter set.
+- Stationary test (A4a), 50 kyr from the analytic profile: the maximum error is 0.45, 0.14 and 0.03 K for nz = 10, 20 and 40, i.e., second-order convergence to the analytic solution, and the columns of a row agree to output precision (~1e-4 K).
+- Transient tests (A4b), 50 kyr from the stationary P1 profile: IceColumnSolutions.jl used opposite sign conventions for Pe in its stationary and transient solutions (inherited from Moreno-Parada et al., 2024), and the wrong sign of the heat source for Pe ≠ 0; both are fixed in fesmc/IceColumnSolutions.jl#7, with finite-difference tests. With the corrected reference, SMB × 2 gives a maximum error of 0.44 K at nz = 10 at all times. The step T_srf − 10 K gives 0.3–2.3 K after 1 kyr and less than 0.9 K from 10 kyr on, dominated by the surface boundary layer, which the vertical grid resolves poorly at early times; the errors converge with nz (row maxima at 5 kyr of 1.4, 0.65 and 0.25 K for nz = 10, 20 and 40). The step itself cannot be compared at t = 0, and the 10-mode series is not converged at 1 kyr for the highest Péclet number (Pe = 33).
+
+B1 (2026-10-07, ISLAND4-L and ISLAND4-L-R, 32 and 16 km, 5 kyr, single precision, albedo, dev 5fcf3cb). Parameter file `par/yelmo_bench_ISLAND4-L.nml` (tight tolerances); the isothermal runs add `-p ytherm.method=fixed ymat.rf_method=0`, i.e., the initial temperature is kept and A = `rf_const` = 1e-18 Pa⁻³ a⁻¹. Checks: `tests/bench/check_island4l.jl`, figure below from `scripts/b1_plots.jl`. Each run took 0.7–1.6 min (isothermal) and 1.2–2.6 min (coupled) on 16 threads.
+
+- Symmetry. The D4 error does not grow over 5 kyr. Isothermal: H 1e-7–4e-7 and velocity 4e-6–1e-5, at the precision of the single-precision output. Coupled: H 7e-7–3e-6 and velocity 7e-6–7e-5 after 3 kyr. At 16 km the error rises to 3e-5 (H), 9e-4 (velocity) and 8e-3 (enthalpy, relative to its range) during the first 2 kyr, while the margin advances to the calving mask, and falls back afterwards.
+- Mass budget. In the isothermal runs |r_M| is 1e-6–5e-5 per 10-yr interval. This is the removal of thin and isolated margin ice (`mb_resid`), which is part of `mb_net` but not of the time series terms. The closed residual r_C, with `mb_net` from the 2D output, is below 7e-7 (single-precision round-off). In the coupled runs the ice reaches the calving mask at r_lim within 200–300 yr and stays there until 3.5–4 kyr. The ice transported into the masked cells was removed by the advection solver (zero thickness imposed) without a budget term, so r_C reached 4e-3 per 10 yr, and the loss summed to 18–21 % of the initial volume over 5 kyr (fixed in dev: masked cells are advected and the removal is booked in `mb_resid`; the residual is then 5e-7). After the margin has left the mask, |r_M| < 2e-5 and r_C ~1e-7.
+- ISLAND4-L vs ISLAND4-L-R (axes and diagonals exchanged). Isothermal: V differs by 2e-4 after 1 kyr and 2–3e-3 after 5 kyr, A by up to 9e-3, and the margin radii by one cell or less (the radius is quantized by dx along the axes and by √2 dx along the diagonals). Coupled: V differs by 2.5 % after 1 kyr and 4 % after 5 kyr, since the outflow at the mask depends on how the mask circle is resolved along the troughs and ridges.
+
+The coupled B1 thus does not test a land margin set by ablation: the initial temperature (stationary columns, a temperate base in 48 % of the grounded area) softens the ice, and the dome spreads to r_lim in spite of r_ela = 450 km. The budget check also showed that ice leaving through `mask_ice = none` was not reported in any budget term, which affected every ISLAND4 test where ice reaches r_lim (fixed, see above). These runs used r_ela = 450 km and the A3 Vialov profile; B1 now uses r_ela = 350 km and R_i = 450 km (see B1).
+
+B1 rerun (2026-10-07, dev d23b4810: r_ela = 350 km, R_i = 450 km, mask budget fix; albedo; single precision with 16 threads, double precision with 1 thread):
+
+| Run | max D4 error over 5 kyr, H / velocity (enthalpy) | max \|r_M\| per 10 yr | V [1e6 km³], 0 → 5 kyr |
+|---|---|---|---|
+| 32 km isothermal, L / L-R | 3e-7 / 6e-6 | 4–5e-7 | 1.47 → 1.61 |
+| 32 km coupled, L / L-R | 4e-6 / 2e-4 (4e-4) | 5e-7 | 1.47 → 1.25 / 1.28 |
+| 16 km isothermal, L / L-R | 4e-7 / 1e-5 | 6–7e-7 | 1.47 → 1.64 |
+| 16 km coupled, L / L-R | 2e-2 / 1 (0.5); velocity 1e-2 at 5 kyr | 5–7e-7 | 1.47 → 1.26 / 1.29 |
+| Double precision, L: 32 km isothermal, 32 km coupled, 16 km coupled | 7e-14 / 1e-12 (3e-13) | 2e-11 | as single precision |
+
+- The margin stays inside r_lim in all runs, and the mass budget closes to round-off from the time series (`mb_resid_tot`, `mb_clip_tot`, `mb_relax_tot`).
+- In single precision, both coupled runs at 16 km lose the symmetry (L from 0.3–0.6 kyr, L-R from 1–2 kyr): the velocity error reaches order one at single cells and falls to 1e-2 by 5 kyr, while the enthalpy error stays at 0.2–0.5 of its range. The coupled 16 km run of ISLAND4-L in double precision stays symmetric to 1e-12. The break is therefore the amplification of single-precision round-off by a threshold in the coupled thermodynamics (e.g., a cell switching between cold and temperate base), not an asymmetry in the code.
+- ISLAND4-L vs ISLAND4-L-R: V differs by 6e-4 (32 km) and 2e-3 (16 km) in the isothermal runs and by 2 % in the coupled runs after 5 kyr; the margin radii differ by one to two cells.
+- Decision (2026-10-08): the B1 symmetry check uses double precision. Single-precision runs are checked for mass conservation, volume and the L vs L-R comparison only.
+- Confirmed on a fresh install of dev e5ef9fc0 (2026-10-08, 16 km coupled L, freshly generated fixture): identical results with 1 and 16 threads in single precision (H 1e-2, velocity 0.85), and 1e-13 / 1.4e-12 in double precision. In single precision the error grows smoothly at the land margin (r ≈ 490–550 km, 4e-4 relative in H by 400 yr) and jumps when the margin re-advances into a cell at r ≈ 555 km, where one of the eight images fills later than the others.
+
+![B1 rerun (r_ela = 350 km, R_i = 450 km, single precision). ISLAND4-L (solid) and ISLAND4-L-R (dashed), isothermal and coupled at 32 and 16 km: D4 symmetry error of H, velocity and enthalpy, mass budget residual |r_M| per 10-yr interval (dots: closed residual |r_C|), ice volume, and margin radius along the troughs and ridges (dotted: r_lim).](figures/b1.png)
+
+B2 (2026-10-07, symmetric domain, 8 km, 451 × 3 cells, 5 kyr, default solver tolerances, laptop, one thread). Parameter file `par/yelmo_bench_FLOWLINE.nml`, check `tests/bench/check_flowline.jl`.
+
+- Periodic-y. The new `experiment = "periodic-y"` transposes `periodic-x` throughout the code. A periodic-y strip and the transposed periodic-x strip (`make_fixture.jl flowline transpose=true`, 32 km, 500 yr, tight tolerances) give identical H, z_srf, speed, β and viscosity in the single-precision output; the velocity components differ by 1e-14 relative to the speed (`tests/bench/check_transpose.jl`).
+- Friction. τ_b = β |u_b| from the output equals C |u_b|^(1/3) to 1e-4 at grounded cells.
+- Grounding line. The model grounding line lies 0.2–0.9 % downstream of the reference. Most of the shift occurs in the first 100 yr (2–10 km); afterwards x_g changes by less than 1 km, and the two sides of the divide and the three rows agree to 1 cm.
+
+| A [Pa⁻³ s⁻¹] | x_g Schoof (2007) [km] | x_g model, 5 kyr [km] | Difference | dx_g/dt, last 100 yr [m a⁻¹] | Run time [min] |
+|---|---|---|---|---|---|
+| 4.6416e-24 | 1052.5 | 1062.3 | +9.8 km (0.9 %) | −0.022 | 17 |
+| 4.6416e-25 | 1226.7 | 1230.9 | +4.1 km (0.3 %) | −0.017 | 9 |
+| 4.6416e-26 | 1492.8 | 1495.3 | +2.5 km (0.2 %) | −0.005 | 5 |
+
+- Hysteresis. Started from the steady profile of the neighbouring A values, the run with A = 4.6416e-25 does not reach the same grounding line. From the profile of 4.6416e-24 the grounding line advances in steps to 1184 km after 10 kyr (dx_g/dt = 0.006 m a⁻¹); from the profile of 4.6416e-26 it stays at 1491 km (−0.001 m a⁻¹), 264 km downstream of the reference. There, the model flux across the grounding line was given as 0.37e6 m² a⁻¹, below a x_g = 0.45e6 m² a⁻¹ (with the upwind thickness of the advection, the flux equals a x_g in steady state, see the runs below), while the boundary-layer flux at this thickness is 2.5e6 m² a⁻¹. The grounded ice is controlled by sliding and nearly independent of A, so A acts only through the boundary layer at the grounding line, which 8 km does not resolve. `beta_gl_stag = 3` or 4 instead of 1 gives the same result (1488 km after 5 kyr). At 8 km the start from the steady profile therefore does not constrain x_g: B2 needs runs from perturbed starts on both sides of the reference, and finer grids (1–4 km, not yet run).
+
+B2 resolution and start series (2026-10-07, one-sided domain, 8, 4 and 2 km (226, 451 and 901 × 3 cells), 20 kyr, default solver tolerances, albedo, 4 threads, dev 76f79db). Starts from the reference profile (ref) and with the grounding line shifted by +100 km (adv) and −100 km (ret). Figures from `scripts/b2_plots.jl`.
+
+- Divide. One-sided and symmetric runs from the reference profile (8 km) end at 1066.2 / 1062.3, 1226.9 / 1230.8 and 1499.2 / 1495.3 km (one-sided / symmetric). The symmetric runs reproduce the laptop runs above to 0.1 km. The differences of ±3.9 km are half a cell: the cell centres of the two grids are shifted by dx/2 relative to the bed, and the grounding line locks to the grid (below).
+- All runs are stationary after 20 kyr: |dx_g/dt| over the last 2 kyr is below 4e-4 m a⁻¹. The retreated starts advance in steps for up to 10 kyr (A = 4.6416e-26), all others are stationary within 1–2 kyr.
+
+| A [Pa⁻³ s⁻¹] | dx [km] | x_g, ref [km] | x_g, adv [km] | x_g, ret [km] | max \|dx_g/dt\|, last 2 kyr [m a⁻¹] | Wall time ref / adv / ret [min] |
+|---|---|---|---|---|---|---|
+| 4.6416e-24 (x_g = 1052.5) | 8 | 1066.2 (+13.7, 1.3 %) | 1152.8 (+100.4) | 1019.1 (−33.4) | 2e-5 | 5 / 7 / 10 |
+| | 4 | 1084.7 (+32.3, 3.1 %) | 1152.0 (+99.6) | 1033.4 (−19.0) | 6e-5 | 15 / 22 / 13 |
+| | 2 | 1092.2 (+39.7, 3.8 %) | 1153.8 (+101.3) | 1042.6 (−9.9) | 8e-5 | 41 / 50 / 48 |
+| 4.6416e-25 (x_g = 1226.7) | 8 | 1226.9 (+0.2, 0.0 %) | 1329.0 (+102.2) | 1187.9 (−38.9) | 2e-6 | 7 / 3 / 4 |
+| | 4 | 1229.4 (+2.6, 0.2 %) | 1328.1 (+101.3) | 1197.9 (−28.8) | 4e-5 | 8 / 7 / 8 |
+| | 2 | 1226.6 (−0.1, 0.0 %) | 1325.8 (+99.0) | 1199.0 (−27.8) | 2e-6 | 21 / 20 / 23 |
+| 4.6416e-26 (x_g = 1492.8) | 8 | 1499.2 (+6.4, 0.4 %) | 1593.2 (+100.4) | 1475.8 (−17.0) | 3e-4 | 2 / 2 / 2 |
+| | 4 | 1493.6 (+0.7, 0.0 %) | 1592.2 (+99.3) | 1474.0 (−18.9) | 2e-4 | 4 / 4 / 5 |
+| | 2 | 1492.7 (−0.2, 0.0 %) | 1591.7 (+98.9) | 1469.0 (−23.9) | 1e-5 | 11 / 10 / 13 |
+
+Differences to Schoof (2007) in km in brackets. Wall times for 4 OpenMP threads; a 2-km test over 300 yr took 1.2, 0.9, 1.3 and 1.8 min on 1, 4, 8 and 16 threads, so the strip does not profit from more threads.
+
+- Hysteresis does not shrink with resolution. The advanced starts do not retreat at all (x_g moves by less than 3 km at every resolution), and the retreated starts stop 10–39 km upstream of the reference. Only for A = 4.6416e-24 does the retreated start come closer with refinement (−33, −19, −10 km). The reference starts stay where they start (within 0.2 km at 2 km for the two stiffer cases), so their agreement with Schoof (2007) does not show that the model grounding line converges.
+- Grounding-line flux. In every final state the model flux across the grounding line equals the balance flux a x_g, as it must in steady state, but the boundary-layer flux at the model grounding-line thickness does not: q_g(h_g)/(a x_g) is 3.0, 2.1 and 1.6 for the advanced starts and 0.65–0.9 for the retreated ones, with the same values at 8 and 2 km. The model flux thus does not depend on h_g as in the boundary-layer theory, and a band of grounding-line positions around the reference is steady (neutral equilibrium).
+- A = 4.6416e-24 with DIVA. The reference start drifts downstream with refinement (+14, +32, +40 km). For this soft ice, vertical shear is not negligible: the DIVA ice sheet is about 620 m thinner at the divide than the semi-analytic sliding profile (3207 vs 3828 m at 2 km), while with `ydyn.solver = "ssa"` it matches (3854 m). The SSA runs end at 1059.2 km (8 km) and 1067.0 km (2 km, +1.4 %). The reference of Schoof (2007) therefore applies to the DIVA runs only for the stiffer two cases; for A = 4.6416e-24 the start is not steady and the transient sets where the grounding line locks.
+- The lock is not a DIVA effect: the advanced start for A = 4.6416e-25 at 2 km with `ydyn.solver = "ssa"` also stays at 1326.0 km.
+- Linear solver. At 2 km about one SSA linear solve per time step stops at the iteration limit of the default `ssa_lis_opt_energy` (CG with Jacobi, `-maxiter 200`), never at 8 and 4 km. With `-maxiter 2000` the final x_g of all nine 2-km runs is identical to 0.01 km.
+
+![B2 grounding line over time for A = 4.6416e-24, -25 and -26 Pa⁻³ s⁻¹ at 8, 4 and 2 km, from the reference (solid), advanced (dashed) and retreated (dotted) starts; black: Schoof (2007).](figures/b2_xg_time.png)
+
+![B2 final grounding line minus Schoof (2007) against resolution, for the three starts.](figures/b2_xg_resolution.png)
+
+![B2 final surface and base from the reference starts against the semi-analytic profile (dashed), full profile and near the grounding line; vertical lines: grounding lines.](figures/b2_profiles.png)
+
+![B2 flux across the grounding line against the grounding-line thickness over the runs (dots: final states), with the boundary-layer flux q_g(h_g) (black) and the balance flux a x_g (dashed).](figures/b2_flux.png)
+
+### Model changes
+
+- `ytherm.strain_heating = "full" | "sia" | "none"` replaces `ytherm.use_strain_sia` (done). A4 needs strain heating switched off.
+- `ydyn.solver = "fixed"` keeps the velocity prescribed by the driver, and the vertical velocity is still computed from continuity (exists).
+
+## Open items
+
+1. **Tests not yet implemented.** B1 (the fixture supports `land=true`; par file and runs missing), B2 (fixture with the semi-analytic start, periodic strip, par file), C1 and C2 (runs from C0; C2b needs a driver option that removes all floating ice at each step), C3a (transposed input), C3b (C0 and C1 with `rot=45`), C3c (fixture option for odd nx) and Tier D (setup and reference). A1 and B3 still run with their own drivers and move into `tests/yelmo_bench.f90` later.
+2. **Scorecard and pass thresholds.** `scripts/scorecard.jl` is not written, and the thresholds are to be set from the first round of runs. Single precision with tight tolerances stays at about 1e-6 over 1 kyr on ISLAND4 at 32 km.
+3. **C0 drift criterion.** The volume criterion does not detect a margin that oscillates at constant volume (method 4 at 8 km, see the status note of 2026-10-07). C0 also needs a criterion on velocity or grounded area.
+4. **Vertical velocity.** `uz_method = 4` (flux-consistent, [`docs/dev/uz-flux-consistent.md`](../uz-flux-consistent.md)) is implemented, but the default remains 3. At 8 km, method 4 sustains an oscillation of the grounded strip on the trough flanks, which doubles the run time through the Picard iterations. Whether this is physical or an artifact of method 4 is being tested.
+5. **Cost of C0.** C0 runs with the tight tolerances of the symmetry tests (Picard 1e-5, linear 1e-8). The routine C0 could use the default tolerances, with symmetry checked in C1 and C3. The start of the 8 km C0 from the interpolated 16 km restart is not yet tested.
+6. **Output precision.** The single-precision output limits the symmetry check to ~1e-7. A round-off check needs double-precision output of the checked fields.
+7. **Ensembles with overrides-only parameter files.** `runme -p` can only change parameters that appear in the parameter file, so a parameter taken from the defaults must be listed explicitly before it can be varied (a runme extension is being explored).
+
+## Scripts and figures
+
+| File | Purpose |
+|---|---|
+| `scripts/island4_map.jl` | Figure 1: ISLAND4 geometry and forcing profiles |
+| `scripts/scorecard.jl` | Metrics and pass/fail summary (to be written) |
+
+The scripts use the Julia environment in `scripts/`:
+
+```bash
+julia --project=docs/dev/benchmark-protocol/scripts -e 'import Pkg; Pkg.instantiate()'
+julia --project=docs/dev/benchmark-protocol/scripts docs/dev/benchmark-protocol/scripts/island4_map.jl
+```
+
+## References
+
+- Asay-Davis, X. S., et al. (2016). Experimental design for three interrelated marine ice sheet and ocean model intercomparison projects: MISMIP v. 3 (MISMIP+), ISOMIP v. 2 (ISOMIP+) and MISOMIP v. 1 (MISOMIP1). *Geosci. Model Dev.*, 9, 2471–2497.
+- Moreno-Parada, D., Robinson, A., Montoya, M., and Alvarez-Solas, J. (2024). Analytical solutions for the advective–diffusive ice column in the presence of strain heating. *The Cryosphere*, 18, 4215–4232.
+- Pattyn, F., et al. (2012). Results of the Marine Ice Sheet Model Intercomparison Project, MISMIP. *The Cryosphere*, 6, 573–588.
+- Robin, G. de Q. (1955). Ice movement and temperature distribution in glaciers and ice sheets. *J. Glaciol.*, 2, 523–532.
+- Schoof, C. (2006). A variational approach to ice stream flow. *J. Fluid Mech.*, 556, 227–251.
+- Schoof, C. (2007). Ice sheet grounding line dynamics: Steady states, stability, and hysteresis. *J. Geophys. Res.*, 112, F03S28.
+- Tsai, V. C., Stewart, A. L., and Thompson, A. F. (2015). Marine ice-sheet profiles and stability under Coulomb basal conditions. *J. Glaciol.*, 61, 205–215.
+- Weertman, J. (1957). Deformation of floating ice shelves. *J. Glaciol.*, 3, 38–42.

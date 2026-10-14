@@ -3,9 +3,20 @@ module yelmo_defs
     
     use, intrinsic :: iso_fortran_env, only : input_unit, output_unit, error_unit
     use omp_lib
+    use, intrinsic :: iso_c_binding, only : c_funptr, c_null_funptr, c_int
 
     use nml, only : nml_replace
     use variable_io, only : var_io_type
+
+    ! Shared physical constants (fesm-utils). Re-exported, since yelmo_defs is
+    ! used without `only:` throughout Yelmo and by its drivers. Only the record
+    ! and its accessors are imported: the calendar conventions that module also
+    ! defines are a program's choice, so a driver wanting one names it by using
+    ! phys_constants directly.
+    use phys_constants, only : phys_const_class, phys_const_load, phys_const_set, &
+                               phys_const_require, phys_const_get, phys_const_log, &
+                               phys_const_write, phys_const_to_nc, phys_const_compare
+
     use fast_hydrology, only : hydro_class
     use coords, only : grid_class
 
@@ -52,13 +63,18 @@ module yelmo_defs
     real(wp), parameter :: TOL           = real(1e-5,wp)
     real(wp), parameter :: TOL_UNDERFLOW = real(1e-15,wp)
 
+    ! Subgrid front: minimum area fraction behind a prescribed front (level
+    ! set) for a cell to hold ice (CISM: 0.9 on the calving mask)
+    real(wp), parameter :: A_FRONT_MIN   = real(0.1,wp)
+
     ! Values for bnd%mask_ice (ice domain mask)
     integer,  parameter :: MASK_ICE_NONE    = 0     ! No ice; ice thickness must be zero (aligns with H_ice=0)
     integer,  parameter :: MASK_ICE_FIXED   = 1     ! Ice thickness is prescribed (= H_ice_ref)
     integer,  parameter :: MASK_ICE_DYNAMIC = 2     ! Ice thickness is calculated dynamically
 
     ! Values for tpo%now%mask_frnt (ice-front mask, see topography.f90:calc_ice_front)
-    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front
+    integer,  parameter :: MASK_FRNT_ICE_FREE = -1  ! Ice-free point adjacent to an ice front (ocean: bed below sea level)
+    integer,  parameter :: MASK_FRNT_ICE_FREE_LAND = -2  ! Ice-free point adjacent to an ice front (land: bed at or above sea level)
     integer,  parameter :: MASK_FRNT_NONE     =  0  ! Not a front point
     integer,  parameter :: MASK_FRNT_FLOAT    =  1  ! Floating ice front
     integer,  parameter :: MASK_FRNT_MARINE   =  2  ! Ice front grounded below sea level
@@ -90,7 +106,6 @@ module yelmo_defs
     !real(wp)   :: rho_w          ! [kg m-3] Density water          
     !real(wp)   :: rho_sw         ! [kg m-3] Density seawater      
     !real(wp)   :: rho_a          ! [kg m-3] Density asthenosphere  
-    !real(wp)   :: rho_rock       ! [kg m-3] Density bedrock (mantle/lithosphere) 
     !real(wp)   :: L_ice          ! [J kg-1] Latent heat           
     !real(wp)   :: T_pmp_beta     ! [K Pa-1] Melt point pressure slope
 
@@ -118,10 +133,9 @@ module yelmo_defs
         character(len=56)  :: bmb_gl_method
         integer            :: fmb_method  
         integer            :: dmb_method
-        integer            :: surf_gl_method 
-        logical            :: margin2nd
-        logical            :: margin_flt_subgrid
-        character(len=56)  :: f_ice_method      ! "upstream" (H_ice/H_neighb) or "lsf" (geometric LSF area fraction)
+        character(len=12)  :: front_subgrid
+        real(wp)           :: front_H_eff_min
+        real(wp)           :: front_dHdx
         logical            :: use_bmb  
         logical            :: topo_fixed
         integer            :: topo_rel
@@ -132,6 +146,7 @@ module yelmo_defs
         real(wp)           :: Hc_ref_thin
         real(wp)           :: H_min_grnd
         real(wp)           :: H_min_flt 
+        real(wp)           :: H_min_tau 
         real(wp)           :: sd_min 
         real(wp)           :: sd_max 
         real(wp)           :: calv_grnd_max  
@@ -139,13 +154,13 @@ module yelmo_defs
         real(wp)           :: grad_lim_zb
         real(wp)           :: slope_bg_x
         real(wp)           :: slope_bg_y
-        real(wp)           :: dHdt_dyn_lim
         real(wp)           :: dist_grz
         integer            :: gl_sep 
         integer            :: gz_nx 
         real(wp)           :: gz_Hg0
         real(wp)           :: gz_Hg1
         real(wp)           :: fmb_scale
+        real(wp)           :: fmb_lambda
         real(wp)           :: k2
         real(wp)           :: w2  
         real(wp)           :: kt_ref
@@ -165,20 +180,24 @@ module yelmo_defs
         character(len=56)  :: lsf_method        ! "snap" (legacy neighbour-snap) or "redist" (Sussman/Osher)
         real(wp)           :: dt_lsf            ! [yr] periodic LSF reflag interval (<= 0 disables); only used in "snap" mode
         integer            :: lsf_redist_n_iter ! Sussman/Osher redistancing iterations; only used in "redist" mode
-        real(wp)           :: tau_ice
+        real(wp)           :: tau_ice_flt           ! [Pa] Ice strength failure, floating fronts (vm-m16)
+        real(wp)           :: tau_ice_grnd          ! [Pa] Ice strength failure, marine-grounded fronts (vm-m16)
 
         ! Internal parameters 
         real(dp)           :: time 
-        real(dp)           :: time_calv
         integer            :: nx, ny
         real(wp)           :: dx, dy
         character(len=256) :: boundaries 
         
-        character(len=256) :: pc_step 
         real(wp)   :: dt_zeta, dt_beta(4)
         integer    :: pc_k 
 
-        real(wp)   :: speed, speed_pred, speed_corr 
+        real(wp)   :: speed                     ! [kyr/hr] Model speed of the topography step (predictor + corrector + advance)
+        real(8)    :: cpu_step                  ! [s] Wall time of the topography calls of the current step
+
+        integer    :: adv_lin_iter              ! Linear solver iterations of the thickness advection this step (predictor + corrector)
+        integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
+        logical    :: advanced                  ! Ice thickness advanced this step (not topo_fixed and dt > 0)
 
     end type
 
@@ -200,9 +219,11 @@ module yelmo_defs
     type ytopo_pc_class 
         real(wp), allocatable :: H_ice(:,:)
         real(wp), allocatable :: dHidt_dyn(:,:)
+        real(wp), allocatable :: dHidt_vert(:,:)
         real(wp), allocatable :: mb_net(:,:)
         real(wp), allocatable :: mb_relax(:,:)
         real(wp), allocatable :: mb_resid(:,:)
+        real(wp), allocatable :: mb_clip(:,:)
         real(wp), allocatable :: smb(:,:)
         real(wp), allocatable :: bmb(:,:)
         real(wp), allocatable :: fmb(:,:)
@@ -211,6 +232,15 @@ module yelmo_defs
         real(wp), allocatable :: cmb_flt(:,:)
         real(wp), allocatable :: cmb_grnd(:,:)  
         real(wp), allocatable :: lsf(:,:)
+        ! Calving-rate diagnostics of the level set (stage-consistent output)
+        real(wp), allocatable :: cmb_flt_x(:,:)
+        real(wp), allocatable :: cmb_flt_y(:,:)
+        real(wp), allocatable :: cmb_grnd_x(:,:)
+        real(wp), allocatable :: cmb_grnd_y(:,:)
+        real(wp), allocatable :: cr_acx(:,:)
+        real(wp), allocatable :: cr_acy(:,:)
+        real(wp), allocatable :: calv_rate_flt(:,:)
+        real(wp), allocatable :: calv_rate_grnd(:,:)
 
     end type
 
@@ -221,6 +251,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)      ! Net mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable :: mb_relax(:,:)    ! Residual mass balance from boundary conditions, cleanup
         real(wp), allocatable :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable :: mb_clip(:,:)     ! Clip of negative ice thickness after transport
         real(wp), allocatable :: mb_err(:,:)      ! Residual error in mass balance accounting 
         real(wp), allocatable :: smb(:,:)         ! Net smb applied
         real(wp), allocatable :: bmb(:,:)         ! Net combined field of bmb_grnd and bmb_shlf 
@@ -245,10 +276,15 @@ module yelmo_defs
         real(wp), allocatable   :: H_ice(:,:)       ! Ice thickness [m] 
         real(wp), allocatable   :: dHidt(:,:)       ! Ice thickness rate of change [m/a] 
         real(wp), allocatable   :: dHidt_dyn(:,:)
+        real(wp), allocatable   :: dHidt_vert(:,:)  ! [m/a] Vertical thickness change of the ice column (advection, smb, bmb, relaxation)
+        real(wp), allocatable   :: dzsdt_kin(:,:)   ! [m/a] Kinematic rate of the column surface (vertical-velocity boundary condition)
+        real(wp), allocatable   :: dzbdt_kin(:,:)   ! [m/a] Kinematic rate of the column base (vertical-velocity boundary condition)
+        integer,  allocatable   :: mask_kin(:,:)    ! 1: column rate given by the applied thickness step (dHidt_vert), 0: otherwise
 
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
         real(wp), allocatable   :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable   :: mb_clip(:,:)     ! [m/a] Clip of negative ice thickness after transport (not in dHidt_dyn)
         real(wp), allocatable   :: mb_err(:,:)      ! Residual error in mass balance accounting 
 
         real(wp), allocatable   :: smb(:,:)         ! Actual smb applied [m/a]
@@ -261,10 +297,12 @@ module yelmo_defs
         real(wp), allocatable   :: fmb_ref(:,:)     ! Combined field of fmb_grnd and fmb_shlf    
         real(wp), allocatable   :: dmb_ref(:,:)     ! Subgrid discharge mb rate
 
-        real(wp), allocatable   :: cmb_flt(:,:)     ! Reference floating calving rate, aa-node [m/a]
+        real(wp), allocatable   :: cmb_flt(:,:)     ! Calving mass balance applied in floating cells (f_grnd = 0) [m/a]
         real(wp), allocatable   :: cmb_flt_x(:,:)   ! Reference floating calving rate, ac-node [m/a]
         real(wp), allocatable   :: cmb_flt_y(:,:)   ! Reference floating calving rate, ac-node [m/a]
-        real(wp), allocatable   :: cmb_grnd(:,:)    ! Reference grounded calving rate [m/a]
+        real(wp), allocatable   :: cmb_grnd(:,:)    ! Calving mass balance applied in grounded cells [m/a]
+        real(wp), allocatable   :: calv_rate_flt(:,:)  ! Calving speed of floating front cells (level set) [m/a]
+        real(wp), allocatable   :: calv_rate_grnd(:,:) ! Calving speed of grounded front cells (level set) [m/a]
         real(wp), allocatable   :: cmb_grnd_x(:,:)  ! Reference grounded calving rate, ac-node [m/a]
         real(wp), allocatable   :: cmb_grnd_y(:,:)  ! Reference grounded calving rate, ac-node [m/a]
         real(wp), allocatable   :: cr_acx(:,:)      ! LSF net calving rate, ac-node [m/a]
@@ -323,6 +361,7 @@ module yelmo_defs
         real(wp), allocatable   :: dHidt_dyn_raw(:,:)   ! [m/a] Raw advective rate at current state (f_n), set each predictor
         real(wp), allocatable   :: dHidt_dyn_raw_n(:,:) ! [m/a] Raw advective rate at previous step (f_{n-1})
         real(wp), allocatable   :: H_ice_n(:,:)     ! [m] Ice thickness from the previous timestep 
+        real(wp), allocatable   :: H_ice_dyn_n(:,:) ! [m] Active column thickness (H_ice_dyn) from the previous timestep
         real(wp), allocatable   :: z_srf_n(:,:)     ! [m] Surface elevation from the previous timestep 
         real(wp), allocatable   :: lsf_n(:,:)       ! [-] LSF mask from previous timestep 
 
@@ -341,6 +380,16 @@ module yelmo_defs
         type(ytopo_pc_class)    :: pc           ! pc-related variables
         type(rk4_class)         :: rk4 
         
+    end type
+
+    ! Topography supplied by a coupled driver in place of a file read
+    ! (yelmo_init arguments topo_init and topo_pd). z_bed_sd and z_srf may be
+    ! left unallocated when not available (topo_pd requires z_srf).
+    type ytopo_input_class
+        real(wp), allocatable :: H_ice(:,:)       ! [m] Ice thickness
+        real(wp), allocatable :: z_bed(:,:)       ! [m] Bedrock elevation
+        real(wp), allocatable :: z_bed_sd(:,:)    ! [m] Standard deviation of bedrock elevation
+        real(wp), allocatable :: z_srf(:,:)       ! [m] Surface elevation
     end type
 
     ! =========================================================================
@@ -406,13 +455,15 @@ module yelmo_defs
         real(wp)   :: H_grnd_lim  
         real(wp)   :: beta_min              ! Minimum allowed value of beta
         real(wp)   :: eps_0                 ! Minimum assumed strain rate for effective viscosity regularization
-        integer    :: scale_T
-        real(wp)   :: T_frz
-        character(len=56)  :: ssa_solver           ! "residual" (default) | "energy"
+        logical    :: frz_scale             ! Reduce sliding where the bed is below the pressure melting point?
+        real(wp)   :: frz_efold             ! [K] e-folding temperature of the sliding speed
+        real(wp)   :: frz_min               ! [-] Minimum sliding-speed factor for frozen beds
+        character(len=56)  :: ssa_solver           ! "residual" | "energy" (default)
         character(len=256) :: ssa_lis_opt_residual ! LIS solver options for residual formulation
         character(len=256) :: ssa_lis_opt_energy   ! LIS solver options for energy formulation (SPD => CG/AMG)
         character(len=56)  :: ssa_lat_bc
-        real(wp)   :: ssa_beta_max          ! Maximum value of beta for which ssa should be calculated
+        character(len=56)  :: ssa_vel_lim_method   ! "clip": clip each component at ssa_vel_max; "drag": speed-limit drag on all free faces, plus the clip
+        real(wp)   :: ssa_vel_lim_tau      ! [Pa] Speed-limit drag at ssa_vel_max ("drag")
         real(wp)   :: ssa_vel_max
         integer    :: ssa_iter_max 
         real(wp)   :: ssa_iter_rel 
@@ -452,6 +503,9 @@ module yelmo_defs
         real(dp)   :: time
 
         integer    :: ssa_iter_now              ! Number of iterations used for Picard iteration to solve ssa this timestep
+        integer    :: ssa_lin_iter              ! Linear solver iterations of the last ssa solve (summed over Picard iterations)
+        integer    :: ssa_lin_fail              ! Linear solves of the last ssa solve that ended at breakdown or the iteration limit
+        integer    :: ssa_lim_n                 ! Faces at the velocity limit after the last ssa solve (drag active or clipped)
         real(wp)   :: speed 
 
         logical    :: init_state_set
@@ -466,6 +520,7 @@ module yelmo_defs
         real(wp), allocatable :: uxy(:,:,:)
         real(wp), allocatable :: uz(:,:,:)  
         real(wp), allocatable :: uz_star(:,:,:)
+        real(wp), allocatable :: uz_srf_err(:,:)    ! [m/yr] uz_star at the surface + smb (0 if consistent)
         
         real(wp), allocatable :: ux_bar(:,:) 
         real(wp), allocatable :: uy_bar(:,:)
@@ -473,6 +528,11 @@ module yelmo_defs
 
         real(wp), allocatable :: ux_bar_prev(:,:) 
         real(wp), allocatable :: uy_bar_prev(:,:)
+
+        ! Active ice geometry of the last velocity solution (tpo%now%H_ice_dyn and
+        ! f_ice_dyn when calc_ydyn ran): the geometry of the strain rates
+        real(wp), allocatable :: H_ice_solv(:,:)
+        real(wp), allocatable :: f_ice_solv(:,:)
 
         real(wp), allocatable :: ux_b(:,:) 
         real(wp), allocatable :: uy_b(:,:)
@@ -525,6 +585,7 @@ module yelmo_defs
         real(wp), allocatable :: cb_tgt(:,:)
         real(wp), allocatable :: cb_ref(:,:)
         real(wp), allocatable :: c_bed(:,:)  
+        real(wp), allocatable :: f_slide(:,:)      ! Frozen-bed sliding-speed factor
         real(wp), allocatable :: beta_acx(:,:) 
         real(wp), allocatable :: beta_acy(:,:) 
         real(wp), allocatable :: beta(:,:)         
@@ -548,6 +609,12 @@ module yelmo_defs
 
         type(ydyn_param_class)    :: par        ! physical parameters
         type(ydyn_state_class)    :: now
+
+        ! Effective-pressure callback of a host that owns the hydrology (e.g. Julia FastHydrology
+        ! through the C API, yelmo_set_neff_callback): called in every DIVA Picard iteration with
+        ! the basal speed [m/yr] on aa-nodes, returns N [Pa]. Unset: c_null_funptr.
+        type(c_funptr)            :: neff_cb    = c_null_funptr
+        integer(c_int)            :: neff_cb_tag = 0   ! handed back to the host with every call
 
     end type
 
@@ -650,18 +717,23 @@ module yelmo_defs
         logical           :: use_euler          ! In-tree Eulerian age tracer (ice_tracer solver)
         logical           :: use_tracer         ! Lagrangian particle backend (tracer library)
         logical           :: use_elsa           ! Lagrangian layer backend (elsa library)
+        logical           :: elsa_restart       ! On a restart, restore elsa's layers (False: start them fresh)
         character(len=56) :: t_dep_source       ! "euler"|"tracer"|"elsa": fills authoritative t_dep
 
         ! elsa layer-stack sizing: elsa allocates its isochrone stack once at init
         ! from (time_end - time)/layer_resolution and never grows it, so the run's
-        ! end time must be known up front. Set to the simulation end time.
-        real(wp)          :: time_end
+        ! end time must be known up front. Set to the simulation end time (default
+        ! 0.0: present day; ytrc_init stops if it is not later than the start time).
+        real(dp)          :: time_end
 
         ! Eulerian backend parameters (migrated from ymat)
         logical               :: calc_age            ! Master switch for the Eulerian age tracer
         real(wp), allocatable :: time_iso(:)         ! Target isochrone deposition times [ka]
         character(len=56)     :: tracer_method       ! "expl"|"impl"
         real(wp)              :: tracer_impl_kappa    ! Artificial diffusivity for implicit solver
+        integer               :: advecxy_order       ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        real(wp)              :: advecxy_cfl         ! Target Courant number per horizontal-advection sub-step
+        integer               :: advecxy_nmax        ! Max horizontal-advection sub-steps (safety cap)
 
         ! Sub-model namelist locations. elsa reads a named group (elsa_group);
         ! tracer always reads its fixed "trc" group, so only the file is needed.
@@ -675,6 +747,7 @@ module yelmo_defs
 
         ! Internal parameters
         real(dp)   :: time
+        real(dp)   :: t_ref_euler                    ! [yr] Reference time of the Eulerian tracer (its cold start)
         real(wp)   :: dx, dy
         integer    :: nx, ny, nz_aa, nz_ac
         integer    :: n_iso                          ! Number of isochrones (derived from time_iso)
@@ -688,7 +761,8 @@ module yelmo_defs
 
         ! Model-agnostic harmonized fields, all on the host (nx,ny,nz_aa) sigma grid.
         real(wp), allocatable :: t_dep(:,:,:)        ! Authoritative deposition time (copy of chosen source)
-        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian native field (also the restart variable)
+        real(wp), allocatable :: t_dep_euler(:,:,:)  ! Eulerian deposition time (t_ref_euler + t_dep_euler_rel)
+        real(wp), allocatable :: t_dep_euler_rel(:,:,:) ! Eulerian native field, relative to t_ref_euler (also the restart variable)
         real(wp), allocatable :: t_dep_trc(:,:,:)    ! Gridded from Lagrangian particles (gappy diagnostic)
         real(wp), allocatable :: t_dep_elsa(:,:,:)   ! Gridded from the isochrone layer stack (diagnostic)
         real(wp), allocatable :: depth_iso(:,:,:)    ! Authoritative isochrone depths (nx,ny,n_iso)
@@ -732,7 +806,7 @@ module yelmo_defs
         integer             :: nzr_aa    ! Number of vertical points in bedrock (layer centers, plus base and surface)
         integer             :: nzr_ac    ! Number of vertical points in bedrock (layer boundaries)
         real(wp)            :: gamma  
-        logical             :: use_strain_sia 
+        character(len=56)   :: strain_heating   ! "full" | "sia" | "none"
         logical             :: use_const_cp 
         real(wp)            :: const_cp 
         logical             :: use_const_kt 
@@ -740,8 +814,16 @@ module yelmo_defs
         real(wp)            :: enth_cr
         real(wp)            :: omega_max
         real(wp)            :: H_ice_thin       ! [m] Thickness threshold below which the column solver is skipped (linear profile imposed)
-        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT)
+        character(len=56)   :: enth_cp_method   ! "const" (A1, cp_ref) or "integral" (A2, int cp dT); "const" if use_const_cp
         logical             :: enth_integral    ! derived: enth_cp_method == "integral"
+        real(wp)            :: enth_cp0         ! derived: [J kg-1 K-1] A1 constant cp, const_cp if use_const_cp, else cp_ref
+
+        ! Grounded basal boundary condition
+        character(len=56)   :: basal_bc_method  ! "wtil" (legacy till-water predictor) or "capacity" (bmb_grnd* vs freeze-on capacity)
+        character(len=56)   :: cap_source       ! "auto", "hyd" (hyd%now%C_frz), "till" (bucket W_til), "water" (water thickness W) or "none" (C=0)
+        real(wp)            :: cap_W_floor      ! [m] floor subtracted from the water thickness in the "water" fallback
+        logical             :: gl_temperate     ! Hold grounded bases next to floating ice / open ocean at T_pmp
+        real(wp)            :: cap_eps          ! [m/a ice equiv.] capacity below which the bed counts as dry
 
         ! Note: till_rate and H_w_max moved to the hyd (fasthydrology)
         ! component as par%bucket%till_rate and par%W_til_max.
@@ -754,7 +836,7 @@ module yelmo_defs
         character (len=56)  :: zeta_scale_rock  
         real(wp)            :: zeta_exp_rock 
         real(wp)            :: H_rock 
-        real(wp)            :: cp_rock
+        real(wp)            :: rhoc_rock
         real(wp)            :: kt_rock
         
         ! Internal parameters
@@ -769,7 +851,7 @@ module yelmo_defs
 
     ! ytherm state variables
     type ytherm_state_class
-        real(wp), allocatable :: enth(:,:,:)      ! [J m-3] Ice enthalpy 
+        real(wp), allocatable :: enth(:,:,:)      ! [J kg-1] Ice enthalpy 
         real(wp), allocatable :: T_ice(:,:,:)     ! [K]     Ice temp. 
         real(wp), allocatable :: omega(:,:,:)     ! [--]    Ice water content
         real(wp), allocatable :: T_pmp(:,:,:)     ! Pressure-corrected melting point
@@ -790,12 +872,17 @@ module yelmo_defs
         real(wp), allocatable :: cp(:,:,:)        ! Specific heat capacity  
         real(wp), allocatable :: kt(:,:,:)        ! Heat conductivity  
         real(wp), allocatable :: H_cts(:,:)       ! Height of the cts
+
+        ! Grounded basal boundary condition diagnostics
+        real(wp), allocatable :: bmb_grnd_star(:,:) ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
+        real(wp), allocatable :: bc_b(:,:)          ! [--] basal BC used: 0 not grounded/solved, 1 held at T_pmp, 2 flux
+        real(wp), allocatable :: bmb_clamp(:,:)     ! [m/a] freeze-on removed by the capacity safety clamp
+        real(wp), allocatable :: melt_int(:,:)      ! [m/a ice equiv.] englacial water drained to the bed (in bmb_grnd)
         
         real(wp), allocatable :: advecxy(:,:,:)
         
         ! Bedrock / lithosphere 
         real(wp), allocatable :: Q_rock(:,:)
-        real(wp), allocatable :: enth_rock(:,:,:)
         real(wp), allocatable :: T_rock(:,:,:)
 
     end type
@@ -823,7 +910,6 @@ module yelmo_defs
         real(wp)   :: rho_w          ! [kg m-3] Density water          
         real(wp)   :: rho_sw         ! [kg m-3] Density seawater      
         real(wp)   :: rho_a          ! [kg m-3] Density asthenosphere  
-        real(wp)   :: rho_rock       ! [kg m-3] Density bedrock (mantle/lithosphere) 
         real(wp)   :: L_ice          ! [J kg-1] Latent heat           
         real(wp)   :: T_pmp_beta     ! [K Pa-1] Melt point pressure slope
 
@@ -843,8 +929,12 @@ module yelmo_defs
 
         type(ybound_const_class) :: c       ! Physical constants for the domain
 
-        ! Region constants
-        real(wp)   :: index_grl   = 1.3   ! Greenland region number
+        ! The shared record that `c` mirrors, kept so that a driver can hand the
+        ! same constants to the other components of a coupled program without
+        ! loading the parameter file a second time, and without having to know
+        ! which group Yelmo selected. Whether Yelmo loaded it or the driver
+        ! supplied it, this is the set the domain is running with.
+        type(phys_const_class)   :: cnst
 
         ! Variables that save the current boundary conditions
         real(wp), allocatable :: z_bed(:,:)
@@ -856,16 +946,17 @@ module yelmo_defs
         real(wp), allocatable :: bmb_shlf(:,:)
         real(wp), allocatable :: fmb_shlf(:,:) 
         real(wp), allocatable :: T_shlf(:,:)
+        real(wp), allocatable :: tf_shlf(:,:)
         real(wp), allocatable :: Q_geo(:,:)
         real(wp), allocatable :: Qd(:,:)
 
         real(wp), allocatable :: enh_srf(:,:)
 
-        ! Useful masks
-        real(wp), allocatable :: basins(:,:) 
-        real(wp), allocatable :: basin_mask(:,:)
-        real(wp), allocatable :: regions(:,:) 
-        real(wp), allocatable :: region_mask(:,:) 
+        ! Useful masks (from the FesmData regions, see ybound_load_masks)
+        real(wp), allocatable :: basins(:,:)            ! basin ids (0 = no basin)
+        real(wp), allocatable :: basin_mask(:,:)        ! 1 within the original extent of the basins
+        real(wp), allocatable :: regions(:,:)           ! region codes, deepest level (0 = none)
+        logical,  allocatable :: mask_rmse(:,:)         ! where the error metrics are computed
 
         logical,  allocatable :: calv_mask(:,:)         ! for calv_method="kill-loc", where calv_mask==False, calv.
         
@@ -890,7 +981,15 @@ module yelmo_defs
         ! Internal variables
         real(wp), allocatable :: z_bed_corr(:,:) 
         real(wp), allocatable :: dzbdt_corr(:,:) 
-        real(wp) :: restart_relax_init
+        real(dp) :: restart_relax_init
+
+        ! Rates of bedrock elevation and sea level between yelmo_update calls
+        real(wp), allocatable :: z_bed_n(:,:)       ! [m] Bedrock elevation at the previous call
+        real(wp), allocatable :: z_sl_n(:,:)        ! [m] Sea level at the previous call
+        real(wp), allocatable :: dz_bed_dt(:,:)     ! [m/a] Bedrock elevation rate
+        real(wp), allocatable :: dz_sl_dt(:,:)      ! [m/a] Sea-level rate
+        real(dp) :: time_n                          ! [a] Time of the previous call
+        logical  :: rates_init                      ! z_bed_n, z_sl_n and time_n are set
     end type
 
     ! =========================================================================
@@ -974,6 +1073,7 @@ module yelmo_defs
         ! ===== Total ice variables =====
         real(wp)   :: H_ice, z_srf,dHidt, H_ice_max, dzsdt
         real(wp)   :: V_ice, A_ice, dVidt, fwf, dmb, cmb, cmb_flt,  cmb_grnd
+        real(wp)   :: smb_tot, bmb_tot, fmb_tot, mb_relax_tot, mb_resid_tot, mb_clip_tot
         real(wp)   :: V_sl, V_sle
         real(wp)   :: uxy_bar, uxy_s, uxy_b, z_bed, smb, T_srf, bmb
         real(wp)   :: lsf
@@ -1014,6 +1114,7 @@ module yelmo_defs
         character (len=512) :: grid_path
         character (len=512) :: phys_const
         character (len=256) :: experiment
+        character (len=56)  :: mask_border     ! Ice mask on the domain border: auto, none, fixed, dynamic
         
         ! nml group names
         character(len=32)   :: nml_ytopo
@@ -1062,6 +1163,11 @@ module yelmo_defs
         integer             :: pc_n_redo 
         real(wp)            :: pc_tol 
         real(wp)            :: pc_eps  
+        real(wp)            :: pc_cfl_max 
+        real(wp)            :: pc_rho_max 
+        real(wp)            :: pc_eta_H_min
+        real(wp)            :: pc_eta_u_min
+        real(wp)            :: pc_eta_trim
 
         ! Regions
         integer             :: n_reg
@@ -1105,7 +1211,7 @@ module yelmo_defs
         logical :: pc_active
 
         ! Metrics output state (yelmo_metrics.nc)
-        real(wp) :: metrics_time_write   ! Model time of the last metrics record
+        real(dp) :: metrics_time_write   ! Model time of the last metrics record
         logical  :: metrics_init_done    ! Has the metrics file been created yet?
 
     end type
@@ -1172,7 +1278,7 @@ contains
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  value      = '", trim(value), "'"
             write(io_unit_err,*) "  allowed    = ", trim(allowed)
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1197,7 +1303,7 @@ contains
             write(io_unit_err,*) "yelmo_check_file:: Error: file not found."
             write(io_unit_err,*) "  group.name = ", trim(group), ".", trim(name)
             write(io_unit_err,*) "  path       = '", trim(path), "'"
-            stop "Program stopped."
+            error stop 1
         end if
 
         return
@@ -1292,7 +1398,7 @@ contains
         if (narg .ne. 1) then 
             write(*,*) "yelmo_load_command_line_args:: Error: The following &
             &argument must be provided: path_par"
-            stop 
+            error stop 1
         end if 
 
         call get_command_argument(1,path_par)
@@ -1348,7 +1454,7 @@ contains
 
             if (.not. present(time0)) then  
                 write(*,*) "yelmo_cpu_time:: Error: time0 argument is missing, but necessary."
-                stop
+                error stop 1
             end if 
             
             ! Calculate the difference between current time and time0 in [s]
@@ -1359,7 +1465,7 @@ contains
                 write(*,*) "yelmo_cpu_time:: Error: dtime cannot equal zero - check precision of timing variables, &
                             &which should be real(kind=8) to maintain precision."
                 write(*,*) "clock", time, time0, dtime  
-                stop  
+                error stop 1
             end if 
 
         end if 
@@ -1376,8 +1482,8 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: speed            ! [kyr / hr]
-        real(wp), intent(IN)  :: model_time0      ! [yr]
-        real(wp), intent(IN)  :: model_time1      ! [yr]
+        real(dp), intent(IN)  :: model_time0      ! [yr]
+        real(dp), intent(IN)  :: model_time1      ! [yr]
         real(8),    intent(IN)  :: cpu_time0        ! [sec]
         real(8),    intent(IN)  :: cpu_time1        ! [sec]
 
@@ -1435,7 +1541,7 @@ contains
                 case DEFAULT 
                     write(*,*) "yelmo_calc_running_stats:: Error: stat not found."
                     write(*,*) "stat = ", trim(stat) 
-                    stop 
+                    error stop 1
 
             end select 
                    

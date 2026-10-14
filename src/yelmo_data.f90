@@ -7,13 +7,16 @@ module yelmo_data
     use yelmo_tools, only : adjust_topography_gradients
     use topography 
     use lsf_module
+    use interp2D, only : fill_nearest
     
     implicit none
     
     private
     public :: ydata_alloc, ydata_dealloc
     public :: ydata_par_load, ydata_load 
+    public :: ydata_mask_pd_topo
     public :: ydata_compare
+    public :: ydata_fill_topo_gaps
 
 contains
 
@@ -49,7 +52,11 @@ contains
 
         dta%pd%err_H_ice   = tpo%now%H_ice - dta%pd%H_ice 
         dta%pd%err_z_srf   = tpo%now%z_srf - dta%pd%z_srf 
-        dta%pd%err_smb     = bnd%smb - dta%pd%smb 
+        where (dta%pd%smb .ne. mv)
+            dta%pd%err_smb = bnd%smb - dta%pd%smb
+        elsewhere
+            dta%pd%err_smb = mv
+        end where
         dta%pd%err_uxy_s   = dyn%now%uxy_s - dta%pd%uxy_s 
         
         ! Isochronal layer error 
@@ -81,13 +88,8 @@ contains
 
         ! Calculate region over which to calculate metrics 
 
-        ! By default, calculate everywhere 
-        mask_region = .TRUE. 
-
-        ! For Greenland, limit to continental Greenland where data is defined currently
-        if (trim(domain) .eq. "Greenland") then 
-            where (bnd%regions .ne. 1.3) mask_region = .FALSE. 
-        end if 
+        ! From the masks (yelmo_masks.mask_rmse)
+        mask_region = bnd%mask_rmse
 
         allocate(tmp(nx,ny))
         allocate(tmp1(nx,ny))
@@ -165,7 +167,7 @@ contains
 
     end subroutine ydata_compare
 
-    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group)
+    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group,topo_pd)
 
         implicit none 
 
@@ -176,16 +178,17 @@ contains
         real(wp),           intent(IN)    :: dx 
         character(len=*),   intent(IN)    :: boundaries 
         character(len=*),  intent(IN), optional :: group
+        type(ytopo_input_class), intent(IN), optional :: topo_pd    ! Present-day topography supplied by the driver (replaces pd_topo_path)
 
         ! Local variables 
         character(len=1028) :: filename 
         character(len=56)   :: nms(4) 
+        logical             :: has_sd
         real(wp)            :: z_bed_f_sd
         real(wp), allocatable :: z_bed_sd(:,:) 
         real(wp), allocatable :: tmp(:,:,:) 
+        real(wp)            :: smb_conv
         character(len=32) :: nml_group
-
-        real(wp), allocatable :: z_sl_pd(:,:)
 
         ! Make sure we know the namelist group for the yelmo_init_topo block
         if (present(group)) then
@@ -197,28 +200,54 @@ contains
         ! Allocate temporary array for loading monthly data 
         allocate(z_bed_sd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
         allocate(tmp(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2),12))
-        allocate(z_sl_pd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
 
-        z_sl_pd = 0.0_wp    ! [m] Define present day relative sea level as zero
+        ! Present-day topography supplied by the driver counts as loaded
+        if (present(topo_pd)) dta%par%pd_topo_load = .TRUE.
 
-        if (dta%par%pd_topo_load) then 
-            ! Load present-day data from specified files and fields
+        if (dta%par%pd_topo_load) then
+            ! Load present-day data from specified files and fields,
+            ! or take them as supplied by the driver. Kept as read here:
+            ! ydata_mask_pd_topo applies mask_ice and derives the masks.
 
-            ! =========================================
-            ! Load topography data from netcdf file 
-            filename = dta%par%pd_topo_path
-            nms(1:4) = dta%par%pd_topo_names 
+            if (present(topo_pd)) then
 
-            call nc_read(filename,nms(1), dta%pd%H_ice, missing_value=mv)
-            call nc_read(filename,nms(2), dta%pd%z_bed, missing_value=mv) 
+                dta%pd%H_ice = topo_pd%H_ice
+                dta%pd%z_bed = topo_pd%z_bed
+                dta%pd%z_srf = topo_pd%z_srf
             
-            ! If available read in bedrock standard deviation field
-            if (trim(nms(3)) .ne. ""     .and. &
-                trim(nms(3)) .ne. "none" .and. &
-                trim(nms(3)) .ne. "None") then 
+                has_sd = allocated(topo_pd%z_bed_sd)
+                z_bed_sd = 0.0_wp
+                if (has_sd) z_bed_sd = topo_pd%z_bed_sd
 
-                ! Read in z_bed_sd
-                call nc_read(filename,nms(3),z_bed_sd)
+            else
+
+                ! =========================================
+                ! Load topography data from netcdf file
+                filename = dta%par%pd_topo_path
+                nms(1:4) = dta%par%pd_topo_names
+
+                call yelmo_check_file("yelmo_data","pd_topo_path",filename)
+
+                call nc_read(filename,nms(1), dta%pd%H_ice, missing_value=mv)
+                call nc_read(filename,nms(2), dta%pd%z_bed, missing_value=mv)
+
+                ! If available read in bedrock standard deviation field
+                has_sd = (trim(nms(3)) .ne. ""     .and. &
+                          trim(nms(3)) .ne. "none" .and. &
+                          trim(nms(3)) .ne. "None")
+
+                z_bed_sd = 0.0_wp
+                if (has_sd) call nc_read(filename,nms(3),z_bed_sd, missing_value=mv)
+
+                call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
+
+            end if
+
+            ! Fill the gaps of the dataset (e.g. outside its coverage)
+            call ydata_fill_topo_gaps(dta%pd%H_ice,dta%pd%z_bed,dta%pd%z_srf,z_bed_sd, &
+                                      bnd%c%rho_ice,bnd%c%rho_sw)
+
+            if (has_sd) then
 
                 ! Determine scaling factor from yelmo_init_topo parameter choice
                 ! Note: reading from "yelmo_init_topo" section is not optimal,
@@ -228,7 +257,8 @@ contains
                 ! parameter choice is the same for both cases. Perhaps this can
                 ! be improved though.
 
-                call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd)
+                call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd, &
+                        defaults_file="input/yelmo_defaults.nml",defaults_group="yelmo_init_topo")
 
                 ! Apply scaling to adjust z_bed depending on standard deviation
                 ! Use scaling suppied as input argument
@@ -238,11 +268,8 @@ contains
                 ! No scaling loaded or applied
 
                 z_bed_f_sd = 0.0_wp
-                z_bed_sd   = 0.0_wp 
 
             end if 
-            
-            call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
             
             ! Remove englacial lakes for better comparison with model
             ! Assume sea level is present day level of 0.
@@ -258,25 +285,6 @@ contains
             ! Adjust bedrock and ice thickness for smoothness
             call adjust_topography_gradients(dta%pd%z_bed,dta%pd%H_ice,grad_lim_zb,dx,boundaries)
 
-            ! Artificially delete ice from locations that are not allowed
-            where (bnd%mask_ice .eq. MASK_ICE_NONE)
-                dta%pd%H_ice = 0.0
-                dta%pd%z_srf = max(dta%pd%z_bed,0.0)
-            end where
-            
-            ! Calculate H_grnd (ice thickness overburden)
-            ! (extracted from `calc_H_grnd` in topography)
-            dta%pd%H_grnd = dta%pd%H_ice - (bnd%c%rho_sw/bnd%c%rho_ice)*max(z_sl_pd-dta%pd%z_bed,0.0_wp)
-
-            ! Calculate LSF
-            call LSFinit(dta%pd%lsf,dta%pd%H_ice,dta%pd%z_bed,z_sl_pd,dx)
-
-            ! Define the mask to be consistent with internal mask_bed calculations
-            dta%pd%mask_bed = mask_bed_ocean
-            where(dta%pd%H_ice .eq. 0.0 .and. dta%pd%z_srf .gt. 0.0)  dta%pd%mask_bed = mask_bed_land
-            where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .lt. 0.0) dta%pd%mask_bed = mask_bed_float
-            where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .ge. 0.0) dta%pd%mask_bed = mask_bed_frozen
-
         end if 
 
         if (dta%par%pd_tsrf_load) then 
@@ -290,7 +298,7 @@ contains
             if (dta%par%pd_tsrf_monthly) then
                 ! Monthly data => annual mean 
                 call nc_read(filename,nms(1), tmp, missing_value=mv)
-                dta%pd%T_srf = sum(tmp,dim=3) / 12.0
+                call ydata_annual_mean(dta%pd%T_srf,tmp)
             else 
                 ! Annual mean 
                 call nc_read(filename,nms(1), dta%pd%T_srf, missing_value=mv)
@@ -299,7 +307,7 @@ contains
             ! Make sure temperatures are in Kelvin 
             if (minval(dta%pd%T_srf,mask=dta%pd%T_srf .ne. mv) .lt. 100.0) then
                 ! Probably in Celcius, convert...
-                dta%pd%T_srf = dta%pd%T_srf + 273.15 
+                where (dta%pd%T_srf .ne. mv) dta%pd%T_srf = dta%pd%T_srf + 273.15
             end if 
 
         end if 
@@ -314,21 +322,17 @@ contains
 
             if (dta%par%pd_smb_monthly) then 
                 call nc_read(filename,nms(1), tmp, missing_value=mv)
-                dta%pd%smb = sum(tmp,dim=3) / 12.0
-
-                ! Convert from mm we / day to m ie / a 
-                dta%pd%smb = dta%pd%smb * bnd%c%conv_mmdwe_maie
-
+                call ydata_annual_mean(dta%pd%smb,tmp)
             else 
                 call nc_read(filename,nms(1), dta%pd%smb, missing_value=mv)
-
-                ! Convert from mm we / a to m ie / a 
-                dta%pd%smb = dta%pd%smb * bnd%c%conv_mmawe_maie
-
             end if 
 
+            ! Convert from the units of the file (mm we per day or year) to m ie / a
+            smb_conv = smb_units_conv(filename,nms(1),bnd%c)
+            where (dta%pd%smb .ne. mv) dta%pd%smb = dta%pd%smb * smb_conv
+
             ! Clean smb to avoid tiny values 
-            where (abs(dta%pd%smb) .lt. 1e-3) dta%pd%smb = 0.0
+            where (dta%pd%smb .ne. mv .and. abs(dta%pd%smb) .lt. 1e-3) dta%pd%smb = 0.0
             
         end if 
 
@@ -344,18 +348,6 @@ contains
             call nc_read(filename,nms(2), dta%pd%uy_s, missing_value=mv)
             where (dta%pd%ux_s .ne. mv .and. dta%pd%uy_s .ne. mv) &
                 dta%pd%uxy_s = sqrt(dta%pd%ux_s**2 + dta%pd%uy_s**2)
-
-            ! Make sure that velocity is zero where no ice exists 
-            ! (if data was loaded)
-            if (dta%par%pd_topo_load) then 
-
-                where (dta%pd%H_ice .lt. 1.0) 
-                    dta%pd%ux_s  = 0.0 
-                    dta%pd%uy_s  = 0.0 
-                    dta%pd%uxy_s = 0.0 
-                end where 
-
-            end if 
 
         end if 
 
@@ -384,9 +376,9 @@ contains
         write(*,*) "ydata_load:: range(z_srf):     ",   minval(dta%pd%z_srf),   maxval(dta%pd%z_srf)
         write(*,*) "ydata_load:: range(z_bed):     ",   minval(dta%pd%z_bed),   maxval(dta%pd%z_bed)
         write(*,*) "ydata_load:: range(z_bed_sd):  ",   minval(z_bed_sd),       maxval(z_bed_sd)
-        write(*,*) "ydata_load:: range(mask_bed):  ",   minval(dta%pd%mask_bed),maxval(dta%pd%mask_bed)
         write(*,*) "ydata_load:: scaling fac z_bed_f_sd: ", z_bed_f_sd  
-        write(*,*) "ydata_load:: range(T_srf):     ",   minval(dta%pd%T_srf),   maxval(dta%pd%T_srf)
+        write(*,*) "ydata_load:: range(T_srf):     ",   minval(dta%pd%T_srf,dta%pd%T_srf .ne. mv), &
+                                                        maxval(dta%pd%T_srf,dta%pd%T_srf .ne. mv)
         write(*,*) "ydata_load:: range(smb):       ",   minval(dta%pd%smb,dta%pd%smb .ne. mv), &
                                                         maxval(dta%pd%smb,dta%pd%smb .ne. mv)
         write(*,*) "ydata_load:: range(uxy_s):     ",   minval(dta%pd%uxy_s,dta%pd%uxy_s .ne. mv), &
@@ -399,6 +391,172 @@ contains
         return 
 
     end subroutine ydata_load
+
+    subroutine ydata_mask_pd_topo(dta,bnd,dx)
+        ! The present-day topography in the domain of the model, once
+        ! bnd%mask_ice is final: delete the ice where it is not allowed
+        ! (MASK_ICE_NONE), then derive H_grnd, lsf and mask_bed, and set the
+        ! velocity to zero where there is no ice.
+
+        implicit none
+
+        type(ydata_class),  intent(INOUT) :: dta
+        type(ybound_class), intent(IN)    :: bnd
+        real(wp),           intent(IN)    :: dx
+
+        ! Local variables
+        real(wp), allocatable :: z_sl_pd(:,:)
+
+        if (.not. dta%par%pd_topo_load) return
+
+        allocate(z_sl_pd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
+
+        z_sl_pd = 0.0_wp    ! [m] Define present day relative sea level as zero
+
+        ! Artificially delete ice from locations that are not allowed
+        where (bnd%mask_ice .eq. MASK_ICE_NONE)
+            dta%pd%H_ice = 0.0
+            dta%pd%z_srf = max(dta%pd%z_bed,0.0)
+        end where
+        
+        ! Calculate H_grnd (ice thickness overburden)
+        ! (extracted from `calc_H_grnd` in topography)
+        dta%pd%H_grnd = dta%pd%H_ice - (bnd%c%rho_sw/bnd%c%rho_ice)*max(z_sl_pd-dta%pd%z_bed,0.0_wp)
+
+        ! Calculate LSF
+        call LSFinit(dta%pd%lsf,dta%pd%H_ice,dta%pd%z_bed,z_sl_pd,dx)
+
+        ! Define the mask to be consistent with internal mask_bed calculations
+        dta%pd%mask_bed = mask_bed_ocean
+        where(dta%pd%H_ice .eq. 0.0 .and. dta%pd%z_srf .gt. 0.0)  dta%pd%mask_bed = mask_bed_land
+        where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .lt. 0.0) dta%pd%mask_bed = mask_bed_float
+        where(dta%pd%H_ice .gt. 0.0 .and. dta%pd%H_grnd .ge. 0.0) dta%pd%mask_bed = mask_bed_frozen
+
+        if (dta%par%pd_vel_load) then
+            ! Make sure that velocity is zero where no ice exists
+            where (dta%pd%H_ice .lt. 1.0) 
+                dta%pd%ux_s  = 0.0 
+                dta%pd%uy_s  = 0.0 
+                dta%pd%uxy_s = 0.0 
+            end where 
+        end if
+
+        write(*,*) "ydata_mask_pd_topo:: range(H_ice):    ", minval(dta%pd%H_ice),    maxval(dta%pd%H_ice)
+        write(*,*) "ydata_mask_pd_topo:: range(mask_bed): ", minval(dta%pd%mask_bed), maxval(dta%pd%mask_bed)
+
+        return
+
+    end subroutine ydata_mask_pd_topo
+
+    subroutine ydata_annual_mean(var,var_mon)
+        ! Annual mean of monthly data, missing wherever any month is missing.
+
+        implicit none
+
+        real(wp), intent(OUT) :: var(:,:)
+        real(wp), intent(IN)  :: var_mon(:,:,:)
+
+        where (any(var_mon .eq. mv,dim=3))
+            var = mv
+        elsewhere
+            var = sum(var_mon,dim=3) / real(size(var_mon,3),wp)
+        end where
+
+        return
+
+    end subroutine ydata_annual_mean
+
+    function smb_units_conv(filename,varname,c) result(conv)
+        ! Factor converting an smb rate in mm water equivalent (= kg m-2) per
+        ! day or per year, as given by the units attribute of the variable,
+        ! to [m ie / a].
+
+        implicit none
+
+        character(len=*),         intent(IN) :: filename
+        character(len=*),         intent(IN) :: varname
+        type(ybound_const_class), intent(IN) :: c
+        real(wp) :: conv
+
+        character(len=256) :: units, key
+        integer :: i
+
+        if (.not. nc_exists_attr(filename,varname,"units")) then
+            write(io_unit_err,*) "smb_units_conv:: Error: smb variable has no units attribute."
+            write(io_unit_err,*) "filename: ", trim(filename)
+            write(io_unit_err,*) "varname:  ", trim(varname)
+            error stop 1
+        end if
+        call nc_read_attr(filename,varname,"units",units)
+
+        ! Drop blanks and exponent markers: "kg m**-2 d**-1" => "kgm-2d-1"
+        key = ""
+        do i = 1, len_trim(units)
+            if (units(i:i) .eq. " " .or. units(i:i) .eq. "*") cycle
+            key = trim(key)//units(i:i)
+        end do
+
+        select case(trim(key))
+            case("kgm-2d-1","mmd-1","mmw.e.d-1")
+                conv = c%conv_mmdwe_maie
+            case("kgm-2yr-1","kgm-2a-1","mmyr-1","mma-1","mmw.e.yr-1","mmw.e.a-1")
+                conv = c%conv_mmawe_maie
+            case default
+                write(io_unit_err,*) "smb_units_conv:: Error: smb units not recognized: ", trim(units)
+                write(io_unit_err,*) "filename: ", trim(filename)
+                write(io_unit_err,*) "varname:  ", trim(varname)
+                error stop 1
+        end select
+
+        return
+
+    end function smb_units_conv
+
+    subroutine ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,rho_ice,rho_sw)
+        ! Fill the gaps (missing values) of a topography dataset, e.g. outside
+        ! the coverage of its source: no ice, the bed from the nearest valid
+        ! cell, the surface from the bed and the ice thickness (sea level 0),
+        ! and no bed roughness.
+
+        implicit none
+
+        real(wp), intent(INOUT) :: H_ice(:,:)
+        real(wp), intent(INOUT) :: z_bed(:,:)
+        real(wp), intent(INOUT) :: z_srf(:,:)
+        real(wp), intent(INOUT) :: z_bed_sd(:,:)
+        real(wp), intent(IN)    :: rho_ice
+        real(wp), intent(IN)    :: rho_sw
+
+        ! Local variables
+        integer :: n_bed, n_ice, n_srf, n_sd
+
+        n_bed = count(z_bed    .eq. mv)
+        n_ice = count(H_ice    .eq. mv)
+        n_srf = count(z_srf    .eq. mv)
+        n_sd  = count(z_bed_sd .eq. mv)
+        if (n_bed + n_ice + n_srf + n_sd .eq. 0) return
+
+        where (H_ice .eq. mv) H_ice = 0.0_wp
+
+        if (n_bed .gt. 0) then
+            if (n_bed .lt. size(z_bed)) call fill_nearest(z_bed,mv)
+            if (any(z_bed .eq. mv)) then
+                write(io_unit_err,*) "ydata_fill_topo_gaps:: Error: missing bedrock elevations could not be filled."
+                write(io_unit_err,*) "missing: ", count(z_bed .eq. mv), " of ", size(z_bed)
+                error stop 1
+            end if
+        end if
+
+        where (z_srf .eq. mv) z_srf = max(z_bed + H_ice, (1.0_wp - rho_ice/rho_sw)*H_ice)
+
+        where (z_bed_sd .eq. mv) z_bed_sd = 0.0_wp
+
+        write(*,*) "ydata_fill_topo_gaps:: filled missing values: z_bed ", n_bed, ", H_ice ", n_ice, &
+                   ", z_srf ", n_srf, ", z_bed_sd ", n_sd, " of ", size(z_bed)
+
+        return
+
+    end subroutine ydata_fill_topo_gaps
 
     subroutine ydata_par_load(par,filename,group,domain,grid_name,init)
 
@@ -447,8 +605,8 @@ contains
         call yelmo_parse_path(par%pd_vel_path, domain,grid_name)
         call yelmo_parse_path(par%pd_age_path, domain,grid_name)
 
-        ! Check that requested data files exist
-        if (par%pd_topo_load) call yelmo_check_file(group,"pd_topo_path",par%pd_topo_path)
+        ! Check that requested data files exist (pd_topo_path is checked in
+        ! ydata_load, since a coupled driver may supply the topography instead)
         if (par%pd_tsrf_load) call yelmo_check_file(group,"pd_tsrf_path",par%pd_tsrf_path)
         if (par%pd_smb_load)  call yelmo_check_file(group,"pd_smb_path", par%pd_smb_path)
         if (par%pd_vel_load)  call yelmo_check_file(group,"pd_vel_path", par%pd_vel_path)

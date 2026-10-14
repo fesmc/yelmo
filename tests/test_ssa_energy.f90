@@ -21,7 +21,6 @@ program test_ssa_energy
 
     integer, parameter :: nx = 8, ny = 8
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp     ! [m]
-    real(wp), parameter :: beta_min = 0.0_wp
     ! Yelmo's working precision is single (wp = sp), so the two assemblers'
     ! operation-order differences produce ~1e-7 relative roundoff between the
     ! algebraically-identical entries. Tolerate that — anything larger is a
@@ -34,8 +33,8 @@ program test_ssa_energy
     real(wp) :: beta_acx(nx,ny), beta_acy(nx,ny)
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
-    integer  :: mask_frnt(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
+    real(wp) :: z_bed(nx,ny), z_sl(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
 
@@ -46,10 +45,15 @@ program test_ssa_energy
     real(wp) :: max_K_rel_err, max_K_abs_err, max_b_abs_err
     integer  :: nr, nc, idx
     integer  :: i, j
-    integer  :: K_fail_count, b_fail_count
+    integer  :: K_fail_count, b_fail_count, front_fail_count
+    integer  :: idir
     logical  :: passed
 
     dxdy = dx * dy
+
+    ! Bed below sea level: ice-free cells are ocean (calving fronts)
+    z_bed = -1000.0_wp
+    z_sl  = 0.0_wp
 
     ! ---- Build a synthetic (but plausible) input state ----
     !
@@ -68,7 +72,6 @@ program test_ssa_energy
         uy(i,j)           = 5.0_wp  + 0.3_wp*real(j,wp)
         taul_int_acx(i,j) = 0.0_wp                ! no calving front in periodic test
         taul_int_acy(i,j) = 0.0_wp
-        mask_frnt(i,j)    = 0
         ssa_mask_acx(i,j) = 1                     ! interior SSA solve everywhere
         ssa_mask_acy(i,j) = 1
     end do
@@ -76,60 +79,34 @@ program test_ssa_energy
 
     ! ---- Assemble both matrices ----
     call linear_solver_matrix_ssa_ac_csr_2D(lgs_res,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
-                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                taul_int_acx,taul_int_acy,dx,dy,beta_min,"periodic","none")
+                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
+                taul_int_acx,taul_int_acy,dx,dy,"periodic")
 
     ! ---- Compare matrices entry-by-entry ----
     !
-    ! Both assemblers use the same CSR ordering (same loop, same sparsity
-    ! pattern), so we can step through a_value side-by-side.
+    ! Entries are matched by (row, column): the energy assembler writes its
+    ! columns in ascending order, the residual assembler in stencil order.
+    ! Energy entries without a residual counterpart must be zero.
     max_K_rel_err = 0.0_wp
     max_K_abs_err = 0.0_wp
     K_fail_count  = 0
 
-    if (lgs_res%a_ptr(lgs_res%nmax+1) /= lgs_eng%a_ptr(lgs_eng%nmax+1)) then
-        write(*,*) "FAIL: differing nnz between residual and energy assembler"
-        write(*,*) "  residual nnz =", lgs_res%a_ptr(lgs_res%nmax+1)-1
-        write(*,*) "  energy   nnz =", lgs_eng%a_ptr(lgs_eng%nmax+1)-1
-        stop 1
-    end if
-
     do nr = 1, lgs_res%nmax
         do idx = lgs_res%a_ptr(nr), lgs_res%a_ptr(nr+1)-1
-            nc = lgs_res%a_index(idx)
-
-            ! Sanity: same column index in same slot (same sparsity pattern)
-            if (lgs_eng%a_index(idx) /= nc) then
-                write(*,*) "FAIL: column index mismatch at row ", nr, " slot ", idx
-                stop 1
-            end if
-
+            nc       = lgs_res%a_index(idx)
             A_val    = real(lgs_res%a_value(idx), wp)
-            K_val    = real(lgs_eng%a_value(idx), wp)
             expected = -A_val * dxdy
-            diff     = K_val - expected
-
-            if (abs(expected) > 0.0_wp) then
-                rel_err = abs(diff) / abs(expected)
-            else
-                rel_err = abs(diff)
-            end if
-
-            if (rel_err > max_K_rel_err) max_K_rel_err = rel_err
-            if (abs(diff) > max_K_abs_err) max_K_abs_err = abs(diff)
-
-            if (rel_err > rtol .and. abs(diff) > atol_K) then
-                K_fail_count = K_fail_count + 1
-                if (K_fail_count <= 5) then
-                    write(*,'(a,i6,a,i6,a,3es14.6)') "  K mismatch nr=", nr, &
-                            " nc=", nc, &
-                            " (K, -A*dxdy, diff) = ", K_val, expected, diff
-                end if
-            end if
+            K_val    = entry_value(lgs_eng, nr, nc)
+            call check_K(nr, nc, K_val, expected)
+        end do
+        do idx = lgs_eng%a_ptr(nr), lgs_eng%a_ptr(nr+1)-1
+            nc = lgs_eng%a_index(idx)
+            if (has_entry(lgs_res, nr, nc)) cycle
+            call check_K(nr, nc, real(lgs_eng%a_value(idx), wp), 0.0_wp)
         end do
     end do
 
@@ -167,11 +144,120 @@ program test_ssa_energy
     write(*,*)
 
     passed = (K_fail_count == 0) .and. (b_fail_count == 0)
+
+    ! ---- Front rows (ssa_mask = 3) ----
+    !
+    ! At a front face the driving stress is taken across the ice front, so
+    ! taud*dx*dy there equals the front force taul_int*dy. The energy RHS
+    ! must carry the front force once: b = +taul_int*dy where the ice is
+    ! on the low-index side (outward normal +x/+y), -taul_int*dy where it
+    ! is on the high-index side, independent of taud.
+    front_fail_count = 0
+    do idir = 1, 2
+        ssa_mask_acx = 1
+        ssa_mask_acy = 1
+        f_ice        = 0.0_wp
+        taul_int_acx = 0.0_wp
+        taul_int_acy = 0.0_wp
+        do j = 1, ny
+        do i = 1, nx
+            if (idir == 1) then
+                if (i >= 3 .and. i <= 5) f_ice(i,j) = 1.0_wp
+            else
+                if (j >= 3 .and. j <= 5) f_ice(i,j) = 1.0_wp
+            end if
+        end do
+        end do
+        if (idir == 1) then
+            ssa_mask_acx(2,:) = 3;  taul_int_acx(2,:) = 4.0e7_wp     ! ocean left, ice right
+            ssa_mask_acx(5,:) = 3;  taul_int_acx(5,:) = 6.0e7_wp     ! ice left, ocean right
+        else
+            ssa_mask_acy(:,2) = 3;  taul_int_acy(:,2) = 4.0e7_wp
+            ssa_mask_acy(:,5) = 3;  taul_int_acy(:,5) = 6.0e7_wp
+        end if
+
+        call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_eng,ux,uy,beta_acx,beta_acy,N_aa, &
+                    ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
+                    taul_int_acx,taul_int_acy,dx,dy,"periodic")
+
+        do j = 1, ny
+        do i = 1, nx
+            if (idir == 1 .and. ssa_mask_acx(i,j) == 3) then
+                nr = 2*lgs_eng%ij2n(i,j)-1
+                expected = taul_int_acx(i,j)*dy
+                if (i == 2) expected = -expected
+            else if (idir == 2 .and. ssa_mask_acy(i,j) == 3) then
+                nr = 2*lgs_eng%ij2n(i,j)
+                expected = taul_int_acy(i,j)*dx
+                if (j == 2) expected = -expected
+            else
+                cycle
+            end if
+            diff = real(lgs_eng%b_value(nr), wp) - expected
+            if (abs(diff) > rtol*abs(expected)) then
+                front_fail_count = front_fail_count + 1
+                if (front_fail_count <= 5) then
+                    write(*,'(a,i2,a,2i4,a,3es14.6)') "  front b mismatch dir=", idir, " (i,j)=", i, j, &
+                            " (b_eng, expected, diff) = ", real(lgs_eng%b_value(nr), wp), expected, diff
+                end if
+            end if
+        end do
+        end do
+    end do
+
+    write(*,'(a,i0)')         "  front b mismatches:", front_fail_count
+    write(*,*)
+
+    passed = passed .and. (front_fail_count == 0)
     if (passed) then
         write(*,*) " PASS"
     else
         write(*,*) " FAIL"
-        stop 1
+        error stop 1
     end if
+
+contains
+
+    real(wp) function entry_value(lgs, nr, nc) result(v)
+        ! Value of K(nr, nc); zero if not stored
+        type(linear_solver_class), intent(IN) :: lgs
+        integer, intent(IN) :: nr, nc
+        integer :: k
+        v = 0.0_wp
+        do k = lgs%a_ptr(nr), lgs%a_ptr(nr+1)-1
+            if (lgs%a_index(k) == nc) v = v + real(lgs%a_value(k), wp)
+        end do
+    end function entry_value
+
+    logical function has_entry(lgs, nr, nc) result(found)
+        type(linear_solver_class), intent(IN) :: lgs
+        integer, intent(IN) :: nr, nc
+        integer :: k
+        found = .FALSE.
+        do k = lgs%a_ptr(nr), lgs%a_ptr(nr+1)-1
+            if (lgs%a_index(k) == nc) found = .TRUE.
+        end do
+    end function has_entry
+
+    subroutine check_K(nr, nc, K_val, expected)
+        integer,  intent(IN) :: nr, nc
+        real(wp), intent(IN) :: K_val, expected
+        real(wp) :: diff, rel_err
+        diff = K_val - expected
+        if (abs(expected) > 0.0_wp) then
+            rel_err = abs(diff) / abs(expected)
+        else
+            rel_err = abs(diff)
+        end if
+        if (rel_err > max_K_rel_err) max_K_rel_err = rel_err
+        if (abs(diff) > max_K_abs_err) max_K_abs_err = abs(diff)
+        if (rel_err > rtol .and. abs(diff) > atol_K) then
+            K_fail_count = K_fail_count + 1
+            if (K_fail_count <= 5) then
+                write(*,'(a,i6,a,i6,a,3es14.6)') "  K mismatch nr=", nr, " nc=", nc, &
+                        " (K, -A*dxdy, diff) = ", K_val, expected, diff
+            end if
+        end if
+    end subroutine check_K
 
 end program test_ssa_energy

@@ -4,8 +4,8 @@ The SIA is the complementary limit to SSA: membrane stresses are
 neglected and the horizontal stress balance is dominated by the basal
 drag exerted by vertical shear. Yelmo's SIA solver is implemented in
 [`src/physics/velocity_sia.f90`](https://github.com/fesmc/yelmo/blob/main/src/physics/velocity_sia.f90)
-and is used to provide the vertical-shear contribution to the velocity
-field in the hybrid SIA + SSA mode and as a diagnostic on its own.
+and is used with `ydyn.solver = "sia"` and to provide the vertical-shear
+contribution to the velocity in the hybrid SIA + SSA mode (`"hybrid"`).
 
 Crucially, Yelmo formulates SIA in **stress form**: the shear stress and
 the basal stress are computed *from the driving stress* $\boldsymbol\tau_d$
@@ -74,19 +74,19 @@ in the SIA limit, the horizontal velocity is obtained by integrating
 from the bed upward:
 
 $$
-u(z) \;=\; u_b \,+\, 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
+u_i(z) \;=\; 2\int_b^z A(T'(z'))\,\tau_e^{\,n-1}\,\tau_{xz}\,\mathrm dz',
 $$
 
-and analogously for $v$. The integral is evaluated layer-by-layer with
+and analogously for $v$. This is the shear (internal deformation) part of the
+velocity, which is zero at the bed. The integral is evaluated layer-by-layer with
 the trapezoidal rule (routine `calc_uxy_sia_3D`). The depth-averaged
 velocity $\bar{\mathbf u}^{(\mathrm{SIA})}$ is obtained by trapezoidal
 integration over $z$.
 
-In hybrid mode, Yelmo uses $\bar{\mathbf u}^{(\mathrm{SIA})}$ to provide
-the shearing contribution that is added to the basal velocity produced
-by the membrane (DIVA/SSA) solve. In a pure-SIA configuration, the
-basal velocity is either zero (frozen bed) or comes from a sliding law
-of choice (not the default in current Yelmo versions).
+In hybrid mode, $\bar{\mathbf u}^{(\mathrm{SIA})}$ is the shearing
+contribution that is added to the basal velocity from the [SSA](ssa.md)
+solve. In a pure-SIA configuration (`"sia"`), the basal velocity and basal
+stress are zero; sliding requires the hybrid mode.
 
 ## Relationship to the textbook SIA
 

@@ -32,7 +32,7 @@ contains
 
             write(*,*) "yelmo_regrid:: Error: target resolution must be a multiple of the original resolution."
             write(*,*) "f_grid = ", f_grid 
-            stop 
+            error stop 1
 
         end if 
 

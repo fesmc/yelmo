@@ -3,8 +3,9 @@ module yelmo_grid
     !
     ! The horizontal grid is represented by the fesm-utils/coords grid_class
     ! (dom%grd). This module provides yelmo-facing entry points that build a
-    ! grid_class from a predefined name, a netcdf file, explicit options or
-    ! explicit axes, all delegating the heavy lifting to coords grid_init.
+    ! grid_class from a predefined name, a netcdf file, explicit options,
+    ! explicit axes or another grid_class, all delegating the heavy lifting to
+    ! coords grid_init.
 
     use yelmo_defs, only : sp, dp, wp, pi
     use yelmo_tools, only : get_region_indices
@@ -20,6 +21,7 @@ module yelmo_grid
         module procedure yelmo_init_grid_fromfile
         module procedure yelmo_init_grid_fromopt
         module procedure yelmo_init_grid_fromaxes
+        module procedure yelmo_init_grid_fromgrid
     end interface
 
     private
@@ -31,6 +33,7 @@ module yelmo_grid
     public :: yelmo_init_grid_fromname
     public :: yelmo_init_grid_fromaxes
     public :: yelmo_init_grid_fromopt
+    public :: yelmo_init_grid_fromgrid
     public :: yelmo_grid_write
 
 contains
@@ -210,7 +213,7 @@ contains
 
             case DEFAULT
                 write(*,*) "yelmo_init_grid_fromname:: error: grid name not recognized: "//trim(grid_name)
-                stop
+                error stop 1
 
         end select
 
@@ -289,7 +292,7 @@ contains
                 write(*,*) "yelmo_init_grid_fromopt:: Error: units of input grid parameters &
                             &must be one of: 'kilometers', 'km', 'meters', 'm'."
                 write(*,*) "units: ", trim(units)
-                stop
+                error stop 1
         end select
 
         dxd = dx*conv
@@ -340,6 +343,32 @@ contains
         return
 
     end subroutine yelmo_init_grid_fromaxes
+
+    subroutine yelmo_init_grid_fromgrid(grd,grid0)
+        ! Build the yelmo grid from a grid_class defined elsewhere (e.g. a
+        ! coupler's grid description): same name, axes and coordinate system,
+        ! with the axes converted to meters.
+
+        implicit none
+
+        type(grid_class), intent(INOUT) :: grd
+        type(grid_class), intent(IN)    :: grid0
+
+        if (.not. (grid0%cs%is_cartesian .or. grid0%cs%is_projection)) then
+            write(*,*) "yelmo_init_grid_fromgrid:: error: the grid must be cartesian &
+                       &or projected: "//trim(grid0%name)//", mtype = "//trim(grid0%cs%mtype)
+            error stop 1
+        end if
+
+        call grid_init(grd,name=trim(grid0%name),mtype=trim(grid0%cs%mtype),units="meters", &
+                       planet=trim(grid0%cs%planet%name),lon180=grid0%cs%is_lon180, &
+                       x=grid0%G%x*grid0%cs%xy_conv,y=grid0%G%y*grid0%cs%xy_conv, &
+                       lambda=grid0%cs%proj%lambda,phi=grid0%cs%proj%phi,alpha=grid0%cs%proj%alpha, &
+                       x_e=grid0%cs%proj%x_e,y_n=grid0%cs%proj%y_n)
+
+        return
+
+    end subroutine yelmo_init_grid_fromgrid
 
     subroutine yelmo_grid_write(grid, fnm, domain, grid_name, create, irange, jrange)
         ! Write grid info to netcdf file respecting coordinate conventions
@@ -393,10 +422,12 @@ contains
 
         end if
 
-        ! Add projection information if needed
+        ! Add projection information if needed. The false easting/northing are
+        ! in the units of the axes (km), like the axes themselves.
         if (grid%cs%is_projection) then
             call nc_write_map(fnm, grid%cs%mtype, grid%cs%proj%lambda, phi=grid%cs%proj%phi, &
-                alpha=grid%cs%proj%alpha, x_e=grid%cs%proj%x_e, y_n=grid%cs%proj%y_n, &
+                alpha=grid%cs%proj%alpha, x_e=grid%cs%proj%x_e*1d-3, y_n=grid%cs%proj%y_n*1d-3, &
+                k0=grid%cs%proj%k0, &
                 is_sphere=grid%cs%planet%is_sphere, semi_major_axis=grid%cs%planet%a, &
                 inverse_flattening=grid%cs%planet%inverse_flattening)
         end if

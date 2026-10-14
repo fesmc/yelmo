@@ -1,0 +1,177 @@
+! initMIP Greenland: present-day spin-up with basal friction optimization.
+! Driver: tests/yelmo_initmip.f90 (make initmip, runme alias "initmip").
+! Driver groups (ctrl, zremap_smb, zremap_tsrf, set_grl_pd, t1D, trst, t2Dsm, t2D, opt, relax) are complete here;
+! the yelmo groups list only overrides of input/yelmo_defaults.nml.
+
+&ctrl
+    tstep_method    = "const"           ! "const" (time_elapsed) or "rel" (time_rel=time_bp)
+    tstep_const     = 0.0               ! Assumed time for "const" method
+    time_init       = 0.0               ! [yr] Starting time
+    time_end        = 1e3               ! [yr] Ending time
+    restart_mode    = "state"           ! "state": start at time_init from a (spun-up) restart state; "continue": continue the restart's simulation (time_init must equal the restart time)
+                                        ! opt cf_time_*, tf_time_* and relax time1, time2 are times elapsed since time_init (start of this run):
+                                        ! a "continue" run starts the spin-up/optimisation schedule again
+    dtt             = 10.0              ! [yr] Main loop timestep
+
+    with_ice_sheet  = True              ! Active ice-sheet component?
+    equil_method    = "opt"             ! "none", "relax" (relaxation, [relax]), "opt" (relaxation + optimization, [relax] + [opt])
+    init_temp       = "robin"           ! Initial temperature profile: "robin" or "robin-cold" (cold base)
+
+    set_nm          = "set_grl_pd"      ! Climate set: "set_grl_pd"
+
+    load_cb_ref     = False             ! Load cf_ref from file? Otherwise define from cf_stream + inline tuning
+    file_cb_ref     = ""                ! Filename holding cf_ref to load (required with load_cb_ref)
+
+    smb_method      = "fixed"           ! smb and T_srf from the present-day (RCM) fields: "zremap" (remapped to the surface elevation
+                                        ! every dtt, [zremap_smb] and [zremap_tsrf]), "fixed" (as loaded), "out_const" (as loaded, smb_out outside the RCM ice)
+    f_ice_min       = 0.5               ! [1] "zremap", "out_const": RCM ice = f_ice (in yelmo_data.pd_smb_path) >= f_ice_min
+    region_rcm      = "region:Greenland"  ! "zremap", "out_const": RCM ice only within these regions (yelmo_masks.regions_group)
+    smb_out         = -1.0              ! [m i.e./a] "out_const": smb outside the RCM ice
+/
+
+&zremap_smb
+    ! Elevation remapping of smb (fesm-utils zremap), units of smb [m i.e./a]. Profiles from
+    ! yelmo_data.pd_smb on the RCM ice at the RCM surface elevation (z_srf in pd_smb_path)
+    sigma           = 100e3             ! [m] Width of the horizontal Gaussian kernel (cut at 3 sigma)
+    z_min           = 0.0               ! [m] Lowest elevation bin
+    z_max           = 4000.0            ! [m] Highest elevation bin
+    dz              = 100.0             ! [m] Bin spacing
+    sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
+    w_full          = 0.25              ! [1] Support from which the profiles are fully used
+    stride          = 1                 ! [-] Table spacing in grid points
+    dfdz_lo         = 2.198e-3          ! [m i.e./a m-1] Gradient below the data (and below z_ref without data): 2.0 mm w.e./a m-1
+    dfdz_hi         = 0.0               ! [m i.e./a m-1] Gradient above the data (and above z_ref without data)
+/
+
+&zremap_tsrf
+    ! Elevation remapping of T_srf (fesm-utils zremap), units of T_srf [K]. Profiles from
+    ! yelmo_data.pd_tsrf on the RCM ice at the RCM surface elevation (z_srf in pd_smb_path)
+    sigma           = 100e3             ! [m] Width of the horizontal Gaussian kernel (cut at 3 sigma)
+    z_min           = 0.0               ! [m] Lowest elevation bin
+    z_max           = 4000.0            ! [m] Highest elevation bin
+    dz              = 100.0             ! [m] Bin spacing
+    sigma_z         = 200.0             ! [m] Width of the Gaussian smoothing along z (0 = none)
+    w_full          = 0.25              ! [1] Support from which the profiles are fully used
+    stride          = 1                 ! [-] Table spacing in grid points
+    dfdz_lo         = -6.5e-3           ! [K m-1] Gradient below the data (and below z_ref without data)
+    dfdz_hi         = -6.5e-3           ! [K m-1] Gradient above the data (and above z_ref without data)
+/
+
+&set_grl_pd
+    bmb_shlf_const  = -2.0              ! [m/a] Basal mass balance of ice shelves (GRL-16KM spin-up tuning 2026-10-09)
+    load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
+    load_ghf        = False             ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
+    file_ghf        = "fesmdata/{domain}/{grid_name}/{grid_name}_GHF-Martos2018.nc"
+    name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
+    dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
+    z_sl            = 0.0               ! [m] Sea level relative to present-day
+/
+
+&t1D
+    method          = "const"           ! "const", "file", "times"
+    dt              = 1.0
+    file            = "none"
+    times           = 0
+/
+
+&trst
+    method          = "none"            ! "none", "const", "file", "times" (a restart is always written at time_end)
+    dt              = 1000.0
+    file            = "none"
+    times           = 0
+/
+
+&t2Dsm
+    method          = "const"           ! "const", "file", "times"
+    dt              = 100.0
+    file            = "none"
+    times           = 0
+/
+
+&t2D
+    method          = "const"           ! "const", "file", "times"
+    dt              = 1000.0
+    file            = "none"
+    times           = 0
+/
+
+&opt
+    ! cf_time_*, tf_time_* [yr]: time elapsed since ctrl.time_init (start of this run), also after a restart
+    opt_cf          = "L21"             ! Basal friction optimization: "none", "L21"
+    cf_time_init    = 0.0               ! [yr] When should optimization of basal friction start?
+    cf_time_end     = 15e3              ! [yr] When should optimization of basal friction stop?
+    cf_init         = 0.8               ! Initial value of cb_ref everywhere if not using restart file (must be > 0)
+    tau_c           = 500.0             ! [yr] L21: Optimization relaxation timescale
+    H0              = 0.0               ! [m]  L21: Optimization ice-thickness error scaling
+
+    sigma_err       = 50e3              ! [m] Smoothing radius for error to calculate correction in cf_ref
+    sigma_vel       = 100.0             ! [m/yr] Speed at which smoothing diminishes to zero
+    fill_method     = "cf_min"          ! target, cf_min
+
+    opt_tf          = "none"            ! Thermal forcing optimization: "none" (only option in initmip)
+    tf_time_init    = 0.0               ! [yr] When should optimization of thermal forcing start?
+    tf_time_end     = 20e3              ! [yr] When should optimization of thermal forcing stop?
+    H_grnd_lim      = 0.0               ! [m] Distance from grounding line to consider in terms of thickness above flotation
+    tf_sigma        = 10e3              ! [m] L21-points: Smoothing radius for error to calculate tf_corr
+    tau_m           = 10.0              ! [yr] Optimization relxation timescale
+    m_temp          = 10.0              ! [m yr^−1 degC^−1] Optimization scaling value
+    tf_min          = -3.0              ! [degC] Minimum allowed tf_corr value
+    tf_max          =  1.0              ! [degC] Maximum allowed tf_corr value
+    tf_basins       = -1                ! L21: Basin numbers to optimize (-1 for all basins)
+    basin_fill      = False             ! L21-points: If true, fill grounded basins with ice-shelf mean tf_corr values
+/
+
+&relax
+    ! Relaxation of the topography (ytopo.topo_rel) during the spin-up (equil_method "relax" or "opt").
+    ! time1, time2 [yr]: time elapsed since ctrl.time_init (start of this run), also after a restart
+    topo_rel        = 4                 ! ytopo.topo_rel mode while active (4: grounding line + grounding zone)
+    tau1            = 100.0             ! [yr] Relaxation timescale until time1
+    tau2            = 2000.0            ! [yr] Relaxation timescale at time2
+    time1           = 2000.0            ! [yr] End of the tau1 period
+    time2           = 6000.0            ! [yr] End of the relaxation (then the ytopo values apply)
+    m               = 2.0               ! [--] Non-linear exponent of the tau1 -> tau2 ramp
+/
+
+! === Overrides of input/yelmo_defaults.nml ===
+! (The default yelmo_init_topo and yelmo_data files are the Greenland ones: BedMachine v6
+! topography, MARv3.14 1981-2010 monthly climatology, Joughin2018 velocities.)
+
+&yelmo
+    domain          = "Greenland"
+    grid_name       = "GRL-16KM"
+/
+
+&yelmo_masks
+    regions_group    = "yelmo_regions"   ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
+    basins           = "Zwally2012.group" ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
+    mask_ice_dynamic = "region:Greenland" ! where ice is dynamic, else no ice (no Canadian Arctic Archipelago)
+    mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
+    relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
+    relax_tau        = 0.0               ! [yr] relaxation timescale there
+    mask_rmse        = "region:Greenland & ~zone:open_ocean"  ! where the error metrics are computed
+/
+
+&yelmo_regions
+    path_regions = "fesmdata/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    path_basins  = "fesmdata/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
+    basin_sets   = "Zwally2012"
+/
+&ycalv
+    calv_flt_method     = "equil"       ! Calving fronts held at the observed positions during the spin-up
+    calv_grnd_method    = "equil"
+/
+
+&ytill
+    cf_min          =  0.02             ! [--] Minimum value of cf (also the lower bound of the cb_ref optimization)
+/
+
+&yhyd
+    k24_min_pressure_fraction        = 0.02
+    k24_W_min                        = 1.0e-8
+    k24_W_max                        = 0.015
+/
+
+&ymat
+    enh_shear               = 1.0
+    enh_stream              = 1.0
+/

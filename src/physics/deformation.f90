@@ -10,9 +10,9 @@ module deformation
     ! Note: 3D arrays defined such that first index (k=1) == base, and max index (k=nk) == surface 
 
     use yelmo_defs,  only : sp, dp, wp, prec, TOL_UNDERFLOW, &
-                        jacobian_3D_class, strain_2D_class, strain_3D_class, stress_2D_class, stress_3D_class
+                        jacobian_3D_class, strain_2D_class, strain_3D_class, stress_2D_class
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
-                    calc_vertical_integrated_2D, integrate_trapezoid1D_1D, integrate_trapezoid1D_pt
+                    calc_vertical_integrated_2D, integrate_trapezoid1D_pt
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
                                     gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
@@ -26,20 +26,17 @@ module deformation
     public :: define_enhancement_factor_3D
     public :: define_enhancement_factor_2D
     public :: calc_viscosity_glen
-    public :: calc_viscosity_glen_2D
     public :: calc_visc_int
     public :: calc_rate_factor
     public :: calc_rate_factor_eismint
     public :: scale_rate_factor_water
-    public :: calc_rate_factor_integrated
 
     public :: calc_jacobian_vel_3D_uxyterms
     public :: calc_jacobian_vel_3D_uzterms
-    public :: calc_strain_rate_tensor_jac
     public :: calc_strain_rate_tensor_jac_quad3D
     public :: calc_strain_rate_tensor_2D
     public :: calc_strain_rate_horizontal_2D
-    public :: calc_stress_tensor 
+    public :: calc_active_faces
     public :: calc_stress_tensor_2D
     public :: calc_2D_eigen_values
     public :: strain_2D_alloc 
@@ -73,7 +70,7 @@ contains
             write(*,*) "modify_enhancement_factor_bnd:: Error: umax cannot equal umin:"
             write(*,*) "umin = ", umin 
             write(*,*) "umax = ", umax 
-            stop 
+            error stop 1
         end if 
             
         do j = 1, ny 
@@ -171,7 +168,7 @@ contains
 
     end function define_enhancement_factor_2D
 
-    function calc_viscosity_glen(de,ATT,H_ice,f_ice,n_glen,visc_min,eps_0) result(visc)
+    function calc_viscosity_glen(de,ATT,f_ice,n_glen,visc_min,eps_0) result(visc)
         ! Calculate viscosity based on Glen's flow law 
         ! ATT [a^-1 Pa^-n] is the "depth dependent ice stiffness parameter based on
         !     vertical variations in temperature, chemistry and crystal fabric" (MacAyeal, 1989, JGR)
@@ -189,7 +186,6 @@ contains
         
         real(wp), intent(IN)  :: de(:,:,:)          ! [a^-1] second-invariant of the strain rate tensor
         real(wp), intent(IN)  :: ATT(:,:,:)         ! [a^-1 Pa^-3] Rate factor 
-        real(wp), intent(IN)  :: H_ice(:,:)
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: n_glen             ! Glen's flow law exponent
         real(wp), intent(IN)  :: visc_min           ! [Pa a] Minimum allowed viscosity (for stability, ~1e3)
@@ -199,10 +195,8 @@ contains
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz
-        integer :: im1, ip1, jm1, jp1  
         real(wp) :: exp1, exp2
         real(wp) :: eps_0_sq, de_now 
-        real(wp) :: wt
 
         nx = size(visc,1)
         ny = size(visc,2)
@@ -214,7 +208,7 @@ contains
 
         eps_0_sq = eps_0*eps_0
 
-        !$omp parallel do collapse(3) private(i,j,k,de_now)
+        !$omp parallel do collapse(3) schedule(dynamic,64) private(i,j,k,de_now)
         do k = 1, nz 
         do j = 1, ny 
         do i = 1, nx 
@@ -245,78 +239,6 @@ contains
         
     end function calc_viscosity_glen
 
-        function calc_viscosity_glen_2D(de,ATT,H_ice,f_ice,n_glen,visc_min,eps_0) result(visc)
-        ! Calculate viscosity based on Glen's flow law 
-        ! ATT [a^-1 Pa^-n] is the "depth dependent ice stiffness parameter based on
-        !     vertical variations in temperature, chemistry and crystal fabric" (MacAyeal, 1989, JGR)
-        ! de [a^-1] is the second-invariant of the strain rate tensor 
-        ! visc [Pa a] is the 3D, temperature dependent viscosity field 
-
-        ! Equation: visc = 0.5 * ATT^(-1/n_glen) * (de)^((1-n_glen)/n_glen)
-        ! ATT  => from Greve and Blatter (2009), Eq. 4.15 (written as `A(T_prime)`)
-        ! de   => from Greve and Blatter (2009), Eq. 6.53
-        ! visc => from Greve and Blatter (2009), Eq. 4.22 
-
-        implicit none
-        
-        real(wp), intent(IN)  :: de(:,:)            ! [a^-1] second-invariant of the strain rate tensor
-        real(wp), intent(IN)  :: ATT(:,:,:)         ! [a^-1 Pa^-3] Rate factor 
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: n_glen             ! Glen's flow law exponent
-        real(wp), intent(IN)  :: visc_min           ! [Pa a] Minimum allowed viscosity (for stability, ~1e3)
-        real(wp), intent(IN)  :: eps_0              ! [1/yr] Regularization constant (minimum strain rate, ~1e-6)
-
-        real(wp) :: visc(size(ATT,1),size(ATT,2),size(ATT,3)) ! [Pa a] 3D viscosity field
-
-        ! Local variables
-        integer :: i, j, k, nx, ny, nz
-        integer :: im1, ip1, jm1, jp1  
-        real(wp) :: exp1, exp2
-        real(wp) :: eps_0_sq, de_now 
-        real(wp) :: wt
-
-        nx = size(visc,1)
-        ny = size(visc,2)
-        nz = size(visc,3)
-
-        ! Determine exponent values 
-        exp1 = -1.0/n_glen
-        exp2 = (1.0 - n_glen)/n_glen 
-
-        eps_0_sq = eps_0*eps_0
-
-        !$omp parallel do collapse(3) private(i,j,k,de_now)
-        do k = 1, nz 
-        do j = 1, ny 
-        do i = 1, nx 
-
-            if (f_ice(i,j) .eq. 1.0_wp) then 
-
-                ! Calculate regularized strain rate 
-                de_now = sqrt(de(i,j)**2 + eps_0_sq)
-
-                ! Calculate viscosity at each aa-node
-                visc(i,j,k) = 0.5_wp * ATT(i,j,k)**exp1 * (de_now)**exp2 
-
-                ! Limit viscosity to above minimum value 
-                if (visc(i,j,k) .lt. visc_min) visc(i,j,k) = visc_min 
-
-            else 
-
-                visc(i,j,k) = 0.0_wp 
-
-            end if 
-
-        end do 
-        end do 
-        end do
-        !$omp end parallel do
-
-        return
-        
-    end function calc_viscosity_glen_2D
-
 
     subroutine calc_visc_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa,boundaries)
 
@@ -331,10 +253,7 @@ contains
 
         ! Local variables 
         integer :: i, j, nx, ny
-        integer :: im1, ip1, jm1, jp1  
-        real(wp) :: H_now
         real(wp) :: visc_eff_mean 
-        real(wp) :: wt 
 
         nx = size(visc_eff_int,1)
         ny = size(visc_eff_int,2)
@@ -364,6 +283,11 @@ contains
             
             visc_eff_int(:,1)    = visc_eff_int(:,2)
             visc_eff_int(:,ny)   = visc_eff_int(:,ny-1)
+
+        else if (trim(boundaries) .eq. "periodic-y") then 
+            
+            visc_eff_int(1,:)    = visc_eff_int(2,:)
+            visc_eff_int(nx,:)   = visc_eff_int(nx-1,:)
 
         else if (trim(boundaries) .eq. "infinite") then 
             
@@ -469,33 +393,6 @@ contains
 
     end subroutine scale_rate_factor_water
 
-    function calc_rate_factor_integrated(ATT,zeta_aa,n_glen) result(ATT_int)
-        ! Greve and Blatter (2009), Chpt 5, page 82 
-
-        implicit none 
-
-        real(prec), intent(IN) :: ATT(:,:,:)
-        real(prec), intent(IN) :: zeta_aa(:)
-        real(prec), intent(IN) :: n_glen  
-        real(prec) :: ATT_int(size(ATT,1),size(ATT,2),size(ATT,3))
-
-        ! Local variables 
-        integer :: i, j, nx, ny
-
-        nx = size(ATT,1)
-        ny = size(ATT,2) 
-
-        ! Vertically integrated values of ATT to each vertical level
-        do j = 1, ny 
-        do i = 1, nx 
-            ATT_int(i,j,:) = integrate_trapezoid1D_1D(ATT(i,j,:)*(1.0-zeta_aa)**n_glen,zeta_aa)
-        end do 
-        end do 
-
-        return
-
-    end function calc_rate_factor_integrated
-    
 
     subroutine calc_jacobian_vel_3D_uxyterms(jvel, ux, uy, uz, H_ice, f_ice, f_grnd, dzsdx, dzsdy,  &
                                                 dzbdx, dzbdy, zeta_aa, zeta_ac, dx, dy, boundaries)
@@ -542,6 +439,7 @@ contains
         real(dp) :: c_x, c_y, c_x_acy, c_y_acx
         real(dp) :: h1, h2 
         real(dp) :: denom
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         integer  :: BC
 
@@ -695,6 +593,11 @@ end if
 
         ! Step 2: Calculate all horizontal derivatives accounting for correction terms
 
+        ! Faces with a velocity solution (next to an ice-covered cell); the others
+        ! hold zero velocity and must not enter the cross derivatives
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
         !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
         !$omp& private(c_x,c_y,dzbdx_acy,dzsdx_acy,c_x_acy,dzbdy_acx,dzsdy_acx,c_y_acx)
         do j = 1, ny 
@@ -707,11 +610,14 @@ end if
 
                 ! === Calculate derivatives , no sigma-correction terms yet ===
 
-                ! Second-order, centered derivatives
+                ! Second-order, centered derivatives (cross derivatives only
+                ! across faces with a velocity solution)
                 jvel%dxx(i,j,k) = (ux(ip1,j,k)-ux(im1,j,k))/(2.0*dx)
-                jvel%dxy(i,j,k) = (ux(i,jp1,k)-ux(i,jm1,k))/(2.0*dy)
-                
-                jvel%dyx(i,j,k) = (uy(ip1,j,k)-uy(im1,j,k))/(2.0*dx)
+                jvel%dxy(i,j,k) = deriv_active(ux(i,jm1,k),ux(i,j,k),ux(i,jp1,k), &
+                                                act_acx(i,jm1),act_acx(i,jp1),dy)
+
+                jvel%dyx(i,j,k) = deriv_active(uy(im1,j,k),uy(i,j,k),uy(ip1,j,k), &
+                                                act_acy(im1,j),act_acy(ip1,j),dx)
                 jvel%dyy(i,j,k) = (uy(i,jp1,k)-uy(i,jm1,k))/(2.0*dy)
 
                 ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
@@ -720,7 +626,9 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
                     if (im1 .gt. 1) then
                         im2 = im1-1
-                        if (f_ice(im2,j) .eq. 1.0) then  
+                        ! Faces im2 and im1 border cell im1 (mirror of the
+                        ! f_ice(ip2) test below; ux lives on the faces)
+                        if (f_ice(im1,j) .eq. 1.0) then  
                             jvel%dxx(i,j,k) = (1.0*ux(im2,j,k)-4.0*ux(im1,j,k)+3.0*ux(i,j,k))/(2.0*dx)
                         else
                             jvel%dxx(i,j,k) = (ux(i,j,k)-ux(im1,j,k))/dx
@@ -745,7 +653,8 @@ end if
                 if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
                     if (jm1 .gt. 1) then
                         jm2 = jm1-1
-                        if (f_ice(i,jm2) .eq. 1.0) then
+                        ! Faces jm2 and jm1 border cell jm1 (see x-direction)
+                        if (f_ice(i,jm1) .eq. 1.0) then
                             jvel%dyy(i,j,k) = (1.0*uy(i,jm2,k)-4.0*uy(i,jm1,k)+3.0*uy(i,j,k))/(2.0*dy)
                         else
                             jvel%dyy(i,j,k) = (uy(i,j,k)-uy(i,jm1,k))/dy
@@ -766,10 +675,6 @@ end if
                     end if
                 end if
 
-                ! Note: do not treat special cases for cross derivatives like dxy or dyx. 
-                ! It is too complicated to check neighbors in this case, and multiple
-                ! tries led to asymmetric discretizations. Better to leave it clean.
-
                 ! === Calculate and apply the sigma-transformation correction terms ===
 
                 ! First, calculate sigma-coordinate derivative correction factors for this layer
@@ -787,12 +692,17 @@ end if
                 c_y = - ( (1.0-zeta_aa(k))*dzbdy(i,j) + zeta_aa(k)*dzsdy(i,j))
 
                 ! Get cross correction terms too 
-                dzbdx_acy = 0.25*(dzbdx(i,j)+dzbdx(i,jp1)+dzbdx(im1,j)+dzbdx(im1,jp1))
-                dzsdx_acy = 0.25*(dzsdx(i,j)+dzsdx(i,jp1)+dzsdx(im1,j)+dzsdx(im1,jp1))
+                ! (means over the faces with a solution only)
+                dzbdx_acy = mean4_active(dzbdx(i,j),dzbdx(i,jp1),dzbdx(im1,j),dzbdx(im1,jp1), &
+                                act_acx(i,j),act_acx(i,jp1),act_acx(im1,j),act_acx(im1,jp1))
+                dzsdx_acy = mean4_active(dzsdx(i,j),dzsdx(i,jp1),dzsdx(im1,j),dzsdx(im1,jp1), &
+                                act_acx(i,j),act_acx(i,jp1),act_acx(im1,j),act_acx(im1,jp1))
                 c_x_acy = - ( (1.0-zeta_aa(k))*dzbdx_acy + zeta_aa(k)*dzsdx_acy)
 
-                dzbdy_acx = 0.25*(dzbdy(i,j)+dzbdy(ip1,j)+dzbdy(i,jm1)+dzbdy(ip1,jm1))
-                dzsdy_acx = 0.25*(dzsdy(i,j)+dzsdy(ip1,j)+dzsdy(i,jm1)+dzsdy(ip1,jm1))
+                dzbdy_acx = mean4_active(dzbdy(i,j),dzbdy(ip1,j),dzbdy(i,jm1),dzbdy(ip1,jm1), &
+                                act_acy(i,j),act_acy(ip1,j),act_acy(i,jm1),act_acy(ip1,jm1))
+                dzsdy_acx = mean4_active(dzsdy(i,j),dzsdy(ip1,j),dzsdy(i,jm1),dzsdy(ip1,jm1), &
+                                act_acy(i,j),act_acy(ip1,j),act_acy(i,jm1),act_acy(ip1,jm1))
                 c_y_acx = - ( (1.0-zeta_aa(k))*dzbdy_acx + zeta_aa(k)*dzsdy_acx)
 
 if (.FALSE.) then
@@ -825,10 +735,6 @@ end if
         end do 
         end do 
         !$omp end parallel do
-        
-        ! Step X: fill in partially filled margin points with neighbor strain-rate values
-        
-        ! To do....?
         
         return 
 
@@ -909,7 +815,7 @@ end if
         ! Step 1: Calculate all vertical derivatives, some of which are used 
         ! as correction terms for the horizontal derivatives w.r.t. sigma-coordinate transformation. 
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,k,h1,h2,H_now)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,im1,ip1,jm1,jp1,k,h1,h2,H_now)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -986,7 +892,7 @@ end if
 
         ! Step 2: Calculate all horizontal derivatives accounting for correction terms
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,k,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2) &
         !$omp& private(c_x,c_y,dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa)
         do j = 1, ny 
         do i = 1, nx 
@@ -1094,257 +1000,6 @@ end if
 
     end subroutine calc_jacobian_vel_3D_uzterms
 
-    subroutine calc_strain_rate_tensor_jac(strn, strn2D, jvel, H_ice, f_ice, f_grnd,  &
-                                                    zeta_aa, zeta_ac, dx, dy, de_max, boundaries)
-        ! -------------------------------------------------------------------------------
-        !  Computation of all components of the strain-rate tensor, the full
-        !  effective strain rate and the shear fraction.
-        ! ------------------------------------------------------------------------------
-
-        ! Note: vx, vy are staggered on ac-nodes in the horizontal, but are on the zeta_aa nodes (ie layer-centered)
-        ! in the vertical. vz is centered on aa-nodes in the horizontal, but staggered on zeta_ac nodes
-        ! in the vertical. 
-
-        ! Note: first calculate each tensor component on quadrature nodes, then interpolate to aa-nodes)
-        ! This is a quadrature approach and is generally more stable. 
-        ! The temperorary variable ddn(1:4) is used to hold the values 
-        ! calculated at each quadrature point, starting from ddn(1)==upper-right, and
-        ! moving counter-clockwise. The average of ddn(1:4) gives the cell-centered
-        ! (aa-node) value.
-
-        implicit none
-        
-        type(strain_3D_class), intent(INOUT) :: strn            ! [yr^-1] on aa-nodes (3D)
-        type(strain_2D_class), intent(INOUT) :: strn2D          ! [yr^-1] on aa-nodes (2D)
-        type(jacobian_3D_class), intent(IN)  :: jvel            ! 3D velocity Jacobian: Grad([ux,uy,uz])
-        real(wp), intent(IN) :: H_ice(:,:)
-        real(wp), intent(IN) :: f_ice(:,:)
-        real(wp), intent(IN) :: f_grnd(:,:)
-        real(wp), intent(IN) :: zeta_aa(:) 
-        real(wp), intent(IN) :: zeta_ac(:) 
-        real(wp), intent(IN) :: dx
-        real(wp), intent(IN) :: dy
-        real(wp), intent(IN) :: de_max                          ! [yr^-1] Maximum allowed effective strain rate
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer  :: i, j, k
-        integer  :: im1, ip1, jm1, jp1 
-        integer  :: nx, ny, nz_aa, nz_ac   
-        real(wp) :: lxz, lzx, lyz, lzy
-        real(wp) :: shear_squared  
-        real(wp), allocatable :: fact_z(:)
-        logical, allocatable :: is_ice(:,:)
-
-        real(wp) :: ddn(4) 
-        real(wp) :: ddan(4) 
-        real(wp) :: ddbn(4) 
-
-        real(wp) :: wtn(4)
-        real(wp) :: wt2D 
-
-        logical, parameter :: use_gq = .TRUE.
-
-        type(gq2D_class) :: gq2D, gq2D_global
-        real(wp) :: dz0, dz1 
-
-        integer  :: BC
-
-        ! Initialize gaussian quadrature calculations
-        call gq2D_init(gq2D_global)
-
-        ! For simple staggering
-        wtn  = [1.0,1.0,1.0,1.0]
-        wt2D = sum(wtn)
-
-        ! Determine sizes and allocate local variables 
-        nx    = size(H_ice,1)
-        ny    = size(H_ice,2)
-        nz_aa = size(zeta_aa,1)
-        nz_ac = size(zeta_ac,1)
-        
-        allocate(is_ice(nx,ny))
-        is_ice = (f_ice .eq. 1.0)
-        
-        ! Get boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Reset strain rate fields to zero, since only fully ice-covered points
-        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
-        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
-        ! rely on zero eigenvalues there to fill in from neighbors).
-        strn%dxx     = 0.0_wp
-        strn%dyy     = 0.0_wp
-        strn%dxy     = 0.0_wp
-        strn%dxz     = 0.0_wp
-        strn%dyz     = 0.0_wp
-        strn%de      = 0.0_wp
-        strn%div     = 0.0_wp
-        strn%f_shear = 0.0_wp
-
-        ! Calculate all strain rate tensor components on aa-nodes (horizontally and vertically)
-        ! dxx = dxx
-        ! dxy = 0.5*(dxy+dyx)
-        ! dyy = dyy 
-        ! dxz = 0.5*(dxz+dzx)
-        ! dyz = 0.5*(dyz+dzy)
-        ! dzz = dzz  <= Not calculated, as it is not needed 
-
-        !$omp parallel private(i,j,k,im1,ip1,jm1,jp1,ddn,ddan,ddbn,shear_squared,gq2D) &
-        !$omp& shared(gq2D_global)
-        gq2D = gq2D_global
-
-        !$omp do collapse(2) 
-        do j = 1, ny 
-        do i = 1, nx 
-
-            if (f_ice(i,j) .eq. 1.0) then 
-                ! Ice is present here, calculate the strain-rate tensor
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                ! Loop over all aa-nodes vertically
-                do k = 1, nz_aa 
-
-if (use_gq) then 
-    ! Use quadrature points
-
-                    ! Get dxx on aa-nodes 
-                    call gq2D_to_nodes_acx(gq2d,ddn,jvel%dxx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    strn%dxx(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
-                    
-                    ! Get dxy and dyx on aa-nodes 
-                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,ddbn,jvel%dyx(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    ddn = 0.5*(ddan+ddbn)
-                    strn%dxy(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
-
-                    ! Get dxz and dzx on aa-nodes 
-                    ! (but also get dzx on aa-nodes vertically)
-                    call gq2D_to_nodes_acx(gq2d,ddan,jvel%dxz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    ddbn = 0.5*(jvel%dzx(i,j,k)+jvel%dzx(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
-                    ddn  = 0.5*(ddan+ddbn)
-                    strn%dxz(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
-
-                    ! Get dyz and dzy on aa-nodes 
-                    ! (but also get dzy on aa-nodes vertically)
-                    call gq2D_to_nodes_acy(gq2d,ddan,jvel%dyz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    ddbn = 0.5*(jvel%dzy(i,j,k)+jvel%dzy(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
-                    ddn  = 0.5*(ddan+ddbn)
-                    strn%dyz(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
-
-                    ! Get dyy on aa-nodes 
-                    call gq2D_to_nodes_acy(gq2d,ddn,jvel%dyy(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    strn%dyy(i,j,k) = sum(ddn*gq2d%wt)/gq2d%wt_tot
-else
-    ! Unstagger directly to aa-nodes
-
-                    ! Get dxx on aa-nodes 
-                    strn%dxx(i,j,k) = 0.5*(jvel%dxx(im1,j,k)+jvel%dxx(i,j,k))
-
-                    ! Get dxy and dyx on aa-nodes 
-                    ddan = 0.5*(jvel%dxy(im1,j,k)+jvel%dxy(i,j,k))
-                    ddbn = 0.5*(jvel%dyx(i,jm1,k)+jvel%dyx(i,j,k))
-                    ddn = 0.5*(ddan+ddbn)
-                    strn%dxy(i,j,k) = sum(ddn*wtn)/sum(wtn)
-
-                    ! Get dxz and dzx on aa-nodes 
-                    ! (but also get dzx on aa-nodes vertically)
-                    ddan = 0.5*(jvel%dxz(im1,j,k)+jvel%dxz(i,j,k))
-                    ddbn = 0.5*(jvel%dzx(i,j,k)+jvel%dzx(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
-                    ddn  = 0.5*(ddan+ddbn)
-                    strn%dxz(i,j,k) = sum(ddn*wtn)/sum(wtn)
-
-                    ! Get dyz and dzy on aa-nodes 
-                    ! (but also get dzy on aa-nodes vertically)
-                    ddan = 0.5*(jvel%dyz(i,jm1,k)+jvel%dyz(i,j,k))
-                    ddbn = 0.5*(jvel%dzy(i,j,k)+jvel%dzy(i,j,k+1))  ! nz_ac has one more index than nz_aa, so this is ok!
-                    ddn  = 0.5*(ddan+ddbn)
-                    strn%dyz(i,j,k) = sum(ddn*wtn)/sum(wtn)
-
-                    ! Get dyy on aa-nodes 
-                    strn%dyy(i,j,k) = 0.5*(jvel%dyy(i,jm1,k)+jvel%dyy(i,j,k))
-
-end if
-
-                    ! TEST - set shear strain terms to zero
-                    !strn%dxz(i,j,k) =  0.0 
-                    !strn%dyz(i,j,k) = 0.0 
-
-                    ! Avoid underflow errors
-                    if (abs(strn%dxx(i,j,k)) .lt. TOL_UNDERFLOW) strn%dxx(i,j,k) = 0.0
-                    if (abs(strn%dyy(i,j,k)) .lt. TOL_UNDERFLOW) strn%dyy(i,j,k) = 0.0
-                    if (abs(strn%dxy(i,j,k)) .lt. TOL_UNDERFLOW) strn%dxy(i,j,k) = 0.0
-                    if (abs(strn%dxz(i,j,k)) .lt. TOL_UNDERFLOW) strn%dxz(i,j,k) = 0.0
-                    if (abs(strn%dyz(i,j,k)) .lt. TOL_UNDERFLOW) strn%dyz(i,j,k) = 0.0
-                    
-                    ! ====== Finished calculating individual strain rate terms ====== 
-                        
-                    strn%de(i,j,k) =  sqrt(   strn%dxx(i,j,k)*strn%dxx(i,j,k) &
-                                            + strn%dyy(i,j,k)*strn%dyy(i,j,k) &
-                                            + strn%dxx(i,j,k)*strn%dyy(i,j,k) &
-                                            + strn%dxy(i,j,k)*strn%dxy(i,j,k) &
-                                            + strn%dxz(i,j,k)*strn%dxz(i,j,k) &
-                                            + strn%dyz(i,j,k)*strn%dyz(i,j,k) )
-                    
-                    if (strn%de(i,j,k) .gt. de_max) strn%de(i,j,k) = de_max 
-
-                    ! Calculate the horizontal divergence too 
-                    strn%div(i,j,k) = strn%dxx(i,j,k) + strn%dyy(i,j,k) 
-
-                    ! Note: Using only the below should be equivalent to applying
-                    ! the SIA approximation to calculate `de`
-                    !strn%de(i,j,k)    =  sqrt( shear_squared(k) )
-
-                    if (strn%de(i,j,k) .gt. 0.0) then 
-                        ! Calculate the shear-based strain, stretching and the shear-fraction
-                        shear_squared =   strn%dxz(i,j,k)*strn%dxz(i,j,k) &
-                                        + strn%dyz(i,j,k)*strn%dyz(i,j,k)
-                        strn%f_shear(i,j,k) = sqrt(shear_squared)/strn%de(i,j,k)
-                    else 
-                        strn%f_shear(i,j,k) = 1.0   ! Shearing by default for low strain rates
-                    end if 
-
-                    !  ------ Modification of the shear fraction for floating ice (ice shelves)
-
-                    if (f_grnd(i,j) .eq. 0.0) then 
-                        strn%f_shear(i,j,k) = 0.0    ! Assume ice shelf is only stretching, no shear 
-                    end if 
-
-                    !  ------ Constrain the shear fraction to reasonable [0,1] interval
-
-                    strn%f_shear(i,j,k) = min(max(strn%f_shear(i,j,k), 0.0), 1.0)
-
-                end do 
-
-            end if 
-
-        end do 
-        end do
-        !$omp end do
-        !$omp end parallel
-
-        ! === Also calculate vertically averaged strain rate tensor ===
-        
-        ! Get the 2D average of strain rate in case it is needed 
-        strn2D%dxx     = calc_vertical_integrated_2D(strn%dxx, zeta_aa)
-        strn2D%dyy     = calc_vertical_integrated_2D(strn%dyy, zeta_aa)
-        strn2D%dxy     = calc_vertical_integrated_2D(strn%dxy, zeta_aa)
-        strn2D%dxz     = calc_vertical_integrated_2D(strn%dxz, zeta_aa)
-        strn2D%dyz     = calc_vertical_integrated_2D(strn%dyz, zeta_aa)
-        strn2D%div     = calc_vertical_integrated_2D(strn%div, zeta_aa)
-        strn2D%de      = calc_vertical_integrated_2D(strn%de,  zeta_aa)
-        strn2D%f_shear = calc_vertical_integrated_2D(strn%f_shear,zeta_aa) 
-        
-        ! Finally, calculate the first two eigenvectors for 2D strain rate tensor 
-        call calc_2D_eigen_values(strn2D%eps_eig_1,strn2D%eps_eig_2, &
-                                    strn2D%dxx,strn2D%dyy,strn2D%dxy)
-
-        return 
-
-    end subroutine calc_strain_rate_tensor_jac 
-
     subroutine calc_strain_rate_tensor_jac_quad3D(strn, strn2D, jvel, H_ice, f_ice, f_grnd,  &
                                                     zeta_aa, zeta_ac, dx, dy, de_max, boundaries)
         ! -------------------------------------------------------------------------------
@@ -1356,10 +1011,9 @@ end if
         ! in the vertical. vz is centered on aa-nodes in the horizontal, but staggered on zeta_ac nodes
         ! in the vertical. 
 
-        ! Note: this is the routine used by calc_ydyn (the alternative is
-        ! calc_strain_rate_tensor_jac above). It was once reported to be less stable
-        ! in, e.g., Laurentide simulations; that report predates the fix of the
-        ! vertical faces used for dzx/dzy (2026-09) and has not been re-tested.
+        ! Note: this is the routine used by calc_ydyn. It was once reported to be
+        ! less stable in, e.g., Laurentide simulations; that report predates the fix
+        ! of the vertical faces used for dzx/dzy (2026-09) and has not been re-tested.
 
         implicit none
         
@@ -1394,6 +1048,8 @@ end if
 
         integer  :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq3D_init(gq3D_global)
 
@@ -1406,10 +1062,13 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Reset strain rate fields to zero, since only fully ice-covered points
-        ! (f_ice==1) are calculated below. Partially ice-covered and ice-free points
-        ! must not retain values from a previous call (e.g., calc_eps_eff/calc_tau_eff
-        ! rely on zero eigenvalues there to fill in from neighbors).
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+        ! Reset strain rate fields to zero, since only ice-covered points
+        ! (f_ice==1, binary on the dynamic geometry) are calculated below.
+        ! Ice-free points must not retain values from a previous call.
         strn%dxx     = 0.0_wp
         strn%dyy     = 0.0_wp
         strn%dxy     = 0.0_wp
@@ -1432,7 +1091,7 @@ end if
         ! Copy gq3D to thread-local version
         gq3D = gq3D_global
 
-        !$omp do collapse(2)        
+        !$omp do collapse(2) schedule(dynamic,64)        
         do j = 1, ny 
         do i = 1, nx 
 
@@ -1463,12 +1122,12 @@ end if
                     end if
                     
                     ! Get dxx on aa-nodes 
-                    call gq3D_to_nodes_acx(gq3d,ddn,jvel%dxx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddn,jvel%dxx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     strn%dxx(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dxy and dyx on aa-nodes 
-                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,ddbn,jvel%dyx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
+                    call gq3D_to_nodes_acy(gq3d,ddbn,jvel%dyx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     ddn = 0.5*(ddan+ddbn)
                     strn%dxy(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
@@ -1476,7 +1135,7 @@ end if
                     ! (but also get dzx on aa-nodes vertically)
                     ! Note: dzx is on vertical ac-nodes; the faces of aa-node k are ac-nodes k (below)
                     ! and k+1 (above), so pass k+1 as upper and k as lower index to gq3D_to_nodes_acz
-                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3d,ddan,jvel%dxz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzx,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dxz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
@@ -1484,13 +1143,13 @@ end if
                     ! Get dyz and dzy on aa-nodes 
                     ! (but also get dzy on aa-nodes vertically)
                     ! (dzy on vertical ac-nodes: faces k and k+1, as for dzx above)
-                    call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3d,ddan,jvel%dyz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     call gq3D_to_nodes_acz(gq3d,ddbn,jvel%dzy,dx,dy,dz0,dz1,i,j,k+1,im1,ip1,jm1,jp1,k,kp1)
                     ddn  = 0.5*(ddan+ddbn)
                     strn%dyz(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! Get dyy on aa-nodes 
-                    call gq3D_to_nodes_acy(gq3d,ddn,jvel%dyy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3d,ddn,jvel%dyy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     strn%dyy(i,j,k) = sum(ddn*gq3d%wt)/gq3d%wt_tot
 
                     ! TEST - set shear strain terms to zero
@@ -1603,6 +1262,8 @@ end if
 
         integer  :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
         
@@ -1617,6 +1278,10 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
         ! === First calculate the horizontal strain rate ===
 
         call calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
@@ -1645,11 +1310,11 @@ end if
 
             if (f_ice(i,j) .eq. 1.0_wp) then 
                 
-                call gq2D_to_nodes_acx(gq2d,dudxn,dudx,dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acx(gq2d,dudyn,dudy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dudxn,dudx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                call gq2D_to_nodes_acx(gq2d,dudyn,dudy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
 
-                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx,dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 ! Calculate strain rate tensor terms 
                 strn2D%dxx(i,j) = sum(dudxn*gq2d%wt)/gq2d%wt_tot
@@ -1688,6 +1353,83 @@ end if
         
     end subroutine calc_strain_rate_tensor_2D
     
+    subroutine calc_active_faces(act_acx,act_acy,f_ice,BC)
+        ! Velocity faces that carry a solution: next to at least one
+        ! ice-covered cell (f_ice == 1). Other faces hold zero velocity.
+
+        implicit none
+
+        logical,  intent(OUT) :: act_acx(:,:)
+        logical,  intent(OUT) :: act_acy(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        integer,  intent(IN)  :: BC
+
+        integer :: i, j, nx, ny, im1, ip1, jm1, jp1
+
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            act_acx(i,j) = f_ice(i,j) .eq. 1.0_wp .or. f_ice(ip1,j) .eq. 1.0_wp
+            act_acy(i,j) = f_ice(i,j) .eq. 1.0_wp .or. f_ice(i,jp1) .eq. 1.0_wp
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_active_faces
+
+    elemental function deriv_active(v_m,v_0,v_p,act_m,act_p,h) result(dvdh)
+        ! Derivative at a velocity face from its two neighbours along the
+        ! derivative direction: centred if both carry a solution, one-sided
+        ! towards the one that does, zero if neither does. Mirror symmetric.
+
+        implicit none
+
+        real(wp), intent(IN) :: v_m, v_0, v_p
+        logical,  intent(IN) :: act_m, act_p
+        real(wp), intent(IN) :: h
+        real(wp) :: dvdh
+
+        if (act_m .and. act_p) then
+            dvdh = (v_p-v_m)/(2.0_wp*h)
+        else if (act_p) then
+            dvdh = (v_p-v_0)/h
+        else if (act_m) then
+            dvdh = (v_0-v_m)/h
+        else
+            dvdh = 0.0_wp
+        end if
+
+    end function deriv_active
+
+    elemental function mean4_active(v1,v2,v3,v4,act1,act2,act3,act4) result(v)
+        ! Mean of four face values over the faces that carry a solution
+        ! (zero if none does)
+
+        implicit none
+
+        real(wp), intent(IN) :: v1, v2, v3, v4
+        logical,  intent(IN) :: act1, act2, act3, act4
+        real(wp) :: v
+
+        integer :: n
+
+        n = count([act1,act2,act3,act4])
+
+        if (n .gt. 0) then
+            v = ( merge(v1,0.0_wp,act1) + merge(v2,0.0_wp,act2) &
+                + merge(v3,0.0_wp,act3) + merge(v4,0.0_wp,act4) ) / real(n,wp)
+        else
+            v = 0.0_wp
+        end if
+
+    end function mean4_active
+
     subroutine calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
         ! Get simple horizontal derivatives with sigma corrections
         ! (valid for depth-averaged fields like for SSA/DIVA effective viscosity)
@@ -1708,7 +1450,9 @@ end if
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1 
-        integer :: im2, ip2, jm2, jp2 
+        integer :: im2, ip2, jm2, jp2
+        integer :: id1, id2, id3
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         integer :: BC
 
@@ -1718,45 +1462,46 @@ end if
         ! Get boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Populate strain rates over the whole domain on acx- and acy-nodes
+        ! Faces with a velocity solution (see calc_jacobian_vel_3D_uxyterms)
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
 
-        dudx = 0.0
-        dvdy = 0.0
-        dudy = 0.0
-        dvdx = 0.0
-        
+        ! Populate strain rates over the whole domain on acx- and acy-nodes
+        ! (all four terms are set at every point)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,id1,id2,id3)
         do j = 1, ny  
         do i = 1, nx
             
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Calculate derivatives (second-order, centered)
+            ! Calculate derivatives (second-order, centered; cross derivatives
+            ! only across faces with a velocity solution)
             dudx(i,j) = (ux(ip1,j)-ux(im1,j))/(2.0*dx)
-            dudy(i,j) = (ux(i,jp1)-ux(i,jm1))/(2.0*dy)
-            dvdx(i,j) = (uy(ip1,j)-uy(im1,j))/(2.0*dx)
+            dudy(i,j) = deriv_active(ux(i,jm1),ux(i,j),ux(i,jp1),act_acx(i,jm1),act_acx(i,jp1),dy)
+            dvdx(i,j) = deriv_active(uy(im1,j),uy(i,j),uy(ip1,j),act_acy(im1,j),act_acy(ip1,j),dx)
             dvdy(i,j) = (uy(i,jp1)-uy(i,jm1))/(2.0*dy)
 
 if (.TRUE.) then
             ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
-            ! Second-order, one-sided derivatives
+            ! Second-order, one-sided derivatives. The +-2 indices step once more
+            ! from the +-1 neighbors (BC-aware: periodic seams get the interior
+            ! stencil); at a clamped edge the step returns the +-1 index itself
+            ! (im2 == im1 etc.), and the first-order difference is used.
 
             ! dudx
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                if (f_ice(im1,j) .eq. 1.0 .and. im1 .gt. 1) then
-                    im2 = im1-1  
+                call get_neighbor_indices_bc_codes(im2,id1,id2,id3,im1,j,nx,ny,BC)
+                if (f_ice(im1,j) .eq. 1.0 .and. im2 .ne. im1) then
                     dudx(i,j) = (1.0*ux(im2,j)-4.0*ux(im1,j)+3.0*ux(i,j))/(2.0*dx)
                 else 
                     dudx(i,j) = (ux(i,j)-ux(im1,j))/dx
                 end if
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then 
-                if (ip1 .lt. nx) then
-                    ip2 = ip1+1
-                    if (f_ice(ip2,j) .eq. 1.0) then
-                        dudx(i,j) = -(1.0*ux(ip2,j)-4.0*ux(ip1,j)+3.0*ux(i,j))/(2.0*dx)
-                    else
-                        dudx(i,j) = (ux(ip1,j)-ux(i,j))/dx
-                    end if
+                call get_neighbor_indices_bc_codes(id1,ip2,id2,id3,ip1,j,nx,ny,BC)
+                if (ip2 .ne. ip1 .and. f_ice(ip2,j) .eq. 1.0) then
+                    dudx(i,j) = -(1.0*ux(ip2,j)-4.0*ux(ip1,j)+3.0*ux(i,j))/(2.0*dx)
                 else
                     dudx(i,j) = (ux(ip1,j)-ux(i,j))/dx
                 end if
@@ -1764,29 +1509,26 @@ if (.TRUE.) then
 
             ! dvdy
             if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                if (f_ice(i,jm1) .eq. 1.0 .and. jm1 .gt. 1) then 
-                    jm2 = jm1-1  
+                call get_neighbor_indices_bc_codes(id1,id2,jm2,id3,i,jm1,nx,ny,BC)
+                if (f_ice(i,jm1) .eq. 1.0 .and. jm2 .ne. jm1) then 
                     dvdy(i,j) = (1.0*uy(i,jm2)-4.0*uy(i,jm1)+3.0*uy(i,j))/(2.0*dy)
                 else
                     dvdy(i,j) = (uy(i,j)-uy(i,jm1))/dy
                 end if
             else if (f_ice(i,j) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
-                if (jp1 .lt. ny) then
-                    jp2 = jp1+1
-                    if (f_ice(i,jp2) .eq. 1.0) then
-                        dvdy(i,j) = -(1.0*uy(i,jp2)-4.0*uy(i,jp1)+3.0*uy(i,j))/(2.0*dy)
-                    else
-                        dvdy(i,j) = (uy(i,jp1)-uy(i,j))/dy
-                    end if 
+                call get_neighbor_indices_bc_codes(id1,id2,id3,jp2,i,jp1,nx,ny,BC)
+                if (jp2 .ne. jp1 .and. f_ice(i,jp2) .eq. 1.0) then
+                    dvdy(i,j) = -(1.0*uy(i,jp2)-4.0*uy(i,jp1)+3.0*uy(i,j))/(2.0*dy)
+                else
+                    dvdy(i,j) = (uy(i,jp1)-uy(i,j))/dy
                 end if
             end if
 
-            ! Note - do not treat cross terms as symmetry breaks down.
-            ! Better to keep it clean.
 end if
         
         end do
         end do
+        !$omp end parallel do
 
         ! To do... ? 
         
@@ -1804,51 +1546,6 @@ end if
 
     end subroutine calc_strain_rate_horizontal_2D
 
-    subroutine calc_stress_tensor(strs,strs2D,visc,strn,zeta_aa)
-        ! Calculate the deviatoric stress tensor components [Pa]
-        ! following from, eg, Thoma et al. (2014), Eq. 7.
-        
-        implicit none 
-
-        type(stress_3D_class), intent(INOUT) :: strs 
-        type(stress_2D_class), intent(INOUT) :: strs2D 
-        real(wp),              intent(IN)    :: visc(:,:,:)
-        type(strain_3D_class), intent(IN)    :: strn 
-        real(wp),              intent(IN)    :: zeta_aa(:) 
-
-        strs%txx = 2.0*visc*strn%dxx
-        strs%tyy = 2.0*visc*strn%dyy
-        strs%txy = 2.0*visc*strn%dxy
-        strs%txz = 2.0*visc*strn%dxz
-        strs%tyz = 2.0*visc*strn%dyz
-        
-        ! Next calculate the effective stress 
-        ! analogous to the effective strain rate
-        ! (or, eg, Lipscomb et al., 2019, Eq. 44)
-
-        strs%te =  sqrt(  strs%txx*strs%txx &
-                        + strs%tyy*strs%tyy &
-                        + strs%txx*strs%tyy &
-                        + strs%txy*strs%txy &
-                        + strs%txz*strs%txz &
-                        + strs%tyz*strs%tyz )
-
-        ! === Also calculate vertically averaged stress tensor ===
-        strs2D%txx = calc_vertical_integrated_2D(strs%txx,zeta_aa)
-        strs2D%tyy = calc_vertical_integrated_2D(strs%tyy,zeta_aa)
-        strs2D%txy = calc_vertical_integrated_2D(strs%txy,zeta_aa)
-        strs2D%txz = calc_vertical_integrated_2D(strs%txz,zeta_aa)
-        strs2D%tyz = calc_vertical_integrated_2D(strs%tyz,zeta_aa)
-        strs2D%te  = calc_vertical_integrated_2D(strs%te, zeta_aa)
-        
-        ! Finally, calculate the first two eigenvectors for 2D stress tensor 
-        call calc_2D_eigen_values(strs2D%tau_eig_1,strs2D%tau_eig_2, &
-                                        strs2D%txx,strs2D%tyy,strs2D%txy)
-
-        return 
-
-    end subroutine calc_stress_tensor
-    
     subroutine calc_stress_tensor_2D(strs2D,visc_bar,strn2D)
         ! Calculate the deviatoric stress tensor components [Pa]
         ! following from, eg, Thoma et al. (2014), Eq. 7.
@@ -2011,26 +1708,6 @@ end if
     end subroutine stress_2D_alloc
     
 
-
-    subroutine check_symmetry_jacobian(jvel)
-
-        implicit none 
-
-        type(jacobian_3D_class), intent(IN) :: jvel
-
-        ! Local variables
-        integer :: i, j, nx, ny, nz_aa, nz_ac 
-
-        nx    = size(jvel%dxx,1)
-        ny    = size(jvel%dxx,2)
-        nz_aa = size(jvel%dxx,3)
-        nz_ac = size(jvel%dzz,3)
-        
-
-
-        return
-
-    end subroutine check_symmetry_jacobian
 
 end module deformation
 

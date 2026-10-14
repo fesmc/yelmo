@@ -1,7 +1,7 @@
 module solver_advection
     
     use yelmo_defs, only : sp, dp, wp, tol_underflow, io_unit_err, &
-                           MASK_ICE_NONE, MASK_ICE_FIXED, MASK_ICE_DYNAMIC
+                           MASK_ICE_NONE, MASK_ICE_FIXED
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
     
     use solver_linear
@@ -16,7 +16,7 @@ module solver_advection
 
 contains 
 
-    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,dx,dy,dt,solver,boundaries)
+    subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,var_ref,dx,dy,dt,solver,boundaries,lin_iter,lin_status)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `var_dot`. Various solvers are possible
 
@@ -26,12 +26,15 @@ contains
         real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
         real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
         real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
-        integer,        intent(IN)    :: mask_ice(:,:)          ! Per-cell ice mask (bnd%mask_ice)
+        integer,        intent(IN)    :: mask_ice(:,:)          ! Ice mask (bnd%mask_ice), impl-lis only
+        real(wp),       intent(IN)    :: var_ref(:,:)           ! [var] Value imposed in MASK_ICE_FIXED cells (impl-lis)
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
         character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
         character(len=*), intent(IN)    :: boundaries           ! Boundary conditions to impose
+        integer, intent(OUT), optional  :: lin_iter             ! Linear solver iterations (impl-lis, else 0)
+        integer, intent(OUT), optional  :: lin_status           ! Linear solver return status (impl-lis, else LGS_SUCCESS)
 
         ! Local variables
         integer :: nx, ny  
@@ -47,6 +50,9 @@ contains
 
         ! Assign local variable to be modified 
         var_now = var 
+
+        if (present(lin_iter))   lin_iter   = 0
+        if (present(lin_status)) lin_status = LGS_SUCCESS
 
         select case(trim(solver))
             ! Choose solver to use 
@@ -90,23 +96,32 @@ contains
                 call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
                 ! Populate advection matrices Ax=b
-                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,var_ref,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
-                adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
-                !adv_lis_opt = "-i minres -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                ! Jacobi preconditioner: the upwind matrix is diagonally dominant, and the
+                ! LIS ILU factors are freed row by row on one thread, which was a large
+                ! serial cost at high resolution. BiCGSTAB instead of BiCG: BiCG needs
+                ! the transposed product, which LIS runs largely on one thread.
+                ! (Same result in single precision.)
+                adv_lis_opt = "-i bicgstab -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
                 call linear_solver_matrix_solve(lgs,adv_lis_opt)
+                if (present(lin_iter))   lin_iter   = lgs%lin_iter
+                if (present(lin_status)) lin_status = lgs%status
                 
                 !call linear_solver_print_summary(lgs,io_unit_err)
 
                 ! Store advection solution
                 call linear_solver_save_advection(var_now,lgs)
 
+                ! Transport of MASK_ICE_FIXED cells: the flux through their faces
+                call calc_fixed_cell_transport(var_now,var,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
+
             case DEFAULT 
 
                 write(*,*) "calc_advec2D:: Error: solver not recognized."
                 write(*,*) "solver = ", trim(solver)
-                stop 
+                error stop 1
 
         end select 
         
@@ -141,7 +156,7 @@ contains
 
     end subroutine linear_solver_save_advection
 
-    subroutine linear_solver_matrix_advection_csr_2D(lgs,H,ux,uy,F,mask,dx,dy,dt,boundaries)
+    subroutine linear_solver_matrix_advection_csr_2D(lgs,H,H_ref,ux,uy,F,mask,dx,dy,dt,boundaries)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for 2D advection equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -152,10 +167,11 @@ contains
 
         type(linear_solver_class), intent(INOUT) :: lgs
         real(wp), intent(INOUT)   :: H(:,:)         ! [X] Variable of interest (aa nodes)
+        real(wp), intent(IN)      :: H_ref(:,:)     ! [X] Value imposed in MASK_ICE_FIXED cells (aa nodes)
         real(wp), intent(IN)      :: ux(:,:)        ! [m a-1] Horizontal velocity x-direction (ac nodes)
         real(wp), intent(IN)      :: uy(:,:)        ! [m a-1] Horizontal velocity y-direction (ac nodes)
         real(wp), intent(IN)      :: F(:,:)         ! [m a-1] Net source/sink terms (aa nodes)
-        integer,  intent(IN)      :: mask(:,:)      ! Advection mask
+        integer,  intent(IN)      :: mask(:,:)      ! Ice mask (bnd%mask_ice)
         real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
         real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
         real(wp), intent(IN)      :: dt             ! [a] Time step 
@@ -166,6 +182,7 @@ contains
         integer  :: im1, ip1, jm1, jp1 
         integer  :: n, nr, nc
         real(wp) :: dt_darea
+        logical  :: use_border_bc
         character(len=56) :: bcs(4)
 
         real(wp), allocatable  :: ux_1(:,:), ux_2(:,:)
@@ -175,54 +192,12 @@ contains
 
         real(wp), parameter :: WOVI = 1.0     ! Weighting parameter for the over-implicit scheme 
 
-        integer :: BC
-
         nx = size(H,1)
         ny = size(H,2) 
 
         dt_darea = dt/(dx*dy)
 
-        ! Boundary conditions (bcs) counterclockwise unit circle 
-        ! 1: x, right-border
-        ! 2: y, upper-border 
-        ! 3: x, left--border 
-        ! 4: y, lower-border 
-        
-        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
-        select case(trim(boundaries)) 
-
-            case("MISMIP3D","TROUGH")
-
-                bcs(1) = "zero"
-                bcs(2) = "periodic"
-                bcs(3) = "infinite"
-                bcs(4) = "periodic" 
-
-            case("infinite","mask")
-
-                bcs(1:4) = "infinite"
-
-            case("zeros")
-
-                bcs(1:4) = "zero"
-
-            case("periodic","periodic-xy")
-
-                bcs(1:4) = "periodic" 
-
-            case("periodic-x")
-
-                bcs(1) = "periodic"
-                bcs(2) = "infinite"
-                bcs(3) = "periodic"
-                bcs(4) = "infinite"
-
-            case DEFAULT 
-
-                bcs(1:4) = "zero"
-
-        end select 
-
+        call define_advection_bcs(bcs,boundaries)
 
         ! Safety check for initialization
         if (.not. allocated(lgs%x_value)) then 
@@ -244,60 +219,10 @@ contains
         allocate(Hy_2(nx,ny))
         
         ! ====================================================================================
-        ! Step 1: populate variables representing velocity components (ux,uy) at each
-        ! cell face (left,right,bottom,top) and upstream variable (Hx,Hy) at each cell face. 
+        ! Step 1: velocity components (ux,uy) and upstream variable (Hx,Hy) at each
+        ! cell face (left,right,bottom,top).
 
-        ux_1 = 0.0
-        ux_2 = 0.0
-        uy_1 = 0.0
-        uy_2 = 0.0
-        
-        Hx_1 = 0.0
-        Hx_2 = 0.0
-        Hy_1 = 0.0
-        Hy_2 = 0.0
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        do j = 1, ny
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! Get velocity components on each cell face 
-            ux_1(i,j) = ux(im1,j)
-            ux_2(i,j) = ux(i,j)
-            uy_1(i,j) = uy(i,jm1)
-            uy_2(i,j) = uy(i,j)
-
-            if (ux_1(i,j) >= 0.0) then
-                Hx_1(i,j) = H(im1,j)
-            else
-                Hx_1(i,j) = H(i,j)
-            end if
-
-            if (ux_2(i,j) >= 0.0) then
-                Hx_2(i,j) = H(i,j)
-            else
-                Hx_2(i,j) = H(ip1,j)
-            end if
-
-            if (uy_1(i,j) >= 0.0) then
-                Hy_1(i,j) = H(i,jm1)
-            else
-                Hy_1(i,j) = H(i,j)
-            end if
-
-            if (uy_2(i,j) >= 0.0) then
-                Hy_2(i,j) = H(i,j)
-            else
-                Hy_2(i,j) = H(i,jp1)
-            end if
-
-        end do
-        end do
+        call calc_upwind_faces(ux_1,ux_2,uy_1,uy_2,Hx_1,Hx_2,Hy_1,Hy_2,H,ux,uy,bcs,boundaries)
 
         !-------- Assembly of the system of linear equations
         !             (matrix storage: compressed sparse row CSR) --------
@@ -333,29 +258,31 @@ contains
             if (jp1 .eq. ny+1) jp1 = 1 
             
 
-            ! Handle special cases first, otherwise populate with normal inner discretization
+            ! Handle special cases first, otherwise populate with normal inner discretization.
+            ! MASK_ICE_FIXED cells are Dirichlet rows (H = H_ref), so that their
+            ! neighbours receive the flux of the imposed thickness. Their transport
+            ! rate is then the flux through their faces, evaluated on the solution
+            ! (calc_fixed_cell_transport), and calc_G_boundaries books the change back
+            ! to H_ref in mb_resid. MASK_ICE_NONE cells are advected as inner points
+            ! (imposing H = 0 would remove the inflow without booking it);
+            ! calc_G_boundaries removes their ice afterwards and books it in mb_resid.
+            ! For the same reason, masked border cells do not use the border condition:
+            ! they are inner points with no flux through the domain edge (see Step 1),
+            ! so the flux through their interior faces is kept and booked.
 
-            if (mask(i,j) .eq. MASK_ICE_NONE) then
-                ! Zero thickness imposed
+            use_border_bc = mask(i,j) .ne. MASK_ICE_NONE
+
+            if (mask(i,j) .eq. MASK_ICE_FIXED) then
+                ! Prescribed thickness imposed
 
                 k = k+1
                 lgs%a_index(k) = nr
                 lgs%a_value(k) = 1.0_wp   ! diagonal element only
-                
-                lgs%b_value(nr) = 0.0_wp
-                lgs%x_value(nr) = 0.0_wp
 
-            else if (mask(i,j) .eq. MASK_ICE_FIXED) then
-                ! Prescribed ice thickness imposed
+                lgs%b_value(nr) = H_ref(i,j)
+                lgs%x_value(nr) = H_ref(i,j)
 
-                k = k+1
-                lgs%a_index(k) = nr
-                lgs%a_value(k) = 1.0_wp   ! diagonal element only
-
-                lgs%b_value(nr) = H(i,j)
-                lgs%x_value(nr) = H(i,j)
-            
-            else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+            else if ( use_border_bc .and. (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
                 ! Right border
 
                 if (bcs(1) .eq. "infinite") then
@@ -383,7 +310,7 @@ contains
 
                 end if
 
-            else if ( (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
+            else if ( use_border_bc .and. (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
                 ! Top border
 
                 if (bcs(2) .eq. "infinite") then
@@ -411,7 +338,7 @@ contains
 
                 end if
 
-            else if ( (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
+            else if ( use_border_bc .and. (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
                 ! Left border
 
                 if (bcs(3) .eq. "infinite") then
@@ -444,7 +371,7 @@ contains
 
                 end if
 
-            else if ( (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
+            else if ( use_border_bc .and. (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
                 ! Bottom border
 
                 if (bcs(4) .eq. "infinite") then
@@ -537,6 +464,212 @@ contains
         return
 
     end subroutine linear_solver_matrix_advection_csr_2D
+
+    subroutine calc_fixed_cell_transport(H,H_old,ux,uy,F,mask,dx,dy,dt,boundaries)
+        ! MASK_ICE_FIXED cells are Dirichlet rows of the implicit solve (H = H_ref).
+        ! Replace their solution by the inner-point update evaluated on the solved
+        ! field, H_old + dt*(F - div(u*H)) with the same upwind fluxes as the matrix
+        ! (WOVI = 1): the advective rate of a FIXED cell is then the flux through its
+        ! faces, so transport conserves mass. calc_G_boundaries restores H_ref and
+        ! books the change in mb_resid (the mass the FIXED cell supplies or absorbs).
+
+        implicit none
+
+        real(wp), intent(INOUT) :: H(:,:)           ! [X] Solution of the implicit solve (aa nodes)
+        real(wp), intent(IN)    :: H_old(:,:)       ! [X] Variable at the start of the step (aa nodes)
+        real(wp), intent(IN)    :: ux(:,:)          ! [m a-1] Horizontal velocity x-direction (ac nodes)
+        real(wp), intent(IN)    :: uy(:,:)          ! [m a-1] Horizontal velocity y-direction (ac nodes)
+        real(wp), intent(IN)    :: F(:,:)           ! [m a-1] Net source/sink terms (aa nodes)
+        integer,  intent(IN)    :: mask(:,:)        ! Ice mask (bnd%mask_ice)
+        real(wp), intent(IN)    :: dx               ! [m] Horizontal step x-direction
+        real(wp), intent(IN)    :: dy               ! [m] Horizontal step y-direction
+        real(wp), intent(IN)    :: dt               ! [a] Time step
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        real(wp) :: dt_darea
+        character(len=56) :: bcs(4)
+        real(wp), allocatable :: ux_1(:,:), ux_2(:,:)
+        real(wp), allocatable :: uy_1(:,:), uy_2(:,:)
+        real(wp), allocatable :: Hx_1(:,:), Hx_2(:,:)
+        real(wp), allocatable :: Hy_1(:,:), Hy_2(:,:)
+
+        if (.not. any(mask .eq. MASK_ICE_FIXED)) return
+
+        nx = size(H,1)
+        ny = size(H,2)
+
+        dt_darea = dt/(dx*dy)
+
+        allocate(ux_1(nx,ny),ux_2(nx,ny),uy_1(nx,ny),uy_2(nx,ny))
+        allocate(Hx_1(nx,ny),Hx_2(nx,ny),Hy_1(nx,ny),Hy_2(nx,ny))
+
+        ! Face velocities and upwind values of the solution (all computed
+        ! before any FIXED cell is overwritten)
+        call define_advection_bcs(bcs,boundaries)
+        call calc_upwind_faces(ux_1,ux_2,uy_1,uy_2,Hx_1,Hx_2,Hy_1,Hy_2,H,ux,uy,bcs,boundaries)
+
+        do j = 1, ny
+        do i = 1, nx
+            if (mask(i,j) .eq. MASK_ICE_FIXED) then
+                H(i,j) = H_old(i,j) + dt*F(i,j) &
+                            - dt_darea * (  ( ux_2(i,j)*Hx_2(i,j) - ux_1(i,j)*Hx_1(i,j) )*dy   &
+                                          + ( uy_2(i,j)*Hy_2(i,j) - uy_1(i,j)*Hy_1(i,j) )*dx )
+            end if
+        end do
+        end do
+
+        return
+
+    end subroutine calc_fixed_cell_transport
+
+    subroutine define_advection_bcs(bcs,boundaries)
+        ! Border conditions of the implicit advection solve for each border
+
+        implicit none
+
+        character(len=56), intent(OUT) :: bcs(4)
+        character(len=*),  intent(IN)  :: boundaries
+
+        ! Boundary conditions (bcs) counterclockwise unit circle 
+        ! 1: x, right-border
+        ! 2: y, upper-border 
+        ! 3: x, left--border 
+        ! 4: y, lower-border 
+        
+        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
+        select case(trim(boundaries)) 
+
+            case("MISMIP3D","TROUGH")
+
+                bcs(1) = "zero"
+                bcs(2) = "periodic"
+                bcs(3) = "infinite"
+                bcs(4) = "periodic" 
+
+            case("infinite","mask")
+
+                bcs(1:4) = "infinite"
+
+            case("zeros")
+
+                bcs(1:4) = "zero"
+
+            case("periodic","periodic-xy")
+
+                bcs(1:4) = "periodic" 
+
+            case("periodic-x")
+
+                bcs(1) = "periodic"
+                bcs(2) = "infinite"
+                bcs(3) = "periodic"
+                bcs(4) = "infinite"
+
+            case("periodic-y")
+
+                bcs(1) = "infinite"
+                bcs(2) = "periodic"
+                bcs(3) = "infinite"
+                bcs(4) = "periodic"
+
+            case DEFAULT 
+
+                bcs(1:4) = "zero"
+
+        end select
+
+        return
+
+    end subroutine define_advection_bcs
+
+    subroutine calc_upwind_faces(ux_1,ux_2,uy_1,uy_2,Hx_1,Hx_2,Hy_1,Hy_2,H,ux,uy,bcs,boundaries)
+        ! Velocity components (ux,uy) at each cell face (1: left/bottom, 2: right/top)
+        ! and upstream variable (Hx,Hy) at each cell face.
+
+        implicit none
+
+        real(wp), intent(OUT) :: ux_1(:,:), ux_2(:,:)
+        real(wp), intent(OUT) :: uy_1(:,:), uy_2(:,:)
+        real(wp), intent(OUT) :: Hx_1(:,:), Hx_2(:,:)
+        real(wp), intent(OUT) :: Hy_1(:,:), Hy_2(:,:)
+        real(wp), intent(IN)  :: H(:,:)             ! [X] Variable of interest (aa nodes)
+        real(wp), intent(IN)  :: ux(:,:)            ! [m a-1] Horizontal velocity x-direction (ac nodes)
+        real(wp), intent(IN)  :: uy(:,:)            ! [m a-1] Horizontal velocity y-direction (ac nodes)
+        character(len=56), intent(IN) :: bcs(4)
+        character(len=*),  intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+
+        nx = size(H,1)
+        ny = size(H,2)
+
+        ux_1 = 0.0
+        ux_2 = 0.0
+        uy_1 = 0.0
+        uy_2 = 0.0
+        
+        Hx_1 = 0.0
+        Hx_2 = 0.0
+        Hy_1 = 0.0
+        Hy_2 = 0.0
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        do j = 1, ny
+        do i = 1, nx 
+
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Get velocity components on each cell face 
+            ux_1(i,j) = ux(im1,j)
+            ux_2(i,j) = ux(i,j)
+            uy_1(i,j) = uy(i,jm1)
+            uy_2(i,j) = uy(i,j)
+
+            ! No flux through the domain edge (non-periodic borders). Only used by
+            ! masked border cells, which do not use the border condition (see assembly).
+            if (i .eq. 1  .and. (.not. trim(bcs(3)) .eq. "periodic")) ux_1(i,j) = 0.0
+            if (i .eq. nx .and. (.not. trim(bcs(1)) .eq. "periodic")) ux_2(i,j) = 0.0
+            if (j .eq. 1  .and. (.not. trim(bcs(4)) .eq. "periodic")) uy_1(i,j) = 0.0
+            if (j .eq. ny .and. (.not. trim(bcs(2)) .eq. "periodic")) uy_2(i,j) = 0.0
+
+            if (ux_1(i,j) >= 0.0) then
+                Hx_1(i,j) = H(im1,j)
+            else
+                Hx_1(i,j) = H(i,j)
+            end if
+
+            if (ux_2(i,j) >= 0.0) then
+                Hx_2(i,j) = H(i,j)
+            else
+                Hx_2(i,j) = H(ip1,j)
+            end if
+
+            if (uy_1(i,j) >= 0.0) then
+                Hy_1(i,j) = H(i,jm1)
+            else
+                Hy_1(i,j) = H(i,j)
+            end if
+
+            if (uy_2(i,j) >= 0.0) then
+                Hy_2(i,j) = H(i,j)
+            else
+                Hy_2(i,j) = H(i,jp1)
+            end if
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_upwind_faces
 
 
 

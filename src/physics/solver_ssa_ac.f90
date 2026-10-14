@@ -1,7 +1,7 @@
 module solver_ssa_ac
 
-    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, is_equal, &
-                           MASK_FRNT_MARINE, MASK_FRNT_GRND
+    use yelmo_defs, only : sp, dp, wp, io_unit_err, TOL, TOL_UNDERFLOW, &
+                           MASK_FRNT_FLOAT, MASK_FRNT_MARINE, MASK_FRNT_GRND, MASK_FRNT_ICE_FREE_LAND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use solver_linear
@@ -16,14 +16,21 @@ module solver_ssa_ac
 
     ! Routines that make use of the linear_solver_class object defined in the module solver_linear.F90:
     public :: linear_solver_save_velocity
+    public :: ssa_vel_clip
+    public :: calc_vel_lim_drag
+    public :: count_vel_lim_faces
     public :: linear_solver_matrix_ssa_ac_csr_2D
 
     ! Helper used by alternative SSA assemblers (e.g. solver_ssa_ac_energy):
     public :: stagger_visc_aa_ab
 
+
+    ! Onset of the speed-limit drag, s0 = vel_lim_f_s0*u_max (ssa_vel_lim_method="drag")
+    real(wp), parameter :: vel_lim_f_s0 = 0.8_wp
+
 contains
     
-    subroutine linear_solver_save_velocity(ux,uy,lgs,ulim)
+    subroutine linear_solver_save_velocity(ux,uy,lgs)
         ! Extract velocity solution from lgs object. 
 
         implicit none 
@@ -31,35 +38,42 @@ contains
         real(wp), intent(OUT) :: ux(:,:)                ! [m yr^-1] Horizontal velocity x
         real(wp), intent(OUT) :: uy(:,:)                ! [m yr^-1] Horizontal velocity y
         type(linear_solver_class), intent(IN) :: lgs 
-        real(wp), intent(IN)    :: ulim 
 
         ! Local variables 
         integer :: i, j, n, nr 
 
+        real(wp), parameter :: tol = TOL_UNDERFLOW
+
+        !$omp parallel do private(n,i,j,nr)
         do n = 1, lgs%nmax-1, 2
 
             i = lgs%n2i((n+1)/2)
             j = lgs%n2j((n+1)/2)
 
+            ! Rows tied to another row (copy_from > 0) take its solution
             nr = n
+            if (lgs%copy_from(nr) .gt. 0) nr = lgs%copy_from(nr)
             ux(i,j) = lgs%x_value(nr)
 
             nr = n+1
+            if (lgs%copy_from(nr) .gt. 0) nr = lgs%copy_from(nr)
             uy(i,j) = lgs%x_value(nr)
 
         end do
+        !$omp end parallel do
 
-        ! Limit the velocity generally =====================
-        call limit_vel(ux,ulim)
-        call limit_vel(uy,ulim)
+        ! Avoid underflow errors 
+        where (abs(ux) .lt. tol) ux = 0.0_wp 
+        where (abs(uy) .lt. tol) uy = 0.0_wp 
 
         return
 
     end subroutine linear_solver_save_velocity
 
     subroutine linear_solver_matrix_ssa_ac_csr_2D(lgs,ux,uy,beta_acx,beta_acy, &
-                            N_aa,ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx, &
-                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,beta_min,boundaries,lateral_bc)
+                            N_aa,ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx, &
+                            taud_acy,taul_int_acx,taul_int_acy,dx,dy,boundaries, &
+                            lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for the SSA momentum balance equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -75,18 +89,25 @@ contains
         real(wp), intent(IN) :: N_aa(:,:)               ! [Pa yr m] Vertically integrated viscosity (aa-nodes)
         integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] Mask to determine ssa solver actions (acx-nodes)
         integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] Mask to determine ssa solver actions (acy-nodes)
-        integer,  intent(IN) :: mask_frnt(:,:)          ! [--] Ice-front mask 
         real(wp), intent(IN) :: H_ice(:,:)              ! [m]  Ice thickness (aa-nodes)
         real(wp), intent(IN) :: f_ice(:,:)
+        real(wp), intent(IN) :: z_bed(:,:)              ! [m] Bedrock elevation (aa-nodes)
+        real(wp), intent(IN) :: z_sl(:,:)               ! [m] Sea level (aa-nodes)
         real(wp), intent(IN) :: taud_acx(:,:)           ! [Pa] Driving stress (acx nodes)
         real(wp), intent(IN) :: taud_acy(:,:)           ! [Pa] Driving stress (acy nodes)
         real(wp), intent(IN) :: taul_int_acx(:,:)       ! [Pa m] Vertically integrated lateral stress (acx nodes)
         real(wp), intent(IN) :: taul_int_acy(:,:)       ! [Pa m] Vertically integrated lateral stress (acy nodes) 
         real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: beta_min                ! [Pa yr m^-1] Minimum allowed basal friction for grounded ice
 
         character(len=*), intent(IN) :: boundaries 
-        character(len=*), intent(IN) :: lateral_bc
+        real(wp), intent(IN), optional :: lim_k_acx(:,:)    ! [Pa yr m^-1] Linearised speed-limit drag, friction (acx-nodes)
+        real(wp), intent(IN), optional :: lim_k_acy(:,:)    ! [Pa yr m^-1] Linearised speed-limit drag, friction (acy-nodes)
+        real(wp), intent(IN), optional :: lim_r_acx(:,:)    ! [Pa] Linearised speed-limit drag, offset (acx-nodes)
+        real(wp), intent(IN), optional :: lim_r_acy(:,:)    ! [Pa] Linearised speed-limit drag, offset (acy-nodes)
+        ! The limit drag (calc_vel_lim_drag) enters the inner rows like beta,
+        ! with the offset on the RHS. Lateral-bc rows (ssa_mask = 3) impose the
+        ! front stress condition and have no drag term: there only the clip
+        ! of the Picard loop (ssa_vel_clip) bounds the velocity.
 
         ! Local variables
         integer  :: nx, ny
@@ -95,7 +116,8 @@ contains
         real(wp) :: inv_dx, inv_dxdx 
         real(wp) :: inv_dy, inv_dydy 
         real(wp) :: inv_dxdy, inv_2dxdy, inv_4dxdy 
-        real(wp) :: beta_now 
+        real(wp) :: beta_now, w_face, lim_r_now
+        logical  :: use_lim
         
         real(wp), allocatable :: N_ab(:,:)
 
@@ -105,13 +127,16 @@ contains
         ! 3: x, left--border 
         ! 4: y, lower-border 
         character(len=56) :: bcs(4)
+        logical :: bc_per(4), bc_free(4)          ! bcs(k) is "periodic" / "free-slip"
 
         integer :: im1, ip1, jm1, jp1 
         real(wp) :: N_aa_now
-        integer  :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
+
+        use_lim = present(lim_k_acx) .and. present(lim_k_acy) .and. &
+                  present(lim_r_acx) .and. present(lim_r_acy)
 
         ! Safety check for initialization
         if (.not. allocated(lgs%x_value)) then 
@@ -180,6 +205,10 @@ contains
                 
         end select 
 
+        ! Evaluate the border types once, not per cell in the assembly loops
+        bc_per  = bcs .eq. "periodic"
+        bc_free = bcs .eq. "free-slip"
+
         nx = size(H_ice,1)
         ny = size(H_ice,2)
         
@@ -198,7 +227,7 @@ contains
 
         ! Calculate the staggered depth-integrated viscosity 
         ! at the grid-cell corners (ab-nodes). 
-        call stagger_visc_aa_ab(N_ab,N_aa,H_ice,f_ice,boundaries)
+        call stagger_visc_aa_ab(N_ab,N_aa,f_ice,z_bed,z_sl,boundaries)
         
 
         !-------- Assembly of the system of linear equations
@@ -207,13 +236,6 @@ contains
         lgs%a_ptr(1) = 1
 
         k = 0
-
-        ! Counters of inner grounded rows (and those with beta > 0) for the
-        ! beta consistency check after assembly
-        n_grnd_x = 0
-        n_beta_x = 0
-        n_grnd_y = 0
-        n_beta_y = 0
 
         do n=1, lgs%nmax-1, 2
 
@@ -260,10 +282,10 @@ contains
                 lgs%b_value(nr) = ux(i,j)
                 lgs%x_value(nr) = ux(i,j)
             
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then 
+            else if (i .eq. 1 .and. .not. bc_per(3)) then 
                 ! Left boundary 
 
-                if (trim(bcs(3)) .eq. "free-slip") then 
+                if (bc_free(3)) then 
                 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -289,10 +311,10 @@ contains
 
                 end if 
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then 
+            else if (i .eq. nx .and. .not. bc_per(1)) then 
                 ! Right boundary 
                 
-                if (trim(bcs(1)) .eq. "free-slip") then 
+                if (bc_free(1)) then 
                 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -318,10 +340,10 @@ contains
 
                 end if 
 
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then 
+            else if (j .eq. 1 .and. .not. bc_per(4)) then 
                 ! Lower boundary 
 
-                if (trim(bcs(4)) .eq. "free-slip") then 
+                if (bc_free(4)) then 
 
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -348,10 +370,10 @@ contains
 
                 end if 
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then 
+            else if (j .eq. ny .and. .not. bc_per(2)) then 
                 ! Upper boundary 
 
-                if (trim(bcs(2)) .eq. "free-slip") then 
+                if (bc_free(2)) then 
                     
                     nc = 2*lgs%ij2n(i,j)-1          ! column counter for ux(i,j)
                     k = k+1
@@ -380,7 +402,7 @@ contains
             else if (ssa_mask_acx(i,j) .eq. 3) then 
                 ! Lateral boundary condition should be applied here 
 
-                if (is_equal(f_ice(i,j),1.0_wp) .and. f_ice(ip1,j) .lt. 1.0) then 
+                if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .lt. 1.0) then 
                     ! === Case 1: ice-free to the right ===
 
                     N_aa_now = N_aa(i,j)
@@ -451,12 +473,16 @@ contains
             else
                 ! === Inner SSA solution === 
 
-                beta_now = beta_acx(i,j)
-                if (ssa_mask_acx(i,j) .eq. 1 .and. beta_acx(i,j) .eq. 0.0) beta_now = beta_min
-
-                if (ssa_mask_acx(i,j) .eq. 1) then
-                    n_grnd_x = n_grnd_x + 1
-                    if (beta_acx(i,j) .gt. 0.0) n_beta_x = n_beta_x + 1
+                ! beta_min at grounded faces with beta=0 is set before the call (set_beta_min_grounded)
+                ! Front treated as inner ssa: only the ice half of the face's
+                ! control area has drag (as in the energy assembler)
+                w_face = 1.0_wp
+                if (ssa_mask_acx(i,j) .eq. 4) w_face = 0.5_wp
+                beta_now  = w_face*beta_acx(i,j)
+                lim_r_now = 0.0_wp
+                if (use_lim) then
+                    beta_now  = beta_now + w_face*lim_k_acx(i,j)
+                    lim_r_now = w_face*lim_r_acx(i,j)
                 end if
 
                 ! -- vx terms -- 
@@ -515,7 +541,7 @@ contains
                 lgs%a_index(k) = nc
                 
 
-                lgs%b_value(nr) = taud_acx(i,j)
+                lgs%b_value(nr) = taud_acx(i,j) - lim_r_now
                 lgs%x_value(nr) = ux(i,j)
 
             end if
@@ -549,10 +575,10 @@ contains
                 lgs%b_value(nr) = uy(i,j)
                 lgs%x_value(nr) = uy(i,j)
             
-            else if (j .eq. 1 .and. trim(bcs(4)) .ne. "periodic") then 
+            else if (j .eq. 1 .and. .not. bc_per(4)) then 
                 ! lower boundary 
 
-                if (trim(bcs(4)) .eq. "free-slip") then 
+                if (bc_free(4)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -578,10 +604,10 @@ contains
 
                 end if 
 
-            else if (j .eq. ny .and. trim(bcs(2)) .ne. "periodic") then 
+            else if (j .eq. ny .and. .not. bc_per(2)) then 
                 ! Upper boundary 
 
-                if (trim(bcs(2)) .eq. "free-slip") then 
+                if (bc_free(2)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -607,10 +633,10 @@ contains
 
                 end if 
 
-            else if (i .eq. 1 .and. trim(bcs(3)) .ne. "periodic") then 
+            else if (i .eq. 1 .and. .not. bc_per(3)) then 
                 ! Left boundary 
 
-                if (trim(bcs(3)) .eq. "free-slip") then 
+                if (bc_free(3)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -636,10 +662,10 @@ contains
 
                 end if 
 
-            else if (i .eq. nx .and. trim(bcs(1)) .ne. "periodic") then 
+            else if (i .eq. nx .and. .not. bc_per(1)) then 
                 ! Right boundary 
 
-                if (trim(bcs(1)) .eq. "free-slip") then 
+                if (bc_free(1)) then 
 
                     nc = 2*lgs%ij2n(i,j)            ! column counter for uy(i,j)
                     k = k+1
@@ -668,7 +694,7 @@ contains
             else if (ssa_mask_acy(i,j) .eq. 3) then 
                 ! Lateral boundary condition should be applied here 
 
-                if (is_equal(f_ice(i,j),1.0) .and. f_ice(i,jp1) .lt. 1.0) then 
+                if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .lt. 1.0) then 
                     ! === Case 1: ice-free to the top ===
 
                     N_aa_now = N_aa(i,j)
@@ -739,12 +765,15 @@ contains
             else
                 ! === Inner SSA solution === 
 
-                beta_now = beta_acy(i,j)
-                if (ssa_mask_acy(i,j) .eq. 1 .and. beta_acy(i,j) .eq. 0.0) beta_now = beta_min
-
-                if (ssa_mask_acy(i,j) .eq. 1) then
-                    n_grnd_y = n_grnd_y + 1
-                    if (beta_acy(i,j) .gt. 0.0) n_beta_y = n_beta_y + 1
+                ! Front treated as inner ssa: only the ice half of the face's
+                ! control area has drag (as in the energy assembler)
+                w_face = 1.0_wp
+                if (ssa_mask_acy(i,j) .eq. 4) w_face = 0.5_wp
+                beta_now  = w_face*beta_acy(i,j)
+                lim_r_now = 0.0_wp
+                if (use_lim) then
+                    beta_now  = beta_now + w_face*lim_k_acy(i,j)
+                    lim_r_now = w_face*lim_r_acy(i,j)
                 end if
 
                 ! -- vy terms -- 
@@ -802,7 +831,7 @@ contains
                                  +1.0_wp*inv_dxdy*N_ab(im1,j)
                 lgs%a_index(k) = nc
 
-                lgs%b_value(nr) = taud_acy(i,j)
+                lgs%b_value(nr) = taud_acy(i,j) - lim_r_now
                 lgs%x_value(nr) = uy(i,j)
 
             end if
@@ -811,24 +840,6 @@ contains
 
         end do
 
-        ! Consistency check: ensure beta is defined well for grounded ice.
-        ! Only inner rows (momentum equations with a friction term) are counted;
-        ! border and lateral-bc rows do not use beta.
-        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
-             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
-            ! No inner grounded points found with a non-zero beta,
-            ! something was not well-defined/well-initialized, give a warning
-            ! with some statistics. In the assembly above, beta=beta_min
-            ! was used for these points.
-
-            write(*,*)
-            write(*,"(a)") "linear_solver_matrix_ssa_ac_csr_2D:: Warning: beta appears to be zero everywhere for grounded ice."
-            write(*,*) "inner grounded acx rows: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
-            write(*,*) "inner grounded acy rows: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
-            write(*,*)
-
-        end if
-
         ! Done: A, x and b matrices in Ax=b have been populated 
         ! and stored in lgs object. 
 
@@ -836,27 +847,9 @@ contains
 
     end subroutine linear_solver_matrix_ssa_ac_csr_2D
 
-    subroutine check_base_slope(is_steep,zb0,zb1,dx,lim)
 
-        logical,  intent(OUT) :: is_steep
-        real(wp), intent(IN) :: zb0         ! [m]
-        real(wp), intent(IN) :: zb1         ! [m]
-        real(wp), intent(IN) :: dx          ! [m]
-        real(wp), intent(IN) :: lim         ! [dx/dx] = [unitless]
-
-        if ( abs(zb1-zb0) / dx .gt. lim ) then 
-            is_steep = .TRUE. 
-        else 
-            is_steep = .FALSE. 
-        end if 
-
-        return
-
-    end subroutine check_base_slope
-
-
-    subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice, &
-                                        f_grnd,z_base,z_sl,dx,use_ssa,lateral_bc,boundaries)
+    subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,f_ice, &
+                                        f_grnd,use_ssa,lateral_bc,boundaries)
         ! Define where ssa calculations should be performed
         ! Note: could be binary, but perhaps also distinguish 
         ! grounding line/zone to use this mask for later gl flux corrections
@@ -865,26 +858,15 @@ contains
         ! mask = 1: shelfy-stream ssa calculated 
         ! mask = 2: shelf ssa calculated 
         ! mask = 3: ssa lateral boundary condition applied
-        ! mask = 4: ssa lateral boundary, but treated as inner ssa
+        ! mask = 4: ssa lateral boundary, but treated as inner ssa (half drag)
 
-        ! Note: the parameter gradbase_max is used to check slope of ice base. 
-        ! If at a given point, it is greater than this limit, the ssa solver
-        ! will be disabled in this direction. gradbase_max=0.1 is a relatively
-        ! high value, but is reached for points next to deep troughs in Antarctica,
-        ! and next to some fjords in Greenland. Steeper slopes are present
-        ! in higher-resolution topographies typically.
-        
         implicit none 
         
         integer,  intent(OUT) :: ssa_mask_acx(:,:) 
         integer,  intent(OUT) :: ssa_mask_acy(:,:)
         integer,  intent(IN)  :: mask_frnt(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: f_grnd(:,:)
-        real(wp), intent(IN)  :: z_base(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
-        real(wp), intent(IN)  :: dx 
         logical,  intent(IN)  :: use_ssa       ! SSA is actually active now? 
         character(len=*), intent(IN) :: lateral_bc 
         character(len=*), intent(IN) :: boundaries 
@@ -893,23 +875,22 @@ contains
         integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
         integer  :: BC
-        real(wp) :: H_acx, H_acy
-        logical  :: is_steep 
-        logical  :: is_convergent 
-        
-        real(wp), allocatable :: mask_frnt_dyn(:,:)
+        integer  :: mask_lat
 
-        ! mask_frnt values are the MASK_FRNT_* codes of yelmo_defs.
-        ! val_disabled is an internal value only used in this routine.
-        integer, parameter :: val_disabled  = 5 
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        allocate(mask_frnt_dyn(nx,ny))
+        select case(trim(lateral_bc))
+            case("none","floating","float","marine","all")
+                ! ok
+            case DEFAULT
+                write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
+                write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
+                error stop 1
+        end select
 
         ! Initially no active ssa points, all velocities set to zero
         ssa_mask_acx = 0
@@ -917,71 +898,6 @@ contains
         
         if (use_ssa) then 
 
-            ! Step 1: define mask_frnt for dynamics, that disables fronts as needed 
-
-            mask_frnt_dyn = mask_frnt
-
-                    
-            ! So far all margins have been diagnosed (marine and grounded on land)
-            ! Disable some regions depending on choice above. 
-            select case(trim(lateral_bc))
-                ! Apply the lateral boundary condition to what? 
-
-                case("none")
-                    ! Do not apply lateral bc anywhere. Ie, disable front detection.
-                    ! Treat all ice points in the domain as 'inner ssa' points.
-
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if (mask_frnt(i,j) .gt. 0) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("floating","float","slab","slab-ext")
-                    ! Only apply lateral bc to floating ice fronts.
-                    ! Ie, disable detection of all grounded fronts for now.
-                    ! Model is generally more stable this way.
-                    ! This method is also used for the 'infinite slab' approach,
-                    ! where a thin ice shelf is extended everywhere over the domain. 
-                    
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND .or. &
-                             mask_frnt(i,j) .eq. MASK_FRNT_MARINE ) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("marine")
-                    ! Only apply lateral bc to floating ice fronts and
-                    ! and grounded marine fronts. Disable detection 
-                    ! of ice fronts grounded above sea level.
-                    
-                    do j = 1, ny
-                    do i = 1, nx
-                    
-                        if ( mask_frnt(i,j) .eq. MASK_FRNT_GRND ) mask_frnt_dyn(i,j) = val_disabled
-
-                    end do
-                    end do
-
-                case("all")
-                    ! Apply lateral bc to all ice-sheet fronts. 
-
-                    ! Do nothing - all fronts have been accurately diagnosed. 
-
-                case DEFAULT
-                    
-                    write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
-                    write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
-                    stop 
-
-            end select
-               
-                    
             ! Step 2: define ssa solver masks
 
             do j = 1, ny
@@ -993,7 +909,7 @@ contains
 
                 ! == x-direction ===
 
-                if (is_equal(f_ice(i,j),1.0_wp) .or. is_equal(f_ice(ip1,j),1.0_wp)) then
+                if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(ip1,j) .eq. 1.0_wp) then
                 
                     ! Current ac-node is border of an ice covered cell in x-direction
                     
@@ -1005,47 +921,15 @@ contains
                         ssa_mask_acx(i,j) = 2
                     end if 
 
-                    ! SPECIAL CASE: floating ice next to ice-free land,
-                    ! then set ssa mask to zero (ie, set velocity to zero)
-                    if (ssa_mask_acx(i,j) .eq. 2) then 
-
-                        if ( is_equal(f_grnd(i,j),0.0_wp) .and. &
-                               (f_grnd(ip1,j) .gt. 0.0 .and. H_ice(ip1,j) .eq. 0.0) ) then 
-
-                            ssa_mask_acx(i,j) = 0
-
-                        else if ( (f_grnd(i,j) .gt. 0.0 .and. H_ice(i,j) .eq. 0.0) .and. &
-                                    f_grnd(ip1,j) .eq. 0.0 ) then
-
-                            ssa_mask_acx(i,j) = 0 
-
-                        end if 
-
-                    end if 
-
                 end if
                 
-                ! Overwrite above if this point should be treated via lateral boundary conditions
-                if ( (mask_frnt_dyn(i,j) .gt. 0 .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .gt. 0) ) then 
-                    ! Lateral boundary point 
-
-                    ssa_mask_acx(i,j) = 3 
-
-                end if 
-
-                ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(ip1,j) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(ip1,j) .eq. val_disabled) ) then 
-                    ! Deactivated lateral boundary point 
-
-                    ssa_mask_acx(i,j) = 4 
-
-                end if 
+                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
+                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(ip1,j),lateral_bc)
+                if (mask_lat .ge. 0) ssa_mask_acx(i,j) = mask_lat
 
                 ! == y-direction ===
 
-                if (is_equal(f_ice(i,j),1.0_wp) .or. is_equal(f_ice(i,jp1),1.0_wp)) then
+                if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(i,jp1) .eq. 1.0_wp) then
                 
                     ! Current ac-node is border of an ice covered cell in x-direction
                     
@@ -1057,43 +941,11 @@ contains
                         ssa_mask_acy(i,j) = 2
                     end if 
 
-                    ! SPECIAL CASE: floating ice next to ice-free land,
-                    ! then set ssa mask to zero (ie, set velocity to zero)
-                    if (ssa_mask_acy(i,j) .eq. 2) then 
-
-                        if ( f_grnd(i,j) .eq. 0.0 .and. &
-                               (f_grnd(i,jp1) .gt. 0.0 .and. H_ice(i,jp1) .eq. 0.0) ) then 
-
-                            ssa_mask_acy(i,j) = 0
-
-                        else if ( (f_grnd(i,j) .gt. 0.0 .and. H_ice(i,j) .eq. 0.0) .and. &
-                                    f_grnd(i,jp1) .eq. 0.0 ) then
-
-                            ssa_mask_acy(i,j) = 0 
-
-                        end if 
-
-                    end if 
-
                 end if
 
-                ! Overwrite above if this point should be treated via lateral boundary conditions
-                if ( (mask_frnt_dyn(i,j) .gt. 0 .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .gt. 0) ) then 
-                    ! Lateral boundary point 
-
-                    ssa_mask_acy(i,j) = 3 
-
-                end if 
-
-                ! Overwrite again if this front should be deactivated 
-                if ( (mask_frnt_dyn(i,j) .eq. val_disabled .and. mask_frnt_dyn(i,jp1) .lt. 0) .or. &
-                     (mask_frnt_dyn(i,j) .lt. 0 .and. mask_frnt_dyn(i,jp1) .eq. val_disabled) ) then 
-                    ! Deactivated lateral boundary point 
-
-                    ssa_mask_acy(i,j) = 4 
-
-                end if 
+                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
+                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(i,jp1),lateral_bc)
+                if (mask_lat .ge. 0) ssa_mask_acy(i,j) = mask_lat
 
             end do 
             end do
@@ -1103,24 +955,94 @@ contains
         return
         
     end subroutine set_ssa_masks
+
+    integer function front_face_mask(code_a,code_b,lateral_bc) result(mask_lat)
+        ! SSA mask value for the face between two points with ice-front codes
+        ! code_a and code_b (MASK_FRNT_* of yelmo_defs):
+        ! -1: not a front face, 0: wall (velocity zero), 3: lateral bc applied,
+        ! 4: front treated as inner ssa.
+        ! A front is only treated as floating or marine across faces whose
+        ! ice-free side is ocean. Across ice-free land, floating ice ends at a
+        ! wall (no flow through the face; as an inner ssa face it would be
+        ! driven by the slope from the bare land surface with no friction),
+        ! and grounded ice is a front grounded above sea level, whatever its bed.
+
+        implicit none
+
+        integer,          intent(IN) :: code_a
+        integer,          intent(IN) :: code_b
+        character(len=*), intent(IN) :: lateral_bc
+
+        ! Local variables
+        integer :: code_ice, code_free
+
+        mask_lat = -1
+
+        if (code_a .gt. 0 .and. code_b .lt. 0) then
+            code_ice  = code_a
+            code_free = code_b
+        else if (code_a .lt. 0 .and. code_b .gt. 0) then
+            code_ice  = code_b
+            code_free = code_a
+        else
+            return
+        end if
+
+        if (code_free .eq. MASK_FRNT_ICE_FREE_LAND) then
+            if (code_ice .eq. MASK_FRNT_FLOAT) then
+                mask_lat = 0
+                return
+            end if
+            code_ice = MASK_FRNT_GRND
+        end if
+
+        select case(trim(lateral_bc))
+            case("none")
+                mask_lat = 4
+            case("floating","float")
+                mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT)
+            case("marine")
+                mask_lat = merge(3,4,code_ice .eq. MASK_FRNT_FLOAT .or. code_ice .eq. MASK_FRNT_MARINE)
+            case("all")
+                mask_lat = 3
+        end select
+
+    end function front_face_mask
     
 ! === INTERNAL ROUTINES ==== 
 
-    subroutine stagger_visc_aa_ab(visc_ab,visc,H_ice,f_ice,boundaries)
+    subroutine stagger_visc_aa_ab(visc_ab,visc,f_ice,z_bed,z_sl,boundaries)
+        ! Stagger the (depth-integrated) viscosity from cell centres to the
+        ! corners (ab-nodes), where it multiplies the shear strain rate.
+        ! A corner touching an ocean-side cell, i.e. an ice-free or partially
+        ! covered cell (f_ice < 1) with its bed below sea level (as for
+        ! ice-free points in calc_ice_front), lies on a calving front, which
+        ! is traction free: there is no shear stress along the front, and the
+        ! corner value is zero. A nonzero value there couples the front faces
+        ! to the u = 0 faces of the ice-free cells and acts as a drag on the
+        ! velocity along the front (benchmark A2, docs/dev/benchmark-protocol).
+        ! Elsewhere the corner value is the mean over the fully ice-covered
+        ! surrounding cells (zero if none), so that a land margin keeps its
+        ! lateral shear (e.g. narrow outlets between ice-free land).
+        ! The sum is formed in pairs, (1+2)+(3+4), so that it is exactly
+        ! mirror symmetric in x and y.
 
         implicit none 
 
         real(wp), intent(OUT) :: visc_ab(:,:) 
         real(wp), intent(IN)  :: visc(:,:) 
-        real(wp), intent(IN)  :: H_ice(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
+        real(wp), intent(IN)  :: z_bed(:,:) 
+        real(wp), intent(IN)  :: z_sl(:,:) 
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: i, j, k
-        integer :: im1, ip1, jm1, jp1 
-        integer :: nx, ny 
-        integer :: BC
+        integer  :: i, j, k
+        integer  :: im1, ip1, jm1, jp1 
+        integer  :: nx, ny 
+        integer  :: BC
+        logical  :: is_ice(4), is_ocn(4)
+        real(wp) :: v(4)
 
         nx = size(visc,1)
         ny = size(visc,2)
@@ -1128,47 +1050,230 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Initialisation
-        visc_ab = 0.0_wp 
-
-        ! Stagger viscosity only using contributions from neighbors that have ice  
-        do i = 1, nx 
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,is_ice,is_ocn,v)
         do j = 1, ny 
+        do i = 1, nx 
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            visc_ab(i,j) = 0.0_wp
-            k=0
+            ! Surrounding cells: (i,j), (ip1,j), (i,jp1), (ip1,jp1)
+            is_ice = [f_ice(i,j),f_ice(ip1,j),f_ice(i,jp1),f_ice(ip1,jp1)] .eq. 1.0_wp
+            is_ocn = (.not. is_ice) .and. &
+                     [z_bed(i,j),z_bed(ip1,j),z_bed(i,jp1),z_bed(ip1,jp1)] .lt. &
+                     [z_sl(i,j), z_sl(ip1,j), z_sl(i,jp1), z_sl(ip1,jp1)]
 
-            if (is_equal(f_ice(i,j),1.0_wp)) then
-                k = k+1                              ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,j)
+            k = count(is_ice)
+
+            if (any(is_ocn) .or. k .eq. 0) then
+                visc_ab(i,j) = 0.0_wp
+            else
+                v = merge([visc(i,j),visc(ip1,j),visc(i,jp1),visc(ip1,jp1)],0.0_wp,is_ice)
+                visc_ab(i,j) = ((v(1)+v(2))+(v(3)+v(4))) / real(k,wp)
             end if
-
-            if (is_equal(f_ice(ip1,j),1.0_wp)) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,j)
-            end if
-
-            if (is_equal(f_ice(i,jp1),1.0_wp)) then
-                k = k+1                                  ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(i,jp1)
-            end if
-
-            if (is_equal(f_ice(ip1,jp1),1.0_wp)) then
-                k = k+1                                      ! floating or grounded ice
-                visc_ab(i,j) = visc_ab(i,j) + visc(ip1,jp1)
-            end if
-
-            if (k .gt. 0) visc_ab(i,j) = visc_ab(i,j)/real(k,wp)
 
         end do
         end do
+        !$omp end parallel do
 
         return 
 
     end subroutine stagger_visc_aa_ab
+
+    subroutine ssa_vel_clip(ux,uy,u_lim)
+        ! Clip each velocity component to [-u_lim,u_lim] (after each linear
+        ! solve, for both ssa_vel_lim_method = "clip" and "drag")
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: ux(:,:)              ! [m yr^-1] Horizontal velocity x
+        real(wp), intent(INOUT) :: uy(:,:)              ! [m yr^-1] Horizontal velocity y
+        real(wp), intent(IN)    :: u_lim                ! [m yr^-1] Velocity limit
+
+        ! Local variables 
+        integer :: i, j 
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            call limit_vel(ux(i,j),u_lim)
+            call limit_vel(uy(i,j),u_lim)
+        end do
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end subroutine ssa_vel_clip
+
+    subroutine calc_vel_lim_drag(lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy, &
+                                    ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,tau_c,boundaries)
+        ! Speed-limit drag (ssa_vel_lim_method="drag"). An extra drag acts on
+        ! all free ssa faces (ssa_mask = 1-4: grounded, floating and front
+        ! faces) once the speed s exceeds s0 = 0.8*u_max:
+        !
+        !     tau_lim(s) = tau_c * x^2,   x = max(0, (s-s0)/(u_max-s0))
+        !
+        ! so tau_lim(u_max) = tau_c, and tau_lim and its derivative vanish at s0.
+        ! The drag is Newton-linearised around the current iterate u0 for the
+        ! face's own component (the cross component interpolated to the face
+        ! is held fixed):
+        !
+        !     tau_lim_x(u) ~ k*u - r,   r = (k - b)*u0,
+        !     k = dtau_lim_x/du_x = b*(1 - ux^2/s^2) + tau_lim'(s)*ux^2/s^2,  b = tau_lim/s
+        !
+        ! k >= 0, so the matrix stays symmetric positive definite. The
+        ! assemblers add k to the matrix friction and r to the right-hand side,
+        ! with the same face weight as beta (1/2 at front faces). The drag is
+        ! kept out of beta and taud, so that taub and taud do not include it.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: lim_k_acx(:,:)         ! [Pa yr m^-1] Linearised limit drag, friction (acx-nodes)
+        real(wp), intent(OUT) :: lim_k_acy(:,:)         ! [Pa yr m^-1] Linearised limit drag, friction (acy-nodes)
+        real(wp), intent(OUT) :: lim_r_acx(:,:)         ! [Pa] Linearised limit drag, offset (acx-nodes)
+        real(wp), intent(OUT) :: lim_r_acy(:,:)         ! [Pa] Linearised limit drag, offset (acy-nodes)
+        real(wp), intent(IN)  :: ux(:,:)                ! [m yr^-1] Current velocity iterate x (acx-nodes)
+        real(wp), intent(IN)  :: uy(:,:)                ! [m yr^-1] Current velocity iterate y (acy-nodes)
+        integer,  intent(IN)  :: ssa_mask_acx(:,:)      ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN)  :: ssa_mask_acy(:,:)      ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN)  :: u_max                  ! [m yr^-1] Speed at which tau_lim = tau_c
+        real(wp), intent(IN)  :: tau_c                  ! [Pa] Limit drag at u_max
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, inv_du, u_cross 
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        s0     = vel_lim_f_s0*u_max
+        inv_du = 1.0_wp / (u_max - s0)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! acx-node: uy interpolated from the four surrounding acy-nodes
+            u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+            call lim_drag_face(lim_k_acx(i,j),lim_r_acx(i,j),ux(i,j),u_cross,ssa_mask_acx(i,j))
+
+            ! acy-node: ux interpolated from the four surrounding acx-nodes
+            u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+            call lim_drag_face(lim_k_acy(i,j),lim_r_acy(i,j),uy(i,j),u_cross,ssa_mask_acy(i,j))
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    contains
+
+        subroutine lim_drag_face(k,r,u,u_cross,mask)
+
+            implicit none
+
+            real(wp), intent(OUT) :: k
+            real(wp), intent(OUT) :: r
+            real(wp), intent(IN)  :: u
+            real(wp), intent(IN)  :: u_cross
+            integer,  intent(IN)  :: mask
+
+            real(wp) :: s, x, tau, dtauds, b, w
+
+            k = 0.0_wp
+            r = 0.0_wp
+
+            ! Free ssa faces only (not Dirichlet faces: wall or prescribed velocity)
+            if (mask .lt. 1) return
+
+            s = sqrt(u*u + u_cross*u_cross)
+            if (s .le. s0) return
+
+            x      = (s-s0)*inv_du
+            tau    = tau_c*x*x
+            dtauds = 2.0_wp*tau_c*x*inv_du
+            b      = tau/s
+            w      = (u/s)**2
+
+            k = b*(1.0_wp-w) + dtauds*w
+            r = (k-b)*u
+
+            return
+
+        end subroutine lim_drag_face
+
+    end subroutine calc_vel_lim_drag
+
+    integer function count_vel_lim_faces(ux,uy,ssa_mask_acx,ssa_mask_acy,u_max,method,boundaries) result(n_lim)
+        ! Number of free ssa faces (ssa_mask >= 1) where the velocity limit acts:
+        ! "drag": face speed above the drag onset vel_lim_f_s0*u_max (speed as in
+        ! calc_vel_lim_drag); "clip": a component at the clip value u_max.
+
+        implicit none 
+
+        real(wp), intent(IN) :: ux(:,:)                 ! [m yr^-1] Velocity x (acx-nodes)
+        real(wp), intent(IN) :: uy(:,:)                 ! [m yr^-1] Velocity y (acy-nodes)
+        integer,  intent(IN) :: ssa_mask_acx(:,:)       ! [--] ssa solver action mask (acx-nodes)
+        integer,  intent(IN) :: ssa_mask_acy(:,:)       ! [--] ssa solver action mask (acy-nodes)
+        real(wp), intent(IN) :: u_max                   ! [m yr^-1] ssa_vel_max
+        character(len=*), intent(IN) :: method          ! ssa_vel_lim_method: "drag" | "clip"
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1 
+        real(wp) :: s0, u_cross 
+        logical  :: use_drag
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        BC = boundary_code(boundaries)
+
+        use_drag = trim(method) .eq. "drag"
+        s0       = vel_lim_f_s0*u_max
+
+        n_lim = 0
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,u_cross) reduction(+:n_lim)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (ssa_mask_acx(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(uy(i,j)+uy(ip1,j)+uy(i,jm1)+uy(ip1,jm1))
+                    if (ux(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(ux(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+            if (ssa_mask_acy(i,j) .ge. 1) then
+                if (use_drag) then
+                    u_cross = 0.25_wp*(ux(i,j)+ux(im1,j)+ux(i,jp1)+ux(im1,jp1))
+                    if (uy(i,j)**2 + u_cross**2 .gt. s0**2) n_lim = n_lim + 1
+                else
+                    if (abs(uy(i,j)) .ge. u_max) n_lim = n_lim + 1
+                end if
+            end if
+
+        end do 
+        end do
+        !$omp end parallel do
+
+        return 
+
+    end function count_vel_lim_faces
 
     elemental subroutine limit_vel(u,u_lim)
         ! Apply a velocity limit (for stability)
@@ -1178,16 +1283,11 @@ contains
         real(wp), intent(INOUT) :: u  
         real(wp), intent(IN)    :: u_lim
 
-        real(wp), parameter :: tol = TOL_UNDERFLOW
-
         ! Explicit comparisons (not min/max) so that a NaN passes through
         ! unchanged and is caught by yelmo_check_kill, instead of being
         ! silently mapped to +u_lim.
         if (u .gt.  u_lim) u =  u_lim
         if (u .lt. -u_lim) u = -u_lim
-
-        ! Also avoid underflow errors 
-        if (abs(u) .lt. tol) u = 0.0 
 
         return 
 

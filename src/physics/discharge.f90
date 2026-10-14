@@ -10,7 +10,7 @@ module discharge
 contains
 
     subroutine calc_mb_discharge(mb_discharge,H_ice,z_srf,z_bed_sd,dist_grline, &
-                    dist_margin,f_ice,method,dx,alpha_max,tau_mbd,sigma_ref,m_d,m_r)
+                    dist_margin,method,dx,alpha_max,tau_mbd,sigma_ref,m_d,m_r)
         ! Calculate implicit subgrid calving discharge rate
         ! following Calov et al. (2015)
 
@@ -22,7 +22,6 @@ contains
         real(wp), intent(IN)  :: z_bed_sd(:,:)
         real(wp), intent(IN)  :: dist_grline(:,:)       ! [km]
         real(wp), intent(IN)  :: dist_margin(:,:)       ! [km]
-        real(wp), intent(IN)  :: f_ice(:,:)
         integer,  intent(IN)  :: method 
         real(wp), intent(IN)  :: dx                     ! [m]
         real(wp), intent(IN)  :: alpha_max
@@ -100,7 +99,7 @@ contains
             case DEFAULT
 
                 write(*,*) "calc_mb_discharge:: Error: dmb_method not recognized: ", method
-                stop
+                error stop 1
 
         end select
 

@@ -5,7 +5,7 @@ verification and regression testing. They span analytic and idealized cases
 (EISMINT, slab, trough) as well as community intercomparison protocols
 (MISMIP3D, initMIP). Each benchmark has a dedicated test program under
 [`tests/`](https://github.com/fesmc/yelmo/tree/main/tests) and a parameter
-file under `par-gmd/` or `par/`.
+file under `par/`.
 
 ## General workflow
 
@@ -27,10 +27,11 @@ runme -r -e <alias> -n <namelist> -o <ens-dir> -p key=val1,val2,val3
 
 This is built into `runme` — no separate package or `jobrun` wrapper is needed.
 
-The sections below cover each benchmark in the current Yelmo test suite.
+The sections below cover each benchmark in the current Yelmo test suite, and
+the single-column tests of the thermodynamics at the end.
 For additional variants (alternative solvers, basal-friction sweeps, OpenMP
 scaling tests, and benchmarks not yet documented here such as HALFAR,
-ISMIPHOM, MISMIP+, and CalvingMIP), see
+ISMIP-HOM A and C, MISMIP+, and CalvingMIP), see
 [`run_batch_gmd.sh`](https://github.com/fesmc/yelmo/blob/main/run_batch_gmd.sh)
 in the repository root.
 
@@ -45,7 +46,7 @@ margin handling.
 ```bash
 make clean
 make benchmarks
-runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
+runme -r -e benchmarks -n par/yelmo_EISMINT_moving.nml -o output/benchmarks/eismint-moving
 ```
 
 ## EISMINT2-expa
@@ -58,30 +59,32 @@ designed to test the coupling between ice dynamics and internal thermodynamics
 ```bash
 make clean
 make benchmarks
-runme -r -e benchmarks -n par-gmd/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
+runme -r -e benchmarks -n par/yelmo_EISMINT_expa.nml -o output/benchmarks/eismint-expa
 ```
 
 ## MISMIP3D
 
 Marine Ice Sheet Model Intercomparison Project, 3D version
 ([Pattyn et al., 2013](https://doi.org/10.3189/2013JoG12J129)). Tests
-grounding-line dynamics on a marine bed with retrograde slope, using a SSA
-or DIVA momentum balance. Two experiments are defined in the namelist via
-the `ctrl.experiment` field: `Stnd` (standard, advance to steady state) and
-`RF` (reverse forcing, to test reversibility).
+grounding-line dynamics on a marine bed, with the SSA momentum balance
+(`ydyn.solver = "ssa"` in the parameter file). Two experiments are defined in the namelist via
+the `ctrl.experiment` field: `Stnd` (standard: advance to steady state,
+the P75S basal-friction perturbation from 15.0 to 15.1 ka, and recovery until
+16.1 ka) and `RF` (reverse forcing, to test reversibility, until 85 ka). With
+`ctrl.time_end` ≤ 0 (default), the run ends at the end of the protocol.
 
 Standard experiment:
 
 ```bash
 make clean
 make mismip
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-stnd -p ctrl.experiment=Stnd
 ```
 
 Reverse-forcing experiment:
 
 ```bash
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-rf -p ctrl.experiment=RF
 ```
 
 ### Resolution ensembles
@@ -91,18 +94,56 @@ ensembles over `ctrl.dx` with different basal-stress scaling /
 staggering options at the grounding line:
 
 ```bash
-# Default grounding-line treatment
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
+# Simple staggering of beta (beta_gl_stag=0)
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-default \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=0 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid grounding-line interpolation (beta_gl_stag=3)
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-subgrid \
     -p ydyn.beta_gl_scale=0 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 
 # Subgrid + basal-stress scaling (beta_gl_scale=2)
-runme -r -e mismip -n par-gmd/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
+runme -r -e mismip -n par/yelmo_MISMIP3D.nml -o output/benchmarks/mismip3d-scaling \
     -p ydyn.beta_gl_scale=2 ydyn.beta_gl_stag=3 ctrl.dx=2.5,5.0,10.0,20.0
 ```
+
+## ISMIP-HOM Experiment F
+
+Prognostic experiment of ISMIP-HOM ([Pattyn et al., 2008](https://doi.org/10.5194/tc-2-95-2008),
+Sect. 3.6): a slab of mean thickness 1000 m on a 3° slope flows over a Gaussian
+bed bump (amplitude 100 m, width 10 km) in a periodic 100 km domain, with zero
+surface mass balance, until the free surface reaches steady state. The rheology
+is linear (n = 1, A = 2.140373e-7 Pa⁻¹ a⁻¹), so the unperturbed surface speed is
+100 m/a. `EXPF1` has no slip (slip ratio c = 0), `EXPF2` has c = 1
+(β = 1/(A H₀)). The driver `tests/yelmo_ismiphom.f90` sets the domain, n, A, β
+and the driving-stress cap; steady state is reached after about 1000 years.
+
+```bash
+make ismiphom
+runme -r -e ismiphom -n par/yelmo_ISMIPHOM.nml -o output/benchmarks/ismiphom-f1 \
+    -p ctrl.experiment=EXPF1 ctrl.time_end=2000 ctrl.dtt=10 ctrl.dt2D_out=100
+runme -r -e ismiphom -n par/yelmo_ISMIPHOM.nml -o output/benchmarks/ismiphom-f2 \
+    -p ctrl.experiment=EXPF2 ctrl.time_end=2000 ctrl.dtt=10 ctrl.dt2D_out=100
+```
+
+`tests/ismiphom_f.jl` compares the steady state along the central flowline
+(y = 0) with the seven models of the intercomparison (reference data in
+`tests/data/ISMIPHOM-F`; cma1 and oga1 are full Stokes), prints the extremes and
+the rms differences, and plots the profiles:
+
+```bash
+julia tests/ismiphom_f.jl ismiphom-f.png \
+    F1:DIVA=output/benchmarks/ismiphom-f1 F2:DIVA=output/benchmarks/ismiphom-f2
+```
+
+![ISMIP-HOM Experiment F: steady surface elevation perturbation and surface speed
+along y = 0, Yelmo (DIVA, hybrid; dx = 2.5 km) and the models of Pattyn et al.
+(2008).](img/ismiphom-f.png)
+
+Yelmo (DIVA or hybrid) stays within the spread of the published models and
+follows the full-Stokes solutions: the rms difference to cma1 is 0.4–0.6 m in
+surface elevation and 0.2–0.5 m/a in surface speed (F1: hump 40.7 m vs 41.8 m;
+F2: 35.9 m vs 35.9 m).
 
 ## slab
 
@@ -150,14 +191,50 @@ runme -r -e trough -n par/yelmo_TROUGH-F17.nml -o output/benchmarks/trough-f17-c
     -p ydyn.beta_u0=100 ytill.cf_ref=5.0,10.0,20.0
 ```
 
+The TROUGH-F17 parameter file uses a pseudo-plastic law (`ydyn.beta_method = 2`)
+with `ytill.is_angle = True`, so `cf_ref` is a till friction angle in degrees.
+Its `beta_u0` is very large (one year in seconds), so `beta_u0 = 100` above
+changes the friction law substantially.
+
 ## initmip-grl
 
 Greenland initialization benchmark following the
 initMIP-Greenland protocol ([Goelzer et al., 2018](https://doi.org/10.5194/tc-12-1433-2018)).
 Spins the ice sheet up toward a present-day steady state using the
-optimization-based initialization scheme (`equil_method = "opt"`) with
-present-day boundary conditions. Default settings: 5-yr outer timestep,
-1000-yr simulation, steady-state forcing.
+optimization-based initialization scheme (`ctrl.equil_method = "opt"`, see
+[Basal friction optimization](optimization.md)) with present-day boundary
+conditions. Default settings: 10-yr outer timestep, 1000-yr simulation,
+steady-state forcing.
+
+The parameter file `par/yelmo_initmip_grl.nml` lists only the Greenland
+settings that differ from `input/yelmo_defaults.nml`: no flow enhancement
+(`ymat.enh_shear = enh_stream = 1`), calving fronts held at the observed
+positions (`ycalv.calv_flt_method = calv_grnd_method = "equil"`), a lower
+bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
+melt of 2 m/a. Present-day surface mass balance and surface temperature are the
+1981-2010 monthly climatology of MAR v3.14 (the `yelmo_data` defaults).
+
+Both fields are held at the present day by default (`ctrl.smb_method =
+"fixed"`, also for Antarctica). The option `"zremap"` makes both fields follow
+the changing surface elevation. It is not yet validated: in 20-kyr Greenland
+spin-ups with the current tuning it loses land margins in the north and
+southwest through the SMB-elevation feedback. The fesm-utils `zremap` module builds
+local profiles f(z) once from the present-day fields on the ice of the regional
+climate model (ice fraction `f_ice >= ctrl.f_ice_min`, within the regions
+`ctrl.region_rcm`: Greenland only for Greenland, so the profiles do not use
+the Canadian ice caps) at its own surface elevation (`f_ice` and `z_srf` of
+`yelmo_data.pd_smb_path`), and evaluates them at the current surface elevation
+every `ctrl.dtt`, also during the spin-up. On that ice the profiles give only
+the change with elevation, added to the present-day field, which is thus
+reproduced on the present-day surface; elsewhere the fields are the profiles
+(kernel means over about 100 km, `sigma`). Below and above the data, and far
+from the ice, they continue with the gradients
+`dfdz_lo`, `dfdz_hi`: 2 mm w.e./a/m and 0 for smb (given in m i.e./a/m), and
+-6.5 K/km for `T_srf`. The parameters are in the groups `zremap_smb` and
+`zremap_tsrf`. The alternatives are `"fixed"` (the present-day fields; for
+Greenland with 2 m/a less smb where there is no present-day ice) and
+`"out_const"` (the present-day fields, with smb = `ctrl.smb_out` outside the
+ice of the regional climate model).
 
 Greenland is supported at 32, 16, 8, and 4 km resolution. Select the grid
 by uncommenting the desired line:
@@ -170,28 +247,52 @@ grid=GRL-32KM
 
 make clean
 make initmip
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-$grid \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Greenland yelmo.grid_name=$grid
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/initmip-grl-$grid \
+    -p yelmo.log_timestep=True yelmo.grid_name=$grid
 ```
 
 To run all four resolutions as an ensemble:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-grl-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_grl_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Greenland \
-       yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
+runme -r -e initmip -n par/yelmo_initmip_grl.nml -o output/initmip-grl-ens \
+    -p yelmo.log_timestep=True yelmo.grid_name=GRL-32KM,GRL-16KM,GRL-8KM,GRL-4KM
 ```
+
+### Performance {#initmip-grl-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-grl runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
+Levante shared node). Grey: DIVA in Robinson et al. (2022), Fig. 3, on
+one processor. The lines are fits of $\Delta t \propto \Delta x^p$.](img/timing-resolution-grl.png)
+
+The runs used the shared initmip parameter file of dev 6d0b30d6 (before the split into
+`par/yelmo_initmip_grl.nml` and `par/yelmo_initmip_ant.nml`) with `ctrl.time_end=1000`.
+The mean time step is the simulated time divided by the number of time steps, and
+the model speed is the simulated time per hour of wall time of the main loop. The
+time step is set by the predictor-corrector controller (`yelmo.pc_eps = 0.02`)
+and the Courant cap (`yelmo.pc_cfl_max`). It scales as $\Delta x^{1.0}$, against
+$\Delta x^{1.8}$ in Robinson et al. (2022), so the high-resolution grids gain the
+most. Data and plotting script: `analysis/timing/`.
 
 ## initmip-ant
 
 Antarctica initialization benchmark following the
 initMIP-Antarctica protocol ([Seroussi et al., 2019](https://doi.org/10.5194/tc-13-1441-2019)).
 Same optimization-based spin-up as initmip-grl, but on the Antarctic domain
-with `set_nm = "set_ant_pd"`.
+with `par/yelmo_initmip_ant.nml` (present day: `ctrl.set_nm = "set_ant_pd"`, the
+default; glacial: `"set_ant_lgm"`).
+
+As for Greenland, `par/yelmo_initmip_ant.nml` lists only the settings that
+differ from `input/yelmo_defaults.nml`: no flow enhancement
+(`ymat.enh_shear = enh_stream = enh_shlf = 1`), calving fronts held at the
+observed positions, bounds `ytill.cf_min = 0.001` and `ytill.cf_ref = 1` for the
+optimized friction, the geothermal heat flux of Shapiro and Ritzwoller (2004)
+(`load_ghf`, `file_ghf` in the `set_ant_*` groups; otherwise 50 mW/m2), the
+1981-2010 monthly climatology of RACMO2.3p2 for the surface mass balance and
+surface (skin) temperature, and the steady-state ice-shelf basal melt of Rignot et al.
+(2013) averaged over groups of basins (`set_ant_pd`: `file_bmelt`, `name_bmelt = "bmelt_eq_reese"`).
+The surface mass balance and temperature are held at the present day as for
+Greenland (`ctrl.smb_method = "fixed"`).
 
 Antarctica is currently supported at 32, 16, and 8 km resolution. The 4 km
 configuration is not yet available.
@@ -203,18 +304,52 @@ grid=ANT-32KM
 
 make clean
 make initmip
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-$grid \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Antarctica yelmo.grid_name=$grid
+runme -r -e initmip -n par/yelmo_initmip_ant.nml -o output/initmip-ant-$grid \
+    -p yelmo.log_timestep=True yelmo.grid_name=$grid
 ```
 
 To run all three resolutions as an ensemble:
 
 ```bash
-runme -r -e initmip -n par/yelmo_initmip.nml -o output/initmip-ant-ens \
-    -p ctrl.dtt=5 ctrl.time_end=1e3 ctrl.time_equil=100 \
-       ctrl.set_nm=set_ant_pd yelmo.log_timestep=True \
-       ydyn.solver=diva yelmo.domain=Antarctica \
-       yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
+runme -r -e initmip -n par/yelmo_initmip_ant.nml -o output/initmip-ant-ens \
+    -p yelmo.log_timestep=True yelmo.grid_name=ANT-32KM,ANT-16KM,ANT-8KM
 ```
+
+### Performance {#initmip-ant-performance}
+
+![Mean time step (a) and model speed (b) versus grid resolution for 1-kyr
+initmip-ant runs with the default settings (DIVA, 16 OpenMP threads on a DKRZ
+Levante shared node). The line is a fit of $\Delta t \propto \Delta x^p$.](img/timing-resolution-ant.png)
+
+Same setup as for [initmip-grl](#initmip-grl-performance). Data and plotting script:
+`analysis/timing/`.
+
+## Enthalpy column tests
+
+The standalone column driver `tests/test_enthalpy.f90` (`make enthalpy`) tests
+the [thermodynamics](physics/thermodynamics.md) solvers in a single ice
+column, with reference data in `tests/data/Kleiner2015/`:
+
+| Experiment | Test |
+|---|---|
+| `cold-limit` | The enthalpy solver reduces to the temperature solver for cold ice |
+| `kleiner-a` | Kleiner et al. (2015) Experiment A: transient basal melt and refreezing under a time-varying surface temperature, compared with the analytic steady melt rates |
+| `kleiner-a-cap` | As `kleiner-a`, with the capacity basal boundary condition |
+| `kleiner-b` | Kleiner et al. (2015) Experiment B: steady polythermal column, CTS height (within 0.5 m) and basal water content (within 5 %) compared with the analytic solution, and a steady CTS over the last 1 kyr; passes from 201 vertical points |
+| `thin-margin` | Stability of a thin polythermal margin column, over a range of thickness and horizontal advection |
+| `shelf-freeze` | Thin floating temperate columns refrozen from the ocean base and the cold surface: no node may cool below the coldest boundary |
+| `robin-column` | Basal temperature of a steady column compared with the Robin (1955) solution, for both solvers |
+
+```bash
+make enthalpy
+./libyelmo/bin/test_enthalpy.x kleiner-b enth 201 1e-4
+```
+
+The arguments are the experiment, the solver, the number of vertical points
+(default 51) and optionally the conductivity ratio of temperate ice
+(`enth_cr`). The solver (`temp` or `enth`, default `enth`) applies to
+`kleiner-a` and `kleiner-b`; the other experiments ignore it (`cold-limit`,
+`thin-margin` and `robin-column` run both solvers, `kleiner-a-cap` and `shelf-freeze` the enthalpy
+solver). Output is written to `output/test_enthalpy_<experiment>_<solver>.nc`
+(not for `thin-margin`, `shelf-freeze` and `robin-column`, which only print their results), and
+the program reports whether the comparison with the reference passes.

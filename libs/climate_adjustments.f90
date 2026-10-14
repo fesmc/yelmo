@@ -77,7 +77,7 @@ contains
 
                 case DEFAULT 
                     write(*,*) "downscale_smb_gradient:: Error: method not recognized: "//trim(method)
-                    stop 
+                    error stop 1
 
             end select 
 

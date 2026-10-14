@@ -30,7 +30,7 @@ $(objdir)/ice_optimization.o: $(libdir)/ice_optimization.f90 $(objdir)/yelmo_def
 ## INTERNAL PHYSICS LIBRARIES ###############################
 
 $(objdir)/basal_dragging.o: $(srcdir)/physics/basal_dragging.f90 $(objdir)/yelmo_defs.o \
-							$(objdir)/yelmo_tools.o $(objdir)/topography.o
+							$(objdir)/yelmo_tools.o $(objdir)/topography.o $(objdir)/deformation.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/calving_aa.o: $(srcdir)/physics/calving/calving_aa.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
@@ -53,7 +53,8 @@ $(objdir)/discharge.o: $(srcdir)/physics/discharge.f90 $(objdir)/yelmo_defs.o
 $(objdir)/thermodynamics.o : $(srcdir)/physics/thermodynamics.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/ice_tracer.o : $(srcdir)/physics/ice_tracer.f90 $(objdir)/yelmo_defs.o $(objdir)/solver_tridiagonal.o
+$(objdir)/ice_tracer.o : $(srcdir)/physics/ice_tracer.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tools.o \
+						$(objdir)/solver_tridiagonal.o $(objdir)/thermodynamics.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/ice_enthalpy.o : $(srcdir)/physics/ice_enthalpy.f90 $(objdir)/yelmo_defs.o \
@@ -62,7 +63,7 @@ $(objdir)/ice_enthalpy.o : $(srcdir)/physics/ice_enthalpy.f90 $(objdir)/yelmo_de
 
 $(objdir)/mass_conservation.o : $(srcdir)/physics/mass_conservation.f90 $(objdir)/yelmo_defs.o \
 								$(objdir)/solver_advection.o $(objdir)/solver_advection_sico.o \
-								$(objdir)/solver_advection_new.o $(objdir)/velocity_general.o \
+								$(objdir)/solver_advection_new.o \
 								$(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -101,7 +102,7 @@ $(objdir)/topography.o: $(srcdir)/physics/topography.f90 $(objdir)/yelmo_defs.o 
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/velocity_general.o: $(srcdir)/physics/velocity_general.f90 $(objdir)/yelmo_defs.o \
-								$(objdir)/solver_ssa_ac.o $(objdir)/deformation.o
+								$(objdir)/solver_ssa_ac.o $(objdir)/deformation.o $(objdir)/solver_linear.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/velocity_sia.o: $(srcdir)/physics/velocity_sia.f90 \
@@ -122,7 +123,14 @@ $(objdir)/velocity_diva.o: $(srcdir)/physics/velocity_diva.f90 \
 
 ## YELMO BASE ###############################################
 
-$(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90
+# yelmo_class embeds fesm-utils, hydro, elsa and tracer types: rebuild yelmo_defs
+# (and everything built on it) when one of their archives changes, or objects keep
+# a stale type layout (fesmc/FastHydrology#10).
+$(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90 \
+                        $(FESMUTILSLIBDIR)/libfesmutils.a \
+                        $(FASTHYDROROOT)/include/libfasthydro.a \
+                        $(ELSAROOT)/libelsa/include/libelsa.a \
+                        $(TRACERROOT)/libtracer/include/libtracer.a
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_grid.o: $(srcdir)/yelmo_grid.f90 $(objdir)/yelmo_defs.o
@@ -146,7 +154,7 @@ $(objdir)/yelmo_topography.o: $(srcdir)/yelmo_topography.f90 $(objdir)/yelmo_def
  							  $(objdir)/mass_conservation.o $(objdir)/calving_ac.o $(objdir)/calving_aa.o $(objdir)/lsf_module.o \
 							  $(objdir)/discharge.o \
  							  $(objdir)/runge_kutta.o \
- 							  $(objdir)/topography.o
+ 							  $(objdir)/topography.o $(objdir)/velocity_general.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_dynamics.o: $(srcdir)/yelmo_dynamics.f90 $(objdir)/yelmo_defs.o \
@@ -183,7 +191,10 @@ $(objdir)/yelmo_data.o: $(srcdir)/yelmo_data.f90 $(objdir)/yelmo_defs.o $(objdir
 $(objdir)/yelmo_regions.o: $(srcdir)/yelmo_regions.f90 $(objdir)/yelmo_defs.o $(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o
+$(objdir)/yelmo_remapping.o: $(srcdir)/yelmo_remapping.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o $(objdir)/yelmo_remapping.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/control.o: control.f90
@@ -217,6 +228,9 @@ $(objdir)/calving_benchmarks.o: $(testdir)/calving_benchmarks.f90 $(objdir)/yelm
 
 $(objdir)/mismip3D.o: $(testdir)/mismip3D.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
+
+$(objdir)/bench_forcing.o: $(testdir)/bench_forcing.f90 $(objdir)/yelmo_defs.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 #############################################################
 ##							
@@ -268,12 +282,14 @@ yelmo_base =		   $(objdir)/yelmo_defs.o \
 	         		   $(objdir)/yelmo_boundaries.o \
 	                   $(objdir)/yelmo_data.o \
 	                   $(objdir)/yelmo_regions.o \
+	                   $(objdir)/yelmo_remapping.o \
 	                   $(objdir)/yelmo_io.o \
 	         		   $(objdir)/yelmo.o
 
 yelmo_tests = 		   $(objdir)/ice_benchmarks.o \
 					   $(objdir)/calving_benchmarks.o \
-					   $(objdir)/mismip3D.o
+					   $(objdir)/mismip3D.o \
+					   $(objdir)/bench_forcing.o
 
 # Extras for testing 
 yelmo_thermo =         $(objdir)/yelmo_defs.o \

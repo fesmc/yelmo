@@ -1,64 +1,59 @@
-
 # Parameters
 
-Here important parameter choices pertinent to running
-**Yelmo** will be documented. Each section will
-outline a specific parameter or set of related parameters.
-The author of each section and the date last updated
-will apear in the heading, to maintain traceability
-in the documentation (since code usually changes over time).
+Yelmo reads its parameters from a namelist file, given to `yelmo_init` as
+`filename`. The defaults are in `input/yelmo_defaults.nml`, which declares every
+parameter together with its default value and a short description. A user
+parameter file only needs to list the parameters it changes. Unknown parameters
+stop the model at load time, as do values outside their allowed set or range.
 
-**This is a work in progress!**
+The parameters are organised in groups, one per model component:
+
+| Group | Component | Documentation |
+|---|---|---|
+| `&yelmo` | Domain, grid, restart, vertical grid, time stepping | [Time stepping](physics/timestepping.md) |
+| `&ytopo` | Topography, mass conservation, front | [Mass conservation](physics/mass_conservation/index.md) |
+| `&ycalv` | Calving | [Calving](physics/calving.md) |
+| `&ydyn` | Momentum balance, basal friction | [Momentum balance](physics/momentum/diva.md), [Basal friction](physics/basal-friction.md) |
+| `&ytill` | Till properties (`cb_ref`) | [Basal friction](physics/basal-friction.md#bed-coefficient) |
+| `&ymat` | Rheology, enhancement | [Thermodynamics](physics/thermodynamics.md#coupling-to-the-flow) |
+| `&ytrc` | Passive tracers (deposition time) | |
+| `&ytherm` | Thermodynamics, bedrock | [Thermodynamics](physics/thermodynamics.md) |
+| `&yhyd` | Basal hydrology (FastHydrology) | [Basal friction](physics/basal-friction.md#effective-pressure) |
+| `&yelmo_masks`, `&yelmo_init_topo`, `&yelmo_data` | Input files for masks, initial topography and comparison data | |
+
+Each group can be renamed in `&yelmo` (e.g. `nml_ydyn = "ydyn_north"` reads the
+dynamics parameters from `&ydyn_north`), so that several Yelmo domains can share
+one parameter file. Physical constants are read from
+`input/yelmo_phys_const.nml`, in the group given by `yelmo.phys_const`
+(default `"Earth"`; groups for the benchmark experiments, e.g. `"EISMINT"`, `"MISMIP3D"`, are also available).
+
+Groups used only by a driver program, such as `&ctrl`, are not read by Yelmo.
+
+## Masks
+
+`&yelmo_masks` makes Yelmo's masks once at init from the regions, zones and
+basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
+`regions`), with selection expressions such as
+`"region:Greenland & ~zone:open_ocean"`:
+
+| Key | Meaning |
+|---|---|
+| `regions_group` | Group of the regions (`path_regions`, `path_basins`, `basin_sets`, `layers`, `masks`, ...; see fesm-utils `regions`); `"None"` = no layers |
+| `basins` | Basin ids of `bnd%basins`: a layer of the regions, e.g. `"<set>"` or `"<set>.group"` (`"Zwally2012.group"`); `"None"` = none, `"domain"` = one basin (1) |
+| `mask_ice_dynamic` | Where ice is dynamic; elsewhere no ice (`bnd%mask_ice`) |
+| `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
+| `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |
+| `mask_rmse` | Where the error metrics are computed |
+| `dynamic_connected` | Keep only the dynamic cells connected to the ice sheet (the largest 4-connected region of present-day ice, else of the initial ice) through dynamic or fixed cells; the others get no ice (e.g. offshore islands) |
+
+Without layers the expressions can only be `"all"` or `"none"`. A driver may
+pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of
+`regions_group`, and `mask_ice` instead of the mask_ice expressions. The named
+masks of the regions (`masks`, `mask_<name>`) become Yelmo's regional output
+domains. `bnd%regions` holds the codes of the layer `region` (FesmData: the deepest
+level), 0 without one.
 
 ::: {.callout-tip}
 To browse, build, compare and validate parameter files from the command line, see
 [`yelmo-config`](yelmo-config.md).
 :::
-
-## Basal friction
-
-Yelmo includes the representation of several friction laws that all take the form:
-
-$$
-\tau_b = -\beta u_b
-$$
-
-where $\beta$ is composed of a coefficient $c_b$ and potentially another contribution that depends on $u_b$ too:
-
-$$
-\beta = c_b f(u_b)
-$$
-
-In Yelmo, the field $c_b$ is defined by the variable `c_bed` and has units of Pa. The term $f(u_b)$ is not output in the model, but it contributes with units of yr m$^{-1}$, so $\beta$ finally has units of Pa yr m$^{-1}$. When multiplied with $u_b$, we arrive at $\tau_b$ with units of Pa.
-
-Yelmo calculates $c_b$ (`c_bed`) internally as either:
-
-$$
-c_b = c_{\rm b,ref} * N_{\rm eff}
-$$
-
-or
-
-$$
-c_b = {\rm tan}(c_{\rm b,ref}) * N_{\rm eff}
-$$
-
-This is controlled by the user option `ytill.is_angle`. If `ytill.is_angle=True`, then $c_{\rm b,ref}$ (variable `cb_ref` in the code) is considered as an angle and the latter formulation above is used, following e.g., Bueler and van Pelt (2015). If `ytill.is_angle=False`, then `cb_ref` is used as a scalar field directly. In both cases, this field represents the till or basal properties (roughness, etc.) that are rather independent from how the effective pressure $N_{\rm eff}$ (variable `N_eff`) may be defined.
-
-With the variables formulated as above, it is possible to consider `cb_ref` as a tunable field that can be adjusted to improve model performance on a given domain. This can be achieved, for example, by performing optimization via the `ice_optimization` module, which adjusts `cb_ref` as a function of the mismatch of the simulated ice thickness with a target field. Also, `cb_ref` can either be optimized as a scalar field itself, or as an angle that is input to ${\rm tan}(c_{\rm b,ref})$ above.
-
-Another possibility is to tune `cb_ref` as a function of other model or boundary variables. The most common approach is to tune it as as function of the bedrock elevation relative to present-day sea level (e.g., Winkelmann et al., 2011). In Yelmo, this is controlled by the parameter choices in the `ytill` section, and in particular the parameter `ytill.scale=['none','lin','exp']`. When `ytill.scale='none'`, no scaling function is applied and then `cb_ref=ytill.cf_ref` everywhere. When `ytill.scale='lin'`, a linear scaling is applied so that `cb_ref` goes from `ytill.cf_min` to `ytill.cb_ref` for bedrock elevations between `ytill.z0` and `ytill.z1` (saturating otherwise). Finally, if `ytill.scale='exp'`, an exponential decay function is applied, such that `cb_ref=ytill.cf_ref` for `z_bed >= ytill.z1`, and decays following a curve that reaches ~30% of its value at `z_bed=ytill.z0`. Finally, all values are limited to a minimum value of `ytill.cf_min`.
-
-## Effective pressure
-
-Effective pressure (`N_eff`, $N_{\rm eff}$) in Yelmo is currently only used in the basal friction formulation as shown above. It provides a mechanism to alter the basal friction as a function of the state of the ice sheet, which is separate from $c_{\rm b,ref}$ (`cb_ref`), which represents the properties of the bed beneath the ice sheet. The calculation of `N_eff` can be done with several methods:
-
-```bash
-yneff.method = [-1,0,1,2,3]
--1: Set N_eff external to Yelmo, do not modify it internally.
- 0: Impose a constant value, N_eff = yneff.const
- 1: Impose the overburden pressure, N_eff = rho_ice*g*H_ice
- 2: Calculate N_eff following the Leguy formulation
- 3: Calculate N_eff as till pressure following Bueler and van Pelt (2015). 
- 4: Calculate N_eff as a 'two-valued' function scaled by f_pmp using yneff.delta.
- ```

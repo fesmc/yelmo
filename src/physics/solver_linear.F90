@@ -17,6 +17,7 @@ module solver_linear
         integer,  allocatable :: n2i(:)
         integer,  allocatable :: n2j(:)
         integer,  allocatable :: ij2n(:,:)
+        integer,  allocatable :: copy_from(:)   ! Row whose solution a row takes after the solve (0: none)
         
         integer,  allocatable :: a_ptr(:)
         integer,  allocatable :: a_index(:)
@@ -28,17 +29,37 @@ module solver_linear
         real(dp) :: L1_norm, L2_norm, L2_rel_norm
         real(wp) :: solver_time
         integer  :: lin_iter 
+        integer  :: status                      ! Solver return status (LGS_SUCCESS, LGS_BREAKDOWN, LGS_MAXITER, ...)
 
     end type
+
+    ! Solver return status (LIS return codes)
+    integer, parameter :: LGS_SUCCESS   = 0
+    integer, parameter :: LGS_BREAKDOWN = 2
+    integer, parameter :: LGS_MAXITER   = 4
 
     private 
 
     public :: linear_solver_class
+    public :: LGS_SUCCESS, LGS_BREAKDOWN, LGS_MAXITER
+    public :: linear_solver_status_str
     public :: linear_solver_init
     public :: linear_solver_matrix_solve
     public :: linear_solver_print_summary
 
 contains 
+
+    function linear_solver_status_str(status) result(str)
+        ! Short label of a linear solver return status (for logs)
+        integer, intent(IN) :: status
+        character(len=9) :: str
+        select case(status)
+            case(LGS_SUCCESS);   str = "ok"
+            case(LGS_BREAKDOWN); str = "BREAKDOWN"
+            case(LGS_MAXITER);   str = "MAXITER"
+            case DEFAULT;        write(str,"(a,i0)") "ERR", status
+        end select
+    end function linear_solver_status_str
     
     subroutine linear_solver_init(lgs,nx,ny,nvar,n_terms)
         ! Initialize the lgs object that will hold
@@ -67,6 +88,7 @@ contains
         if (allocated(lgs%n2i))     deallocate(lgs%n2i)
         if (allocated(lgs%n2j))     deallocate(lgs%n2j)
         if (allocated(lgs%ij2n))    deallocate(lgs%ij2n)
+        if (allocated(lgs%copy_from)) deallocate(lgs%copy_from)
         if (allocated(lgs%a_ptr))   deallocate(lgs%a_ptr)
         if (allocated(lgs%a_index)) deallocate(lgs%a_index)
         if (allocated(lgs%a_value)) deallocate(lgs%a_value)
@@ -77,6 +99,7 @@ contains
         allocate(lgs%n2i(nx*ny))
         allocate(lgs%n2j(nx*ny))
         allocate(lgs%ij2n(nx,ny))
+        allocate(lgs%copy_from(lgs%nmax))
         allocate(lgs%a_value(lgs%n_sprs))
         allocate(lgs%a_index(lgs%n_sprs))
         allocate(lgs%a_ptr(lgs%nmax+1))
@@ -84,12 +107,26 @@ contains
         allocate(lgs%x_value(lgs%nmax))
         
         ! Initialize array values to zero
-        lgs%a_value = 0.0
-        lgs%a_index = 0
-        lgs%a_ptr   = 0
+        !$omp parallel private(n)
+        !$omp do
+        do n = 1, lgs%n_sprs
+            lgs%a_value(n) = 0.0
+            lgs%a_index(n) = 0
+        end do
+        !$omp end do nowait
+        !$omp do
+        do n = 1, lgs%nmax
+            lgs%a_ptr(n)     = 0
+            lgs%b_value(n)   = 0.0
+            lgs%x_value(n)   = 0.0
+            lgs%copy_from(n) = 0
+        end do
+        !$omp end do
+        !$omp end parallel
+        lgs%a_ptr(lgs%nmax+1) = 0
 
-        lgs%b_value = 0.0
-        lgs%x_value = 0.0
+        lgs%lin_iter  = 0
+        lgs%status    = LGS_SUCCESS
         
         ! Define indices for reshaping of a 2-d array (with indices i, j)
         ! to a vector (with index n)
@@ -130,6 +167,7 @@ contains
             lgs%L2_rel_norm = 0.0_dp
             lgs%lin_iter    = 0
             lgs%solver_time = 0.0_wp
+            lgs%status      = LGS_SUCCESS
 
             return
 
@@ -175,6 +213,7 @@ contains
         LIS_INTEGER :: nc
         LIS_INTEGER :: nmax
         LIS_INTEGER :: lin_iter
+        LIS_INTEGER :: status
         LIS_REAL    :: residual 
         LIS_REAL    :: solver_time  
         LIS_MATRIX  :: lgs_a
@@ -192,7 +231,6 @@ contains
         !ajr: new method
         integer :: i, k
         LIS_INTEGER :: nnz
-        LIS_INTEGER, allocatable :: idx(:)
         LIS_INTEGER, allocatable :: a_ptr(:)
         LIS_INTEGER, allocatable :: a_index(:)
         LIS_REAL,    allocatable :: a_value(:)
@@ -252,33 +290,42 @@ else
         ! New method - assemble matrices directly using LIS
         ! This method is faster because all values are passed to LIS, less overhead, parallelization possible
 
-        nnz = size(lgs%a_index)
+        ! Number of stored entries (the arrays may be allocated larger)
+        nnz = lgs%a_ptr(nmax+1)-1
 
         ! allocate arrays of LIS types
-        allocate(idx(1:nmax))
         allocate(a_ptr(1:nmax+1))
         allocate(a_index(1:nnz))
         allocate(a_value(1:nnz))
         allocate(b_value(1:nmax))
         allocate(x_value(1:nmax))
 
+        !$omp parallel private(k)
+
         ! Store vector information
+        !$omp do
         do k = 1, nmax
-            idx(k) = k
             b_value(k) = lgs%b_value(k)
             x_value(k) = lgs%x_value(k)
         end do
+        !$omp end do nowait
 
         ! Store matrix row pointers
+        !$omp do
         do k = 1, nmax+1
             a_ptr(k) = lgs%a_ptr(k)-1
         end do
+        !$omp end do nowait
 
         ! Store column indices and values
+        !$omp do
         do k = 1, nnz
             a_index(k) = lgs%a_index(k)-1
             a_value(k) = lgs%a_value(k)
         end do
+        !$omp end do
+
+        !$omp end parallel
 
         ! Assemble matrix in LIS
         call lis_matrix_set_csr(nnz, a_ptr, a_index, a_value, lgs_a, ierr)
@@ -286,10 +333,10 @@ else
         call lis_matrix_assemble(lgs_a, ierr)
         call CHKERR(ierr)
 
-        ! Define vectors in LIS
-        call lis_vector_set_values(LIS_INS_VALUE, nmax, idx, b_value, lgs_b, ierr)
+        ! Define vectors in LIS (whole vector at once)
+        call lis_vector_scatter(b_value, lgs_b, ierr)
         call CHKERR(ierr)
-        call lis_vector_set_values(LIS_INS_VALUE, nmax, idx, x_value, lgs_x, ierr)
+        call lis_vector_scatter(x_value, lgs_x, ierr)
         call CHKERR(ierr)
 end if
 
@@ -309,6 +356,7 @@ end if
         ! Get solver solution information
         call lis_solver_get_iter(solver, lin_iter, ierr)
         call lis_solver_get_time(solver,solver_time,ierr)
+        call lis_solver_get_status(solver,status,ierr)
         
         ! Obtain the relative L2_norm == ||b-Ax|| / ||b||
         call lis_solver_get_residualnorm(solver,residual,ierr)
@@ -316,6 +364,7 @@ end if
         ! Store in lgs object too
         lgs%lin_iter    = lin_iter
         lgs%solver_time = solver_time
+        lgs%status      = status
         lgs%L2_rel_norm = residual
 
         ! Print a summary
@@ -323,12 +372,15 @@ end if
 
         ! Gather x values in local array of lis-type
         allocate(lgs_x_value_out(nmax))
-        lgs_x_value_out = 0.0_wp
         call lis_vector_gather(lgs_x, lgs_x_value_out, ierr)
         call CHKERR(ierr)
         
         ! Save to lgs object
-        lgs%x_value = lgs_x_value_out
+        !$omp parallel do private(k)
+        do k = 1, nmax
+            lgs%x_value(k) = lgs_x_value_out(k)
+        end do
+        !$omp end parallel do
         
         ! Destroy all lis variables
         call lis_matrix_destroy(lgs_a, ierr)
@@ -354,7 +406,7 @@ end if
         type(linear_solver_class), intent(IN) :: lgs 
         integer, intent(IN) :: io 
 
-        write(io,*) "solve_lis: [time (s), iter, L2_rel_norm] = ", lgs%solver_time, lgs%lin_iter, lgs%L2_rel_norm
+        write(io,*) "solve_lis: [time (s), iter, L2_rel_norm, status] = ", lgs%solver_time, lgs%lin_iter, lgs%L2_rel_norm, lgs%status
 
         return
         
@@ -669,7 +721,7 @@ end if
                 if (perr /= 0) THEN
                   write(io_unit_err,*) '    PETSc routine "', routine_name, '" returned error flag ', perr
                   call MPI_ABORT( MPI_COMM_WORLD, cerr, ierr)
-                  stop
+                  error stop 1
                 end if
 
                 return 

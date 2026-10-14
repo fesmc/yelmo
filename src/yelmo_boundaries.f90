@@ -4,30 +4,54 @@ module yelmo_boundaries
     use nml 
     use ncio 
     use yelmo_defs 
-    use yelmo_tools, only : boundary_code, get_periodic_directions
+    use coords,  only : grid_class
+    use regions, only : regions_class, region_mask_class, regions_init, regions_init_nml, regions_select, &
+                        regions_basin_ids, regions_find, regions_end
+    use yelmo_tools, only : boundary_code, get_periodic_directions, get_neighbor_indices_bc_codes
 
     implicit none
     
     private
     public :: ybound_define_physical_constants
     public :: ybound_load_masks
+    public :: ybound_mask_ice_connected
     public :: ybound_define_mask_ice
     public :: ybound_alloc, ybound_dealloc
+    public :: ybound_update_rates
     
 contains
 
-    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name)
+    subroutine ybound_define_physical_constants(c,phys_const,domain,grid_name,cnst,cnst_out)
+        ! Fill Yelmo's physical-constants record.
+        !
+        ! The shared quantities come from a phys_const_class (fesm-utils), either
+        ! supplied by the driver or, when absent, loaded here from Yelmo's own
+        ! parameter file as before. A driver that owns the constants passes them
+        ! in, so every component of a coupled program works from one set; the
+        ! no-argument path keeps the standalone drivers and the C API working.
+        !
+        ! c is Yelmo's working-precision mirror of that record. It is kept rather
+        ! than replaced so the several hundred bnd%c%<name> uses across the
+        ! physics are untouched, and because Yelmo carries two things that are
+        ! deliberately not shared physical constants: sec_year, which is a
+        ! calendar choice, and conv_mmdwe_maie, which embeds a day count.
 
         implicit none
 
-        type(ybound_const_class), intent(OUT) :: c 
-        character(len=*), intent(IN) :: phys_const 
-        character(len=*), intent(IN) :: domain 
-        character(len=*), intent(IN) :: grid_name 
-        
-        ! Local variables 
+        type(ybound_const_class), intent(OUT) :: c
+        character(len=*), intent(IN) :: phys_const
+        character(len=*), intent(IN) :: domain
+        character(len=*), intent(IN) :: grid_name
+        type(phys_const_class), intent(IN),  optional :: cnst
+        ! The record actually used, returned so that a caller can hand the same
+        ! set to the other components of a coupled program without loading the
+        ! parameter file again or knowing which group was selected.
+        type(phys_const_class), intent(OUT), optional :: cnst_out
+
+        ! Local variables
         logical :: init_pars
-        character(len=56) :: group 
+        character(len=56) :: group
+        type(phys_const_class) :: cn
         character(len=512), parameter :: filename = "input/yelmo_phys_const.nml"
 
         ! Determine physical constants group name to use based on parameter choice
@@ -49,158 +73,178 @@ contains
             case DEFAULT
                 write(*,*) "ybound_define_physical_constants:: Error: yelmo.phys_const not recognized."
                 write(*,*) "yelmo.phys_const = ", trim(phys_const)
-                stop
+                error stop 1
         end select
 
-        ! Load parameter values from parameter file
+        ! Obtain the shared physical constants
 
-        init_pars = .TRUE. 
-        
-        call nml_read(filename,group,"sec_year",    c%sec_year,   init=init_pars)
-        call nml_read(filename,group,"g",           c%g,          init=init_pars)
-        call nml_read(filename,group,"T0",          c%T0,         init=init_pars)
-        call nml_read(filename,group,"rho_ice",     c%rho_ice,    init=init_pars)
-        call nml_read(filename,group,"rho_w",       c%rho_w,      init=init_pars)
-        call nml_read(filename,group,"rho_sw",      c%rho_sw,     init=init_pars)
-        call nml_read(filename,group,"rho_a",       c%rho_a,      init=init_pars)
-        call nml_read(filename,group,"rho_rock",    c%rho_rock,   init=init_pars)
-        call nml_read(filename,group,"L_ice",       c%L_ice,      init=init_pars)
-        call nml_read(filename,group,"T_pmp_beta",  c%T_pmp_beta, init=init_pars)
+        if (present(cnst)) then
+            ! The driver owns them; use its set as-is.
+            cn = cnst
+        else
+            ! Standalone: load them from Yelmo's own parameter file.
+            call phys_const_load(cn,filename,group=group)
+        end if
 
-        ! Define conversion factors too
+        call phys_const_require(cn,"ybound_define_physical_constants")
 
-        c%conv_we_ie          = c%rho_w/c%rho_ice
-        c%conv_mmdwe_maie     = 1e-3*365*c%conv_we_ie
-        c%conv_mmawe_maie     = 1e-3*c%conv_we_ie
-        
-        c%conv_m3_Gt          = c%rho_ice *1e-12                ! [kg/m3] * [Gigaton/1e12kg]
-        c%conv_km3_Gt         = (1e9) * c%conv_m3_Gt            ! [1e9m^3/km^3]
-        c%conv_millionkm3_Gt  = (1e6) * (1e9) *c%conv_m3_Gt     ! [1e6km3/1] * [1e9m^3/km^3] * conv
-        
-        c%area_seasurf        = 3.618e8                         ! [km^2]
-        ! [m sle / km^3 ice]: km^3 ice => m^3 liquid water, spread over the ocean surface area
-        c%conv_km3_sle        = (c%rho_ice/c%rho_w) * (1e9) / (c%area_seasurf*1e6)
+        ! Mirror the shared record into Yelmo's working precision. The derived
+        ! factors are taken from the record rather than recomputed here, so that
+        ! the ratios cannot drift from the densities they follow from.
+
+        call phys_const_get(cn,"g",                  c%g)
+        call phys_const_get(cn,"T0",                 c%T0)
+        call phys_const_get(cn,"rho_ice",            c%rho_ice)
+        call phys_const_get(cn,"rho_w",              c%rho_w)
+        call phys_const_get(cn,"rho_sw",             c%rho_sw)
+        call phys_const_get(cn,"rho_asth",           c%rho_a)
+        call phys_const_get(cn,"L_ice",              c%L_ice)
+        call phys_const_get(cn,"T_pmp_beta",         c%T_pmp_beta)
+        call phys_const_get(cn,"area_seasurf",       c%area_seasurf)
+
+        call phys_const_get(cn,"conv_we_ie",         c%conv_we_ie)
+        call phys_const_get(cn,"conv_mmawe_maie",    c%conv_mmawe_maie)
+        call phys_const_get(cn,"conv_m3_Gt",         c%conv_m3_Gt)
+        call phys_const_get(cn,"conv_km3_Gt",        c%conv_km3_Gt)
+        call phys_const_get(cn,"conv_millionkm3_Gt", c%conv_millionkm3_Gt)
+        call phys_const_get(cn,"conv_km3_sle",       c%conv_km3_sle)
+
+        ! Yelmo's own, not part of the shared record.
+
+        ! Year length is a calendar choice, not a physical constant, so it stays
+        ! with Yelmo. fesm-utils names the standard conventions (sec_year_365d,
+        ! sec_year_tropical, ...) if this is ever to be tied to one of them.
+        init_pars = .TRUE.
+        call nml_read(filename,group,"sec_year",c%sec_year,init=init_pars)
+
+        ! [mm d-1 w.e.] => [m a-1 i.e.]. Carries a day count, hence local: 365
+        ! here, against smbpal's 360 and the CMIP forcing's 365.2422.
+        c%conv_mmdwe_maie = 1e-3*365*c%conv_we_ie
+
+        ! Hand the record back if asked.
+        if (present(cnst_out)) cnst_out = cn
 
         if (yelmo_log) then
             write(*,*) ""
             write(*,*) "yelmo:: loaded physical constants for: ", trim(domain), " : ", trim(grid_name)
-            write(*,*) "parameter file: ", trim(filename)
-            write(*,*) "group:          ", trim(group)
-            write(*,*) "    sec_year   = ", c%sec_year 
-            write(*,*) "    g          = ", c%g 
-            write(*,*) "    T0         = ", c%T0 
-            write(*,*) "    rho_ice    = ", c%rho_ice 
-            write(*,*) "    rho_w      = ", c%rho_w 
-            write(*,*) "    rho_sw     = ", c%rho_sw 
-            write(*,*) "    rho_a      = ", c%rho_a 
-            write(*,*) "    rho_rock   = ", c%rho_rock 
-            write(*,*) "    L_ice      = ", c%L_ice 
-            write(*,*) "    T_pmp_beta = ", c%T_pmp_beta
+            call phys_const_log(cn)
+            write(*,*) "  yelmo-specific:"
+            write(*,*) "    sec_year           = ", c%sec_year
+            write(*,*) "    conv_mmdwe_maie    = ", c%conv_mmdwe_maie
             write(*,*) ""
-            write(*,*) "    conv_we_ie         = ", c%conv_we_ie 
-            write(*,*) "    conv_mmdwe_maie    = ", c%conv_mmdwe_maie 
-            write(*,*) "    conv_mmawe_maie    = ", c%conv_mmawe_maie 
-            write(*,*) "    conv_m3_Gt         = ", c%conv_m3_Gt 
-            write(*,*) "    conv_km3_Gt        = ", c%conv_km3_Gt 
-            write(*,*) "    conv_millionkm3_Gt = ", c%conv_millionkm3_Gt 
-            write(*,*) "    area_seasurf       = ", c%area_seasurf 
-            write(*,*) "    conv_km3_sle       = ", c%conv_km3_sle 
-            write(*,*) ""
-        end if 
+        end if
 
         return
 
     end subroutine ybound_define_physical_constants
     
-    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name)
-        ! Load masks for managing regions and basins, etc. 
+    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,grid,reg,mask_ice,masks)
+        ! Masks of the boundary from the layers of the regions (fesm-utils
+        ! regions: regions, zones, basins, ...), made once here from selection
+        ! expressions of the masks group (nml_group):
+        !   regions_group     group of the regions ("None" = no layers)
+        !   basins            basin ids of bnd%basins: a layer of the regions (e.g.
+        !                     "<set>" or "<set>.group"), "None" (no basins) or
+        !                     "domain" (one basin, 1)
+        !   mask_ice_dynamic  where ice is dynamic (MASK_ICE_DYNAMIC; else none)
+        !   mask_ice_fixed    where ice is prescribed (MASK_ICE_FIXED; over dynamic)
+        !   relax, relax_tau  where ice relaxes to H_ice_ref (bnd%tau_relax; topo_rel = -1)
+        !   mask_rmse         where the error metrics are computed (bnd%mask_rmse)
+        ! A driver may supply the regions (reg, on the Yelmo grid) instead of
+        ! regions_group, and mask_ice instead of the mask_ice expressions.
+        ! Without layers, the expressions can only be "all" or "none".
+        ! bnd%regions: the layer region (0 without one).
+        ! masks: the named masks of the regions (for regional output).
 
         implicit none 
 
         type(ybound_class), intent(INOUT) :: bnd 
         character(len=*), intent(IN)      :: nml_path, nml_group
         character(len=*), intent(IN)      :: domain, grid_name 
+        type(grid_class), intent(IN)      :: grid
+        type(regions_class), intent(IN), optional :: reg
+        integer,  intent(IN), optional    :: mask_ice(:,:)
+        type(region_mask_class), allocatable, intent(OUT), optional :: masks(:)
 
         ! Local variables
-        logical            :: load_var
-        character(len=512) :: filename
-        character(len=56)  :: vnames(2)
+        type(regions_class) :: reg_now
+        integer             :: k
+        logical             :: extent(size(bnd%basins,1),size(bnd%basins,2))
+        character(len=256)  :: regions_group
+        character(len=56)   :: basins
+        character(len=1000) :: expr_dynamic, expr_fixed, expr_relax, expr_rmse
+        real(wp)            :: relax_tau
 
         character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_masks = "yelmo_masks"
 
         call nml_validate(nml_path,def_file,nml_group,defaults_group=def_masks)
 
-        ! ====================================
-        !
-        ! basins
-        !
-        ! ====================================
+        call nml_read(nml_path,nml_group,"regions_group",   regions_group,   defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"basins",          basins,          defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_ice_dynamic",expr_dynamic,defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_ice_fixed",  expr_fixed,  defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"relax",           expr_relax,           defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"relax_tau",       relax_tau,       defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"mask_rmse",       expr_rmse,       defaults_file=def_file,defaults_group=def_masks)
 
-        ! Specify default values
-        bnd%basin_mask = 1.0
-        bnd%basins     = 1.0
+        if (trim(expr_relax) .ne. "none" .and. relax_tau .le. 0.0_wp) then
+            write(io_unit_err,*) "ybound_load_masks:: Error: relax needs relax_tau > 0."
+            write(io_unit_err,*) "relax = ", trim(expr_relax), ", relax_tau = ", relax_tau
+            error stop 1
+        end if
 
-        call nml_read(nml_path,nml_group,"basins_load",load_var,defaults_file=def_file,defaults_group=def_masks)
+        ! The regions: from the driver, from regions_group, or none (no layers)
+        if (present(reg)) then
+            reg_now = reg
+        else if (trim(regions_group) .ne. "None") then
+            call regions_init_nml(reg_now,nml_path,regions_group,domain=domain,grid_name=grid_name,grid=grid)
+        else
+            call regions_init(reg_now,grid=grid)
+        end if
 
-        if (load_var) then
+        ! Region codes (deepest level) and basins (ids of the layer `basins`)
+        bnd%regions    = 0.0_wp
+        bnd%basin_mask = 0.0_wp
+        k = regions_find(reg_now,"region")
+        if (k .gt. 0) bnd%regions = real(reg_now%layers(k)%values,wp)
 
-            call nml_read(nml_path,nml_group, "basins_path",filename,defaults_file=def_file,defaults_group=def_masks)
-            call yelmo_parse_path(filename,domain,grid_name)
-            call yelmo_check_file(nml_group,"basins_path",filename)
+        bnd%basins = real(regions_basin_ids(reg_now,basins,extent=extent),wp)
+        where (extent) bnd%basin_mask = 1.0_wp
 
-            call nml_read(nml_path,nml_group,"basins_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
-            ! Load basin information from a file
-            call nc_read(filename,vnames(1),bnd%basins)
+        ! Where ice is allowed in the domain
+        if (present(mask_ice)) then
 
-            if (trim(vnames(2)) .ne. "None") then
-                ! If basins have been extrapolated, also load the original basin extent mask
-                call nc_read(filename,vnames(2),bnd%basin_mask)
+            if (any(mask_ice .ne. MASK_ICE_NONE .and. mask_ice .ne. MASK_ICE_FIXED &
+                                                .and. mask_ice .ne. MASK_ICE_DYNAMIC)) then
+                write(io_unit_err,*) "ybound_load_masks:: Error: mask_ice values must be &
+                                     &MASK_ICE_NONE, MASK_ICE_FIXED or MASK_ICE_DYNAMIC."
+                write(io_unit_err,*) "range(mask_ice): ", minval(mask_ice), maxval(mask_ice)
+                error stop 1
             end if
+
+            bnd%mask_ice = mask_ice
+
+        else
+
+            bnd%mask_ice = MASK_ICE_NONE
+            where (regions_select(reg_now,expr_dynamic)) bnd%mask_ice = MASK_ICE_DYNAMIC
+            where (regions_select(reg_now,expr_fixed))   bnd%mask_ice = MASK_ICE_FIXED
 
         end if
 
-        ! ====================================
-        !
-        ! Read in the regions
-        !
-        ! ====================================
+        ! Relaxation timescale (used with ytopo.topo_rel = -1)
+        bnd%tau_relax = -1.0_wp
+        where (regions_select(reg_now,expr_relax)) bnd%tau_relax = relax_tau
 
-        ! First assign default region values (used if no regions file is loaded)
-        bnd%region_mask = 1.0
-        select case(trim(domain))
-            case("Greenland")
-                ! The Greenland domain is centered on the Greenland region
-                bnd%regions = bnd%index_grl
-            case DEFAULT
-                ! No region information: mark all points as unclassified (0).
-                ! Note: the hemisphere codes (North=1.0, Antarctica=2.0) cannot be
-                ! used as defaults, since in the REGIONS files they denote points
-                ! outside of any land subregion (open ocean), which is where
-                ! ybound_define_mask_ice (and user code) forbids ice.
-                bnd%regions = 0.0
+        ! Region of the error metrics
+        bnd%mask_rmse = regions_select(reg_now,expr_rmse)
 
-        end select
+        ! The named masks, for regional output
+        if (present(masks)) masks = reg_now%masks
 
-        call nml_read(nml_path,nml_group,"regions_load",load_var,defaults_file=def_file,defaults_group=def_masks)
+        call regions_end(reg_now)
 
-        if (load_var) then
-
-            call nml_read(nml_path,nml_group, "regions_path",filename,defaults_file=def_file,defaults_group=def_masks)
-            call yelmo_parse_path(filename,domain,grid_name)
-            call yelmo_check_file(nml_group,"regions_path",filename)
-
-            ! Load region information from a file
-            call nml_read(nml_path,nml_group,"regions_nms",vnames,defaults_file=def_file,defaults_group=def_masks)
-            call nc_read(filename,vnames(1),bnd%regions)
-
-            if (trim(vnames(2)) .ne. "None") then
-                ! If regions have been extrapolated, also load the original region extent mask
-                call nc_read(filename,vnames(2),bnd%region_mask)
-            end if
-
-        end if 
-        
         write(*,*) "ybound_load_masks:: range(basins):  ", minval(bnd%basins),  maxval(bnd%basins)
         write(*,*) "ybound_load_masks:: range(regions): ", minval(bnd%regions), maxval(bnd%regions)
 
@@ -208,125 +252,325 @@ contains
 
     end subroutine ybound_load_masks
 
-    subroutine ybound_define_mask_ice(bnd,domain,boundaries)
-        ! Update mask defining where ice is dynamic (MASK_ICE_DYNAMIC),
-        ! prescribed (MASK_ICE_FIXED), or forced to zero (MASK_ICE_NONE).
+    subroutine ybound_mask_ice_connected(bnd,nml_path,nml_group,H_ice_pd,H_ice_init,boundaries)
+        ! With dynamic_connected (masks group nml_group), keep only the dynamic
+        ! cells connected to the ice sheet: the others (e.g. offshore islands and
+        ! banks) become MASK_ICE_NONE. The ice sheet is the largest 4-connected
+        ! region of ice in the allowed cells (mask_ice /= MASK_ICE_NONE), from the
+        ! present-day ice if there is any, else from the initial ice. Connected
+        ! means through allowed cells (4 neighbours, periodic directions wrap):
+        ! fixed cells conduct and are always kept.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        character(len=*),   intent(IN)    :: nml_path, nml_group
+        real(wp),           intent(IN)    :: H_ice_pd(:,:)
+        real(wp),           intent(IN)    :: H_ice_init(:,:)
+        character(len=*),   intent(IN)    :: boundaries
+
+        ! Local variables
+        logical :: dynamic_connected
+        integer :: nx, ny, n_ice, n_allowed, k_sheet, k_keep, n_removed
+        character(len=56) :: source
+        logical, allocatable :: allowed(:,:), ice(:,:)
+        integer, allocatable :: lab_ice(:,:), lab_allowed(:,:)
+
+        character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
+        character(len=*), parameter :: def_masks = "yelmo_masks"
+
+        call nml_read(nml_path,nml_group,"dynamic_connected",dynamic_connected,defaults_file=def_file,defaults_group=def_masks)
+
+        if (.not. dynamic_connected) return
+
+        nx = size(bnd%mask_ice,1)
+        ny = size(bnd%mask_ice,2)
+        allocate(allowed(nx,ny),ice(nx,ny),lab_ice(nx,ny),lab_allowed(nx,ny))
+
+        allowed = bnd%mask_ice .ne. MASK_ICE_NONE
+
+        ice    = H_ice_pd .gt. 0.0_wp .and. allowed
+        source = "present-day ice"
+        if (.not. any(ice)) then
+            ice    = H_ice_init .gt. 0.0_wp .and. allowed
+            source = "initial ice"
+        end if
+
+        if (.not. any(ice)) then
+            write(io_unit_err,*) "ybound_mask_ice_connected:: Error: dynamic_connected needs an ice sheet, &
+                                 &but there is no present-day or initial ice in the allowed cells."
+            error stop 1
+        end if
+
+        ! The ice sheet: the largest region of ice (the first one if tied)
+        call label_regions(lab_ice,n_ice,ice,boundaries)
+        k_sheet = maxloc(count_labels(lab_ice,n_ice),1)
+
+        ! Keep the region of allowed cells that holds it
+        call label_regions(lab_allowed,n_allowed,allowed,boundaries)
+        k_keep = maxval(lab_allowed,mask=lab_ice .eq. k_sheet)
+
+        n_removed = count(bnd%mask_ice .eq. MASK_ICE_DYNAMIC .and. lab_allowed .ne. k_keep)
+        where (bnd%mask_ice .eq. MASK_ICE_DYNAMIC .and. lab_allowed .ne. k_keep) bnd%mask_ice = MASK_ICE_NONE
+
+        write(*,*) "ybound_mask_ice_connected:: ice sheet from ", trim(source), ": ", count(lab_ice .eq. k_sheet), " cells"
+        write(*,*) "ybound_mask_ice_connected:: dynamic cells not connected to it, removed: ", n_removed
+
+        return
+
+    end subroutine ybound_mask_ice_connected
+
+    subroutine label_regions(lab,n_lab,mask,boundaries)
+        ! The 4-connected regions of mask: lab = 1..n_lab in the mask, 0 outside.
+        ! Neighbours follow the boundary treatment (periodic directions wrap).
+
+        implicit none
+
+        integer,          intent(OUT) :: lab(:,:)
+        integer,          intent(OUT) :: n_lab
+        logical,          intent(IN)  :: mask(:,:)
+        character(len=*), intent(IN)  :: boundaries
+
+        ! Local variables
+        integer :: nx, ny, BC, i, j, i1, j1, q, n
+        integer :: im1, ip1, jm1, jp1
+        integer :: inb(4), jnb(4)
+        integer, allocatable :: stack(:,:)
+
+        nx = size(mask,1)
+        ny = size(mask,2)
+        BC = boundary_code(boundaries)
+
+        ! Each cell is pushed once (labelled when pushed)
+        allocate(stack(2,nx*ny))
+
+        lab   = 0
+        n_lab = 0
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (.not. mask(i,j) .or. lab(i,j) .gt. 0) cycle
+
+            ! Flood fill a new region from (i,j)
+            n_lab    = n_lab + 1
+            lab(i,j) = n_lab
+            n        = 1
+            stack(:,n) = [i,j]
+
+            do while (n .gt. 0)
+                i1 = stack(1,n)
+                j1 = stack(2,n)
+                n  = n - 1
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i1,j1,nx,ny,BC)
+                inb = [im1,ip1,i1,i1]
+                jnb = [j1,j1,jm1,jp1]
+
+                do q = 1, 4
+                    if (mask(inb(q),jnb(q)) .and. lab(inb(q),jnb(q)) .eq. 0) then
+                        lab(inb(q),jnb(q)) = n_lab
+                        n = n + 1
+                        stack(:,n) = [inb(q),jnb(q)]
+                    end if
+                end do
+            end do
+
+        end do
+        end do
+
+        return
+
+    end subroutine label_regions
+
+    function count_labels(lab,n_lab) result(n)
+        ! Number of cells of each label 1..n_lab
+
+        implicit none
+
+        integer, intent(IN) :: lab(:,:)
+        integer, intent(IN) :: n_lab
+        integer :: n(n_lab)
+
+        ! Local variables
+        integer :: i, j
+
+        n = 0
+        do j = 1, size(lab,2)
+        do i = 1, size(lab,1)
+            if (lab(i,j) .gt. 0) n(lab(i,j)) = n(lab(i,j)) + 1
+        end do
+        end do
+
+        return
+
+    end function count_labels
+
+    subroutine ybound_define_mask_ice(bnd,domain,boundaries,mask_border)
+        ! Treatment of the domain border in mask_ice (ice dynamic, MASK_ICE_DYNAMIC,
+        ! prescribed, MASK_ICE_FIXED, or forced to zero, MASK_ICE_NONE), after
+        ! ybound_load_masks has set where ice is allowed in the domain.
 
         implicit none
 
         type(ybound_class), intent(INOUT) :: bnd
         character(len=*),   intent(IN)    :: domain
         character(len=*),   intent(IN)    :: boundaries     ! Topography boundary conditions
-
-        ! Local variables
-        integer :: i, nx, ny
-        logical :: per_x, per_y
-
-        nx = size(bnd%mask_ice,1)
-        ny = size(bnd%mask_ice,2)
-
-        ! Initially mark all points as dynamic (ice is solved)
-        bnd%mask_ice = MASK_ICE_DYNAMIC
+        character(len=*),   intent(IN)    :: mask_border    ! yelmo.mask_border
 
         ! Also set calv_mask false everywhere (no imposed calving front)
         bnd%calv_mask   = .FALSE.
 
-        ! Determine allowed regions based on domain
-        select case(trim(domain))
+        call define_mask_ice_border(bnd%mask_ice,domain,boundaries,mask_border)
 
-            case ("North")
-                ! Allow ice everywhere except the open ocean (region 1.0 in the
-                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
+        return
 
-                where (bnd%regions .eq. 1.0) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+    end subroutine ybound_define_mask_ice
 
-            case ("Eurasia")
-                ! Allow ice only in the Eurasia domain (1.2*)
+    subroutine define_mask_ice_border(mask_ice,domain,boundaries,mask_border)
+        ! Treatment of the domain border (yelmo.mask_border):
+        !   "auto":    by domain (below)
+        !   "none":    no ice on the border
+        !   "fixed":   ice thickness prescribed on the border (= H_ice_ref)
+        !   "dynamic": the border is left as the domain mask defines it
+        ! "none" and "fixed" skip periodic directions, where the border points
+        ! are interior points.
 
-                if (count(bnd%regions .ge. 1.2 .and. bnd%regions .le. 1.29) .eq. 0) then
-                    ! Without a regions file (regions=0), ice would be forbidden everywhere
-                    write(io_unit_err,*) "ybound_define_mask_ice:: Error: domain='Eurasia' requires a regions &
-                                         &field with Eurasia codes (1.2 <= regions <= 1.29), but none were found."
-                    write(io_unit_err,*) "range(regions): ", minval(bnd%regions), maxval(bnd%regions)
-                    stop
-                end if
+        implicit none
 
-                where (bnd%regions .lt. 1.2 .or. bnd%regions .gt. 1.29) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+        integer,          intent(INOUT) :: mask_ice(:,:)
+        character(len=*), intent(IN)    :: domain
+        character(len=*), intent(IN)    :: boundaries
+        character(len=*), intent(IN)    :: mask_border
 
-            case ("Greenland")
+        ! Local variables
+        integer :: nx, ny
+        logical :: per_x, per_y
 
-                bnd%mask_ice = MASK_ICE_NONE
-                where (bnd%regions .eq. 1.3)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Main Greenland region
-                where (bnd%regions .eq. 1.11) bnd%mask_ice = MASK_ICE_DYNAMIC   ! Ellesmere Island
-                where (bnd%regions .eq. 1.0)  bnd%mask_ice = MASK_ICE_DYNAMIC   ! Open ocean (included some connections between 1.3 and 1.11)
+        nx = size(mask_ice,1)
+        ny = size(mask_ice,2)
 
-            case ("Antarctica")
-                ! Allow ice everywhere except the open ocean (region 2.0 in the
-                ! REGIONS file; without a file, regions=0 and ice is allowed everywhere)
+        call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
 
-                where (bnd%regions .eq. 2.0) bnd%mask_ice = MASK_ICE_NONE
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+        select case(trim(mask_border))
 
+            case("auto")
 
-            case ("EISMINT")
+                select case(trim(domain))
 
-                ! Ice can grow everywhere, except borders
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                bnd%mask_ice(1,:)  = MASK_ICE_NONE
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
-                bnd%mask_ice(:,1)  = MASK_ICE_NONE
-                bnd%mask_ice(:,ny) = MASK_ICE_NONE
+                    case ("North","Eurasia","Antarctica","EISMINT")
+                        ! No ice on any border
 
-            case ("MISMIP","MISMIP3D","MISMIP+","TROUGH","TROUGH-F17")
+                        call set_border(mask_ice,MASK_ICE_NONE,per_x=.FALSE.,per_y=.FALSE.)
 
-                ! Ice can grow everywhere, except farthest x-border.
-                !
-                ! "MISMIP3D" must be listed here explicitly. yelmo_init already
-                ! maps experiment="MISMIP3D" onto the MISMIP3D (y-periodic)
-                ! tpo/dyn/thrm boundaries, but this select case used to omit it,
-                ! so a domain named "MISMIP3D" fell through to case DEFAULT and
-                ! had all four borders marked MASK_ICE_FIXED. With bnd%H_ice_ref
-                ! left at its zero default, calc_G_boundaries then reset
-                ! H_ice = H_ice_ref = 0 on the whole perimeter every timestep --
-                ! silently draining ice at the flowband divide (i=1) and along
-                ! both lateral edges (j=1, j=ny), which no MISMIP-type setup wants.
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                bnd%mask_ice(nx,:) = MASK_ICE_NONE
+                    case ("Greenland")
+                        ! The border is outside of the allowed regions
+
+                    case ("MISMIP","MISMIP3D","MISMIP+","TROUGH","TROUGH-F17")
+
+                        ! Ice can grow everywhere, except farthest x-border.
+                        !
+                        ! "MISMIP3D" must be listed here explicitly. yelmo_init already
+                        ! maps experiment="MISMIP3D" onto the MISMIP3D (y-periodic)
+                        ! tpo/dyn/thrm boundaries, but this select case used to omit it,
+                        ! so a domain named "MISMIP3D" fell through to case DEFAULT and
+                        ! had all four borders marked MASK_ICE_FIXED. With bnd%H_ice_ref
+                        ! left at its zero default, calc_G_boundaries then reset
+                        ! H_ice = H_ice_ref = 0 on the whole perimeter every timestep --
+                        ! silently draining ice at the flowband divide (i=1) and along
+                        ! both lateral edges (j=1, j=ny), which no MISMIP-type setup wants.
+                        mask_ice(nx,:) = MASK_ICE_NONE
+
+                    case DEFAULT
+                        ! Unknown domain: prescribed borders in non-periodic directions
+                        ! (mask_ice can always be modified later)
+
+                        call set_border(mask_ice,MASK_ICE_FIXED,per_x,per_y)
+
+                end select
+
+            case("none")
+
+                call set_border(mask_ice,MASK_ICE_NONE,per_x,per_y)
+
+            case("fixed")
+
+                call set_border(mask_ice,MASK_ICE_FIXED,per_x,per_y)
+
+            case("dynamic")
+
+                ! Pass, border as defined by the domain mask
 
             case DEFAULT
-                ! Unknown domain: dynamic interior, prescribed borders
-                ! in non-periodic directions (in a periodic direction the
-                ! border points are interior points)
-                ! (mask_ice can always be modified later)
 
-                call get_periodic_directions(per_x,per_y,boundary_code(boundaries))
-
-                bnd%mask_ice       = MASK_ICE_DYNAMIC
-                if (.not. per_x) then
-                    bnd%mask_ice(1,:)  = MASK_ICE_FIXED
-                    bnd%mask_ice(nx,:) = MASK_ICE_FIXED
-                end if
-                if (.not. per_y) then
-                    bnd%mask_ice(:,1)  = MASK_ICE_FIXED
-                    bnd%mask_ice(:,ny) = MASK_ICE_FIXED
-                end if
+                write(io_unit_err,*) "ybound_define_mask_ice:: Error: yelmo.mask_border not recognized."
+                write(io_unit_err,*) "mask_border = ", trim(mask_border)
+                write(io_unit_err,*) "Options: auto, none, fixed, dynamic."
+                error stop 1
 
         end select
 
         return
 
-    end subroutine ybound_define_mask_ice
+    end subroutine define_mask_ice_border
+
+    subroutine set_border(mask_ice,val,per_x,per_y)
+        ! Set the border points of mask_ice to val, except in periodic directions.
+
+        implicit none
+
+        integer, intent(INOUT) :: mask_ice(:,:)
+        integer, intent(IN)    :: val
+        logical, intent(IN)    :: per_x, per_y
+
+        ! Local variables
+        integer :: nx, ny
+
+        nx = size(mask_ice,1)
+        ny = size(mask_ice,2)
+
+        if (.not. per_x) then
+            mask_ice(1,:)  = val
+            mask_ice(nx,:) = val
+        end if
+        if (.not. per_y) then
+            mask_ice(:,1)  = val
+            mask_ice(:,ny) = val
+        end if
+
+        return
+
+    end subroutine set_border
+
+    subroutine ybound_update_rates(bnd,time)
+        ! Rates of bedrock elevation and sea level since the previous call of
+        ! yelmo_update (both are set by the driver between calls). Zero on the
+        ! first call after initialisation. The previous-call state (z_bed_n,
+        ! z_sl_n, time_n, rates_init) is in the restart, so a continued run (model
+        ! time at initialisation = restart time) gets the same rates as a straight
+        ! run; other restarts give zero rates on the first call.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        real(dp),           intent(IN)    :: time
+
+        if (bnd%rates_init .and. time .gt. bnd%time_n) then
+            bnd%dz_bed_dt = (bnd%z_bed - bnd%z_bed_n) / real(time-bnd%time_n,wp)
+            bnd%dz_sl_dt  = (bnd%z_sl  - bnd%z_sl_n)  / real(time-bnd%time_n,wp)
+        else
+            bnd%dz_bed_dt = 0.0_wp
+            bnd%dz_sl_dt  = 0.0_wp
+        end if
+
+        bnd%z_bed_n    = bnd%z_bed
+        bnd%z_sl_n     = bnd%z_sl
+        bnd%time_n     = time
+        bnd%rates_init = .TRUE.
+
+        return
+
+    end subroutine ybound_update_rates
 
     subroutine ybound_alloc(now,nx,ny)
 
@@ -346,6 +590,7 @@ contains
         allocate(now%bmb_shlf(nx,ny))
         allocate(now%fmb_shlf(nx,ny))
         allocate(now%T_shlf(nx,ny))
+        allocate(now%tf_shlf(nx,ny))
         allocate(now%Q_geo(nx,ny))
         allocate(now%Qd(nx,ny))
 
@@ -354,7 +599,7 @@ contains
         allocate(now%basins(nx,ny))
         allocate(now%basin_mask(nx,ny))
         allocate(now%regions(nx,ny))
-        allocate(now%region_mask(nx,ny))
+        allocate(now%mask_rmse(nx,ny))
         
         allocate(now%calv_mask(nx,ny))
         
@@ -366,6 +611,11 @@ contains
 
         allocate(now%z_bed_corr(nx,ny))
         allocate(now%dzbdt_corr (nx,ny))
+
+        allocate(now%z_bed_n(nx,ny))
+        allocate(now%z_sl_n(nx,ny))
+        allocate(now%dz_bed_dt(nx,ny))
+        allocate(now%dz_sl_dt(nx,ny))
         
         now%z_bed       = 0.0_wp 
         now%z_bed_sd    = 0.0_wp
@@ -376,6 +626,7 @@ contains
         now%bmb_shlf    = 0.0_wp 
         now%fmb_shlf    = 0.0_wp 
         now%T_shlf      = 0.0_wp
+        now%tf_shlf     = 0.0_wp
         now%Q_geo       = 0.0_wp
         now%Qd          = 0.0_wp  
 
@@ -384,7 +635,7 @@ contains
         now%basins      = 0.0_wp 
         now%basin_mask  = 0.0_wp 
         now%regions     = 0.0_wp 
-        now%region_mask = 0.0_wp 
+        now%mask_rmse   = .TRUE. 
         
         now%calv_mask   = .FALSE. ! By default no, no calving mask
 
@@ -396,6 +647,13 @@ contains
 
         now%z_bed_corr  = 0.0_wp
         now%dzbdt_corr  = 0.0_wp
+
+        now%z_bed_n     = 0.0_wp
+        now%z_sl_n      = 0.0_wp
+        now%dz_bed_dt   = 0.0_wp
+        now%dz_sl_dt    = 0.0_wp
+        now%time_n      = 0.0_dp
+        now%rates_init  = .FALSE.
         
         return 
 
@@ -416,6 +674,7 @@ contains
         if (allocated(now%bmb_shlf))    deallocate(now%bmb_shlf)
         if (allocated(now%fmb_shlf))    deallocate(now%fmb_shlf)
         if (allocated(now%T_shlf))      deallocate(now%T_shlf)
+        if (allocated(now%tf_shlf))     deallocate(now%tf_shlf)
         if (allocated(now%Q_geo))       deallocate(now%Q_geo)
         if (allocated(now%Qd))          deallocate(now%Qd)
 
@@ -424,7 +683,7 @@ contains
         if (allocated(now%basins))      deallocate(now%basins)
         if (allocated(now%basin_mask))  deallocate(now%basin_mask)
         if (allocated(now%regions))     deallocate(now%regions)
-        if (allocated(now%region_mask)) deallocate(now%region_mask)
+        if (allocated(now%mask_rmse))   deallocate(now%mask_rmse)
         
         if (allocated(now%calv_mask))   deallocate(now%calv_mask)
         
@@ -436,6 +695,11 @@ contains
         
         if (allocated(now%z_bed_corr))  deallocate(now%z_bed_corr)
         if (allocated(now%dzbdt_corr )) deallocate(now%dzbdt_corr )
+
+        if (allocated(now%z_bed_n))     deallocate(now%z_bed_n)
+        if (allocated(now%z_sl_n))      deallocate(now%z_sl_n)
+        if (allocated(now%dz_bed_dt))   deallocate(now%dz_bed_dt)
+        if (allocated(now%dz_sl_dt))    deallocate(now%dz_sl_dt)
 
         return 
 

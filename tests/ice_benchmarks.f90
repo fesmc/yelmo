@@ -173,7 +173,7 @@ contains
         real(wp), intent(OUT) :: u_b(:,:) 
         real(dp), intent(IN)  :: xx(:,:)      ! [m] 
         real(dp), intent(IN)  :: yy(:,:)      ! [m] 
-        real(wp), intent(IN)  :: time         ! [a] Time relative to t0 
+        real(dp), intent(IN)  :: time         ! [a] Time relative to t0 
         real(wp), intent(IN)  :: R0 
         real(wp), intent(IN)  :: H0 
         real(wp), intent(IN)  :: lambda  
@@ -202,7 +202,7 @@ contains
         beta  = (1.0 + (2.0*n+1.0)*lambda) / (5.0*n+3.0)
         gamma = bueler_gamma(A,n,rho_ice,g)
         t0    = (beta/gamma) * ((2.0*n+1.0)/(n+1.0))**n * (R0_meters**(n+1)/H0**(2.0*n+1.0))
-        time1 = time + t0 
+        time1 = real(time,wp) + t0 
 
         H_ice = 0.0_prec 
 
@@ -257,7 +257,7 @@ contains
         real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: H_ice(:,:) 
         character(len=*), intent(IN) :: experiment 
-        real(wp), intent(IN) :: time 
+        real(dp), intent(IN) :: time 
         real(wp), intent(IN) :: period 
         real(wp), intent(IN), optional :: rad_el 
         real(wp), intent(IN), optional :: dT_test 
@@ -418,7 +418,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "Experiment not recognized: "//trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 
@@ -493,7 +493,7 @@ contains
         real(dp), intent(IN)  :: yy(:,:)      ! [m] 
         real(wp), intent(IN)  :: H_ice(:,:) 
         character(len=*), intent(IN) :: experiment 
-        real(wp), intent(IN) :: time 
+        real(dp), intent(IN) :: time 
         real(wp), intent(IN) :: smb_max
         real(wp), intent(IN) :: period 
         real(wp), intent(IN), optional :: rad_el 
@@ -577,7 +577,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "Experiment not recognized: "//trim(experiment)
-                stop 
+                error stop 1
 
         end select 
 

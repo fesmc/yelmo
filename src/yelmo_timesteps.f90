@@ -9,6 +9,32 @@ module yelmo_timesteps
 
     implicit none 
 
+    ! Norm of the pc error, pc_eta (calc_pc_eta): RMS (default) or L8.
+    !
+    ! Context (2026-10-02, Levante tests, output/audit/review-2026-10-01:
+    ! grl-checkerboard.md, pc-norm-validation.md, res-sweep-scripts/):
+    ! - With the velocity diagnosed from the old H and only the advection
+    !   implicit, fast-sliding outlet trunks develop a 2dx limit cycle in
+    !   H and u (checkerboard) once dt exceeds a fraction of the local
+    !   drag time scale. It appears at GRL-8, ANT-8 and GRL-16 with weak
+    !   calving, and at GRL-4 it can end in a single-cell H blow-up.
+    ! - The unstable cells carry the largest scaled errors, but the RMS
+    !   over the whole pc mask dilutes a few dozen cells over 10^4-10^5,
+    !   so pc_eta stays ~1e-3 - 5e-2 and the controller does not act at
+    !   pc_eps ~ 0.2-1. The RMS only removes the checkerboard at
+    !   pc_eps ~ 0.02 (GRL-8: 0 persistent cells, +10 % steps vs 0.2).
+    ! - The L8 norm, (mean e^8)^(1/8), is set by a localised patch almost
+    !   independently of the domain size, while all points still
+    !   contribute (unlike the max). With pc_eps ~ 0.03 it removes the
+    !   checkerboard everywhere tested (GRL-8: background level), but costs
+    !   more steps (GRL-8: +55 % vs RMS 0.02; ANT-16: +26-68 %), and stiff
+    !   episodes whose error does not fall with dt (TROUGH-F17 at 4 km)
+    !   reach dt_min and are killed at pc_eps < 0.1.
+    ! RMS is kept as the default for speed; L8 is kept here for testing.
+    ! Note that pc_eps must be chosen for the norm: about 0.02 (RMS) vs
+    ! 0.03-0.1 (L8).
+    logical, parameter :: pc_norm_L8 = .FALSE.
+
     private
 
     public :: set_pc_beta_coefficients
@@ -91,26 +117,12 @@ contains
                     beta(3) = 0.5_wp 
                     beta(4) = 0.5_wp 
                 
-                case("RALSTON")
-                    
-                    write(io_unit_err,*) "This method does not work yet - the truncation error is incorrect."
-                    stop 
-
-                    ! Order of the method 
-                    pc_k = 2 
-
-                    beta(1) = 2.0_wp / 3.0_wp
-                    beta(2) = 0.0_wp 
-                    
-                    beta(3) = 0.25_wp 
-                    beta(4) = 0.75_wp 
-                
                 case DEFAULT 
 
                     write(io_unit_err,*) "set_pc_beta_coefficients:: &
                         &Error: two-step pc_method does not match available options [FE-SBE, AB-SAM, HEUN]."
                     write(io_unit_err,*) "pc_method = ", trim(pc_method)
-                    stop 
+                    error stop 1
 
             end select 
             
@@ -151,7 +163,7 @@ contains
                     write(io_unit_err,*) "set_pc_beta_coefficients:: &
                         &Error: one-step dt_method does not match available options [FE, AB, SAM]."
                     write(io_unit_err,*) "thrm:: dt_method = ", trim(pc_method)
-                    stop 
+                    error stop 1
 
             end select 
 
@@ -162,7 +174,8 @@ contains
     end subroutine set_pc_beta_coefficients
 
 
-    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw,pc_eps,boundaries,margin_flt_subgrid)
+    subroutine set_pc_mask(mask,pc_tau,H_ice_pred,H_ice_corr,uxy,z_bed,z_sl,rho_ice,rho_sw,pc_eps,H_min,u_min,boundaries, &
+                                                            front_subgrid,front_H_eff_min,front_dHdx,dx)
 
         implicit none 
 
@@ -170,13 +183,19 @@ contains
         real(wp), intent(IN) :: pc_tau(:,:) 
         real(wp), intent(IN) :: H_ice_pred(:,:) 
         real(wp), intent(IN) :: H_ice_corr(:,:) 
+        real(wp), intent(IN) :: uxy(:,:)          ! [m/yr] Ice speed (aa-nodes)
         real(wp), intent(IN) :: z_bed(:,:) 
         real(wp), intent(IN) :: z_sl(:,:) 
         real(wp), intent(IN) :: rho_ice
         real(wp), intent(IN) :: rho_sw
         real(wp), intent(IN) :: pc_eps
+        real(wp), intent(IN) :: H_min             ! [m]    Thinner ice is not checked
+        real(wp), intent(IN) :: u_min             ! [m/yr] Slower ice is not checked
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN) :: margin_flt_subgrid 
+        character(len=*), intent(IN) :: front_subgrid     ! ytopo.front_subgrid
+        real(wp), intent(IN) :: front_H_eff_min           ! [m]   ytopo.front_H_eff_min
+        real(wp), intent(IN) :: front_dHdx                ! [m/m] ytopo.front_dHdx
+        real(wp), intent(IN) :: dx                        ! [m]   Grid resolution
 
         ! Local variables 
         integer :: i, j, nx, ny 
@@ -187,8 +206,8 @@ contains
         real(wp), allocatable :: f_ice_corr(:,:) 
         real(wp), allocatable :: H_grnd_pred(:,:) 
         real(wp), allocatable :: H_grnd_corr(:,:) 
+        real(wp), allocatable :: H_eff(:,:) 
 
-        real(wp), parameter :: H_lim = 10.0      ! [m] 
         
         nx = size(mask,1)
         ny = size(mask,2) 
@@ -200,10 +219,13 @@ contains
         allocate(f_ice_corr(nx,ny))
         allocate(H_grnd_pred(nx,ny))
         allocate(H_grnd_corr(nx,ny))
+        allocate(H_eff(nx,ny))
         
         ! Get the ice area fraction mask for each ice thickness map 
-        call calc_ice_fraction(f_ice_pred,H_ice_pred,z_bed,z_sl,rho_ice,rho_sw,boundaries,margin_flt_subgrid)
-        call calc_ice_fraction(f_ice_corr,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw,boundaries,margin_flt_subgrid)
+        call calc_ice_fraction(f_ice_pred,H_eff,H_ice_pred,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,front_H_eff_min,front_dHdx,dx,boundaries)
+        call calc_ice_fraction(f_ice_corr,H_eff,H_ice_corr,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,front_H_eff_min,front_dHdx,dx,boundaries)
 
         ! Get the grounded ice distance to flotation 
         call calc_H_grnd(H_grnd_pred,H_ice_pred,f_ice_pred,z_bed,z_sl,rho_ice,rho_sw)
@@ -221,8 +243,13 @@ if (.TRUE.) then
 
             ! Define places that should not be checked 
 
-            if (H_ice_pred(i,j) .lt. H_lim .or. H_ice_corr(i,j) .lt. H_lim) then 
-                ! (Near) ice-free point or may be transitioning state
+            if (H_ice_pred(i,j) .lt. H_min .or. H_ice_corr(i,j) .lt. H_min) then 
+                ! (Near) ice-free or thin point, or may be transitioning state
+
+                mask(i,j) = .FALSE. 
+
+            else if (uxy(i,j) .lt. u_min) then
+                ! Slow ice, not checked
 
                 mask(i,j) = .FALSE. 
 
@@ -259,7 +286,7 @@ if (.TRUE.) then
 
             ! Ignore isolated points with high tau 
             if (abs(pc_tau(i,j)) .gt. 2.0*pc_eps .and. &
-                count([pc_tau(im1,j),pc_tau(ip1,j),pc_tau(i,jm1),pc_tau(i,jp1)] &
+                count(abs([pc_tau(im1,j),pc_tau(ip1,j),pc_tau(i,jm1),pc_tau(i,jp1)]) &
                                                                  .gt. pc_eps) .eq. 0 ) then 
 
                 mask(i,j) = .FALSE. 
@@ -274,55 +301,73 @@ end if
 
     end subroutine set_pc_mask
 
-    function calc_pc_eta(tau,H_ice,mask) result(eta)
+    function calc_pc_eta(tau,H_ice,mask,frac_trim) result(eta)
+        ! Error norm of the pc truncation error over the checked points, for
+        ! the scaled errors e = tau/(a_tol + r_tol*H):
+        !   RMS (default):          eta = (mean e^2)^(1/2)
+        !   L8 (pc_norm_L8=.TRUE.): eta = (mean e^8)^(1/8)
+        ! See the comment at pc_norm_L8 (module header) for the choice.
 
         implicit none 
 
         real(wp), intent(IN) :: tau(:,:) 
         real(wp), intent(IN) :: H_ice(:,:)  ! Ice thickness (ice-sheet specific) 
         logical,  intent(IN) :: mask(:,:)   ! General mask
+        real(wp), intent(IN) :: frac_trim   ! [--] Fraction of points with the largest errors left out
         real(wp) :: eta 
 
         ! Local variables
         integer :: i, j, nx, ny
-        integer :: npts
-        real(wp) :: s_now
+        integer :: npts, k, n_trim
+        real(wp) :: e_max
+        real(wp), allocatable :: e(:)
         real(wp), parameter :: eta_tol = 1e-8 
         real(wp), parameter :: a_tol = 1.0 ! [m]
         real(wp), parameter :: r_tol = 1e-2 ! [--] r_tol*H = [m]
+        real(wp), parameter :: p_norm = 8.0_wp ! [--] Order of the L_p norm (pc_norm_L8)
         
-if (.FALSE.) then
-        ! Calculate eta 
-        eta = maxval(abs(tau),mask=mask)
-
-        ! Limit to non-zero value
-        ! Note: Limiting minimum to above eg 1e-8 is very 
-        ! important for reducing fluctuations in dt 
-        eta = max(eta,eta_tol)
-
-else
-    ! ajr: testing rmse(tau) instead of max(tau)
-    ! So far, this works, but leads to large areas of Antarctica on the coast with large tau values.
         npts = count(mask)
         if (npts .gt. 0) then 
-            ! eta = sqrt(sum(tau**2,mask=mask)/real(npts,wp))
-            ! eta = max(eta,eta_tol)
 
             nx = size(tau,1)
             ny = size(tau,2)
 
-            eta = 0.0
-
+            ! Scaled errors of the checked points (squared for the RMS)
+            allocate(e(npts))
+            k = 0
             do i = 1, nx
             do j = 1, ny
                 if (.not. mask(i,j)) cycle
-                s_now = a_tol + r_tol*H_ice(i,j)
-                eta = eta + (tau(i,j) / s_now)**2
+                k = k + 1
+                e(k) = abs(tau(i,j)) / (a_tol + r_tol*H_ice(i,j))
             end do
             end do
-            
-            eta = sqrt(eta/npts)
+            if (.not. pc_norm_L8) e = e**2
 
+            ! Leave out the n_trim largest errors, so that a few points
+            ! (eg, a flickering thin cell) cannot set the timestep alone
+            n_trim = min(int(frac_trim*real(npts,wp)),npts-1)
+            do k = 1, n_trim
+                e(maxloc(e,dim=1)) = -1.0_wp
+            end do
+
+            if (pc_norm_L8) then
+                ! L_p norm, scaled by the largest error so that e^p cannot overflow
+                e_max = maxval(e)
+                if (e_max .gt. 0.0_wp) then
+                    eta = e_max * (sum((e/e_max)**p_norm,mask=e .ge. 0.0_wp) &
+                                            / real(npts-n_trim,wp))**(1.0_wp/p_norm)
+                else
+                    eta = 0.0_wp
+                end if
+            else
+                ! RMS
+                eta = sqrt(sum(e,mask=e .ge. 0.0_wp)/real(npts-n_trim,wp))
+            end if
+
+            ! Limit to non-zero value
+            ! Note: Limiting minimum to above eg 1e-8 is very 
+            ! important for reducing fluctuations in dt 
             eta = max(eta,eta_tol)
 
         else    ! npts == 0
@@ -330,7 +375,6 @@ else
             eta = eta_tol
 
         end if
-end if 
 
         return 
 
@@ -415,7 +459,7 @@ end if
 
     end subroutine calc_pc_tau_heun
 
-    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,boundaries)
+    subroutine set_adaptive_timestep_pc(dt_new,dt,eta,eps,dtmin,dtmax,ux_bar,uy_bar,dx,pc_k,controller,cfl_max,rho_max,boundaries)
         ! Calculate the timestep following algorithm for 
         ! a general predictor-corrector (pc) method.
         ! Implemented followig Cheng et al (2017, GMD)
@@ -433,21 +477,17 @@ end if
         real(wp), intent(IN)  :: dx                   ! [m]
         integer,    intent(IN)  :: pc_k                 ! pc_k gives the order of the timestepping scheme (pc_k=1 for FE-SBE, pc_k=2 for AB-SAM)
         character(len=*), intent(IN) :: controller      ! Adaptive controller to use [PI42, H312b, H312PID]
+        real(wp), intent(IN)  :: cfl_max              ! [--]   Courant-number backstop on dt (yelmo.pc_cfl_max)
+        real(wp), intent(IN)  :: rho_max              ! [--]   Maximum growth factor dt_new/dt_n (yelmo.pc_rho_max)
         character(len=*), intent(IN) :: boundaries      ! Boundary conditions of the advection (ytopo)
 
         ! Local variables
         real(wp) :: dt_n, dt_nm1, dt_nm2          ! [yr]   Timesteps (n:n-2)
         real(wp) :: eta_n, eta_nm1, eta_nm2       ! [X/yr] Maximum truncation error (n:n-2)
         real(wp) :: rho_n, rho_nm1, rho_nm2
-        real(wp) :: rhohat_n 
         real(wp) :: dt_adv 
-        real(wp) :: dtmax_now
         real(wp) :: k_i 
         real(wp) :: k_p, k_d 
-
-        ! Smoothing parameter; Söderlind and Wang (2006) method, Eq. 10
-        ! Values on the order of [0.7,2.0] are reasonable. Higher kappa slows variation in dt
-        real(wp), parameter :: kappa = 2.0_wp 
         
         ! Step 1: Save information needed for adapative controller algorithms 
 
@@ -526,17 +566,25 @@ end if
 
                 write(*,*) "set_adaptive_timestep_pc:: Error: controller not recognized."
                 write(*,*) "controller = ", trim(controller) 
-                stop 
+                error stop 1
 
         end select 
 
-        ! Scale rho_n for smoothness 
-        rhohat_n = rho_n
-        !rhohat_n = min(rho_n,1.1)
-        !rhohat_n = 1.0_wp + kappa * atan((rho_n-1.0_wp)/kappa) ! Söderlind and Wang, 2006, Eq. 10
-        
+        ! Limit the growth of dt per step. The controllers have no upper bound on
+        ! rho_n: when eta_n is tiny (eg, at the eta_tol floor of calc_pc_eta
+        ! after a step in which the ice hardly moved), PI42 gives rho_n ~ 1e3.
+        ! A large step ratio also enters the AB-SAM predictor weights
+        ! (dt_zeta = rho_n), which then extrapolate with beta(1) ~ rho_n/2.
+        ! In TROUGH-F17 (4 km, nearly static start at dt_min = 1e-3) a jump
+        ! of x2500 blew up the run, while FE-SBE survived the same jump.
+        ! The cap only acts where rho_n > rho_max, so dt sequences that
+        ! grow slower are unchanged. The smooth limiter of Söderlind and
+        ! Wang (2006, Eq. 10), rho = 1 + kappa*atan((rho-1)/kappa), also
+        ! works, but alters every step and also slows the reduction of dt.
+        rho_n = min(rho_n,rho_max)
+
         ! Step 3: calculate the next time timestep (dt,n+1)
-        dt_new = rhohat_n * dt_n
+        dt_new = rho_n * dt_n
 
         ! Step 4: Modify timestep to fit within prescribed limits 
 
@@ -544,13 +592,16 @@ end if
         ! The pc-error controller is the primary timestep limiter here; this CFL
         ! cap is only a hard backstop. Courant number 1.0 (the marginal stability
         ! edge for explicit advection) proved unstable at the nonlinear SIA moving
-        ! margin (grid-axis 2dx oscillations breaking dome symmetry), so use 0.5
-        ! as a safety factor without being as restrictive as the diagnostic cfl_max.
-        dt_adv    = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=0.5_wp,boundaries=boundaries) )
-        dtmax_now = min(dtmax,dt_adv) 
+        ! margin (grid-axis 2dx oscillations breaking dome symmetry), so the
+        ! Courant number is capped at yelmo.pc_cfl_max.
+        dt_adv = minval( calc_adv2D_timestep1(ux_bar,uy_bar,dx,dx,cfl_max=cfl_max,boundaries=boundaries) )
+        dt_new = min(dt_new,dt_adv)
 
-        ! Finally, ensure timestep is within prescribed limits
-        call limit_adaptive_timestep(dt_new,dtmin,dtmax_now)
+        ! Finally, ensure timestep is within prescribed limits. Only the time
+        ! remaining to the end of the call (dtmax) is passed on: the half-step
+        ! rule in limit_adaptive_timestep must not act on the CFL cap, which
+        ! would halve the effective Courant number.
+        call limit_adaptive_timestep(dt_new,dtmin,dtmax)
         
         return 
 
@@ -794,33 +845,6 @@ end if
 
     end subroutine limit_adaptive_timestep
 
-    subroutine set_to_nearest_timestep(dt)
-        ! ajr: limit timestep to specific list of values (for neatness)
-        ! note: routine not used or tested yet! 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: dt 
-
-        ! Local variables 
-        integer  :: i  
-
-        integer, parameter :: n = 22 
-        real(wp), parameter :: dt_set(n) = &
-        [100.0,50.0,20.0,10.0,5.0,2.0,1.0,0.5,0.2,0.1,0.05,0.02, &
-         0.01,0.005,0.002,0.001,0.0005,0.0002,0.0001,0.00005,0.00002,0.00001]
-
-        do i = 1, n 
-            if (dt_set(i) .le. dt) then 
-                dt = dt_set(i)
-                exit 
-            end if
-        end do 
-
-        return
-
-    end subroutine set_to_nearest_timestep
-
     function calc_adv2D_timestep1(ux,uy,dx,dy,cfl_max,boundaries) result(dt)
         ! Calculate maximum advective time step based
         ! on Courant–Friedrichs–Lewy condition
@@ -908,87 +932,6 @@ end if
 
     end function calc_adv2D_timestep1
 
-    elemental function calc_adv2D_timestep(ux,uy,dx,dy,cfl_max) result(dt)
-        ! Calculate maximum advective time step based
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-
-        implicit none 
-        
-        real(wp), intent(IN) :: ux
-        real(wp), intent(IN) :: uy
-        real(wp), intent(IN) :: dx, dy
-        real(wp), intent(IN) :: cfl_max             ! Maximum Courant number, default cfl_max=1.0
-        real(wp) :: dt 
-
-        dt = cfl_max * 1.0 / max(abs(ux)/dx + abs(uy)/dy,1e-5)
-
-        return 
-
-    end function calc_adv2D_timestep
-    
-    subroutine calc_adv2D_velocity(ux,uy,dx,dy,dt,cfl_max)
-        ! Calculate maximum velocity given a known time step
-        ! on Courant–Friedrichs–Lewy condition
-        ! https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition
-
-        ! 1D condition: C = u*dt/dx <= cfl_max 
-        ! 2D condition: C = u*dt/dx + v*dt/dy <= cfl_max 
-        ! thus when C = cfl_max:
-        ! dt = cfl_max * 1/(u/dx+v/dx)
-
-        ! dt = cfl_max * dx/u 
-
-        implicit none 
-        
-        real(wp), intent(INOUT) :: ux(:,:)
-        real(wp), intent(INOUT) :: uy(:,:)
-        real(wp), intent(IN)    :: dx, dy
-        real(wp), intent(IN)    :: dt 
-        real(wp), intent(IN)    :: cfl_max       ! Maximum Courant number, default cfl_max=1.0
-        
-        ! Local variables 
-        integer    :: i, j, q, nx, ny 
-        real(wp) :: uxy, dt_now 
-        real(wp) :: X, X_max 
-        real(wp) :: f_scale 
-
-        nx = size(ux,1)
-        ny = size(ux,2)
-
-        X_max = cfl_max / dt 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            X = max(abs(ux(i,j))/dx + abs(uy(i,j))/dy,1e-5)
-
-            if (X .gt. X_max) then 
-                ! Reduce velocity of this point to below limit
-
-                dt_now = cfl_max / X
-
-                f_scale = X_max / X     ! Should be less than 1.0! 
-
-                ux(i,j) = ux(i,j)*f_scale 
-                uy(i,j) = uy(i,j)*f_scale 
-                
-            end if 
-
-        end do 
-        end do  
-
-
-        return 
-
-    end subroutine calc_adv2D_velocity
-    
     subroutine check_checkerboard(is_unstable,var,lim,boundaries)
 
         implicit none 
@@ -1062,7 +1005,7 @@ end if
         implicit none 
 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         real(wp), intent(IN) :: xc(:) 
         real(wp), intent(IN) :: yc(:)  
         real(wp), intent(IN) :: pc_eps
@@ -1085,7 +1028,7 @@ end if
         call nc_write_dim(filename,ynm,x=yc*1e-3,units="kilometers")
         call nc_write_attr(filename,ynm,"_CoordinateAxisType","GeoY")
         
-        call nc_write_dim(filename,"time",x=time,dx=1.0_wp,nx=1,units="years",unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",x=time,dx=1.0_dp,nx=1,units="years",unlimited=.TRUE.)
 
         call nc_write(filename, "pc_eps", pc_eps,dim1="pt")
         
@@ -1094,12 +1037,13 @@ end if
     end subroutine yelmo_timestep_write_init
 
     subroutine yelmo_timestep_write(filename,time,dt_now,dt_adv,dt_pi,pc_eta,pc_tau, &
-                                                speed,speed_tpo,speed_dyn,ssa_iter,iter_redo)
+                                                speed,speed_tpo,speed_dyn,ssa_iter,iter_redo, &
+                                                ssa_lin_iter,ssa_lin_fail,ssa_lim_n,adv_lin_iter,adv_lin_fail)
 
         implicit none 
 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time 
+        real(dp), intent(IN) :: time 
         real(wp), intent(IN) :: dt_now 
         real(wp), intent(IN) :: dt_adv
         real(wp), intent(IN) :: dt_pi 
@@ -1110,6 +1054,11 @@ end if
         real(wp), intent(IN) :: speed_dyn 
         integer,    intent(IN) :: ssa_iter 
         integer,    intent(IN) :: iter_redo 
+        integer,    intent(IN) :: ssa_lin_iter
+        integer,    intent(IN) :: ssa_lin_fail
+        integer,    intent(IN) :: ssa_lim_n
+        integer,    intent(IN) :: adv_lin_iter
+        integer,    intent(IN) :: adv_lin_fail
 
         ! Local variables
         integer    :: ncid, n, nx, ny
@@ -1136,7 +1085,11 @@ end if
         call nc_write(filename, "dt_adv",dt_adv,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (CFL criterion)",ncid=ncid)
         
         call nc_write(filename,  "dt_pi", dt_pi,dim1="time",start=[n],count=[1],units="yr",long_name="Timestep (PI controller)",ncid=ncid)
-        call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="m/yr",long_name="eta (maximum PC truncation error)",ncid=ncid)
+        if (pc_norm_L8) then
+            call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: L8 norm of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        else
+            call nc_write(filename, "pc_eta",pc_eta,dim1="time",start=[n],count=[1],units="1/yr",long_name="eta (pc error norm: RMS of pc_tau/(1 m + 0.01 H))",ncid=ncid)
+        end if
         
         if (write_pc_tau_field) then 
             call nc_write(filename, "pc_tau",pc_tau,dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],units="m a**-1", &
@@ -1145,6 +1098,16 @@ end if
 
         call nc_write(filename, "ssa_iter", ssa_iter, dim1="time",start=[n],units="",long_name="Picard iterations for SSA convergence",ncid=ncid)
         call nc_write(filename, "iter_redo",iter_redo,dim1="time",start=[n],units="",long_name="Number of redo iterations needed",count=[1],ncid=ncid)
+        call nc_write(filename, "ssa_lin_iter",ssa_lin_iter,dim1="time",start=[n],count=[1],units="", &
+                        long_name="Linear solver iterations of the SSA solve (summed over Picard iterations)",ncid=ncid)
+        call nc_write(filename, "ssa_lin_fail",ssa_lin_fail,dim1="time",start=[n],count=[1],units="", &
+                        long_name="SSA linear solves at breakdown or the iteration limit",ncid=ncid)
+        call nc_write(filename, "ssa_lim_n",ssa_lim_n,dim1="time",start=[n],count=[1],units="", &
+                        long_name="SSA faces at the velocity limit (drag active or clipped)",ncid=ncid)
+        call nc_write(filename, "adv_lin_iter",adv_lin_iter,dim1="time",start=[n],count=[1],units="", &
+                        long_name="Linear solver iterations of the thickness advection (predictor + corrector)",ncid=ncid)
+        call nc_write(filename, "adv_lin_fail",adv_lin_fail,dim1="time",start=[n],count=[1],units="", &
+                        long_name="Advection linear solves at breakdown or the iteration limit",ncid=ncid)
         
         ! Close the netcdf file
         call nc_close(ncid)

@@ -26,7 +26,9 @@ In addition to the defaults, the model enforces consistency checks at load time:
 - **range** checks — e.g. `yelmo.cfl_max` must be in `(0, 1]`;
 - **ordering** checks — e.g. `ycalv.sd_min < sd_max`.
 
-`yelmo-config` mirrors all of these so you can catch problems before launching a
+`yelmo-config` mirrors the enum checks made with `yelmo_check_enum` (extracted
+from `src/` by `yelmo-config snapshot`) and the range and ordering checks listed
+in its `constraints.toml`, so you can catch most problems before launching a
 run.
 
 ## Installation
@@ -92,7 +94,7 @@ yelmo-config search 'calv'           # find calving-related parameters
 
 ```bash
 yelmo-config write -o par/complete.nml        # full default parameter file
-yelmo-config write par/yelmo_initmip.nml      # defaults + initmip overrides
+yelmo-config write par/yelmo_initmip_grl.nml  # defaults + initmip overrides
 ```
 
 ### Comparing parameter sets
@@ -101,7 +103,7 @@ yelmo-config write par/yelmo_initmip.nml      # defaults + initmip overrides
 so it shows only meaningful differences:
 
 ```bash
-yelmo-config diff par/yelmo_initmip.nml       # a file vs the defaults
+yelmo-config diff par/yelmo_initmip_grl.nml   # a file vs the defaults
 yelmo-config diff runA.nml runB.nml           # two runs
 yelmo-config diff --raw runA.nml runB.nml     # only params literally written
 ```
@@ -115,7 +117,7 @@ yelmo-config diff runA.nml:ydyn_north runB.nml:ydyn
 ### Validating a parameter file
 
 ```bash
-yelmo-config check par/yelmo_initmip.nml
+yelmo-config check par/yelmo_initmip_grl.nml
 ```
 
 `check` reports unknown parameters, enum / range / ordering violations, type

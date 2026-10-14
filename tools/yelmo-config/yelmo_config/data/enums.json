@@ -103,9 +103,7 @@
       "marine",
       "floating",
       "float",
-      "none",
-      "slab",
-      "slab-ext"
+      "none"
     ],
     "conditions": []
   },
@@ -115,6 +113,36 @@
     "allowed": [
       "residual",
       "energy"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ydyn",
+    "name": "ssa_vel_lim_method",
+    "allowed": [
+      "clip",
+      "drag"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
+    "name": "experiment",
+    "allowed": [
+      "None",
+      "EISMINT",
+      "MISMIP3D",
+      "MISMIP+",
+      "TROUGH-F17",
+      "SLAB",
+      "ISMIPHOM",
+      "slab",
+      "periodic",
+      "periodic-xy",
+      "periodic-x",
+      "periodic-y",
+      "infinite",
+      "MASK_ICE"
     ],
     "conditions": []
   },
@@ -182,11 +210,41 @@
   },
   {
     "group": "ytherm",
+    "name": "basal_bc_method",
+    "allowed": [
+      "capacity",
+      "wtil"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "cap_source",
+    "allowed": [
+      "auto",
+      "hyd",
+      "till",
+      "water",
+      "none"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
     "name": "dt_method",
     "allowed": [
       "FE",
       "AB",
       "SAM"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "enth_cp_method",
+    "allowed": [
+      "const",
+      "integral"
     ],
     "conditions": []
   },
@@ -224,6 +282,16 @@
   },
   {
     "group": "ytherm",
+    "name": "strain_heating",
+    "allowed": [
+      "full",
+      "sia",
+      "none"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
     "name": "zeta_scale_rock",
     "allowed": [
       "linear",
@@ -245,10 +313,11 @@
   },
   {
     "group": "ytopo",
-    "name": "f_ice_method",
+    "name": "front_subgrid",
     "allowed": [
-      "upstream",
-      "lsf"
+      "none",
+      "floating",
+      "marine"
     ],
     "conditions": []
   },

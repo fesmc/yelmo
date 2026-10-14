@@ -34,7 +34,6 @@ program test_icetemp
         real(prec), allocatable :: Q_strn(:)  ! [K a-1] Strain heating 
         real(prec), allocatable :: t_dep(:)   ! [a] Deposition time 
         
-        real(prec), allocatable :: enth_rock(:) ! [J kg-1] Bedrock enthalpy
         real(prec), allocatable :: T_rock(:)    ! [K] Bedrock temperature 
 
     end type 
@@ -53,7 +52,7 @@ program test_icetemp
         real(prec) :: Q_b               ! [mW m-2] Basal heat production
         real(prec) :: H_cts             ! [m] cold-temperate transition surface (CTS) height
         real(prec) :: H_ice             ! [m] Ice thickness 
-        real(prec) :: cp_rock           ! [] Bedrock heat capacity
+        real(prec) :: rhoc_rock         ! [J m-3 K-1] Bedrock volumetric heat capacity
         real(prec) :: kt_rock           ! [] Bedrock conductivity 
         real(prec) :: H_rock            ! [m] Bedrock thickness 
         
@@ -75,7 +74,7 @@ program test_icetemp
     ! struct `c`. The host-associated aliases below let the rest of the program
     ! (and the contained init routines) keep using bare constant names.
     type(ybound_const_class) :: c
-    real(prec) :: T0, sec_year, rho_ice, rho_w, rho_rock, L_ice, g, T_pmp_beta
+    real(prec) :: T0, sec_year, rho_ice, rho_w, L_ice, g, T_pmp_beta
 
     ! Local variables
     real(prec)         :: t_start, t_end, dt, time  
@@ -116,7 +115,6 @@ program test_icetemp
     sec_year   = c%sec_year
     rho_ice    = c%rho_ice
     rho_w      = c%rho_w
-    rho_rock   = c%rho_rock
     L_ice      = c%L_ice
     g          = c%g
     T_pmp_beta = c%T_pmp_beta
@@ -416,9 +414,9 @@ program test_icetemp
             ice1%Q_rock = ice1%Q_geo
         else
             ! Prognostic (active) bedrock column; supplies Q_rock to the ice base
-            call calc_temp_bedrock_column(ice1%vec%enth_rock,ice1%vec%T_rock,ice1%Q_rock, &
-                        ice1%cp_rock,ice1%kt_rock,ice1%Q_ice_b,ice1%Q_geo,ice1%vec%T_ice(1),ice1%H_rock, &
-                        ice1%zr%zeta,ice1%zr%zeta_ac,ice1%zr%dzeta_a,ice1%zr%dzeta_b,rho_rock,sec_year,dt)
+            call calc_temp_bedrock_column(ice1%vec%T_rock,ice1%Q_rock, &
+                        ice1%rhoc_rock,ice1%kt_rock,ice1%Q_ice_b,ice1%Q_geo,ice1%vec%T_ice(1),ice1%H_rock, &
+                        ice1%zr%zeta,ice1%zr%zeta_ac,ice1%zr%dzeta_a,ice1%zr%dzeta_b,sec_year,dt)
         end if
 
         ! Update basal water thickness [m/a i.e.] => [m/a w.e.]
@@ -478,7 +476,7 @@ contains
         ice%Q_b      = 0.0          ! [] No basal frictional heating 
         ice%f_grnd   = 1.0          ! Grounded point 
 
-        ice%cp_rock  = 1000.0       ! [J kg-1 K-1]
+        ice%rhoc_rock = 2.0e6       ! [J m-3 K-1]
         ice%kt_rock  = 9.46e7       ! [J a-1 m-1 K-1]
         ice%H_rock   = H_rock       ! [m] 
         ice%Q_rock   = ice%Q_geo 
@@ -519,7 +517,6 @@ contains
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
 
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
@@ -547,7 +544,7 @@ contains
         ice%Q_b      = 0.0              ! [] No basal frictional heating 
         ice%f_grnd   = 1.0              ! Grounded point 
 
-        ice%cp_rock  = 1000.0           ! [J kg-1 K-1]
+        ice%rhoc_rock = 2.0e6           ! [J m-3 K-1]
         ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
         ice%H_rock   = 2000.0           ! [m] 
         ice%Q_rock   = ice%Q_geo 
@@ -587,7 +584,6 @@ contains
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
 
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
@@ -623,7 +619,7 @@ contains
         ice%Q_b      = 0.0              ! [] No basal frictional heating 
         ice%f_grnd   = 1.0              ! Grounded point 
 
-        ice%cp_rock  = 1000.0           ! [J kg-1 K-1]
+        ice%rhoc_rock = 2.0e6           ! [J m-3 K-1]
         ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
         ice%H_rock   = H_rock           ! [m] 
         ice%Q_rock   = ice%Q_geo 
@@ -684,7 +680,6 @@ contains
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
 
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
@@ -718,7 +713,7 @@ contains
         ice%Q_b      = 0.0              ! [] No basal frictional heating 
         ice%f_grnd   = 1.0              ! Grounded point 
 
-        ice%cp_rock  = 1000.0           ! [J kg-1 K-1]
+        ice%rhoc_rock = 2.0e6           ! [J m-3 K-1]
         ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
         ice%H_rock   = H_rock           ! [m] 
         ice%Q_rock   = ice%Q_geo 
@@ -776,7 +771,6 @@ contains
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
 
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
@@ -815,7 +809,7 @@ contains
         ice%Q_b      = 0.0              ! [] No basal frictional heating 
         ice%f_grnd   = 1.0              ! Grounded point 
 
-        ice%cp_rock  = 1000.0           ! [J kg-1 K-1]
+        ice%rhoc_rock = 2.0e6           ! [J m-3 K-1]
         ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
         ice%H_rock   = H_rock           ! [m] 
         ice%Q_rock   = ice%Q_geo 
@@ -878,7 +872,6 @@ contains
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
 
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return 
 
@@ -915,7 +908,7 @@ contains
         ice%Q_b      = 0.0              ! no basal frictional heating
         ice%f_grnd   = 1.0              ! grounded point
 
-        ice%cp_rock  = 1000.0           ! [J kg-1 K-1] (bedrock unused: base flux prescribed)
+        ice%rhoc_rock = 2.0e6           ! [J m-3 K-1] (bedrock unused: base flux prescribed)
         ice%kt_rock  = 9.46e7           ! [J a-1 m-1 K-1]
         ice%H_rock   = 5000.0           ! [m]
         ice%Q_rock   = ice%Q_geo        ! prescribe geothermal flux at the ice base
@@ -952,7 +945,6 @@ contains
 
         ! Initialize bedrock column uniformly at the ice-base temperature
         ice%vec%T_rock = ice%vec%T_ice(1)
-        call convert_to_enthalpy(ice%vec%enth_rock,ice%vec%T_rock,0.0_wp,1e8_wp,ice%cp_rock,0.0_wp)
 
         return
 
@@ -1006,7 +998,6 @@ contains
         allocate(ice%vec%Q_strn(nz))
         allocate(ice%vec%t_dep(nz))
         
-        allocate(ice%vec%enth_rock(nzr))
         allocate(ice%vec%T_rock(nzr))
 
         ! Initialize remaining vectors to zero 
@@ -1021,7 +1012,6 @@ contains
         ice%vec%Q_strn    = 0.0
         ice%vec%t_dep     = 0.0 
         
-        ice%vec%enth_rock = 0.0 
         ice%vec%T_rock    = 0.0 
 
         ! Calculate derivative terms 
@@ -1105,7 +1095,6 @@ contains
         
         call nc_write(filename,"H_cts",  ice%H_cts, units="m",long_name="CTS height",dim1="time",start=[n],ncid=ncid)
         
-        call nc_write(filename,"enth_rock", vecs%enth_rock, units="J kg-1",   long_name="Bedrock enthalpy",         dim1="zeta_r",dim2="time",start=[1,n],ncid=ncid)
         call nc_write(filename,"T_rock",    vecs%T_rock,    units="K",        long_name="Bedrock temperature",      dim1="zeta_r",dim2="time",start=[1,n],ncid=ncid)
         
         ! Update variables (points) 

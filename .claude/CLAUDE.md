@@ -3,14 +3,17 @@
 
 ## New worktree setup
 
-A fresh worktree has no `Makefile`, no `.runme_config`, and no data symlinks. Before building or running anything, set these up from inside the worktree:
+A fresh worktree has no `Makefile`, no `.runme/config.toml`, and no data symlinks. Before building or running anything, set these up from inside the worktree:
 
 ```bash
 ln -s /Users/alrobi001/models/ice_data ice_data
+ln -s /Users/alrobi001/data/fesmdata/products fesmdata   # FesmData products (or `input` for GRL-16KM/ANT-32KM only)
 ln -s /Users/alrobi001/models/fesm-utils fesm-utils
 ln -s /Users/alrobi001/models/fasthydrology FastHydrology
-runme --config                              # creates .runme_config from .runme/runme_config
-configme config yelmo -m macbook -c gfortran  # generates Makefiles (yelmo + fesm-utils + FastHydrology), auto-detects netCDF
+ln -s /Users/alrobi001/models/elsa elsa
+ln -s /Users/alrobi001/models/tracer tracer
+runme config init                           # creates .runme/config.toml from .runme/config.default.toml
+configme config yelmo -m macbook -c gfortran  # generates Makefiles (yelmo + fesm-utils + FastHydrology + elsa + tracer), auto-detects netCDF
 ```
 
 `configme` is the current build-config tool: it regenerates the Makefiles for
@@ -24,6 +27,10 @@ After that, `make <target>` and `runme ...` work the same as in the main tree.
 
 The `FastHydrology` symlink (capitalized to match the upstream repo name and
 `FASTHYDROROOT` in `config/common.mk`) is expected by every host config in
-`config/`. `libfasthydro.a` must be built separately by running
-`make fasthydro-static` inside the fasthydrology checkout — yelmo's Makefile
-does not recurse into it (same convention as `fesm-utils`).
+`config/`. yelmo's Makefile builds FastHydrology, elsa and tracer itself
+(`yelmo-static` depends on `fasthydro-static`, `elsa-static`, `tracer-static`)
+and `make clean` cleans them too. `fesm-utils` is not built by yelmo: build it
+beforehand in its own checkout.
+
+All four are shared checkouts symlinked into every worktree, so `make clean`
+or a rebuild in one worktree also affects other worktrees building at the same time.

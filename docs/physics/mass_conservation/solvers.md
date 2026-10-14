@@ -28,13 +28,21 @@ $$
    + \frac{Q^{y}_{i,j+\tfrac12} - Q^{y}_{i,j-\tfrac12}}{\Delta y}.
 $$
 
-The two recommended schemes — selected at runtime via the namelist
-parameter `ytopo.solver` — differ only in **how** the upwind fluxes are
-evaluated in time. Both are mass-conservative by construction (the flux
-leaving cell $(i,j)$ across a face is the same flux entering its
-neighbour), so the discrete update of $H$ summed over the whole domain
-matches the discrete integral of the source/sink terms exactly, up to
-boundary outflows.
+The scheme is selected with `ytopo.solver`. The two recommended schemes,
+`"impl-lis"` (default) and `"expl-upwind"`, differ only in **how** the upwind
+fluxes are evaluated in time. The other options are `"expl"`, `"impl-upwind"`,
+`"expl-sico"`, `"impl-sico"`, `"impl-sico-lis"`, `"expl-new"` and `"none"` (no
+advection). All schemes are first order in space. The fluxes are
+conservative (the flux leaving cell $(i,j)$ across a face is the same flux
+entering its neighbour), so the advection does not create or destroy mass,
+apart from the flux through the domain edge and, in the explicit schemes, the
+rate limiter below. The ice mask `bnd%mask_ice` is not imposed in the
+advection: every cell is advected, and `calc_G_boundaries` imposes the mask
+afterwards and books the change in `mb_resid` (see
+[Mass conservation](index.md)).
+
+The advection solver is called twice per time step, in the predictor and the
+corrector of the [time-stepping scheme](../timestepping.md).
 
 ## `expl-upwind` — explicit forward-Euler donor-cell upwind
 
@@ -58,10 +66,9 @@ H^{n+1}_{i,j}
 $$
 
 where $\dot m$ collects whatever source/sink term is being applied in
-the same call (zero in the standard dynamic-only call from the
-`mass_conservation.f90` driver, since the mass-balance terms are added
-separately). A hard rate limiter $|\dot H| \le 10^{3}\,\mathrm{m\,a^{-1}}$
-is applied for safety.
+the same call (zero in Yelmo, where the mass-balance terms are added
+separately). The flux divergence is limited to
+$10^{3}\,\mathrm{m\,a^{-1}}$ for safety.
 
 The scheme is first-order accurate in time and space, monotone, and
 positivity-preserving for the depth-averaged transport problem when
@@ -72,10 +79,9 @@ $$
 \frac{1}{|\bar u_{i+\tfrac12,j}|/\Delta x \,+\, |\bar v_{i,j+\tfrac12}|/\Delta y}
 $$
 
-is respected. Yelmo enforces this via an adaptive timestepper at the
-top level (see [Parameters](../../parameters.md)), so the user does not
-need to tune the advection step manually — but the scheme is sensitive
-to under-resolved velocity peaks at the grounding line.
+is respected. The adaptive time step is limited by this condition with the
+Courant number `yelmo.pc_cfl_max` (default 0.5; `yelmo.cfl_max` for
+`dt_method = 1`), see [Time stepping](../timestepping.md).
 
 ## `impl-lis` — implicit upwind via LIS
 
@@ -107,36 +113,35 @@ corresponding to its upwind neighbour — and a diagonal contribution
 when cell $(i,j)$ itself is the upwind donor. The assembled
 operator $A\,H^{n+1} = b$ therefore has at most five non-zeros per
 row (centre plus four neighbours), is stored in CSR form, and is solved
-each timestep by [LIS](http://www.ssisc.org/lis/). The default solver
-configuration is BiCG with an ILU preconditioner, configurable at
-runtime via `ytopo.adv_lis_opt`.
+each timestep by [LIS](http://www.ssisc.org/lis/) with BiCGSTAB and a
+Jacobi preconditioner (tolerance 1e-12, set in `solver_advection.f90`,
+not a parameter).
 
-Boundary rows are set per face by the `boundaries` flag: `"zero"`
-imposes $H = 0$ at the edge (Dirichlet), `"infinite"` zeroes the
-normal derivative (Neumann outflow), and `"periodic"` wraps the
-stencil to the opposite edge. The mask values `mask = 0` and
-`mask = -1` further allow per-cell pinning of $H$ to zero or to its
-previous value.
+The rows at the domain edge depend on the boundary type of the experiment
+(`yelmo.experiment`): zero thickness at the edge (default), zero normal
+gradient (`"infinite"`), periodic in both directions, or periodic in one
+direction and zero gradient in the other (`"periodic-x"`, `"periodic-y"`).
+`"MASK_ICE"` uses zero gradient on all edges. MISMIP3D and TROUGH-F17 have
+zero thickness at $x_\mathrm{max}$, zero gradient at the symmetry edge
+$x = 0$ and periodic sides in $y$. Border cells with `bnd%mask_ice = NONE` or
+`FIXED` do not use the edge condition: they are solved as inner cells with no
+flux through the domain edge, so that the flux through their inner faces is
+kept and booked in `mb_resid`.
 
 Because the implicit upwind scheme is unconditionally stable for this
-linear transport problem, it tolerates larger timesteps than
-`expl-upwind` — typically the limiting factor becomes the *physical*
-adaptive timestep used by Yelmo (driven by the momentum balance and
-the mass-balance terms) rather than a CFL constraint on the
-advection. The price is one sparse linear solve per timestep and a
-slightly more diffusive solution than the explicit upwind scheme at
-the same $\Delta t$.
+linear transport problem, it tolerates larger Courant numbers than
+`expl-upwind`. In Yelmo, the time step is set by the predictor–corrector error
+estimate and the Courant cap `pc_cfl_max` for both schemes. The price is one
+sparse linear solve per call and a slightly more diffusive solution than the
+explicit upwind scheme at the same $\Delta t$.
 
 ## Choosing between the two
 
-- `expl-upwind` is fast, simple, fully local, and the natural default
-  for high-resolution simulations where $\Delta t$ is already small for
-  other reasons (e.g. fast streaming flow).
-- `impl-lis` is the right choice when the velocity field has localised
-  fast peaks that would force `expl-upwind` into very small timesteps —
-  it lets the global adaptive $\Delta t$ be set by physics elsewhere in
-  the model.
+- `impl-lis` (default) is robust where the velocity field has localised
+  fast peaks, e.g. at the grounding line and in outlet glaciers.
+- `expl-upwind` is fast, simple and fully local, a reasonable choice for
+  high-resolution simulations where $\Delta t$ is already small for other
+  reasons.
 
-Both schemes are mass-conservative to round-off; the choice does not
-change the continuum equation being solved, only the time-stepping and
-the resulting cost / smoothing trade-off.
+The choice does not change the continuum equation being solved, only the
+time integration and the resulting cost / smoothing trade-off.

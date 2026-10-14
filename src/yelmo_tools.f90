@@ -5,6 +5,8 @@ module yelmo_tools
     use yelmo_defs, only : sp, dp, wp, missing_value, TOL_UNDERFLOW, pi, &
                             io_unit_err
 
+    use, intrinsic :: iso_fortran_env, only : int32, int64
+
     !$ use omp_lib
     
     implicit none 
@@ -15,8 +17,15 @@ module yelmo_tools
     integer, parameter :: BND_TROUGH   = 3
     integer, parameter :: BND_PERIODIC = 4
     integer, parameter :: BND_PERIODIC_X = 5
+    integer, parameter :: BND_PERIODIC_Y = 6
     
+    interface is_finite
+        module procedure is_finite_sp
+        module procedure is_finite_dp
+    end interface
+
     private 
+    public :: is_finite
     public :: get_region_indices
     public :: get_neighbor_indices
     public :: get_neighbor_indices_bc_codes
@@ -26,6 +35,7 @@ module yelmo_tools
 
     public :: calc_gradient_acx
     public :: calc_gradient_acy
+    public :: calc_gradient_column_ac
 
     public :: mean_mask
     public :: minmax
@@ -51,9 +61,28 @@ module yelmo_tools
     
     ! Boundary constants (for converting string definitions to integers for faster computations)
     public :: boundary_code
-    public :: BND_ZEROS, BND_INFINITE, BND_MISMIP3D, BND_TROUGH, BND_PERIODIC, BND_PERIODIC_X
+    public :: BND_ZEROS, BND_INFINITE, BND_MISMIP3D, BND_TROUGH, BND_PERIODIC, BND_PERIODIC_X, BND_PERIODIC_Y
 
 contains 
+
+    elemental function is_finite_sp(x) result(ok)
+        ! True unless x is NaN or Inf (all exponent bits set). An integer
+        ! test on the bit pattern, so it is not folded away under -Ofast or
+        ! -ffast-math, which may do that to ieee_is_nan and x /= x.
+        real(sp), intent(IN) :: x
+        logical :: ok
+        integer(int32), parameter :: exp_mask = int(z'7F800000',int32)
+        ok = iand(transfer(x,0_int32),exp_mask) .ne. exp_mask
+    end function is_finite_sp
+
+    elemental function is_finite_dp(x) result(ok)
+        ! Double-precision version of is_finite_sp
+        real(dp), intent(IN) :: x
+        logical :: ok
+        integer(int64), parameter :: exp_mask = int(z'7FF0000000000000',int64)
+        ok = iand(transfer(x,0_int64),exp_mask) .ne. exp_mask
+    end function is_finite_dp
+
 
     subroutine get_region_indices(i1,i2,j1,j2,nx,ny,irange,jrange)
         ! Get indices for a region based on bounds. 
@@ -176,10 +205,22 @@ contains
                 jm1 = max(j-1,1)
                 jp1 = min(j+1,ny)
 
+            case(BND_PERIODIC_Y)
+                ! Periodic in y (true wrap, period ny),
+                ! infinite (clamped) in x
+
+                im1 = max(i-1,1)
+                ip1 = min(i+1,nx)
+
+                jm1 = j-1
+                if (jm1 .eq. 0)    jm1 = ny
+                jp1 = j+1
+                if (jp1 .eq. ny+1) jp1 = 1
+
             case DEFAULT
 
                 write(io_unit_err,*) "get_neighbor_indices_bc_codes:: Error: boundary code not recognized: ", BC
-                stop
+                error stop 1
 
         end select
 
@@ -217,10 +258,14 @@ contains
                 per_x = .TRUE.
                 per_y = .FALSE.
 
+            case(BND_PERIODIC_Y)
+                per_x = .FALSE.
+                per_y = .TRUE.
+
             case DEFAULT
 
                 write(io_unit_err,*) "get_periodic_directions:: Error: boundary code not recognized: ", BC
-                stop
+                error stop 1
 
         end select
 
@@ -242,10 +287,11 @@ contains
             case("TROUGH");     code = BND_TROUGH
             case("periodic");   code = BND_PERIODIC
             case("periodic-x"); code = BND_PERIODIC_X
+            case("periodic-y"); code = BND_PERIODIC_Y
             case("mask");       code = BND_INFINITE
             case default
                 write(io_unit_err,*) "boundary_code:: Error: Boundary string not recognized: "//trim(boundaries)
-                stop
+                error stop 1
         end select
 
         return
@@ -320,7 +366,7 @@ contains
 
     end function calc_magnitude_from_staggered
 
-    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
+    subroutine calc_gradient_acx(dvardx,var,f_ice,dx,grad_lim,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -330,7 +376,6 @@ contains
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: dx 
         real(wp), intent(IN)  :: grad_lim 
-        logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
         real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
@@ -338,8 +383,7 @@ contains
         ! Local variables 
         integer  :: i, j, nx, ny 
         integer  :: im1, ip1, jm1, jp1
-        integer  :: im2, ip2, jm2, jp2
-        real(wp) :: V0, V1, V2 
+        real(wp) :: V0, V1 
         integer  :: BC
 
         nx = size(var,1)
@@ -348,7 +392,7 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,V0,V1)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -367,47 +411,6 @@ contains
 
             dvardx(i,j) = (V1-V0)/dx 
 
-if (margin2nd) then 
-            ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
-
-            if (f_ice(i,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then 
-                ! Ice-free to the right
-
-                if (f_ice(im1,j) .eq. 1.0) then 
-                    V0 = var(ip1,j)
-                    if (zero_outside) V0 = 0.0 
-                    V1 = var(i,j)
-                    V2 = var(im1,j)
-                    dvardx(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dx
-                else 
-                    dvardx(i,j) = 0.0
-                end if 
-
-            else if (f_ice(i,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then
-                ! Ice-free to the left
-
-                ! Neighbor to the right of ip1 (equals ip1 at a non-periodic border)
-                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,ip1,j,nx,ny,BC)
-
-                if (ip2 .ne. ip1) then 
-                    if (f_ice(ip2,j) .eq. 1.0) then
-                        V0 = var(i,j)
-                        if (zero_outside) V0 = 0.0 
-                        V1 = var(ip1,j)
-                        V2 = var(ip2,j)
-                        dvardx(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dx
-                    else 
-                        dvardx(i,j) = 0.0
-                    end if
-                else
-                    dvardx(i,j) = 0.0
-                end if
-
-            end if 
-
-end if
-
         end do 
         end do
         !$omp end parallel do
@@ -416,7 +419,7 @@ end if
         ! is the same, not the variable itself.
         select case(trim(boundaries))
 
-            case("infinite","MISMIP3D","TROUGH","mask")
+            case("infinite","MISMIP3D","TROUGH","mask","periodic-y")
                 dvardx(1,:)  = dvardx(2,:)
                 dvardx(nx,:) = dvardx(nx-1,:)
 
@@ -432,7 +435,7 @@ end if
 
     end subroutine calc_gradient_acx
     
-subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside,boundaries,slope_bg)
+subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundaries,slope_bg)
         ! Calculate gradient on ac-nodes, accounting for ice margin if needed
 
         implicit none 
@@ -442,7 +445,6 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: dy 
         real(wp), intent(IN)  :: grad_lim 
-        logical,  intent(IN)  :: margin2nd 
         logical,  intent(IN)  :: zero_outside 
         character(len=*), intent(IN) :: boundaries  ! Boundary conditions to apply 
         real(wp), intent(IN), optional :: slope_bg  ! Uniform background slope not contained in var
@@ -450,8 +452,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         ! Local variables 
         integer  :: i, j, nx, ny 
         integer  :: im1, ip1, jm1, jp1
-        integer  :: im2, ip2, jm2, jp2
-        real(wp) :: V0, V1, V2 
+        real(wp) :: V0, V1 
         integer  :: BC
 
         nx = size(var,1)
@@ -460,7 +461,7 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,V0,V1,V2)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,V0,V1)
         do j = 1, ny 
         do i = 1, nx 
 
@@ -478,47 +479,6 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,margin2nd,zero_outside
             end if 
 
             dvardy(i,j) = (V1-V0)/dy
-
-if (margin2nd) then 
-            ! === Modify margin gradients =========================
-            ! Following Saito et al (2007) by applying a second-order, upwind gradient
-
-            if (f_ice(i,j) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then 
-                ! Ice-free to the top
-
-                if (f_ice(i,jm1) .eq. 1.0) then 
-                    V0 = var(i,jp1)
-                    if (zero_outside) V0 = 0.0 
-                    V1 = var(i,j)
-                    V2 = var(i,jm1)
-                    dvardy(i,j) = (1.0*V2-4.0*V1+3.0*V0)/dy
-                else 
-                    dvardy(i,j) = 0.0
-                end if 
-
-            else if (f_ice(i,j) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
-                ! Ice-free to the bottom
-
-                ! Neighbor above jp1 (equals jp1 at a non-periodic border)
-                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,i,jp1,nx,ny,BC)
-
-                if (jp2 .ne. jp1) then 
-                    if (f_ice(i,jp2) .eq. 1.0) then
-                        V0 = var(i,j)
-                        if (zero_outside) V0 = 0.0 
-                        V1 = var(i,jp1)
-                        V2 = var(i,jp2)
-                        dvardy(i,j) = -(1.0*V2-4.0*V1+3.0*V0)/dy
-                    else 
-                        dvardy(i,j) = 0.0
-                    end if
-                else
-                    dvardy(i,j) = 0.0
-                end if
-
-            end if 
-
-end if
 
         end do 
         end do
@@ -543,6 +503,100 @@ end if
         return 
 
     end subroutine calc_gradient_acy
+
+    subroutine calc_gradient_column_ac(dvdx_c,dvdy_c,dvdx,dvdy,f_ice,mask_ocn,boundaries)
+        ! Gradient of the ice-column geometry (surface or base elevation) on
+        ! ac-nodes, for the sigma-coordinate transform. A face between an
+        ! ice-covered cell and ice-free ocean holds the jump to sea level (a
+        ! cliff, the calving front), not a slope of the column: there the
+        ! gradient of the adjacent face on the ice side is used, if that face
+        ! lies between two ice-covered cells (otherwise zero). Faces to ice-free
+        ! land keep their gradient (the margin slope). Faces without ice on
+        ! either side are zero.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: dvdx_c(:,:)        ! acx-nodes
+        real(wp), intent(OUT) :: dvdy_c(:,:)        ! acy-nodes
+        real(wp), intent(IN)  :: dvdx(:,:)          ! acx-nodes
+        real(wp), intent(IN)  :: dvdy(:,:)          ! acy-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)         ! aa-nodes, ice-covered where f_ice == 1
+        logical,  intent(IN)  :: mask_ocn(:,:)      ! aa-nodes, bed below sea level
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        integer :: im1, ip1, jm1, jp1
+        integer :: im2, ip2, jm2, jp2
+        integer :: BC
+        logical :: ice_0, ice_1
+
+        nx = size(f_ice,1)
+        ny = size(f_ice,2)
+
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,im2,ip2,jm2,jp2,ice_0,ice_1)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! acx-node between (i,j) and (ip1,j)
+            ice_0 = f_ice(i,j)   .eq. 1.0_wp
+            ice_1 = f_ice(ip1,j) .eq. 1.0_wp
+
+            dvdx_c(i,j) = 0.0_wp
+            if (ice_0 .and. ice_1) then 
+                dvdx_c(i,j) = dvdx(i,j)
+            else if ( (ice_0 .and. .not. mask_ocn(ip1,j)) .or. &
+                      (ice_1 .and. .not. mask_ocn(i,j)) ) then 
+                ! Margin to ice-free land
+                dvdx_c(i,j) = dvdx(i,j)
+            else if (ice_0) then 
+                ! Ice on the left: face between (im1,j) and (i,j)
+                if (im1 .ne. i) then 
+                    if (f_ice(im1,j) .eq. 1.0_wp) dvdx_c(i,j) = dvdx(im1,j)
+                end if 
+            else if (ice_1) then 
+                ! Ice on the right: face between (ip1,j) and (ip2,j)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,ip1,j,nx,ny,BC)
+                if (ip2 .ne. ip1) then 
+                    if (f_ice(ip2,j) .eq. 1.0_wp) dvdx_c(i,j) = dvdx(ip1,j)
+                end if 
+            end if 
+
+            ! acy-node between (i,j) and (i,jp1)
+            ice_0 = f_ice(i,j)   .eq. 1.0_wp
+            ice_1 = f_ice(i,jp1) .eq. 1.0_wp
+
+            dvdy_c(i,j) = 0.0_wp
+            if (ice_0 .and. ice_1) then 
+                dvdy_c(i,j) = dvdy(i,j)
+            else if ( (ice_0 .and. .not. mask_ocn(i,jp1)) .or. &
+                      (ice_1 .and. .not. mask_ocn(i,j)) ) then 
+                ! Margin to ice-free land
+                dvdy_c(i,j) = dvdy(i,j)
+            else if (ice_0) then 
+                ! Ice below: face between (i,jm1) and (i,j)
+                if (jm1 .ne. j) then 
+                    if (f_ice(i,jm1) .eq. 1.0_wp) dvdy_c(i,j) = dvdy(i,jm1)
+                end if 
+            else if (ice_1) then 
+                ! Ice above: face between (i,jp1) and (i,jp2)
+                call get_neighbor_indices_bc_codes(im2,ip2,jm2,jp2,i,jp1,nx,ny,BC)
+                if (jp2 .ne. jp1) then 
+                    if (f_ice(i,jp2) .eq. 1.0_wp) dvdy_c(i,j) = dvdy(i,jp1)
+                end if 
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return 
+
+    end subroutine calc_gradient_column_ac
     
     function mean_mask(var,mask) result(ave)
 
@@ -620,6 +674,14 @@ end if
                 var(:,1)  = var(:,2)
                 var(:,ny) = var(:,ny-1)
 
+            case("periodic-y")
+
+                ! Periodic y: true wrap (period ny), nothing to set.
+
+                ! Infinite x (free-slip too)
+                var(1,:)  = var(2,:)
+                var(nx,:) = var(nx-1,:)
+
             case("MISMIP3D")
 
                 ! === MISMIP3D =====
@@ -649,7 +711,7 @@ end if
 
                 write(io_unit_err,*) "set_boundaries_2D_aa:: error: boundary method not recognized."
                 write(io_unit_err,*) "boundaries = ", trim(boundaries)
-                stop 
+                error stop 1
 
         end select 
 
@@ -839,7 +901,7 @@ end if
             write(io_unit_err,*) "smooth_gauss_2D:: Error: f_sigma must be >= 1."
             write(io_unit_err,*) "f_sigma: ", f_sigma 
             write(io_unit_err,*) "dx:      ", dx 
-            stop 
+            error stop 1
         end if 
 
         ! Get smoothing radius as standard devation of Gaussian function
@@ -1028,9 +1090,9 @@ end if
 
             ! Calculate bedrock gradients (f_ice and grad_lim are not used)
             call calc_gradient_acx(dzbdx,z_bed,f_ice,dx,grad_lim=100.0_wp, &
-                                        margin2nd=.FALSE.,zero_outside=.FALSE.,boundaries=boundaries)
+                                        zero_outside=.FALSE.,boundaries=boundaries)
             call calc_gradient_acy(dzbdy,z_bed,f_ice,dy,grad_lim=100.0_wp, &
-                                        margin2nd=.FALSE.,zero_outside=.FALSE.,boundaries=boundaries)
+                                        zero_outside=.FALSE.,boundaries=boundaries)
 
             ! Determine where gradients are too large
             mask_apply = .FALSE.
@@ -1151,7 +1213,6 @@ end if
         ! Take current value as average between points
         do k = 2, nk
             var_mid = 0.5_wp*(var(k)+var(k-1))
-            if (abs(var_mid) .lt. TOL_UNDERFLOW) var_mid = 0.0_wp 
             var_int = var_int + var_mid*(zeta(k) - zeta(k-1))
         end do
 
@@ -1185,8 +1246,7 @@ end if
         ! Take current value as average between points
         do k = 2, nk
             var_mid = 0.5_wp*(var(k)+var(k-1))
-            if (abs(var_mid) .lt. TOL_UNDERFLOW) var_mid = 0.0_wp 
-            var_int(k:nk) = var_int(k:nk) + 0.5_wp*(var(k)+var(k-1))*(zeta(k) - zeta(k-1))
+            var_int(k:nk) = var_int(k:nk) + var_mid*(zeta(k) - zeta(k-1))
         end do
         
         return
@@ -1259,7 +1319,7 @@ end if
             write ( *, '(a)' ) ' '
             write ( *, '(a)' ) 'SIMPNE - Fatal error!'
             write ( *, '(a)' ) '  NTAB <= 2.'
-            stop 1
+            error stop 1
         end if
      
         n = 1

@@ -15,6 +15,7 @@ module basal_dragging
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes
 
     use topography, only : calc_H_eff 
+    use deformation, only : calc_active_faces
 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy
@@ -28,15 +29,11 @@ module basal_dragging
     ! General functions for beta
     public :: calc_cb_ref 
     public :: calc_c_bed 
+    public :: calc_f_slide
     public :: calc_beta 
     public :: stagger_beta 
+    public :: set_beta_min_grounded
 
-    ! Effective pressure
-    public :: calc_effective_pressure_overburden
-    public :: calc_effective_pressure_marine
-    public :: calc_effective_pressure_till
-    public :: calc_effective_pressure_two_value 
-    
     ! c_bed functions
     public :: calc_lambda_bed_lin
     public :: calc_lambda_bed_exp
@@ -96,7 +93,7 @@ contains
         if (n_sd .le. 0) then 
             write(io_unit_err,*) "calc_cb_ref:: Error: ytill.n_sd must be > 0."
             write(io_unit_err,*) "ytill.n_sd = ", n_sd 
-            stop 
+            error stop 1
         end if 
 
         allocate(cb_ref_samples(n_sd))
@@ -196,7 +193,7 @@ contains
                 write(io_unit_err,*) "calc_cb_ref:: Error: scaling method of cb_ref with &
                     &elevation not recognized."
                 write(io_unit_err,*) "ydyn.till_scale_zb = ", scale_zb 
-                stop 
+                error stop 1
                 
         end select 
         
@@ -268,7 +265,7 @@ contains
                 write(io_unit_err,*) "Error: calc_cb_ref:: Error: scaling method of cb_ref with &
                     &sediment not recognized."
                 write(io_unit_err,*) "ytill.scale_sed = ", scale_sed
-                stop
+                error stop 1
 
         end select
         
@@ -276,27 +273,15 @@ contains
 
     end subroutine calc_cb_ref
     
-    subroutine calc_c_bed(c_bed,cb_ref,N_eff,T_prime_b,is_angle,cf_ref,T_frz,scale_T)
+    subroutine calc_c_bed(c_bed,cb_ref,N_eff,is_angle)
 
         implicit none 
 
         real(wp), intent(OUT) :: c_bed(:,:)         ! [Pa]
         real(wp), intent(IN)  :: cb_ref(:,:)        ! [-] or [degrees]
         real(wp), intent(IN)  :: N_eff(:,:)         ! [Pa]
-        real(wp), intent(IN)  :: T_prime_b(:,:)     ! [degC]
         logical,  intent(IN)  :: is_angle           ! Is cb_ref a till strength angle? 
-        real(wp), intent(IN)  :: cf_ref             ! [-] or [degrees] reference (maximum) friction coefficient
-        real(wp), intent(IN)  :: T_frz              ! [degC] Minimum temperature of temperate range
-        integer,  intent(IN)  :: scale_T            ! Scale up friction for frozen ice?
         
-        ! Local variables
-        integer :: i, j, nx, ny
-        real(wp) :: cf_frz, c_bed_frz
-        real(wp) :: lambda_bed
-
-        nx = size(c_bed,1)
-        ny = size(c_bed,2)
-
         if (is_angle) then 
             ! Transform cb_ref by tangent to make 
             ! c_bed = tau_c == critical bed stress
@@ -305,57 +290,65 @@ contains
 
             c_bed = tan(cb_ref*degrees_to_radians)*N_eff 
 
-            cf_frz = tan(cf_ref*degrees_to_radians)
         else
             ! Treat cb_ref as a normal scalar field
             
             c_bed = cb_ref*N_eff
 
-            cf_frz = cf_ref 
-
         end if 
-
-        ! Additionaly, apply thermodynamic scaling if desired
-        select case(scale_T)
-
-            case(0)
-                ! No scaling with elevation, set reference value 
-                ! Do nothing
-            case(1)
-                ! Linear scaling to cf_ref as temperature approaches T_frz
-                
-                if (T_frz .ge. 0.0) then
-                    write(io_unit_err,*) "Error: calc_c_bed:: T_frz must be less than zero."
-                    write(io_unit_err,*) "ydyn.T_frz = ", T_frz
-                    stop 
-                end if
-
-                do j = 1, ny 
-                do i = 1, nx 
-
-                    ! Get linear scaling as a function of distance from pressure melting point
-                    lambda_bed = (T_prime_b(i,j) - T_frz) / (0.0-T_frz)
-                    if (lambda_bed .lt. 0.0) lambda_bed = 0.0
-                    if (lambda_bed .gt. 1.0) lambda_bed = 1.0 
-
-                    ! Apply scaling to c_bed
-                    c_bed_frz = cf_frz * N_eff(i,j)
-                    c_bed(i,j) = c_bed(i,j)*lambda_bed + c_bed_frz*(1.0 - lambda_bed)
-
-                end do
-                end do
-
-            case DEFAULT
-                write(io_unit_err,*) "Error: calc_cb_ref:: scale_T choice not recognized."
-                write(io_unit_err,*) "ydyn.scale_T = ", scale_T
-                stop
-        end select
 
         return 
 
     end subroutine calc_c_bed
 
-    subroutine calc_beta(beta,c_bed,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,beta_method, &
+    subroutine calc_f_slide(f_slide,T_prime_b,f_ice,f_grnd,W,W_til,frz_efold,frz_min)
+        ! Frozen-bed sliding factor (ydyn.frz_scale): the factor on the sliding
+        ! speed at fixed basal stress, f = frz_min + (1-frz_min)*exp(T'_b/frz_efold),
+        ! following e.g. Fowler (1986); Hindmarsh and Le Meur (2001).
+        ! calc_beta applies it as beta*f**(-q), so frz_efold is the e-folding
+        ! temperature of the sliding speed for any friction law.
+        ! f_slide=1 where the base is not fully grounded ice (partially floating
+        ! cells have a base partly at the ocean temperature) or is wet (W > 0 or
+        ! W_til > 0). Grounded bases next to the ocean can be held temperate in
+        ! the thermodynamics (ytherm.gl_temperate).
+
+        implicit none 
+
+        real(wp), intent(OUT) :: f_slide(:,:)       ! [-]
+        real(wp), intent(IN)  :: T_prime_b(:,:)     ! [degC] Basal homologous temperature
+        real(wp), intent(IN)  :: f_ice(:,:)         ! [-]
+        real(wp), intent(IN)  :: f_grnd(:,:)        ! [-]
+        real(wp), intent(IN)  :: W(:,:)             ! [m] Basal water layer (hyd%now%W)
+        real(wp), intent(IN)  :: W_til(:,:)         ! [m] Till water (hyd%now%W_til)
+        real(wp), intent(IN)  :: frz_efold          ! [K] e-folding temperature of the sliding speed
+        real(wp), intent(IN)  :: frz_min            ! [-] Minimum sliding-speed factor
+
+        ! Local variables
+        integer :: i, j, nx, ny 
+
+        nx = size(f_slide,1)
+        ny = size(f_slide,2)
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_grnd(i,j) .eq. 1.0_wp &
+                        .and. W(i,j) .le. 0.0_wp .and. W_til(i,j) .le. 0.0_wp) then 
+                f_slide(i,j) = frz_min + (1.0_wp-frz_min)*exp(min(T_prime_b(i,j),0.0_wp)/frz_efold)
+            else 
+                f_slide(i,j) = 1.0_wp 
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return 
+
+    end subroutine calc_f_slide
+
+    subroutine calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,beta_method, &
                          beta_const,beta_q,beta_u0,beta_gl_scale,beta_gl_f,H_grnd_lim, &
                          beta_min,rho_ice,rho_sw,boundaries)
 
@@ -365,6 +358,7 @@ contains
         
         real(wp), intent(INOUT) :: beta(:,:) 
         real(wp), intent(IN)    :: c_bed(:,:)  
+        real(wp), intent(IN)    :: f_slide(:,:)         ! [-] Frozen-bed sliding-speed factor (1 where not frozen grounded ice)
         real(wp), intent(IN)    :: ux_b(:,:) 
         real(wp), intent(IN)    :: uy_b(:,:)  
         real(wp), intent(IN)    :: H_ice(:,:) 
@@ -387,16 +381,18 @@ contains
 
         ! Local variables 
         integer :: i, j, nx, ny 
+        real(wp) :: q_frz 
 
         nx = size(beta,1)
         ny = size(beta,2)
 
+        ! beta (aa-nodes) has been defined externally: leave it exactly as given
+        ! (no grounding-line scaling, no zero under floating ice, no lower limit)
+        if (beta_method .eq. -1) return
+
         ! 1. Apply beta method of choice 
         select case(beta_method)
 
-            case(-1)
-                ! beta (aa-nodes) has been defined externally - do nothing
-                
             case(0)
                 ! Constant beta everywhere
 
@@ -406,39 +402,53 @@ contains
                 ! Calculate beta from a linear law (simply set beta=c_bed/u0)
                 ! (use power-plastic function to ensure proper staggering)
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,1.0_wp,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,1.0_wp,beta_u0,boundaries,simple_stagger=.FALSE.)
                 
             case(2)
                 ! Calculate beta from the quasi-plastic power-law as defined by Bueler and van Pelt (2015)
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
                 
             case(3)
                 ! Calculate beta from regularized Coulomb law (Joughin et al., GRL, 2019)
 
-                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
+                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.FALSE.)
             
             case(4) 
                 ! Calculate beta from the quasi-plastic power-law as defined by Bueler and van Pelt (2015)
                 ! Use simple-staggering to aa-nodes - useful for Schoof (2006) slab test.
 
-                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
+                call calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
             
             case(5)
                 ! Calculate beta from regularized Coulomb law (Joughin et al., GRL, 2019)
 
-                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
+                call calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,beta_q,beta_u0,boundaries,simple_stagger=.TRUE.)
 
             case DEFAULT 
                 ! Not recognized 
 
                 write(*,*) "calc_beta:: Error: beta_method not recognized."
                 write(*,*) "beta_method = ", beta_method
-                stop 
+                error stop 1
 
         end select 
 
-        ! 2. Scale beta as it approaches grounding line 
+        ! 2. Reduce sliding where the base is below the pressure melting point,
+        ! on aa-nodes before staggering, like any other spatial variation of friction.
+        ! beta*f**(-q) scales the sliding speed by f at fixed basal stress for the
+        ! linear and power-plastic laws (and for the regularized Coulomb law at
+        ! u_b << u0; at u_b >> u0 its yield stress becomes c_bed*f**(-q)).
+        ! Partially floating cells have f_slide=1 (calc_f_slide).
+        select case(beta_method)
+            case(0,1)
+                q_frz = 1.0_wp
+            case DEFAULT
+                q_frz = beta_q
+        end select
+        beta = beta * f_slide**(-q_frz)
+
+        ! 3. Scale beta as it approaches grounding line 
         select case(beta_gl_scale) 
 
             case(0) 
@@ -469,16 +479,22 @@ contains
 
                 write(*,*) "calc_beta:: Error: beta_gl_scale not recognized."
                 write(*,*) "beta_gl_scale = ", beta_gl_scale
-                stop 
+                error stop 1
 
         end select 
 
-        ! 3. Ensure beta==0 for purely floating ice 
+        ! 4. Ensure beta==0 for purely floating ice 
         ! Note: assume a binary f_grnd_aa, this does not affect any subgrid gl parameterization
         ! that may be applied during the staggering step.
 
         !  Simply set beta to zero where purely floating
-        where (f_grnd .eq. 0.0) beta = 0.0 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            if (f_grnd(i,j) .eq. 0.0) beta(i,j) = 0.0 
+        end do 
+        end do 
+        !$omp end parallel do
         
 
         ! Apply additional condition for particular experiments
@@ -510,7 +526,13 @@ contains
         end select
 
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
-        where(beta .gt. 0.0 .and. beta .lt. beta_min) beta = beta_min 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny 
+        do i = 1, nx
+            if (beta(i,j) .gt. 0.0 .and. beta(i,j) .lt. beta_min) beta(i,j) = beta_min 
+        end do 
+        end do 
+        !$omp end parallel do
 
 
         ! ================================================================
@@ -523,7 +545,8 @@ contains
 
     end subroutine calc_beta
 
-    subroutine stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,beta_gl_stag,beta_min,boundaries)
+    subroutine stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux,uy,f_grnd,f_grnd_acx,f_grnd_acy,beta_gl_stag,beta_min, &
+                                                                                            limit_beta,boundaries)
 
         implicit none 
 
@@ -539,10 +562,11 @@ contains
         real(wp), intent(IN)    :: f_grnd_acy(:,:) 
         integer,  intent(IN)    :: beta_gl_stag 
         real(wp), intent(IN)    :: beta_min 
+        logical,  intent(IN)    :: limit_beta       ! Apply the lower limit beta_min (not to an imposed beta)
         character(len=*), intent(IN) :: boundaries 
 
         ! Local variables 
-        integer :: nx, ny 
+        integer :: i, j, nx, ny 
 
         nx = size(beta_acx,1)
         ny = size(beta_acx,2) 
@@ -560,11 +584,10 @@ contains
             ! Modify beta at the grounding line 
             select case(beta_gl_stag) 
      
-                case(-1,0) 
+                case(0) 
 
-                    ! Do nothing, staggering has already been computed properly 
-                    ! -1: beta_acx and beta_acy have been defined externally 
-                    !  0: beta_acx and beta_acy have been defined with simple staggering above 
+                    ! Do nothing, beta_acx and beta_acy have been defined
+                    ! with simple staggering above 
 
                 case(1) 
                     ! Apply upstream beta_aa value at ac-node with at least one neighbor H_grnd_aa > 0
@@ -593,249 +616,135 @@ contains
 
                     write(*,*) "stagger_beta:: Error: beta_gl_stag not recognized."
                     write(*,*) "beta_gl_stag = ", beta_gl_stag
-                    stop 
+                    error stop 1
 
             end select 
 
+            ! Note: periodic directions need no treatment here, since the
+            ! staggering above uses BC-aware (wrapped) neighbor indices.
+            ! An imposed beta_acx/acy (beta_gl_stag=-1) is left as given.
+
+            ! x-direction borders
+            select case(trim(boundaries))
+
+                case("infinite","MISMIP3D","mask")
+
+                    beta_acx(1,:)    = beta_acx(2,:)
+                    beta_acx(nx-1,:) = beta_acx(nx-2,:)
+                    beta_acx(nx,:)   = beta_acx(nx-2,:)
+
+                    beta_acy(1,:)    = beta_acy(2,:)
+                    beta_acy(nx,:)   = beta_acy(nx-1,:)
+
+            end select
+
+            ! y-direction borders (MISMIP3D is periodic in y)
+            select case(trim(boundaries))
+
+                case("infinite","mask")
+
+                    beta_acx(:,1)    = beta_acx(:,2)
+                    beta_acx(:,ny)   = beta_acx(:,ny-1)
+
+                    beta_acy(:,1)    = beta_acy(:,2)
+                    beta_acy(:,ny-1) = beta_acy(:,ny-2)
+                    beta_acy(:,ny)   = beta_acy(:,ny-2)
+
+            end select
+
         end if 
 
-        ! Note: periodic directions need no treatment here, since the
-        ! staggering above uses BC-aware (wrapped) neighbor indices.
-
-        ! x-direction borders
-        select case(trim(boundaries))
-
-            case("infinite","MISMIP3D","mask")
-
-                beta_acx(1,:)    = beta_acx(2,:)
-                beta_acx(nx-1,:) = beta_acx(nx-2,:)
-                beta_acx(nx,:)   = beta_acx(nx-2,:)
-
-                beta_acy(1,:)    = beta_acy(2,:)
-                beta_acy(nx,:)   = beta_acy(nx-1,:)
-
-        end select
-
-        ! y-direction borders (MISMIP3D is periodic in y)
-        select case(trim(boundaries))
-
-            case("infinite","mask")
-
-                beta_acx(:,1)    = beta_acx(:,2)
-                beta_acx(:,ny)   = beta_acx(:,ny-1)
-
-                beta_acy(:,1)    = beta_acy(:,2)
-                beta_acy(:,ny-1) = beta_acy(:,ny-2)
-                beta_acy(:,ny)   = beta_acy(:,ny-2)
-
-        end select
-
         ! Finally ensure that beta for grounded ice is higher than the lower allowed limit
-        where(beta_acx .gt. 0.0 .and. beta_acx .lt. beta_min) beta_acx = beta_min 
-        where(beta_acy .gt. 0.0 .and. beta_acy .lt. beta_min) beta_acy = beta_min 
+        if (limit_beta) then
+            !$omp parallel do collapse(2) private(i,j)
+            do j = 1, ny 
+            do i = 1, nx
+                if (beta_acx(i,j) .gt. 0.0 .and. beta_acx(i,j) .lt. beta_min) beta_acx(i,j) = beta_min 
+                if (beta_acy(i,j) .gt. 0.0 .and. beta_acy(i,j) .lt. beta_min) beta_acy(i,j) = beta_min 
+            end do 
+            end do 
+            !$omp end parallel do
+        end if
         
         return 
 
     end subroutine stagger_beta
 
-    elemental function calc_effective_pressure_overburden(H_ice,f_ice,f_grnd,rho_ice,g) result(N_eff)
-        ! Effective pressure as overburden pressure N_eff = rho*g*H_ice 
+    subroutine set_beta_min_grounded(beta_acx,beta_acy,ssa_mask_acx,ssa_mask_acy,beta_min,boundaries)
+        ! Friction used by the SSA matrix (beta_acx/acy for SSA, beta_eff_acx/acy for DIVA):
+        ! set beta=beta_min on grounded faces (ssa_mask=1) with beta=0, so that the
+        ! diagnosed basal stress (beta*u) equals the friction the matrix uses.
+        ! Applies to every beta_method (also an imposed beta).
 
-        implicit none 
+        implicit none
 
-        real(wp), intent(IN) :: H_ice 
-        real(wp), intent(IN) :: f_ice
-        real(wp), intent(IN) :: f_grnd 
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        real(wp) :: N_eff                 ! [Pa]
+        real(wp), intent(INOUT) :: beta_acx(:,:)
+        real(wp), intent(INOUT) :: beta_acy(:,:)
+        integer,  intent(IN)    :: ssa_mask_acx(:,:)
+        integer,  intent(IN)    :: ssa_mask_acy(:,:)
+        real(wp), intent(IN)    :: beta_min
+        character(len=*), intent(IN) :: boundaries
 
-        ! Local variables 
-        real(wp) :: H_eff 
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: n_grnd_x, n_grnd_y, n_beta_x, n_beta_y
+        logical :: per_x, per_y
 
-        ! Get effective ice thickness 
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
+        nx = size(beta_acx,1)
+        ny = size(beta_acx,2)
 
-        ! Calculate effective pressure [Pa] (overburden pressure)
-        ! Set N_eff to zero for purely floating points, but do not
-        ! scale grounding-line points by f_grnd. This is done on
-        ! the beta-staggering step.
-        if (f_grnd .gt. 0.0) then
-            N_eff = (rho_ice*g*H_eff)
-        else
-            N_eff = 0.0 
-        end if 
+        ! Consistency check: count grounded faces (and those with beta > 0) whose
+        ! momentum equation is solved, i.e. not on a non-periodic domain border
+        ! (border rows of the residual assembler do not use beta)
+        select case(trim(boundaries))
+            case("periodic")
+                per_x = .TRUE.;  per_y = .TRUE.
+            case("periodic-x")
+                per_x = .TRUE.;  per_y = .FALSE.
+            case("periodic-y","MISMIP3D","TROUGH")
+                per_x = .FALSE.; per_y = .TRUE.
+            case DEFAULT
+                per_x = .FALSE.; per_y = .FALSE.
+        end select
 
-        return 
+        n_grnd_x = 0
+        n_beta_x = 0
+        n_grnd_y = 0
+        n_beta_y = 0
 
-    end function calc_effective_pressure_overburden
+        do j = 1, ny
+        do i = 1, nx
+            if (.not. per_x .and. (i .eq. 1 .or. i .eq. nx)) cycle
+            if (.not. per_y .and. (j .eq. 1 .or. j .eq. ny)) cycle
+            if (ssa_mask_acx(i,j) .eq. 1) then
+                n_grnd_x = n_grnd_x + 1
+                if (beta_acx(i,j) .gt. 0.0_wp) n_beta_x = n_beta_x + 1
+            end if
+            if (ssa_mask_acy(i,j) .eq. 1) then
+                n_grnd_y = n_grnd_y + 1
+                if (beta_acy(i,j) .gt. 0.0_wp) n_beta_y = n_beta_y + 1
+            end if
+        end do
+        end do
 
-    elemental function calc_effective_pressure_marine(H_ice,f_ice,z_bed,z_sl,H_w,p,rho_ice,rho_sw,g) result(N_eff)
-        ! Effective pressure as a function of connectivity to the ocean
-        ! as defined by Leguy et al. (2014), Eq. 14, and modified
-        ! by Robinson and Alvarez-Solas to account for basal water pressure (to do!)
+        if ( (n_grnd_x .gt. 0 .and. n_beta_x .eq. 0) .or. &
+             (n_grnd_y .gt. 0 .and. n_beta_y .eq. 0) ) then
+            ! No inner grounded points found with a non-zero beta,
+            ! something was not well-defined/well-initialized, give a warning
+            ! with some statistics. beta=beta_min is used for these points.
+            write(*,*)
+            write(*,"(a)") "set_beta_min_grounded:: Warning: beta appears to be zero everywhere for grounded ice."
+            write(*,*) "inner grounded acx faces: ", n_grnd_x, ", with beta_acx > 0: ", n_beta_x
+            write(*,*) "inner grounded acy faces: ", n_grnd_y, ", with beta_acy > 0: ", n_beta_y
+            write(*,*)
+        end if
 
-        ! Note: input is for a given point, should be on central aa-nodes
-        ! or shifted to ac-nodes before entering this routine 
-
-        implicit none 
-
-        real(wp), intent(IN) :: H_ice 
-        real(wp), intent(IN) :: f_ice 
-        real(wp), intent(IN) :: z_bed 
-        real(wp), intent(IN) :: z_sl 
-        real(wp), intent(IN) :: H_w 
-        real(wp), intent(IN) :: p       ! [0:1], 0: no ocean connectivity, 1: full ocean connectivity
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: rho_sw
-        real(wp), intent(IN) :: g
-        
-        real(wp) :: N_eff               ! [Pa]
-
-        ! Local variables 
-        real(wp) :: H_eff  
-        real(wp) :: H_float     ! Maximum ice thickness to allow floating ice
-        real(wp) :: p_w         ! Pressure of water at the base of the ice sheet
-        real(wp) :: x 
-        real(wp) :: rho_sw_ice 
-
-        rho_sw_ice = rho_sw/rho_ice 
-
-        ! Determine the maximum ice thickness to allow floating ice
-        H_float = max(0.0_wp, rho_sw_ice*(z_sl-z_bed))
-
-        ! Get effective ice thickness 
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-        ! Calculate basal water pressure 
-        if (H_eff .eq. 0.0) then
-            ! No water pressure for ice-free points
-
-            p_w = 0.0 
-
-        else if (H_eff .lt. H_float) then 
-            ! Floating ice: water pressure equals ice pressure 
-
-            p_w   = (rho_ice*g*H_eff)
-
-        else
-            ! Determine water pressure based on marine connectivity (Leguy et al., 2014, Eq. 14)
-
-            x     = min(1.0_wp, H_float/H_eff)
-            p_w   = (rho_ice*g*H_eff)*(1.0_wp - (1.0_wp-x)**p)
-
-        end if 
-
-        ! Calculate effective pressure [Pa] (overburden pressure minus basal water pressure)
-        ! Note: this will set N_eff to zero for purely floating points, but do not
-        ! scale grounding-line points by f_grnd. This is done on
-        ! the beta-staggering step.
-        N_eff = (rho_ice*g*H_eff) - p_w 
-
-        return 
-
-    end function calc_effective_pressure_marine
-
-    elemental subroutine calc_effective_pressure_till(N_eff,H_w,H_ice,f_ice,f_grnd,H_w_max,N0,delta,e0,Cc,rho_ice,g)
-        ! Calculate the effective pressure of the till
-        ! following van Pelt and Bueler (2015), Eq. 23.
-        
-        implicit none 
-        
-        real(wp), intent(OUT) :: N_eff              ! [Pa] Effective pressure 
-        real(wp), intent(IN)  :: H_w
-        real(wp), intent(IN)  :: H_ice
-        real(wp), intent(IN)  :: f_ice 
-        real(wp), intent(IN)  :: f_grnd  
-        real(wp), intent(IN)  :: H_w_max            ! [m] Maximum allowed water depth 
-        real(wp), intent(IN)  :: N0                 ! [Pa] Reference effective pressure 
-        real(wp), intent(IN)  :: delta              ! [--] Fraction of overburden pressure for saturated till
-        real(wp), intent(IN)  :: e0                 ! [--] Reference void ratio at N0 
-        real(wp), intent(IN)  :: Cc                 ! [--] Till compressibility 
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        
-        ! Local variables  
-        real(wp) :: H_eff
-        real(wp) :: P0, s 
-        real(wp) :: q1 
-
-        if (f_grnd .eq. 0.0_wp) then 
-            ! No effective pressure at base for floating ice
-        
-            N_eff = 0.0_wp 
-
-        else 
-
-            ! Get effective ice thickness 
-            call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-            ! Get overburden pressure 
-            P0 = rho_ice*g*H_eff
-
-            ! Get ratio of water layer thickness to maximum
-            s  = min(H_w/H_w_max,1.0)  
-
-            ! Calculate exponent in expression 
-            q1 = (e0/Cc)*(1-s)
-
-            ! Limit exponent to reasonable values to avoid an explosion 
-            ! (eg s=1, e0=0.52, Cc=0.014 => q1=37,14)
-            q1 = min(q1,10.0_wp) 
-
-            ! Calculate the effective pressure in the till [Pa] (van Pelt and Bueler, 2015, Eq. 23-24)
-            ! Note: do not scale grounding-line points by f_grnd. This is done on
-            ! the beta-staggering step.
-            N_eff = min( N0*(delta*P0/N0)**s * 10**q1, P0 ) 
-
-        end if  
-
-        return 
-
-    end subroutine calc_effective_pressure_till
-    
-    elemental subroutine calc_effective_pressure_two_value(N_eff,f_pmp,H_ice,f_ice,f_grnd,delta,rho_ice,g)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: N_eff
-        real(wp), intent(IN)  :: f_pmp 
-        real(wp), intent(IN)  :: H_ice 
-        real(wp), intent(IN)  :: f_ice 
-        real(wp), intent(IN)  :: f_grnd 
-        real(wp), intent(IN)  :: delta
-        real(wp), intent(IN) :: rho_ice 
-        real(wp), intent(IN) :: g
-        
-        ! Local variables 
-        real(wp) :: H_eff
-        real(wp) :: P0, P1
-
-        if (f_grnd .eq. 0.0_wp) then 
-            ! No effective pressure at base for purely floating ice
-        
-            N_eff = 0.0_wp 
-
-        else 
-
-            ! Get effective ice thickness 
-            call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-            ! Get overburden pressure 
-            P0 = rho_ice*g*H_eff
-
-            ! Calculate reduced pressure assuming full application of delta
-            P1 = P0 * delta 
-
-            ! Calculate effective pressure as a weighted average of 
-            ! P0 and P1 via f_pmp 
-            N_eff = P0*(1.0_wp-f_pmp) + P1*f_pmp
-            
-        end if  
+        where (ssa_mask_acx .eq. 1 .and. beta_acx .eq. 0.0_wp) beta_acx = beta_min
+        where (ssa_mask_acy .eq. 1 .and. beta_acy .eq. 0.0_wp) beta_acy = beta_min
 
         return
 
-    end subroutine calc_effective_pressure_two_value
+    end subroutine set_beta_min_grounded
 
     elemental function calc_lambda_bed_lin(z_bed,z_sl,z0,z1) result(lambda)
         ! Calculate scaling function: linear 
@@ -896,7 +805,7 @@ contains
     !
     ! ================================================================================
 
-    subroutine calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,q,u_0,boundaries,simple_stagger)
+    subroutine calc_beta_aa_power_plastic(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,q,u_0,boundaries,simple_stagger)
         ! Calculate basal friction coefficient (beta) that
         ! enters the SSA solver as a function of basal velocity
         ! using a power-law form following Bueler and van Pelt (2015)
@@ -908,6 +817,7 @@ contains
         real(wp), intent(IN)  :: uy_b(:,:)        ! ac-nodes
         real(wp), intent(IN)  :: c_bed(:,:)       ! aa-nodes
         real(wp), intent(IN)  :: f_ice(:,:)       ! aa-nodes
+        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
         real(wp), intent(IN)  :: q
         real(wp), intent(IN)  :: u_0              ! [m/a] 
         character(len=*), intent(IN) :: boundaries 
@@ -926,13 +836,15 @@ contains
         real(wp), parameter :: ub_min    = 1e-3_wp          ! [m/yr] Minimum velocity is positive small value to avoid divide by zero
         real(wp), parameter :: ub_sq_min = ub_min**2
 
-        type(gq2D_class) :: gq2D
+        type(gq2D_class) :: gq2D, gq2D_global
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
+        logical, allocatable :: act_aa(:,:)
 
         ! Initialize gaussian quadrature calculations
-        call gq2D_init(gq2D)
+        call gq2D_init(gq2D_global)
         dx_tmp = 1.0
         dy_tmp = 1.0 
 
@@ -942,9 +854,24 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
+        ! Cells where c_bed is defined (grounded ice): only these enter the
+        ! corner means of c_bed (floating and ice-free cells have c_bed = 0)
+        allocate(act_aa(nx,ny))
+        act_aa = (f_ice .eq. 1.0_wp .and. f_grnd .gt. 0.0_wp)
+
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
         
+        !$omp parallel private(i,j,im1,ip1,jm1,jp1,cbn,uxn,uyn,uxyn,betan,uxy_b,gq2D) &
+        !$omp& shared(gq2D_global)
+        gq2D = gq2D_global
+
+        !$omp do collapse(2) schedule(dynamic,64) 
         do j = 1, ny
         do i = 1, nx
 
@@ -968,11 +895,11 @@ contains
                     
                     ! Get c_bed on nodes
                     
-                    call gq2D_to_nodes_aa(gq2D,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_aa(gq2D,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_aa)
                     !cbn(1:4) = c_bed(i,j)
 
-                    call gq2D_to_nodes_acx(gq2D,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2D,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2D,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2D,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 end if 
                 
@@ -992,12 +919,14 @@ contains
 
         end do
         end do
+        !$omp end do
+        !$omp end parallel
 
         return
         
     end subroutine calc_beta_aa_power_plastic
 
-    subroutine calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,q,u_0,boundaries,simple_stagger)
+    subroutine calc_beta_aa_reg_coulomb(beta,ux_b,uy_b,c_bed,f_ice,f_grnd,q,u_0,boundaries,simple_stagger)
         ! Calculate basal friction coefficient (beta) that
         ! enters the SSA solver as a function of basal velocity
         ! using a regularized Coulomb friction law following
@@ -1013,6 +942,7 @@ contains
         real(wp), intent(IN)  :: uy_b(:,:)        ! ac-nodes
         real(wp), intent(IN)  :: c_bed(:,:)       ! aa-nodes
         real(wp), intent(IN)  :: f_ice(:,:)       ! aa-nodes
+        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
         real(wp), intent(IN)  :: q
         real(wp), intent(IN)  :: u_0              ! [m/a] 
         character(len=*), intent(IN) :: boundaries 
@@ -1036,6 +966,8 @@ contains
         real(wp) :: dx_tmp, dy_tmp
 
         integer  :: BC
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
+        logical, allocatable :: act_aa(:,:)
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
@@ -1047,6 +979,16 @@ contains
         
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
+        ! Cells where c_bed is defined (grounded ice): only these enter the
+        ! corner means of c_bed (floating and ice-free cells have c_bed = 0)
+        allocate(act_aa(nx,ny))
+        act_aa = (f_ice .eq. 1.0_wp .and. f_grnd .gt. 0.0_wp)
 
         ! Initially set friction to zero everywhere
         beta = 0.0_wp 
@@ -1078,11 +1020,11 @@ contains
                 else
                     ! Get c_bed on nodes
                     
-                    call gq2D_to_nodes_aa(gq2d,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_aa(gq2d,cbn,c_bed,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_aa)
                     !cbn(1:4) = c_bed(i,j) 
 
-                    call gq2D_to_nodes_acx(gq2d,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn,ux_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2d,uyn,uy_b,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 end if 
                 
@@ -1142,7 +1084,7 @@ contains
         if (f_gl .lt. 0.0 .or. f_gl .gt. 1.0) then 
             write(*,*) "scale_beta_gl_fraction:: Error: f_gl must be between 0 and 1."
             write(*,*) "f_gl = ", f_gl
-            stop 
+            error stop 1
         end if 
        
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
@@ -1191,9 +1133,10 @@ contains
         if (H_grnd_lim .le. 0.0) then 
             write(*,*) "scale_beta_aa_Hgrnd:: Error: H_grnd_lim must be positive."
             write(*,*) "H_grnd_lim = ", H_grnd_lim
-            stop 
+            error stop 1
         end if 
          
+        !$omp parallel do collapse(2) private(i,j,f_scale)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1203,6 +1146,7 @@ contains
 
         end do 
         end do  
+        !$omp end parallel do
 
         return
         
@@ -1235,7 +1179,7 @@ contains
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
 
-        ! acx-nodes 
+        !$omp parallel do collapse(2) private(i,j,H_eff,f_scale)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1260,6 +1204,7 @@ contains
 
         end do 
         end do  
+        !$omp end parallel do
 
         return
         
@@ -1297,6 +1242,7 @@ contains
         BC = boundary_code(boundaries)
 
         ! === Stagger to ac-nodes === 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1343,6 +1289,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
         
         return
         
@@ -1378,6 +1325,7 @@ contains
 
         ! === Stagger to ac-nodes === 
 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1410,6 +1358,7 @@ contains
 
         end do 
         end do
+        !$omp end parallel do
 
         return
         
@@ -1446,6 +1395,7 @@ contains
         ! === Stagger to ac-nodes === 
 
         ! acx-nodes
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1478,6 +1428,7 @@ contains
             
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
@@ -1514,6 +1465,7 @@ contains
         BC = boundary_code(boundaries)
 
         ! Apply simple staggering to ac-nodes
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,wt)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1558,6 +1510,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
@@ -1596,6 +1549,7 @@ contains
 
         ! Apply simple staggering to ac-nodes
 
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,ux_aa_a,ux_aa_b,uy_aa_a,uy_aa_b)
         do j = 1, ny 
         do i = 1, nx
 
@@ -1656,6 +1610,7 @@ contains
 
         end do 
         end do 
+        !$omp end parallel do
 
         return
         
@@ -1783,7 +1738,7 @@ contains
 
         if (f_np .lt. 0.0 .or. f_np .gt. 1.0) then 
             write(*,*) "calc_l14_scalar:: f_np out of bounds: f_np = ", f_np 
-            stop 
+            error stop 1
         end if 
 
         return 

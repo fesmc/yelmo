@@ -1,22 +1,20 @@
 module velocity_diva
 
-    use yelmo_defs, only  : sp, dp, prec, wp, pi, TOL, TOL_UNDERFLOW, is_equal
+    use yelmo_defs, only  : sp, dp, prec, wp, pi, TOL, TOL_UNDERFLOW
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, &
                     integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
 
-    use deformation, only : calc_strain_rate_horizontal_2D
+    use deformation, only : calc_strain_rate_horizontal_2D, calc_active_faces
     use basal_dragging
     use solver_ssa_ac
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
     use solver_linear
-    use velocity_general, only : set_inactive_margins, &
+    use velocity_general, only : set_inactive_margins, calc_visc_eff_int, &
                         picard_calc_error, picard_calc_error_angle,  &
                         picard_relax_vel, picard_relax_visc, &
                         picard_calc_convergence_l1rel_matrix, picard_calc_convergence_l2 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
-                                    gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
-                                    gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
-                                    gq3D_to_nodes_acx, gq3D_to_nodes_acy
+                                    gq2D_to_nodes_acx, gq2D_to_nodes_acy
 
     !$  use omp_lib
 
@@ -26,9 +24,7 @@ module velocity_diva
 
         character(len=56)  :: ssa_solver        ! "residual" | "energy"
         character(len=256) :: ssa_lis_opt
-        character(len=256) :: ssa_lateral_bc
         character(len=256) :: boundaries 
-        character(len=256) :: glf_method 
         logical  :: no_slip 
         integer  :: visc_method
         real(wp) :: visc_const
@@ -42,6 +38,8 @@ module velocity_diva
         real(wp) :: H_grnd_lim 
         real(wp) :: beta_min                ! Minimum allowed value of beta
         real(wp) :: eps_0 
+        character(len=56) :: ssa_vel_lim_method ! "clip" | "drag"
+        real(wp) :: ssa_vel_lim_tau         ! [Pa] Speed-limit drag at ssa_vel_max ("drag")
         real(wp) :: ssa_vel_max
         integer  :: ssa_iter_max 
         real(wp) :: ssa_iter_rel 
@@ -51,9 +49,6 @@ module velocity_diva
         real(wp) :: rho_ice 
         real(wp) :: rho_sw 
         real(wp) :: g 
-
-        real(wp) :: glf_Q0                  ! Q0=0.61_wp
-        real(wp) :: glf_f_drag              ! f_drag=0.6_wp
     end type
 
     private
@@ -62,18 +57,12 @@ module velocity_diva
 
 contains
     
-    ! Variables/params needed for gl-flux methods
-    ! qq_gl_acx 
-    ! qq_gl_acy 
-    ! ATT_bar 
-    ! 
-    
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
                                   beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
-                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now, &
-                                  c_bed,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
+                                  ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n, &
+                                  c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
-                                  f_grnd_acx,f_grnd_acy,mask_frnt,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par)
+                                  f_grnd_acx,f_grnd_acy,ATT,zeta_aa,z_sl,z_bed,z_srf,dx,dy,n_glen,par,neff_hook)
         ! This subroutine is used to solve the horizontal velocity system (ux,uy)
         ! following the Depth-Integrated Viscosity Approximation (DIVA),
         ! as outlined by Lipscomb et al. (2019). Method originally 
@@ -106,7 +95,19 @@ contains
         real(wp), intent(OUT)   :: ssa_err_acx(:,:)
         real(wp), intent(OUT)   :: ssa_err_acy(:,:)
         integer,  intent(OUT)   :: ssa_iter_now 
-        real(wp), intent(IN)    :: c_bed(:,:)         ! [Pa]
+        integer,  intent(OUT)   :: ssa_lin_iter         ! Linear solver iterations, summed over Picard iterations
+        integer,  intent(OUT)   :: ssa_lin_fail         ! Linear solves that ended at breakdown or the iteration limit
+        integer,  intent(OUT)   :: ssa_lim_n            ! Faces at the velocity limit after the last iteration (count_vel_lim_faces)
+        real(wp), intent(INOUT) :: c_bed(:,:)         ! [Pa] updated in the iteration when neff_hook is present
+        interface
+            subroutine neff_hook(c_bed,ux_b,uy_b)   ! N (and so c_bed) from the current u_b, see calc_ydyn
+                use yelmo_defs, only : wp
+                real(wp), intent(INOUT) :: c_bed(:,:)
+                real(wp), intent(IN)    :: ux_b(:,:), uy_b(:,:)
+            end subroutine neff_hook
+        end interface
+        optional :: neff_hook
+        real(wp), intent(IN)    :: f_slide(:,:)       ! [--] Sub-temperate sliding factor
         real(wp), intent(IN)    :: taud_acx(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taud_acy(:,:)      ! [Pa]
         real(wp), intent(IN)    :: taul_int_acx(:,:)  ! [Pa m]
@@ -117,7 +118,6 @@ contains
         real(wp), intent(IN)    :: f_grnd(:,:)        ! [-]
         real(wp), intent(IN)    :: f_grnd_acx(:,:)    ! [-]
         real(wp), intent(IN)    :: f_grnd_acy(:,:)    ! [-]
-        integer,  intent(IN)    :: mask_frnt(:,:)     ! [-]
         real(wp), intent(IN)    :: ATT(:,:,:)         ! [a^-1 Pa^-n_glen]
         real(wp), intent(IN)    :: zeta_aa(:)         ! [-]
         real(wp), intent(IN)    :: z_sl(:,:)          ! [m]
@@ -134,17 +134,20 @@ contains
 
         real(wp), allocatable :: visc_eff_nm1(:,:,:) 
         real(wp), allocatable :: ux_bar_nm1(:,:) 
+        real(wp), allocatable :: c_bed_nm1(:,:)   ! c_bed of the previous iteration (neff_hook)
         real(wp), allocatable :: uy_bar_nm1(:,:)  
         real(wp), allocatable :: beta_eff_acx(:,:)
         real(wp), allocatable :: beta_eff_acy(:,:)  
+        real(wp), allocatable :: lim_k_acx(:,:)       ! [Pa yr m^-1] Linearised speed-limit drag, friction
+        real(wp), allocatable :: lim_k_acy(:,:)
+        real(wp), allocatable :: lim_r_acx(:,:)       ! [Pa] Linearised speed-limit drag, offset
+        real(wp), allocatable :: lim_r_acy(:,:)
         real(wp), allocatable :: F2(:,:)              ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acx(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
         real(wp), allocatable :: F2_acy(:,:)          ! [Pa^-1 a^-1 m == (Pa a/m)^-1]
 
         real(wp) :: L2_norm 
         real(wp) :: ssa_resid 
-
-        integer  :: ntot, ip1, jp1  
 
         logical, parameter :: write_ssa_diagnostics      = .FALSE. 
         logical, parameter :: write_ssa_diagnostics_stop = .FALSE.   ! Stop simulation after completing iterations?
@@ -161,6 +164,14 @@ contains
         allocate(uy_bar_nm1(nx,ny))
         allocate(beta_eff_acx(nx,ny))
         allocate(beta_eff_acy(nx,ny))
+        allocate(lim_k_acx(nx,ny))
+        allocate(lim_k_acy(nx,ny))
+        allocate(lim_r_acx(nx,ny))
+        allocate(lim_r_acy(nx,ny))
+        lim_k_acx = 0.0_wp
+        lim_k_acy = 0.0_wp
+        lim_r_acx = 0.0_wp
+        lim_r_acy = 0.0_wp
         allocate(F2(nx,ny))
         allocate(F2_acx(nx,ny))
         allocate(F2_acy(nx,ny))
@@ -177,15 +188,34 @@ contains
             call ssa_diagnostics_write_init("yelmo_ssa.nc",nx,ny,time_init=1.0_wp)
         end if 
 
-        ! Initialize linear solver variables for current and previous iteration
+        ! Initialize linear solver variables
         call linear_solver_init(lgs_now,nx,ny,nvar=2,n_terms=9)
+
+        ssa_lin_iter = 0
+        ssa_lin_fail = 0
 
         do iter = 1, par%ssa_iter_max 
 
             ! Store solution from previous iteration (nm1 == n minus 1) 
-            visc_eff_nm1 = visc_eff
-            ux_bar_nm1   = ux_bar 
-            uy_bar_nm1   = uy_bar 
+            !$omp parallel private(i,j,k)
+            !$omp do collapse(2)
+            do k = 1, nz_aa
+            do j = 1, ny
+            do i = 1, nx
+                visc_eff_nm1(i,j,k) = visc_eff(i,j,k)
+            end do
+            end do
+            end do
+            !$omp end do nowait
+            !$omp do collapse(2)
+            do j = 1, ny
+            do i = 1, nx
+                ux_bar_nm1(i,j) = ux_bar(i,j)
+                uy_bar_nm1(i,j) = uy_bar(i,j)
+            end do
+            end do
+            !$omp end do
+            !$omp end parallel
             
             ! =========================================================================================
             ! Step 1: Calculate fields needed by ssa solver (visc_eff_int, beta_eff)
@@ -219,7 +249,7 @@ contains
 
                     write(*,*) "calc_velocity_diva:: Error: visc_method not recognized."
                     write(*,*) "visc_method = ", par%visc_method 
-                    stop 
+                    error stop 1
 
             end select
             
@@ -228,10 +258,10 @@ contains
             
             ! Calculate depth-integrated effective viscosity
             ! Note L19 uses eta_bar*H in the ssa equation. Yelmo uses eta_int=eta_bar*H directly.
-            call calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa,par%boundaries)
+            call calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
             
             ! Calculate beta (at the ice base)
-            call calc_beta(beta,c_bed,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
+            call calc_beta(beta,c_bed,f_slide,ux_b,uy_b,H_ice,f_ice,H_grnd,f_grnd,z_bed,z_sl,par%beta_method, &
                                 par%beta_const,par%beta_q,par%beta_u0,par%beta_gl_scale,par%beta_gl_f, &
                                 par%H_grnd_lim,par%beta_min,par%rho_ice,par%rho_sw,par%boundaries)
 
@@ -241,13 +271,24 @@ contains
 
             ! Stagger beta 
             call stagger_beta(beta_acx,beta_acy,beta,H_ice,f_ice,ux_bar,uy_bar, &
-                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min,par%boundaries)
+                        f_grnd,f_grnd_acx,f_grnd_acy,par%beta_gl_stag,par%beta_min, &
+                        par%beta_method .ne. -1 .and. par%beta_gl_stag .ne. -1,par%boundaries)
             
             ! Calculate effective beta on ac-nodes from staggered beta and F2 (as in L19),
             ! so that ub = ubar/(1+beta*F2) and taub = beta*ub hold on each ac-node.
-            ! Note: beta_min applies to beta (via stagger_beta), not to beta_eff.
             call calc_beta_eff(beta_eff_acx,beta_acx,F2_acx,no_slip=par%no_slip)
             call calc_beta_eff(beta_eff_acy,beta_acy,F2_acy,no_slip=par%no_slip)
+
+            ! Friction used by the matrix (and taub): beta_min at grounded faces with beta_eff=0
+            call set_beta_min_grounded(beta_eff_acx,beta_eff_acy,ssa_mask_acx,ssa_mask_acy,par%beta_min,par%boundaries)
+
+            ! Speed-limit drag, linearised around the current iterate
+            ! (kept out of beta and taud, so that taub and taud do not include it)
+            if (trim(par%ssa_vel_lim_method) .eq. "drag") then
+                call calc_vel_lim_drag(lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy,ux_bar,uy_bar, &
+                                ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                par%ssa_vel_lim_tau,par%boundaries)
+            end if
 
             ! Also calculate beta_eff on aa-nodes (diagnostic output only)
             call calc_beta_eff(beta_eff,beta,F2,no_slip=par%no_slip)
@@ -285,23 +326,35 @@ contains
                 case("energy")
                     ! Symmetric positive-definite Hessian of the SSA energy density (CG/AMG-friendly).
                     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
+                                lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
                 case DEFAULT
                     ! Original Larour-style residual formulation.
                     call linear_solver_matrix_ssa_ac_csr_2D(lgs_now,ux_bar,uy_bar,beta_eff_acx,beta_eff_acy,visc_eff_int,  &
-                                ssa_mask_acx,ssa_mask_acy,mask_frnt,H_ice,f_ice,taud_acx,taud_acy, &
-                                taul_int_acx,taul_int_acy,dx,dy,par%beta_min,par%boundaries,par%ssa_lateral_bc)
+                                ssa_mask_acx,ssa_mask_acy,H_ice,f_ice,z_bed,z_sl,taud_acx,taud_acy, &
+                                taul_int_acx,taul_int_acy,dx,dy,par%boundaries, &
+                                lim_k_acx,lim_k_acy,lim_r_acx,lim_r_acy)
             end select
 
             ! Solve linear equation
             call linear_solver_matrix_solve(lgs_now,par%ssa_lis_opt)
+            ssa_lin_iter = ssa_lin_iter + lgs_now%lin_iter
+            if (lgs_now%status .ne. LGS_SUCCESS) ssa_lin_fail = ssa_lin_fail + 1
             
             ! Save L2_norm locally
             L2_norm = lgs_now%L2_rel_norm 
 
             ! Store velocity solution
-            call linear_solver_save_velocity(ux_bar,uy_bar,lgs_now,par%ssa_vel_max)
+            call linear_solver_save_velocity(ux_bar,uy_bar,lgs_now)
+
+            ! Limit the velocity: each component is clipped at ssa_vel_max, for
+            ! both methods. With "drag" the converged speed stays near 0.8-0.85
+            ! ssa_vel_max and the clip only bounds iterates the drag does not hold:
+            ! below its onset the drag is zero, so ice that nothing else holds can
+            ! jump far above the limit in one solve, and the residual assembler's
+            ! lateral-bc front rows have no drag term.
+            call ssa_vel_clip(ux_bar,uy_bar,par%ssa_vel_max)
 
             ! Apply relaxation to keep things stable
             call picard_relax_vel(ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1,rel=par%ssa_iter_rel)
@@ -312,7 +365,8 @@ contains
             !                                            par%ssa_write_log,use_L2_norm=.FALSE.,L2_norm=L2_norm)
             call picard_calc_convergence_l2(is_converged,ssa_resid,ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1, &
                                                 ssa_mask_acx.gt.0,ssa_mask_acy.gt.0,par%ssa_iter_conv,  &
-                                                iter,par%ssa_iter_max,par%ssa_write_log)
+                                                iter,par%ssa_iter_max,par%ssa_write_log, &
+                                                lgs_now%lin_iter,lgs_now%status)
 
             ! Calculate an L1 error metric over matrix for diagnostics
             call picard_calc_convergence_l1rel_matrix(ssa_err_acx,ssa_err_acy,ux_bar,uy_bar,ux_bar_nm1,uy_bar_nm1)
@@ -336,9 +390,24 @@ contains
             call calc_vel_basal(ux_b,uy_b,ux_bar,uy_bar,F2_acx,F2_acy,taub_acx,taub_acy,par%no_slip)
 
             ! Exit iterations if ssa solution has converged
+            ! Effective pressure that depends on the sliding speed (a steady hydrology such as K24):
+            ! re-evaluate it, and with it c_bed, from this iterations u_b, so the next iterations
+            ! beta uses N consistent with the current velocity. The solve has converged only when
+            ! c_bed has stopped changing too (relative L1 change below ssa_iter_conv), otherwise a
+            ! warm-started solve can exit after one iteration without ever updating N.
+            if (present(neff_hook)) then
+                c_bed_nm1 = c_bed
+                call neff_hook(c_bed,ux_b,uy_b)
+                if (sum(abs(c_bed-c_bed_nm1)) .gt. par%ssa_iter_conv*max(sum(abs(c_bed)),TOL_UNDERFLOW)) is_converged = .FALSE.
+            end if
+
             if (is_converged) exit 
             
         end do 
+
+        ! Diagnostic: number of faces where the velocity limit acts
+        ssa_lim_n = count_vel_lim_faces(ux_bar,uy_bar,ssa_mask_acx,ssa_mask_acy,par%ssa_vel_max, &
+                                        par%ssa_vel_lim_method,par%boundaries)
 
         ! Iterations are finished, finalize calculations of 3D velocity field 
 
@@ -350,10 +419,12 @@ contains
         call calc_vel_horizontal_3D(ux,uy,ux_b,uy_b,taub_acx,taub_acy,visc_eff,H_ice,f_ice,zeta_aa,par%boundaries)
 
         ! Also calculate the shearing contribution
+        !$omp parallel do private(k)
         do k = 1, nz_aa 
             ux_i(:,:,k) = ux(:,:,k) - ux_b 
             uy_i(:,:,k) = uy(:,:,k) - uy_b 
         end do
+        !$omp end parallel do
     
 if (.FALSE.) then
         if (par%visc_method .eq. 0) then 
@@ -411,7 +482,7 @@ end if
         !$omp parallel do collapse(2) private(i,j)
         do j = 1, ny 
         do i = 1, nx 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
                 F1(i,j,:) = integrate_trapezoid1D_1D((H_ice(i,j)/visc_eff(i,j,:))*(1.0_wp-zeta_aa),zeta_aa)
             end if
         end do
@@ -545,34 +616,21 @@ end if
         real(wp) :: ATTn(4)
         real(wp) :: viscn(4)
 
-        real(wp) :: dudxn8(8)
-        real(wp) :: dudyn8(8)
-        real(wp) :: dvdxn8(8)
-        real(wp) :: dvdyn8(8)
-        real(wp) :: dudzn8(8)
-        real(wp) :: dvdzn8(8)
-        real(wp) :: eps_sq_n8(8)
-        real(wp) :: ATTn8(8)
-        real(wp) :: viscn8(8)
-
-        real(wp), allocatable :: dudx(:,:,:) 
-        real(wp), allocatable :: dudy(:,:,:) 
-        real(wp), allocatable :: dvdx(:,:,:) 
-        real(wp), allocatable :: dvdy(:,:,:) 
+        real(wp), allocatable :: dudx(:,:) 
+        real(wp), allocatable :: dudy(:,:) 
+        real(wp), allocatable :: dvdx(:,:) 
+        real(wp), allocatable :: dvdy(:,:) 
         
         real(wp), parameter :: visc_min = 1e5_wp        ! Just for safety 
 
         type(gq2D_class) :: gq2D, gq2D_global
-        type(gq3D_class) :: gq3D, gq3D_global
-        real(wp) :: dz0, dz1
-        integer  :: km1, kp1
-        logical, parameter :: use_gq3D = .FALSE.
 
         integer :: BC
 
+
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
-        if (use_gq3D) call gq3D_init(gq3D_global)
 
         nx = size(visc,1)
         ny = size(visc,2)
@@ -581,10 +639,14 @@ end if
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        allocate(dudx(nx,ny,nz))
-        allocate(dudy(nx,ny,nz))
-        allocate(dvdx(nx,ny,nz))
-        allocate(dvdy(nx,ny,nz))
+        
+        ! Faces with a velocity solution: only these enter the corner means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+        allocate(dudx(nx,ny))
+        allocate(dudy(nx,ny))
+        allocate(dvdx(nx,ny))
+        allocate(dvdy(nx,ny))
 
         ! Calculate exponents
         p1 = (1.0_wp - n_glen)/(2.0_wp*n_glen)
@@ -595,52 +657,38 @@ end if
 
         ! Populate strain rates over the whole domain on acx- and acy-nodes
 
-        call calc_strain_rate_horizontal_2D(dudx(:,:,1),dudy(:,:,1),dvdx(:,:,1),dvdy(:,:,1),ux,uy,f_ice,dx,dy,boundaries)
-
-        ! Populate the remaining layers vertically (used when use_gq3D==.TRUE.)
-        do k = 2, nz
-            dudx(:,:,k) = dudx(:,:,1)
-            dudy(:,:,k) = dudy(:,:,1)
-            dvdx(:,:,k) = dvdx(:,:,1)
-            dvdy(:,:,k) = dvdy(:,:,1)
-        end do
+        call calc_strain_rate_horizontal_2D(dudx,dudy,dvdx,dvdy,ux,uy,f_ice,dx,dy,boundaries)
 
         ! Calculate visc_eff on aa-nodes
 
-        visc = visc_min
-
-        !$omp parallel private(i,j,k,im1,jm1,ip1,jp1,km1,kp1,dudxn,dudyn,dvdxn,dvdyn,dudzn,dvdzn,gq2D,gq3D) &
-        !$omp& private(eps_sq_n,ATTn,viscn,dz0,dz1,dudxn8,dudyn8,dvdxn8,dvdyn8,dudzn8,dvdzn8,eps_sq_n8,ATTn8,viscn8) &
-        !$omp& shared(gq2D_global,gq3D_global) 
-        ! Copy gq2d_global and gq3D_global to thread-local version
+        !$omp parallel private(i,j,k,im1,jm1,ip1,jp1,dudxn,dudyn,dvdxn,dvdyn,dudzn,dvdzn,gq2D) &
+        !$omp& private(eps_sq_n,ATTn,viscn) &
+        !$omp& shared(gq2D_global) 
+        ! Copy gq2d_global to thread-local version
         gq2D = gq2D_global
-        gq3D = gq3D_global
 
-        !$omp do collapse(2)
+        !$omp do collapse(2) schedule(dynamic,64)
         do j = 1, ny  
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
 
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-if (.not. use_gq3D) then 
-    ! 2D QUADRATURE
-
                 ! Get horizontal strain rate terms
                 ! (same for all layers, so just get them once for all layers)
-                call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acx(gq2d,dudyn,dudy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dudxn,dudx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                call gq2D_to_nodes_acx(gq2d,dudyn,dudy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 
-                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
-                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dvdxn,dvdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
 
                 do k = 1, nz
                     
                     ! Get vertical shear strain rate terms
-                    call gq2D_to_nodes_acx(gq2d,dudzn,dudz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,dvdzn,dvdz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,dudzn,dudz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acy(gq2d,dvdzn,dvdz(:,:,k),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     
                     ! Calculate the total effective strain rate from L19, Eq. 21 
                     eps_sq_n = dudxn**2 + dvdyn**2 + dudxn*dvdyn + 0.25_wp*(dudyn+dvdxn)**2 &
@@ -656,53 +704,9 @@ if (.not. use_gq3D) then
 
                 end do
 
-else
-    ! 3D QUADRATURE 
+            else
 
-                do k = 1, nz
-                    
-                    km1 = k-1
-                    kp1 = k+1
-                    if (k .eq. 1)  km1 = 1
-                    if (k .eq. nz) kp1 = nz
-
-                    if (k .gt. 1) then
-                        dz0 = H_ice(i,j)*(zeta_aa(k) - zeta_aa(km1))
-                    else
-                        dz0 = H_ice(i,j)*(zeta_aa(2) - zeta_aa(1))
-                    end if
-
-                    if (k .lt. nz) then
-                        dz1 = H_ice(i,j)*(zeta_aa(kp1) - zeta_aa(k))
-                    else
-                        dz1 = H_ice(i,j)*(zeta_aa(nz) - zeta_aa(nz-1))
-                    end if
-                    
-                    ! Get horizontal strain rate terms
-                    call gq3D_to_nodes_acx(gq3d,dudxn8,dudx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acx(gq3d,dudyn8,dudy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-
-                    call gq3D_to_nodes_acy(gq3d,dvdxn8,dvdx,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,dvdyn8,dvdy,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-
-                    ! Get vertical shear strain rate terms
-                    call gq3D_to_nodes_acx(gq3d,dudzn8,dudz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    call gq3D_to_nodes_acy(gq3d,dvdzn8,dvdz,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    
-                    ! Calculate the total effective strain rate from L19, Eq. 21 
-                    eps_sq_n8 = dudxn8**2 + dvdyn8**2 + dudxn8*dvdyn8 + 0.25_wp*(dudyn8+dvdxn8)**2 &
-                                                + 0.25_wp*dudzn8**2 + 0.25_wp*dvdzn8**2 + eps_0_sq
-
-                    ! Get rate factor
-                    call gq3D_to_nodes_aa(gq3d,ATTn8,ATT,dx,dy,dz0,dz1,i,j,k,im1,ip1,jm1,jp1,km1,kp1)
-                    !ATTn = ATT(i,j,k)
-
-                    ! Calculate effective viscosity on nodes and averaged to center aa-node
-                    viscn8 = 0.5_wp * (eps_sq_n8)**(p1) * ATTn8**(p2)
-                    visc(i,j,k) = sum(viscn8*gq3d%wt)/gq3d%wt_tot
-                end do
-
-end if
+                visc(i,j,:) = visc_min
 
             end if
 
@@ -774,14 +778,14 @@ end if
 
         visc_eff = visc_min
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1, &
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,k,im1,ip1,jm1,jp1, &
         !$omp&   dudx_aa,dvdy_aa,dudy_aa_1,dudy_aa_2,dudy_aa, &
         !$omp&   dvdx_aa_1,dvdx_aa_2,dvdx_aa,duxdz_aa,duydz_aa, &
         !$omp&   eps_sq_aa,ATT_aa)
         do j = 1, ny
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
 
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
@@ -827,53 +831,6 @@ end if
 
     end subroutine calc_visc_eff_3D_aa
 
-    subroutine calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa,boundaries)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: visc_eff_int(:,:)
-        real(wp), intent(IN)  :: visc_eff(:,:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: zeta_aa(:)
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1  
-        real(wp) :: H_now
-        real(wp) :: visc_eff_mean 
-        real(wp) :: wt 
-
-        real(wp), parameter :: visc_min = 1e5_wp
-
-        nx = size(visc_eff_int,1)
-        ny = size(visc_eff_int,2)
-
-        !$omp parallel do collapse(2) private(i,j,visc_eff_mean)
-        do j = 1, ny 
-        do i = 1, nx
-
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then
-                ! Calculate the vertically averaged viscosity for this point
-                visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
-
-                visc_eff_int(i,j) = visc_eff_mean*H_ice(i,j) 
-            else
-                visc_eff_int(i,j) = visc_min 
-            end if 
-
-            ! Avoid very low viscosity values, e.g. when ice thickness is < 1m
-            if (visc_eff_int(i,j) .lt. visc_min) visc_eff_int(i,j) = visc_min 
-
-        end do 
-        end do 
-        !$omp end parallel do
-
-        return
-
-    end subroutine calc_visc_eff_int
-
     subroutine calc_F_integral(F_int,visc,H_ice,f_ice,zeta_aa,n)
         ! Useful integrals, following Arthern et al. (2015) Eq. 7,
         ! and Lipscomb et al. (2019), Eq. 30
@@ -897,14 +854,14 @@ end if
         nz_aa = size(visc,3)
 
         ! Vertically integrate at each point
-        !$omp parallel do collapse(2) private(i,j,H_eff)
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,H_eff)
         do j = 1, ny 
         do i = 1, nx
 
-            if ( is_equal(f_ice(i,j),1.0_wp) ) then 
+            if ( f_ice(i,j) .eq. 1.0_wp ) then 
                 ! Viscosity should be nonzero here, perform integration 
 
-                H_eff = H_ice(i,j) / f_ice(i,j) 
+                H_eff = H_ice(i,j)
                 F_int(i,j) = integrate_trapezoid1D_pt( (H_eff/visc(i,j,:) )*(1.0_wp-zeta_aa)**n,zeta_aa)
 
             else 
@@ -975,25 +932,36 @@ end if
         real(wp), intent(IN)  :: F2(:,:)
         logical,  intent(IN)  :: no_slip 
 
-        if (no_slip) then 
-            ! No basal sliding allowed, impose beta_eff derived from viscosity 
-            ! following L19, Eq. 35 (or G11, Eq. 42)
-            ! F2=0 only where no neighboring cell is fully ice covered (no
-            ! velocity solved, see set_ssa_masks), so no basal stress there.
+        ! Local variables
+        integer :: i, j
 
-            where (F2 .gt. 0.0_wp)
-                beta_eff = 1.0_wp / F2 
-            elsewhere
-                beta_eff = 0.0_wp
-            end where
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(beta_eff,2)
+        do i = 1, size(beta_eff,1)
 
-        else 
-            ! Basal sliding allowed, calculate beta_eff 
-            ! following L19, Eq. 33 (or G11, Eq. 41)
+            if (no_slip) then 
+                ! No basal sliding allowed, impose beta_eff derived from viscosity 
+                ! following L19, Eq. 35 (or G11, Eq. 42)
+                ! F2=0 only where no neighboring cell is fully ice covered (no
+                ! velocity solved, see set_ssa_masks), so no basal stress there.
 
-            beta_eff = beta / (1.0_wp+beta*F2)
+                if (F2(i,j) .gt. 0.0_wp) then
+                    beta_eff(i,j) = 1.0_wp / F2(i,j) 
+                else
+                    beta_eff(i,j) = 0.0_wp
+                end if
 
-        end if 
+            else 
+                ! Basal sliding allowed, calculate beta_eff 
+                ! following L19, Eq. 33 (or G11, Eq. 41)
+
+                beta_eff(i,j) = beta(i,j) / (1.0_wp+beta(i,j)*F2(i,j))
+
+            end if 
+
+        end do
+        end do
+        !$omp end parallel do
 
         return 
 
@@ -1017,23 +985,34 @@ end if
         real(wp), intent(IN)  :: taub_acy(:,:)
         logical,  intent(IN)  :: no_slip
 
-        if (no_slip) then 
-            ! Set basal velocity to zero 
-            ! (this comes out naturally more or less with beta_eff set as above, 
-            !  but ensuring basal velocity is zero adds stability)
-            
-            ux_b = 0.0_wp 
-            uy_b = 0.0_wp 
+        ! Local variables
+        integer :: i, j
 
-        else 
-            ! Calculate basal velocity normally 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux_b,2)
+        do i = 1, size(ux_b,1)
 
-            ux_b = ux_bar - taub_acx*F2_acx 
-            uy_b = uy_bar - taub_acy*F2_acy 
+            if (no_slip) then 
+                ! Set basal velocity to zero 
+                ! (this comes out naturally more or less with beta_eff set as above, 
+                !  but ensuring basal velocity is zero adds stability)
+                
+                ux_b(i,j) = 0.0_wp 
+                uy_b(i,j) = 0.0_wp 
 
-            ! No treatment of boundary conditions needed since ux_b/uy_b are derived.
+            else 
+                ! Calculate basal velocity normally 
 
-        end if 
+                ux_b(i,j) = ux_bar(i,j) - taub_acx(i,j)*F2_acx(i,j) 
+                uy_b(i,j) = uy_bar(i,j) - taub_acy(i,j)*F2_acy(i,j) 
+
+                ! No treatment of boundary conditions needed since ux_b/uy_b are derived.
+
+            end if 
+
+        end do
+        end do
+        !$omp end parallel do
 
         return
         
@@ -1091,12 +1070,12 @@ end if
         real(wp), intent(IN) :: f1
         real(wp) :: var_mid 
 
-        if (is_equal(f0,1.0_wp) .and. f1 .lt. 1.0_wp) then 
+        if (f0 .eq. 1.0_wp .and. f1 .lt. 1.0_wp) then 
             ! At the margin 
 
             var_mid = var0 
 
-        else if (f0 .lt. 1.0_wp .and. is_equal(f1,1.0_wp)) then 
+        else if (f0 .lt. 1.0_wp .and. f1 .eq. 1.0_wp) then 
             ! At the margin 
 
             var_mid = var1 
