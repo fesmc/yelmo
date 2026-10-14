@@ -87,13 +87,21 @@ This writes the Makefiles of Yelmo, `fesm-utils`, `FastHydrology`, `elsa` and
 
 ### Input data
 
-Simulations of realistic domains (e.g. initmip) read their input from an
-`ice_data` directory in the checkout, which is not part of the repository.
-Link it to the data on your system:
+Simulations of realistic domains (e.g. initmip) read their input from a
+`fesmdata` directory in the checkout: the products of
+[FesmData](https://fesmc.github.io/FesmData/), as
+`fesmdata/<Domain>/<GRID>/<GRID>_<Dataset>-<Product>.nc`. Some older setups
+also read the v1 datasets in `ice_data`. Neither is part of the repository.
+Link them to the data on your system:
 
 ```bash
+ln -s <path-to>/fesmdata/products fesmdata
 ln -s <path-to>/ice_data ice_data
 ```
+
+The repository holds copies of the products used by the initmip setups on
+GRL-16KM and ANT-32KM in `input/`, in the same layout, so without the full
+products `ln -s input fesmdata` is enough for those two grids.
 
 See [HPC notes](hpc-notes.md) for the locations on the supported clusters.
 
@@ -221,7 +229,7 @@ following steps are carried out by `runme`:
 1. The output directory is created.
 2. The executable is copied to the output directory.
 3. The relevant parameter files are copied to the output directory.
-4. Links to the input data paths (`input`, `ice_data` and `maps`) are created
+4. Links to the input data paths (`input`, `ice_data`, `fesmdata` and `maps`) are created
    in the output directory. Many simulations, such as benchmark experiments, do
    not depend on these external data sources, but the links are made anyway.
 5. The executable is run from the output directory, either as a background

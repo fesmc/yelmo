@@ -221,7 +221,7 @@ to submit jobs). The following steps are carried out by `runme`:
 1. The output directory is created.
 2. The executable is copied to the output directory
 3. The relevant parameter files are copied to the output directory.
-4. Links to the input data paths (`input`, `ice_data` and `maps`) are created in the output directory. Note that many simulations, such as benchmark experiments, do not depend on these external data sources, but the links are made anyway.
+4. Links to the input data paths (`input`, `ice_data`, `fesmdata` and `maps`) are created in the output directory. Note that many simulations, such as benchmark experiments, do not depend on these external data sources, but the links are made anyway.
 5. The executable is run from the output directory, either as a background process or it is submitted to the queue via `sbatch` (the SLURM workload manager).
 
 To run a benchmark simulation, for example, use the following command:

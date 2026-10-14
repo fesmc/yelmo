@@ -4,6 +4,7 @@ fesm-utils
 FastHydrology
 libs/lis*
 ice_data
+fesmdata
 elsa
 tracer
 tests/plots

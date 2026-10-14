@@ -61,7 +61,7 @@
     bmb_shlf_const  = -2.0              ! [m/a] Basal mass balance of ice shelves (GRL-16KM spin-up tuning 2026-10-09)
     load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     load_ghf        = False             ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
-    file_ghf        = "ice_data/v2/{domain}/{grid_name}/{grid_name}_GHF-Martos2018.nc"
+    file_ghf        = "fesmdata/{domain}/{grid_name}/{grid_name}_GHF-Martos2018.nc"
     name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day
@@ -152,8 +152,8 @@
 /
 
 &yelmo_regions
-    path_regions = "ice_data/v2/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
-    path_basins  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
+    path_regions = "fesmdata/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    path_basins  = "fesmdata/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
     basin_sets   = "Zwally2012"
 /
 &ycalv

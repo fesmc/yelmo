@@ -9,8 +9,11 @@ install as usual (see [Installation](getting-started.md)), e.g.
 configme install yelmo -m dkrz_levante -c ifx
 ```
 
-The input data for realistic domains are on each cluster in `<datapath>/ice_data`;
-link them into the checkout with `ln -s <datapath>/ice_data ice_data`. To submit
+The input data for realistic domains are the FesmData products, on each cluster
+in `<datapath>/fesmdata/products` (Levante: `/work/ba1442/fesmdata/products`,
+Albedo: `/albedo/work/projects/p_forclima/fesmdata/products`); link them into the
+checkout with `ln -s <datapath>/fesmdata/products fesmdata`. The v1 datasets are in
+`<datapath>/ice_data` (`ln -s <datapath>/ice_data ice_data`). To submit
 jobs, set `hpc` and `account` in `.runme/config.toml` and use `runme -rs`.
 
 ## Running at PIK on HPC2024 (foote)

@@ -60,10 +60,10 @@
 &set_ant_pd
     bmb_shlf_const  = -0.2              ! [m/a] Basal mass balance of ice shelves
     load_bmelt      = True              ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
-    file_bmelt      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BasalMelt-Rignot2013.nc"
+    file_bmelt      = "fesmdata/{domain}/{grid_name}/{grid_name}_BasalMelt-Rignot2013.nc"
     name_bmelt      = "bmelt_eq_reese"  ! Variable name in file_bmelt [m/a], positive for melting
     load_ghf        = True              ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
-    file_ghf        = "ice_data/v2/{domain}/{grid_name}/{grid_name}_GHF-Shapiro2004.nc"
+    file_ghf        = "fesmdata/{domain}/{grid_name}/{grid_name}_GHF-Shapiro2004.nc"
     name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = 0.0               ! [K]  Temperature anomaly (atm)
     z_sl            = 0.0               ! [m] Sea level relative to present-day 
@@ -73,7 +73,7 @@
     bmb_shlf_const  = 0.0               ! [m/a] Basal mass balance of ice shelves
     load_bmelt      = False             ! Load PD bmelt observations (file_bmelt)? Else use bmb_shlf_const
     load_ghf        = True              ! Load geothermal heat flux (file_ghf)? Else 50 mW/m2
-    file_ghf        = "ice_data/v2/{domain}/{grid_name}/{grid_name}_GHF-Shapiro2004.nc"
+    file_ghf        = "fesmdata/{domain}/{grid_name}/{grid_name}_GHF-Shapiro2004.nc"
     name_ghf        = "ghf"             ! Variable name in file_ghf [mW/m2]
     dT_ann          = -10.0             ! [K] Temperature anomaly (atm)
     z_sl            = -120.0            ! [m] Sea level relative to present-day 
@@ -163,8 +163,8 @@
 /
 
 &yelmo_regions
-    path_regions = "ice_data/v2/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
-    path_basins  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
+    path_regions = "fesmdata/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    path_basins  = "fesmdata/{domain}/{grid_name}/{grid_name}_BASINS-{set}.nc"
     basin_sets   = "Zwally2012"
 /
 &ycalv
@@ -190,14 +190,14 @@
 /
 
 &yelmo_init_topo
-    init_topo_path  = "ice_data/v2/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
+    init_topo_path  = "fesmdata/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
 /
 
 &yelmo_data 
-    pd_topo_path      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
-    pd_tsrf_path      = "ice_data/v2/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
+    pd_topo_path      = "fesmdata/{domain}/{grid_name}/{grid_name}_TOPO-BedMachine-v4.nc"
+    pd_tsrf_path      = "fesmdata/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
     pd_tsrf_monthly   = True                         ! RACMO monthly file
-    pd_smb_path       = "ice_data/v2/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
+    pd_smb_path       = "fesmdata/{domain}/{grid_name}/{grid_name}_SMB-RACMO2.3p2-1981-2010.nc"
     pd_smb_monthly    = True                         ! RACMO monthly file
-    pd_vel_path       = "ice_data/v2/{domain}/{grid_name}/{grid_name}_Velocity-Rignot2011.nc"
+    pd_vel_path       = "fesmdata/{domain}/{grid_name}/{grid_name}_Velocity-Rignot2011.nc"
 /

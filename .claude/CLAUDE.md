@@ -7,6 +7,7 @@ A fresh worktree has no `Makefile`, no `.runme/config.toml`, and no data symlink
 
 ```bash
 ln -s /Users/alrobi001/models/ice_data ice_data
+ln -s /Users/alrobi001/data/fesmdata/products fesmdata   # FesmData products (or `input` for GRL-16KM/ANT-32KM only)
 ln -s /Users/alrobi001/models/fesm-utils fesm-utils
 ln -s /Users/alrobi001/models/fasthydrology FastHydrology
 ln -s /Users/alrobi001/models/elsa elsa
