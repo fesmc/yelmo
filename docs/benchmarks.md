@@ -212,7 +212,9 @@ settings that differ from `input/yelmo_defaults.nml`: no flow enhancement
 positions (`ycalv.calv_flt_method = calv_grnd_method = "equil"`), a lower
 bound `ytill.cf_min = 0.02` for the optimized friction and an ice-shelf basal
 melt of 2 m/a. Present-day surface mass balance and surface temperature are the
-1981-2010 monthly climatology of MAR v3.14 (the `yelmo_data` defaults).
+1961-1990 annual means of MAR v3.14 (FesmData `SMB-MARv3.14-1961-1990-annual-mean`,
+the `yelmo_data` defaults; `T_srf` is the skin temperature), with their units
+read from the file.
 
 Both fields are held at the present day by default (`ctrl.smb_method =
 "fixed"`, also for Antarctica). The option `"zremap"` makes both fields follow
