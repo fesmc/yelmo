@@ -493,8 +493,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="input-data" class="level3">
 <h3 class="anchored" data-anchor-id="input-data">Input data</h3>
-<p>Simulations of realistic domains (e.g.&nbsp;initmip) read their input from an <code>ice_data</code> directory in the checkout, which is not part of the repository. Link it to the data on your system:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> <span class="op">&lt;</span>path-to<span class="op">&gt;</span>/ice_data ice_data</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Simulations of realistic domains (e.g.&nbsp;initmip) read their input from a <code>fesmdata</code> directory in the checkout: the products of <a href="https://fesmc.github.io/FesmData/">FesmData</a>, as <code>fesmdata/&lt;Domain&gt;/&lt;GRID&gt;/&lt;GRID&gt;_&lt;Dataset&gt;-&lt;Product&gt;.nc</code>. Some older setups also read the v1 datasets in <code>ice_data</code>. Neither is part of the repository. Link them to the data on your system:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> <span class="op">&lt;</span>path-to<span class="op">&gt;</span>/fesmdata/products fesmdata</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ln</span> <span class="at">-s</span> <span class="op">&lt;</span>path-to<span class="op">&gt;</span>/ice_data ice_data</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The repository holds copies of the products used by the initmip setups on GRL-16KM and ANT-32KM in <code>input/</code>, in the same layout, so without the full products <code>ln -s input fesmdata</code> is enough for those two grids.</p>
 <p>See <a href="./hpc-notes.html">HPC notes</a> for the locations on the supported clusters.</p>
 </section>
 </section>
@@ -576,7 +578,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>The output directory is created.</li>
 <li>The executable is copied to the output directory.</li>
 <li>The relevant parameter files are copied to the output directory.</li>
-<li>Links to the input data paths (<code>input</code>, <code>ice_data</code> and <code>maps</code>) are created in the output directory. Many simulations, such as benchmark experiments, do not depend on these external data sources, but the links are made anyway.</li>
+<li>Links to the input data paths (<code>input</code>, <code>ice_data</code>, <code>fesmdata</code> and <code>maps</code>) are created in the output directory. Many simulations, such as benchmark experiments, do not depend on these external data sources, but the links are made anyway.</li>
 <li>The executable is run from the output directory, either as a background process or as a job submitted to the queue via <code>sbatch</code> (the SLURM workload manager).</li>
 </ol>
 <p>To run a benchmark simulation, for example, use the following command:</p>
