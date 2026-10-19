@@ -2,6 +2,13 @@
 
 ## Unreleased (dev)
 
+- **"infinite" borders are outflow only** (`experiment = "infinite"`, and the non-periodic
+  borders of `"periodic-x"`/`"periodic-y"`): ice flows out through the border but not in.
+  The border cells are advected as inner points with no flow from them into the domain,
+  and the reset to their neighbours' thickness books the outflow in `mb_resid`. Before,
+  the border cells fed the interior wherever the flow pointed inwards, without limit and
+  unbooked (the transport `dHidt_dyn` did not sum to zero); answer-changing. The
+  MISMIP3D/TROUGH symmetry divide is unchanged.
 - `yelmo_masks.border_width = N M` (default `0 0`, off): a strip of `N` fixed cells
   (`MASK_ICE_FIXED`) and, inward, `M` relaxation cells (`tau_relax = relax_tau`, with
   `ytopo.topo_rel = -1`) at the edge of the region where ice is allowed, in cells

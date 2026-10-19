@@ -60,6 +60,13 @@ case `border_width = 1 0` with `mask_ice_dynamic = "all"`; with a strip on the
 domain border use `"fixed"` or `"dynamic"` (`"none"` would empty its outer row).
 `"auto"` gives `"fixed"` for a domain it does not know.
 
+With `experiment = "infinite"` and `mask_border = "dynamic"` the border cells
+take the thickness of their inner neighbours. Ice flows out through the border
+but not in: the border cells receive the outflow of their neighbours, and the
+reset to their neighbours' thickness is booked in `mb_resid` (the mass that
+leaves the domain). The same holds for the non-periodic borders of
+`"periodic-x"` and `"periodic-y"`.
+
 Without layers the expressions can only be `"all"` or `"none"`. A driver may
 pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of
 `regions_group`, and `mask_ice` instead of the mask_ice expressions. The named

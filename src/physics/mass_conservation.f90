@@ -480,9 +480,11 @@ contains
                 H_ice_new(nx,:) = H_ice_new(nx-1,:)
 
             case("infinite")
-                ! Set border points equal to inner neighbors 
-                ! This is not fully handled by ytopo.solver="impl-lis", since
-                ! subsequently the mb forcing is applied.
+                ! Set border points equal to inner neighbors. The advection
+                ! treats them as inner points that receive the outflow of their
+                ! neighbours but do not feed them ("outflow" borders, see
+                ! define_advection_bcs); this reset books the outflow (the mass
+                ! leaving the domain) in mb_resid.
                 
                 H_ice_new(1,:)    = H_ice_new(2,:)          ! x=0, copy inner neighbor
                 H_ice_new(nx,:)   = H_ice_new(nx-1,:)       ! x=max, copy inner neighbor

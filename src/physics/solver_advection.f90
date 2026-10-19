@@ -18,7 +18,9 @@ contains
 
     subroutine calc_advec2D(dvdt,var,f_ice,ux,uy,var_dot,mask_ice,var_ref,dx,dy,dt,solver,boundaries,lin_iter,lin_status)
         ! General routine to apply 2D advection equation to variable `var` 
-        ! with source term `var_dot`. Various solvers are possible
+        ! with source term `var_dot`. Various solvers are possible.
+        ! "outflow" borders (define_advection_bcs) let the variable flow out
+        ! but not in (limit_border_inflow).
 
         real(wp),       intent(OUT)   :: dvdt(:,:)              ! [dvdt] Variable rate of change
         real(wp),       intent(IN)    :: var(:,:)               ! [var]  Variable to be advected
@@ -40,8 +42,10 @@ contains
         integer :: nx, ny  
         type(linear_solver_class) :: lgs
         character(len=256)        :: adv_lis_opt 
+        character(len=56)         :: bcs(4)
 
         real(wp), allocatable :: var_now(:,:) 
+        real(wp), allocatable :: ux_now(:,:), uy_now(:,:)
 
         nx = size(var,1)
         ny = size(var,2)
@@ -50,6 +54,13 @@ contains
 
         ! Assign local variable to be modified 
         var_now = var 
+
+        ! Transport velocities: no flow from "outflow" border cells into the
+        ! domain (for all solvers below, and the FIXED-cell transport)
+        ux_now = ux
+        uy_now = uy
+        call define_advection_bcs(bcs,boundaries)
+        call limit_border_inflow(ux_now,uy_now,bcs)
 
         if (present(lin_iter))   lin_iter   = 0
         if (present(lin_status)) lin_status = LGS_SUCCESS
@@ -63,32 +74,32 @@ contains
 
             case("expl")
 
-                call calc_adv2D_expl(var_now,f_ice,ux,uy,var_dot,dx,dy,dt,boundaries)
+                call calc_adv2D_expl(var_now,f_ice,ux_now,uy_now,var_dot,dx,dy,dt,boundaries)
 
             case("expl-new")
 
-                call calc_adv2D_expl_new(var_now,f_ice,ux,uy,var_dot,dx,dy,dt,boundaries)
+                call calc_adv2D_expl_new(var_now,f_ice,ux_now,uy_now,var_dot,dx,dy,dt,boundaries)
 
             case("expl-upwind")
 
-                call calc_adv2D_expl_upwind(var_now,ux,uy,var_dot,dx,dy,dt,boundaries)
+                call calc_adv2D_expl_upwind(var_now,ux_now,uy_now,var_dot,dx,dy,dt,boundaries)
 
             case("impl-upwind") 
 
-                call calc_adv2D_impl_upwind(var_now,ux,uy,var_dot,dx,dy,dt,boundaries,f_upwind=1.0_wp)
+                call calc_adv2D_impl_upwind(var_now,ux_now,uy_now,var_dot,dx,dy,dt,boundaries,f_upwind=1.0_wp)
             
             ! Other solvers below...
             case("expl-sico")
 
-                call calc_adv2D_expl_sico(var_now,ux,uy,var_dot,dx,dy,dt)
+                call calc_adv2D_expl_sico(var_now,ux_now,uy_now,var_dot,dx,dy,dt)
 
             case("impl-sico")
 
-                call calc_adv2D_impl_sico(var_now,ux,uy,var_dot,dx,dy,dt,use_lis=.FALSE.)
+                call calc_adv2D_impl_sico(var_now,ux_now,uy_now,var_dot,dx,dy,dt,use_lis=.FALSE.)
 
             case("impl-sico-lis")
 
-                call calc_adv2D_impl_sico(var_now,ux,uy,var_dot,dx,dy,dt,use_lis=.TRUE.)
+                call calc_adv2D_impl_sico(var_now,ux_now,uy_now,var_dot,dx,dy,dt,use_lis=.TRUE.)
 
             case("impl-lis")
 
@@ -96,7 +107,7 @@ contains
                 call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
                 ! Populate advection matrices Ax=b
-                call linear_solver_matrix_advection_csr_2D(lgs,var_now,var_ref,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,var_ref,ux_now,uy_now,var_dot,mask_ice,dx,dy,dt,boundaries)
                 
                 ! Solve linear equation
                 ! Jacobi preconditioner: the upwind matrix is diagonally dominant, and the
@@ -115,7 +126,7 @@ contains
                 call linear_solver_save_advection(var_now,lgs)
 
                 ! Transport of MASK_ICE_FIXED cells: the flux through their faces
-                call calc_fixed_cell_transport(var_now,var,ux,uy,var_dot,mask_ice,dx,dy,dt,boundaries)
+                call calc_fixed_cell_transport(var_now,var,ux_now,uy_now,var_dot,mask_ice,dx,dy,dt,boundaries)
 
             case DEFAULT 
 
@@ -183,6 +194,7 @@ contains
         integer  :: n, nr, nc
         real(wp) :: dt_darea
         logical  :: use_border_bc
+        logical  :: row_bc(4)
         character(len=56) :: bcs(4)
 
         real(wp), allocatable  :: ux_1(:,:), ux_2(:,:)
@@ -198,6 +210,10 @@ contains
         dt_darea = dt/(dx*dy)
 
         call define_advection_bcs(bcs,boundaries)
+
+        ! Borders with a border row (Neumann "infinite" or Dirichlet "zero");
+        ! periodic and "outflow" border cells are inner points
+        row_bc = bcs .ne. "periodic" .and. bcs .ne. "outflow"
 
         ! Safety check for initialization
         if (.not. allocated(lgs%x_value)) then 
@@ -268,7 +284,11 @@ contains
             ! calc_G_boundaries removes their ice afterwards and books it in mb_resid.
             ! For the same reason, masked border cells do not use the border condition:
             ! they are inner points with no flux through the domain edge (see Step 1),
-            ! so the flux through their interior faces is kept and booked.
+            ! so the flux through their interior faces is kept and booked. So are the
+            ! cells of "outflow" borders: they receive the outflow of their inner
+            ! neighbours (no inflow, see limit_border_inflow), and calc_G_boundaries
+            ! sets them to their neighbours' thickness and books the change in
+            ! mb_resid (the mass that leaves the domain).
 
             use_border_bc = mask(i,j) .ne. MASK_ICE_NONE
 
@@ -282,7 +302,7 @@ contains
                 lgs%b_value(nr) = H_ref(i,j)
                 lgs%x_value(nr) = H_ref(i,j)
 
-            else if ( use_border_bc .and. (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+            else if ( use_border_bc .and. row_bc(1) .and. i .eq. nx) then
                 ! Right border
 
                 if (bcs(1) .eq. "infinite") then
@@ -310,7 +330,7 @@ contains
 
                 end if
 
-            else if ( use_border_bc .and. (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
+            else if ( use_border_bc .and. row_bc(2) .and. j .eq. ny) then
                 ! Top border
 
                 if (bcs(2) .eq. "infinite") then
@@ -338,7 +358,7 @@ contains
 
                 end if
 
-            else if ( use_border_bc .and. (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
+            else if ( use_border_bc .and. row_bc(3) .and. i .eq. 1) then
                 ! Left border
 
                 if (bcs(3) .eq. "infinite") then
@@ -371,7 +391,7 @@ contains
 
                 end if
 
-            else if ( use_border_bc .and. (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
+            else if ( use_border_bc .and. row_bc(4) .and. j .eq. 1) then
                 ! Bottom border
 
                 if (bcs(4) .eq. "infinite") then
@@ -525,7 +545,18 @@ contains
     end subroutine calc_fixed_cell_transport
 
     subroutine define_advection_bcs(bcs,boundaries)
-        ! Border conditions of the implicit advection solve for each border
+        ! Border conditions of the implicit advection solve for each border:
+        !   "periodic": wrap (border cells are inner points)
+        !   "zero":     H = 0 on the border
+        !   "infinite": H = inner neighbour (Neumann), flow in both directions;
+        !               the symmetry divide of MISMIP3D/TROUGH
+        !   "outflow":  open border of "infinite" domains: the border cells are
+        !               inner points without flow from them into the domain
+        !               (limit_border_inflow); calc_G_boundaries sets them to
+        !               their inner neighbours and books the outflow in mb_resid.
+        !               With "infinite" here, the border cells fed the interior
+        !               wherever the flow pointed inwards, without limit and
+        !               unbooked.
 
         implicit none
 
@@ -548,7 +579,12 @@ contains
                 bcs(3) = "infinite"
                 bcs(4) = "periodic" 
 
-            case("infinite","mask")
+            case("infinite")
+
+                bcs(1:4) = "outflow"
+
+            case("mask")
+                ! Border cells are normally masked (NONE/FIXED: inner points)
 
                 bcs(1:4) = "infinite"
 
@@ -563,15 +599,15 @@ contains
             case("periodic-x")
 
                 bcs(1) = "periodic"
-                bcs(2) = "infinite"
+                bcs(2) = "outflow"
                 bcs(3) = "periodic"
-                bcs(4) = "infinite"
+                bcs(4) = "outflow"
 
             case("periodic-y")
 
-                bcs(1) = "infinite"
+                bcs(1) = "outflow"
                 bcs(2) = "periodic"
-                bcs(3) = "infinite"
+                bcs(3) = "outflow"
                 bcs(4) = "periodic"
 
             case DEFAULT 
@@ -583,6 +619,30 @@ contains
         return
 
     end subroutine define_advection_bcs
+
+    subroutine limit_border_inflow(ux,uy,bcs)
+        ! "outflow" borders: no flow from a border cell into its inner neighbour.
+        ! ux/uy on ac-nodes: ux(i,j) on the face between cells i and i+1.
+
+        implicit none
+
+        real(wp),          intent(INOUT) :: ux(:,:)
+        real(wp),          intent(INOUT) :: uy(:,:)
+        character(len=56), intent(IN)    :: bcs(4)
+
+        integer :: nx, ny
+
+        nx = size(ux,1)
+        ny = size(ux,2)
+
+        if (bcs(3) .eq. "outflow") where (ux(1,:)    .gt. 0.0_wp) ux(1,:)    = 0.0_wp   ! left
+        if (bcs(1) .eq. "outflow") where (ux(nx-1,:) .lt. 0.0_wp) ux(nx-1,:) = 0.0_wp   ! right
+        if (bcs(4) .eq. "outflow") where (uy(:,1)    .gt. 0.0_wp) uy(:,1)    = 0.0_wp   ! bottom
+        if (bcs(2) .eq. "outflow") where (uy(:,ny-1) .lt. 0.0_wp) uy(:,ny-1) = 0.0_wp   ! top
+
+        return
+
+    end subroutine limit_border_inflow
 
     subroutine calc_upwind_faces(ux_1,ux_2,uy_1,uy_2,Hx_1,Hx_2,Hy_1,Hy_2,H,ux,uy,bcs,boundaries)
         ! Velocity components (ux,uy) at each cell face (1: left/bottom, 2: right/top)
