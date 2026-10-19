@@ -16,8 +16,8 @@
   `fesmdata_temp_ref` (replaces `smb_units_conv` and the T_srf < 100 K guess; mm/d uses
   1 yr = 365.25 d). Needs fesm-utils with these helpers.
 - **Input data path `fesmdata`**: the FesmData products moved from `ice_data/v2` to
-  `$FESMDATA/products`; all paths are now `fesmdata/{domain}/{grid_name}/...`, a new link
-  in the checkout (`ln -s <path>/fesmdata/products fesmdata`; `input` holds the GRL-16KM
+  `$FESMDATA`; all paths are now `fesmdata/{domain}/{grid_name}/...`, a new link
+  in the checkout (`ln -s <path>/fesmdata fesmdata`; `input` holds the GRL-16KM
   and ANT-32KM copies in the same layout) that runme also links into run directories.
   `install.py` asks for it. The repo copies in `input/` are refreshed to the latest
   products (same variables; SMB z_srf filled by the topography where smb is filled).
