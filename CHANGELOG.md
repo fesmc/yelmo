@@ -2,6 +2,13 @@
 
 ## Unreleased (dev)
 
+- `yelmo_masks.border_width = N M` (default `0 0`, off): a strip of `N` fixed cells
+  (`MASK_ICE_FIXED`) and, inward, `M` relaxation cells (`tau_relax = relax_tau`, with
+  `ytopo.topo_rel = -1`) at the edge of the region where ice is allowed, in cells
+  (Chebyshev distance; beyond the domain border counts as outside, except in periodic
+  directions); applied after the mask expressions. For prescribed ice at the borders of
+  a domain (GreenlandPaleo), with `H_ice_ref` set in time by the driver.
+  `ybound_load_masks` takes the topography `boundaries`.
 - `yelmo_data` defaults (Greenland) `SMB-MARv3.14-1961-1990-annual-mean` (was
   `SMB-MARv3.14-1981-2010` monthly), the period of the yelmox Greenland climatology; answer-changing
   for initmip GRL.

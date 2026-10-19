@@ -138,7 +138,7 @@ contains
 
     end subroutine ybound_define_physical_constants
     
-    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,grid,reg,mask_ice,masks)
+    subroutine ybound_load_masks(bnd,nml_path,nml_group,domain,grid_name,grid,boundaries,reg,mask_ice,masks)
         ! Masks of the boundary from the layers of the regions (fesm-utils
         ! regions: regions, zones, basins, ...), made once here from selection
         ! expressions of the masks group (nml_group):
@@ -149,9 +149,14 @@ contains
         !   mask_ice_dynamic  where ice is dynamic (MASK_ICE_DYNAMIC; else none)
         !   mask_ice_fixed    where ice is prescribed (MASK_ICE_FIXED; over dynamic)
         !   relax, relax_tau  where ice relaxes to H_ice_ref (bnd%tau_relax; topo_rel = -1)
+        !   border_width      N M: a strip of N fixed cells and, inside it, M
+        !                     relaxation cells (relax_tau) at the edge of the
+        !                     region where ice is allowed (set_border_strip)
         !   mask_rmse         where the error metrics are computed (bnd%mask_rmse)
         ! A driver may supply the regions (reg, on the Yelmo grid) instead of
         ! regions_group, and mask_ice instead of the mask_ice expressions.
+        ! boundaries: the topography boundary treatment (periodic directions
+        ! have no domain edge for border_width).
         ! Without layers, the expressions can only be "all" or "none".
         ! bnd%regions: the layer region (0 without one).
         ! masks: the named masks of the regions (for regional output).
@@ -162,6 +167,7 @@ contains
         character(len=*), intent(IN)      :: nml_path, nml_group
         character(len=*), intent(IN)      :: domain, grid_name 
         type(grid_class), intent(IN)      :: grid
+        character(len=*), intent(IN)      :: boundaries
         type(regions_class), intent(IN), optional :: reg
         integer,  intent(IN), optional    :: mask_ice(:,:)
         type(region_mask_class), allocatable, intent(OUT), optional :: masks(:)
@@ -174,6 +180,7 @@ contains
         character(len=56)   :: basins
         character(len=1000) :: expr_dynamic, expr_fixed, expr_relax, expr_rmse
         real(wp)            :: relax_tau
+        integer             :: border_width(2)
 
         character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_masks = "yelmo_masks"
@@ -186,11 +193,23 @@ contains
         call nml_read(nml_path,nml_group,"mask_ice_fixed",  expr_fixed,  defaults_file=def_file,defaults_group=def_masks)
         call nml_read(nml_path,nml_group,"relax",           expr_relax,           defaults_file=def_file,defaults_group=def_masks)
         call nml_read(nml_path,nml_group,"relax_tau",       relax_tau,       defaults_file=def_file,defaults_group=def_masks)
+        call nml_read(nml_path,nml_group,"border_width",    border_width,    defaults_file=def_file,defaults_group=def_masks)
         call nml_read(nml_path,nml_group,"mask_rmse",       expr_rmse,       defaults_file=def_file,defaults_group=def_masks)
 
         if (trim(expr_relax) .ne. "none" .and. relax_tau .le. 0.0_wp) then
             write(io_unit_err,*) "ybound_load_masks:: Error: relax needs relax_tau > 0."
             write(io_unit_err,*) "relax = ", trim(expr_relax), ", relax_tau = ", relax_tau
+            error stop 1
+        end if
+        if (any(border_width .lt. 0)) then
+            write(io_unit_err,*) "ybound_load_masks:: Error: border_width must be >= 0."
+            write(io_unit_err,*) "border_width = ", border_width
+            error stop 1
+        end if
+        if (border_width(2) .gt. 0 .and. relax_tau .le. 0.0_wp) then
+            write(io_unit_err,*) "ybound_load_masks:: Error: border_width with relaxation cells &
+                                 &(second value > 0) needs relax_tau > 0."
+            write(io_unit_err,*) "border_width = ", border_width, ", relax_tau = ", relax_tau
             error stop 1
         end if
 
@@ -236,6 +255,15 @@ contains
         ! Relaxation timescale (used with ytopo.topo_rel = -1)
         bnd%tau_relax = -1.0_wp
         where (regions_select(reg_now,expr_relax)) bnd%tau_relax = relax_tau
+
+        ! Prescribed strip at the edge of the region where ice is allowed
+        if (any(border_width .gt. 0)) then
+            call set_border_strip(bnd%mask_ice,bnd%tau_relax,border_width(1),border_width(2), &
+                                  relax_tau,boundaries)
+            write(*,*) "ybound_load_masks:: border_width ", border_width, ": fixed cells ", &
+                       count(bnd%mask_ice .eq. MASK_ICE_FIXED), ", relaxation cells ", &
+                       count(bnd%tau_relax .gt. 0.0_wp)
+        end if
 
         ! Region of the error metrics
         bnd%mask_rmse = regions_select(reg_now,expr_rmse)
@@ -541,6 +569,85 @@ contains
         return
 
     end subroutine set_border
+
+    subroutine set_border_strip(mask_ice,tau_relax,n_fixed,n_relax,relax_tau,boundaries)
+        ! A strip at the edge of the region where ice is allowed (mask_ice /=
+        ! MASK_ICE_NONE): its outer n_fixed cells become MASK_ICE_FIXED, the
+        ! next n_relax cells inward relax to H_ice_ref (tau_relax = relax_tau,
+        ! with ytopo.topo_rel = -1). Cells outside the region are not changed.
+        ! The distance of a cell to the edge is the number of cells to the
+        ! nearest cell outside the region in the Chebyshev (chessboard) metric,
+        ! 1 for a cell next to one (also diagonally): the strip is a band of
+        ! constant width also around corners, rectangular on a rectangular
+        ! region. Beyond the domain border (not in periodic directions) is
+        ! outside: with the whole domain allowed, the strip lies along the
+        ! domain border.
+
+        implicit none
+
+        integer,          intent(INOUT) :: mask_ice(:,:)
+        real(wp),         intent(INOUT) :: tau_relax(:,:)
+        integer,          intent(IN)    :: n_fixed, n_relax
+        real(wp),         intent(IN)    :: relax_tau
+        character(len=*), intent(IN)    :: boundaries
+
+        ! Local variables
+        integer :: nx, ny, BC, i, j, k, n, q
+        integer :: im1, ip1, jm1, jp1
+        integer :: inb(8), jnb(8)
+        logical :: per_x, per_y
+        integer, allocatable :: dist(:,:), dist_old(:,:)
+
+        nx = size(mask_ice,1)
+        ny = size(mask_ice,2)
+        n  = n_fixed + n_relax
+
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        ! Distance to the edge, up to n (cells further in: n+1). Outside the
+        ! region 0; inside, at most the distance to the domain border.
+        allocate(dist(nx,ny),dist_old(nx,ny))
+        do j = 1, ny
+        do i = 1, nx
+            if (mask_ice(i,j) .eq. MASK_ICE_NONE) then
+                dist(i,j) = 0
+            else
+                dist(i,j) = n+1
+                if (.not. per_x) dist(i,j) = min(dist(i,j),i,nx+1-i)
+                if (.not. per_y) dist(i,j) = min(dist(i,j),j,ny+1-j)
+            end if
+        end do
+        end do
+
+        ! Then from the cells outside the region inward: one cell per pass
+        ! over the 8 neighbours. The neighbour indices are clamped at a
+        ! non-periodic border, which only repeats a cell (the border itself
+        ! is counted above).
+        do k = 1, n
+            dist_old = dist
+            do j = 1, ny
+            do i = 1, nx
+                if (dist_old(i,j) .le. k) cycle
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                inb = [im1,ip1,i,  i,  im1,im1,ip1,ip1]
+                jnb = [j,  j,  jm1,jp1,jm1,jp1,jm1,jp1]
+                do q = 1, 8
+                    if (dist_old(inb(q),jnb(q)) .eq. k-1) then
+                        dist(i,j) = k
+                        exit
+                    end if
+                end do
+            end do
+            end do
+        end do
+
+        where (dist .ge. 1 .and. dist .le. n_fixed) mask_ice = MASK_ICE_FIXED
+        where (dist .gt. n_fixed .and. dist .le. n) tau_relax = relax_tau
+
+        return
+
+    end subroutine set_border_strip
 
     subroutine ybound_update_rates(bnd,time)
         ! Rates of bedrock elevation and sea level since the previous call of
