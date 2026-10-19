@@ -1006,7 +1006,7 @@ contains
 
         ! Load region/basin masks
         call ybound_load_masks(dom%bnd,filename,dom%par%nml_masks,dom%par%domain,dom%par%grid_name, &
-                               dom%grd,reg=reg,mask_ice=mask_ice,masks=masks)
+                               dom%grd,dom%tpo%par%boundaries,reg=reg,mask_ice=mask_ice,masks=masks)
         
         ! Treatment of the domain border in mask_ice
         call ybound_define_mask_ice(dom%bnd,dom%par%domain,dom%tpo%par%boundaries,dom%par%mask_border)
