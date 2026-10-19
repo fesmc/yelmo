@@ -499,10 +499,10 @@ def install_yelmo(state):
 
 # External data links under yelmo/: (link name, prompt, placeholder of the
 # source path in the summary). fesmdata is the products folder of FesmData
-# ($FESMDATA/products: <Domain>/<GRID>/<GRID>_<Dataset>-<Product>.nc).
+# ($FESMDATA: <Domain>/<GRID>/<GRID>_<Dataset>-<Product>.nc).
 DATA_LINKS = [
     ("ice_data", "Path to ice_data (v1 datasets)", "/path/to/ice_data"),
-    ("fesmdata", "Path to the FesmData products ($FESMDATA/products)", "/path/to/fesmdata/products"),
+    ("fesmdata", "Path to the FesmData products ($FESMDATA)", "/path/to/fesmdata"),
 ]
 
 
