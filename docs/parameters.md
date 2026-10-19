@@ -43,8 +43,22 @@ basins of [FesmData](https://github.com/fesmc/FesmData) (fesm-utils
 | `mask_ice_dynamic` | Where ice is dynamic; elsewhere no ice (`bnd%mask_ice`) |
 | `mask_ice_fixed` | Where ice thickness is prescribed (over `mask_ice_dynamic`) |
 | `relax`, `relax_tau` | Where ice relaxes to `H_ice_ref` and the timescale [yr] (`bnd%tau_relax`, used with `ytopo.topo_rel = -1`) |
+| `border_width` | `N M`: a strip at the edge of the region where ice is allowed (`mask_ice_dynamic`, `mask_ice_fixed`): its outer `N` cells fixed (`H_ice = H_ice_ref`), the next `M` cells inward relaxing to `H_ice_ref` with `relax_tau` (needs `ytopo.topo_rel = -1`); `0 0` = none (below) |
 | `mask_rmse` | Where the error metrics are computed |
 | `dynamic_connected` | Keep only the dynamic cells connected to the ice sheet (the largest 4-connected region of present-day ice, else of the initial ice) through dynamic or fixed cells; the others get no ice (e.g. offshore islands) |
+
+The strip of `border_width` is applied after the expressions, which stay for
+hand-made zones. The distance of a cell to the edge of the region is counted in
+cells in the Chebyshev (chessboard) metric, diagonal neighbours included, so the
+strip has a constant width around corners and is rectangular on a rectangular
+region; beyond the domain border is outside the region (except in periodic
+directions). With `mask_ice_dynamic = "all"` the strip lies along the domain
+border, e.g. for a domain whose border cuts through ice (GreenlandPaleo), with
+`H_ice_ref` set in time by the driver. `yelmo.mask_border` is applied after the
+masks group, on the outermost row only: `mask_border = "fixed"` is the special
+case `border_width = 1 0` with `mask_ice_dynamic = "all"`; with a strip on the
+domain border use `"fixed"` or `"dynamic"` (`"none"` would empty its outer row).
+`"auto"` gives `"fixed"` for a domain it does not know.
 
 Without layers the expressions can only be `"all"` or `"none"`. A driver may
 pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of
