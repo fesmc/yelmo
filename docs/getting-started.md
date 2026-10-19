@@ -95,7 +95,7 @@ also read the v1 datasets in `ice_data`. Neither is part of the repository.
 Link them to the data on your system:
 
 ```bash
-ln -s <path-to>/fesmdata/products fesmdata
+ln -s <path-to>/fesmdata fesmdata
 ln -s <path-to>/ice_data ice_data
 ```
 
