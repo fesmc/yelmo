@@ -223,6 +223,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)
         real(wp), allocatable :: mb_relax(:,:)
         real(wp), allocatable :: mb_resid(:,:)
+        real(wp), allocatable :: mb_border(:,:)
         real(wp), allocatable :: mb_clip(:,:)
         real(wp), allocatable :: smb(:,:)
         real(wp), allocatable :: bmb(:,:)
@@ -251,6 +252,7 @@ module yelmo_defs
         real(wp), allocatable :: mb_net(:,:)      ! Net mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable :: mb_relax(:,:)    ! Residual mass balance from boundary conditions, cleanup
         real(wp), allocatable :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable :: mb_border(:,:)   ! Reset of outflow-border cells to their inner neighbours
         real(wp), allocatable :: mb_clip(:,:)     ! Clip of negative ice thickness after transport
         real(wp), allocatable :: mb_err(:,:)      ! Residual error in mass balance accounting 
         real(wp), allocatable :: smb(:,:)         ! Net smb applied
@@ -284,6 +286,7 @@ module yelmo_defs
         real(wp), allocatable   :: mb_net(:,:)      ! Actual mass balance applied [m/a], for mass balance accounting
         real(wp), allocatable   :: mb_relax(:,:)    ! Change in mass balance to due relaxation
         real(wp), allocatable   :: mb_resid(:,:)    ! Residual mass balance from boundary conditions, cleanup
+        real(wp), allocatable   :: mb_border(:,:)   ! [m/a] Reset of outflow-border cells to their inner neighbours (the outflow; mb_resid elsewhere)
         real(wp), allocatable   :: mb_clip(:,:)     ! [m/a] Clip of negative ice thickness after transport (not in dHidt_dyn)
         real(wp), allocatable   :: mb_err(:,:)      ! Residual error in mass balance accounting 
 
@@ -1073,7 +1076,7 @@ module yelmo_defs
         ! ===== Total ice variables =====
         real(wp)   :: H_ice, z_srf,dHidt, H_ice_max, dzsdt
         real(wp)   :: V_ice, A_ice, dVidt, fwf, dmb, cmb, cmb_flt,  cmb_grnd
-        real(wp)   :: smb_tot, bmb_tot, fmb_tot, mb_relax_tot, mb_resid_tot, mb_clip_tot
+        real(wp)   :: smb_tot, bmb_tot, fmb_tot, mb_relax_tot, mb_resid_tot, mb_clip_tot, mb_border_tot
         real(wp)   :: V_sl, V_sle
         real(wp)   :: uxy_bar, uxy_s, uxy_b, z_bed, smb, T_srf, bmb
         real(wp)   :: lsf

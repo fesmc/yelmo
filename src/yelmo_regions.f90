@@ -5,6 +5,7 @@ module yelmo_regions
     use yelmo_defs 
 
     use topography, only : calc_H_af 
+    use solver_advection, only : outflow_border_mask
 
     implicit none
     
@@ -258,6 +259,8 @@ contains
         real(wp) :: conv_km3a_Sv
 
         logical, allocatable :: mask_reg(:,:) 
+        logical, allocatable :: mask_obd(:,:)   ! outflow-border cells of the region
+        logical, allocatable :: mask_trm(:,:)   ! region without them (rates and fluxes)
         logical, allocatable :: mask_tot(:,:) 
         logical, allocatable :: mask_grnd(:,:) 
         logical, allocatable :: mask_flt(:,:) 
@@ -310,23 +313,35 @@ contains
         reg%dVidt      = sum(tpo%now%dHidt*area,mask=mask_reg)*m3_km3        ! [km^3/yr]
         reg%fwf        = -reg%dVidt*conv_km3a_Sv                            ! [Sv]
 
+        ! The cells of outflow borders take the thickness of their inner
+        ! neighbours: their rates are not counted in the terms below but,
+        ! with their reset (mb_border), in mb_border_tot, the mass that leaves
+        ! the region through the domain border. With the transport, which
+        ! sums to zero over the domain, dV/dt = the terms + mb_border_tot.
+        mask_obd = outflow_border_mask(nx,ny,tpo%par%boundaries) .and. mask_reg
+        mask_trm = mask_reg .and. .not. mask_obd
+
         ! Discharge
-        reg%dmb        = sum(tpo%now%dmb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%dmb        = sum(tpo%now%dmb*area,mask=mask_trm)                ! [m^3/yr]
         
         ! Calving
-        reg%cmb        = sum(tpo%now%cmb*area,mask=mask_reg)                ! [m^3/yr]
-        reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_reg)            ! [m^3/yr]
-        reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_reg)           ! [m^3/yr]
+        reg%cmb        = sum(tpo%now%cmb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_trm)            ! [m^3/yr]
+        reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_trm)           ! [m^3/yr]
 
         ! Applied surface, basal and frontal mass balance
-        reg%smb_tot    = sum(tpo%now%smb*area,mask=mask_reg)                ! [m^3/yr]
-        reg%bmb_tot    = sum(tpo%now%bmb*area,mask=mask_reg)                ! [m^3/yr]
-        reg%fmb_tot    = sum(tpo%now%fmb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%smb_tot    = sum(tpo%now%smb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%bmb_tot    = sum(tpo%now%bmb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%fmb_tot    = sum(tpo%now%fmb*area,mask=mask_trm)                ! [m^3/yr]
 
         ! Relaxation, boundary removal (mask, margin, isolated points) and clipping of negative thickness
-        reg%mb_relax_tot = sum(tpo%now%mb_relax*area,mask=mask_reg)         ! [m^3/yr]
-        reg%mb_resid_tot = sum(tpo%now%mb_resid*area,mask=mask_reg)         ! [m^3/yr]
-        reg%mb_clip_tot  = sum(tpo%now%mb_clip*area,mask=mask_reg)          ! [m^3/yr]
+        reg%mb_relax_tot = sum(tpo%now%mb_relax*area,mask=mask_trm)         ! [m^3/yr]
+        reg%mb_resid_tot = sum(tpo%now%mb_resid*area,mask=mask_trm)         ! [m^3/yr]
+        reg%mb_clip_tot  = sum(tpo%now%mb_clip*area,mask=mask_trm)          ! [m^3/yr]
+
+        ! Outflow-border cells: all their rates (mb_net holds smb, bmb, fmb, dmb,
+        ! relaxation, mb_resid and mb_border) and their clip
+        reg%mb_border_tot = sum((tpo%now%mb_net+tpo%now%cmb+tpo%now%mb_clip)*area,mask=mask_obd)   ! [m^3/yr]
 
         ! ===== Total ice variables =====
 
@@ -590,6 +605,8 @@ contains
         call nc_write(filename,"mb_resid_tot",reg%mb_resid_tot,units="m^3/yr",long_name="Total residual mass balance (boundary and mask removal)", &
                       dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"mb_clip_tot",reg%mb_clip_tot,units="m^3/yr",long_name="Total mass balance from clipping negative thickness", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_border_tot",reg%mb_border_tot,units="m^3/yr",long_name="Total mass balance of the outflow-border cells (outflow through the domain border)", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"V_sl",reg%V_sl*1e-6,units="1e6 km^3",long_name="Ice volume above flotation", &

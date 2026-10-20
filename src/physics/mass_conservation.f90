@@ -483,8 +483,9 @@ contains
                 ! Set border points equal to inner neighbors. The advection
                 ! treats them as inner points that receive the outflow of their
                 ! neighbours but do not feed them ("outflow" borders, see
-                ! define_advection_bcs); this reset books the outflow (the mass
-                ! leaving the domain) in mb_resid.
+                ! define_advection_bcs); this reset is the outflow (the mass
+                ! leaving the domain), moved from mb_resid to mb_border by
+                ! calc_ytopo_pc.
                 
                 H_ice_new(1,:)    = H_ice_new(2,:)          ! x=0, copy inner neighbor
                 H_ice_new(nx,:)   = H_ice_new(nx-1,:)       ! x=max, copy inner neighbor

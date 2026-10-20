@@ -15,6 +15,7 @@ module yelmo_topography
     use topography 
     use discharge
     use velocity_general, only : set_inactive_margins
+    use solver_advection, only : outflow_border_mask
 
     use runge_kutta 
     use distances
@@ -65,6 +66,7 @@ contains
         real(wp), allocatable :: ux_adv(:,:)            ! Transport velocity (calc_transport_velocity)
         real(wp), allocatable :: uy_adv(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
+        logical,  allocatable :: mask_obd(:,:)     ! outflow-border cells
         integer  :: lin_iter, lin_status                ! Linear solver iterations and status of the advection
         logical  :: filt
 
@@ -377,6 +379,12 @@ end if
                     ! Add residual tendency to mb_net for proper accounting of mass change
                     tpo%now%mb_net = tpo%now%mb_net + tpo%now%mb_resid
 
+                    ! The reset of the outflow-border cells to their inner neighbours
+                    ! (the mass that leaves the domain) is booked in mb_border, not mb_resid
+                    mask_obd = outflow_border_mask(tpo%par%nx,tpo%par%ny,tpo%par%boundaries)
+                    tpo%now%mb_border = merge(tpo%now%mb_resid,0.0_wp,mask_obd)
+                    tpo%now%mb_resid  = merge(0.0_wp,tpo%now%mb_resid,mask_obd)
+
                     ! Get ice-fraction mask for ice thickness  
                     call update_ice_fraction(tpo,bnd)
                     
@@ -395,6 +403,7 @@ end if
                     tpo%now%pred%mb_net     = tpo%now%mb_net 
                     tpo%now%pred%mb_relax   = tpo%now%mb_relax 
                     tpo%now%pred%mb_resid   = tpo%now%mb_resid 
+                    tpo%now%pred%mb_border  = tpo%now%mb_border 
                     tpo%now%pred%mb_clip    = tpo%now%mb_clip
                     tpo%now%pred%smb        = tpo%now%smb
                     tpo%now%pred%bmb        = tpo%now%bmb
@@ -423,6 +432,7 @@ end if
                     tpo%now%corr%mb_net     = tpo%now%mb_net 
                     tpo%now%corr%mb_relax   = tpo%now%mb_relax 
                     tpo%now%corr%mb_resid   = tpo%now%mb_resid 
+                    tpo%now%corr%mb_border  = tpo%now%mb_border 
                     tpo%now%corr%mb_clip    = tpo%now%mb_clip
                     tpo%now%corr%smb        = tpo%now%smb
                     tpo%now%corr%bmb        = tpo%now%bmb
@@ -467,6 +477,7 @@ end if
                         tpo%now%mb_net      = tpo%now%pred%mb_net 
                         tpo%now%mb_relax    = tpo%now%pred%mb_relax 
                         tpo%now%mb_resid    = tpo%now%pred%mb_resid 
+                        tpo%now%mb_border   = tpo%now%pred%mb_border 
                         tpo%now%mb_clip     = tpo%now%pred%mb_clip
                         tpo%now%smb         = tpo%now%pred%smb 
                         tpo%now%bmb         = tpo%now%pred%bmb 
@@ -493,6 +504,7 @@ end if
                         tpo%now%mb_net      = tpo%now%corr%mb_net 
                         tpo%now%mb_relax    = tpo%now%corr%mb_relax 
                         tpo%now%mb_resid    = tpo%now%corr%mb_resid 
+                        tpo%now%mb_border   = tpo%now%corr%mb_border 
                         tpo%now%mb_clip     = tpo%now%corr%mb_clip
                         tpo%now%smb         = tpo%now%corr%smb 
                         tpo%now%bmb         = tpo%now%corr%bmb 
@@ -1468,6 +1480,7 @@ end if
                 tpo%now%rates%mb_net        = 0.0
                 tpo%now%rates%mb_relax      = 0.0
                 tpo%now%rates%mb_resid      = 0.0
+                tpo%now%rates%mb_border     = 0.0
                 tpo%now%rates%mb_clip       = 0.0
                 tpo%now%rates%mb_err        = 0.0
                 tpo%now%rates%smb           = 0.0
@@ -1490,6 +1503,7 @@ end if
                 tpo%now%rates%mb_net        = tpo%now%rates%mb_net      + tpo%now%mb_net*dt
                 tpo%now%rates%mb_relax      = tpo%now%rates%mb_relax    + tpo%now%mb_relax*dt
                 tpo%now%rates%mb_resid      = tpo%now%rates%mb_resid    + tpo%now%mb_resid*dt
+                tpo%now%rates%mb_border     = tpo%now%rates%mb_border   + tpo%now%mb_border*dt
                 tpo%now%rates%mb_clip       = tpo%now%rates%mb_clip     + tpo%now%mb_clip*dt
                 tpo%now%rates%mb_err        = tpo%now%rates%mb_err      + tpo%now%mb_err*dt
                 tpo%now%rates%smb           = tpo%now%rates%smb         + tpo%now%smb*dt
@@ -1515,6 +1529,7 @@ end if
                     tpo%now%rates%mb_net        = tpo%now%rates%mb_net / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_relax      = tpo%now%rates%mb_relax / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_resid      = tpo%now%rates%mb_resid / tpo%now%rates%dt_tot
+                    tpo%now%rates%mb_border     = tpo%now%rates%mb_border / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_clip       = tpo%now%rates%mb_clip / tpo%now%rates%dt_tot
                     tpo%now%rates%mb_err        = tpo%now%rates%mb_err / tpo%now%rates%dt_tot
                     tpo%now%rates%smb           = tpo%now%rates%smb / tpo%now%rates%dt_tot
@@ -1543,6 +1558,7 @@ end if
                         tpo%now%mb_net      = tpo%now%rates%mb_net
                         tpo%now%mb_relax    = tpo%now%rates%mb_relax
                         tpo%now%mb_resid    = tpo%now%rates%mb_resid
+                        tpo%now%mb_border   = tpo%now%rates%mb_border
                         tpo%now%mb_clip     = tpo%now%rates%mb_clip
                         tpo%now%mb_err      = tpo%now%rates%mb_err
                         tpo%now%smb         = tpo%now%rates%smb
@@ -1799,6 +1815,7 @@ end if
         allocate(now%rates%mb_net(nx,ny))
         allocate(now%rates%mb_relax(nx,ny))
         allocate(now%rates%mb_resid(nx,ny))
+        allocate(now%rates%mb_border(nx,ny))
         allocate(now%rates%mb_clip(nx,ny))
         allocate(now%rates%mb_err(nx,ny))
         allocate(now%rates%smb(nx,ny))
@@ -1822,6 +1839,7 @@ end if
         allocate(now%mb_net(nx,ny))
         allocate(now%mb_relax(nx,ny))
         allocate(now%mb_resid(nx,ny))
+        allocate(now%mb_border(nx,ny))
         allocate(now%mb_clip(nx,ny))
         allocate(now%mb_err(nx,ny))
         allocate(now%smb(nx,ny))
@@ -1909,6 +1927,7 @@ end if
         now%rates%mb_net        = 0.0
         now%rates%mb_relax      = 0.0
         now%rates%mb_resid      = 0.0
+        now%rates%mb_border     = 0.0
         now%rates%mb_clip       = 0.0
         now%rates%mb_err        = 0.0
         now%rates%smb           = 0.0
@@ -1929,6 +1948,7 @@ end if
         now%mb_net      = 0.0 
         now%mb_relax    = 0.0
         now%mb_resid    = 0.0
+        now%mb_border   = 0.0
         now%mb_clip     = 0.0
         now%mb_err      = 0.0
         now%smb         = 0.0 
@@ -2021,6 +2041,7 @@ end if
         if (allocated(now%rates%mb_net))        deallocate(now%rates%mb_net)
         if (allocated(now%rates%mb_relax))      deallocate(now%rates%mb_relax)
         if (allocated(now%rates%mb_resid))      deallocate(now%rates%mb_resid)
+        if (allocated(now%rates%mb_border))      deallocate(now%rates%mb_border)
         if (allocated(now%rates%mb_clip))       deallocate(now%rates%mb_clip)
         if (allocated(now%rates%mb_err))        deallocate(now%rates%mb_err)
         if (allocated(now%rates%smb))           deallocate(now%rates%smb)
@@ -2042,6 +2063,7 @@ end if
         if (allocated(now%mb_net))      deallocate(now%mb_net)
         if (allocated(now%mb_relax))    deallocate(now%mb_relax)
         if (allocated(now%mb_resid))    deallocate(now%mb_resid)
+        if (allocated(now%mb_border))    deallocate(now%mb_border)
         if (allocated(now%mb_clip))     deallocate(now%mb_clip)
         if (allocated(now%mb_err))      deallocate(now%mb_err)
         if (allocated(now%smb))         deallocate(now%smb)
@@ -2142,6 +2164,7 @@ end if
         allocate(pc%mb_net(nx,ny))
         allocate(pc%mb_relax(nx,ny))
         allocate(pc%mb_resid(nx,ny))
+        allocate(pc%mb_border(nx,ny))
         allocate(pc%mb_clip(nx,ny))
         allocate(pc%smb(nx,ny))
         allocate(pc%bmb(nx,ny))
@@ -2167,6 +2190,7 @@ end if
         pc%mb_net       = 0.0
         pc%mb_relax     = 0.0
         pc%mb_resid     = 0.0
+        pc%mb_border     = 0.0
         pc%mb_clip      = 0.0
         pc%smb          = 0.0
         pc%bmb          = 0.0
@@ -2201,6 +2225,7 @@ end if
         if (allocated(pc%mb_net))       deallocate(pc%mb_net)
         if (allocated(pc%mb_relax))     deallocate(pc%mb_relax)
         if (allocated(pc%mb_resid))     deallocate(pc%mb_resid)
+        if (allocated(pc%mb_border))     deallocate(pc%mb_border)
         if (allocated(pc%mb_clip))      deallocate(pc%mb_clip)
         if (allocated(pc%smb))          deallocate(pc%smb)
         if (allocated(pc%bmb))          deallocate(pc%bmb)
