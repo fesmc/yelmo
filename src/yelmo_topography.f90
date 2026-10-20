@@ -922,6 +922,7 @@ end if
         real(wp), allocatable :: mbal_now(:,:)
         real(wp), allocatable :: a_lsf(:,:)
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
+        real(wp), allocatable :: eps_eig_1(:,:), eps_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         !real(wp), allocatable :: u_acx_fill(:,:), v_acy_fill(:,:)
         integer  :: BC
@@ -943,10 +944,13 @@ end if
         allocate(a_lsf(nx,ny))
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
+        allocate(eps_eig_1(nx,ny),eps_eig_2(nx,ny))
 
-        ! Principal stresses on the current ice geometry (cells that received ice
-        ! since the last velocity solution take their neighbours' stresses)
+        ! Principal stresses and strain rates on the current ice geometry (cells that
+        ! received ice since the last velocity solution take their neighbours' values)
         call fill_stress_new_ice(tau_eig_1,tau_eig_2,mat%now%strs2D%tau_eig_1,mat%now%strs2D%tau_eig_2, &
+                                    tpo%now%f_ice,dyn%now%f_ice_solv,tpo%par%boundaries)
+        call fill_stress_new_ice(eps_eig_1,eps_eig_2,mat%now%strn2D%eps_eig_1,mat%now%strn2D%eps_eig_2, &
                                     tpo%now%f_ice,dyn%now%f_ice_solv,tpo%par%boundaries)
 
         ! === Floating calving laws ===
@@ -970,7 +974,13 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_flt,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
+                ! Tensile von Mises stress from the principal strain rates (Morlighem et al., 2016)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar, &
+                                        eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
+
+            case("vm-m16-old")
+                ! First principal deviatoric stress in place of the von Mises stress (former "vm-m16")
+                call calc_calving_rate_vonmises_m16_old(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
                 
             ! TO DO: Add new laws
     
@@ -1014,7 +1024,13 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_grnd,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)    
+                ! Tensile von Mises stress from the principal strain rates (Morlighem et al., 2016)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar, &
+                                        eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)
+
+            case("vm-m16-old")
+                ! First principal deviatoric stress in place of the von Mises stress (former "vm-m16")
+                call calc_calving_rate_vonmises_m16_old(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)    
 
             case("ismip7")
                 ! Retreat of marine-terminating glaciers following ISMIP7 protocol
@@ -1666,7 +1682,7 @@ end if
         ! (see calc_ytopo_calving_lsf and calc_ytopo_calving, respectively).
         if (par%use_lsf) then
             call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method, &
-                                  "zero|none|equil|threshold|vm-m16|exp1|exp2|exp3|exp4|exp5")
+                                  "zero|none|equil|threshold|vm-m16|vm-m16-old|exp1|exp2|exp3|exp4|exp5")
         else
             call yelmo_check_enum(group_ycalv,"calv_flt_method",par%calv_flt_method, &
                                   "zero|none|threshold|vm-l19|eigen|kill|kill-pos")
@@ -1675,7 +1691,7 @@ end if
         ! level-set and mass-balance calving paths.
         if (par%use_lsf) then
             call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method, &
-                                  "zero|none|equil|threshold|vm-m16|ismip7")
+                                  "zero|none|equil|threshold|vm-m16|vm-m16-old|ismip7")
         else
             call yelmo_check_enum(group_ycalv,"calv_grnd_method",par%calv_grnd_method, &
                                   "zero|none|stress-b12")

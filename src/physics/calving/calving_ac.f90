@@ -13,6 +13,7 @@ module calving_ac
     ! === Floating calving routines === 
     public :: calc_calving_threshold_lsf
     public :: calc_calving_rate_vonmises_m16
+    public :: calc_calving_rate_vonmises_m16_old
     
     ! === Grounded calving routines === 
     public :: calc_fmb_ismip7
@@ -92,17 +93,97 @@ contains
         
     end subroutine calc_calving_threshold_lsf
 
-    subroutine calc_calving_rate_vonmises_m16(cr_acx,cr_acy,u_acx,v_acy,tau_1,tau_ice_c,f_ice,boundaries)
-        ! Calculate the calving rate [m/yr] based on the 
-        ! von Mises stress approach, as outlined by Morlighem et al. (2016)
-        ! DOI: 10.1002/2016gl067695
-        ! Eq. 4: c = v*tau_1/tau_ice (tau_ice_flt or tau_ice_grnd)
+    subroutine calc_calving_rate_vonmises_m16(cr_acx,cr_acy,u_acx,v_acy,eps_eig_1,eps_eig_2,ATT_bar,n_glen,tau_ice_c,f_ice,boundaries)
+        ! Calculate the calving rate [m/yr] based on the tensile
+        ! von Mises stress of Morlighem et al. (2016), DOI: 10.1002/2016gl067695
+        ! Eq. 4: c = |v| * tau_vm / tau_ice (tau_ice_flt or tau_ice_grnd)
+        ! Eq. 6: eps_t^2 = 1/2 ( max(0,eps_1)^2 + max(0,eps_2)^2 )
+        ! Eq. 7: tau_vm = sqrt(3) * B * eps_t^(1/n), B = A^(-1/n)
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
+        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
+        real(wp), intent(IN)    :: eps_eig_1(:,:)           ! 1st principal strain rate [1/yr]. aa-nodes.
+        real(wp), intent(IN)    :: eps_eig_2(:,:)           ! 2nd principal strain rate [1/yr]. aa-nodes.
+        real(wp), intent(IN)    :: ATT_bar(:,:)             ! Depth-averaged rate factor [Pa^-n yr^-1]. aa-nodes.
+        real(wp), intent(IN)    :: n_glen                   ! Glen exponent
+        real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
+        real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables
+        real(wp), allocatable :: tau_vm(:,:)
+
+        allocate(tau_vm(size(u_acx,1),size(u_acx,2)))
+
+        tau_vm = calc_tau_vonmises_m16(eps_eig_1,eps_eig_2,ATT_bar,n_glen)
+
+        call calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau_vm,tau_ice_c,f_ice,boundaries)
+
+        return 
+
+    end subroutine calc_calving_rate_vonmises_m16
+
+    elemental function calc_tau_vonmises_m16(eps1,eps2,ATT_bar,n_glen) result(tau_vm)
+        ! Tensile von Mises stress [Pa], Morlighem et al. (2016), Eqs. 6-7.
+
+        implicit none 
+
+        real(wp), intent(IN) :: eps1        ! [1/yr] 1st principal strain rate
+        real(wp), intent(IN) :: eps2        ! [1/yr] 2nd principal strain rate
+        real(wp), intent(IN) :: ATT_bar     ! [Pa^-n yr^-1] depth-averaged rate factor
+        real(wp), intent(IN) :: n_glen 
+        real(wp) :: tau_vm 
+
+        ! Local variables 
+        real(wp) :: eps_t, B 
+
+        eps_t = sqrt(0.5_wp*(max(eps1,0.0_wp)**2 + max(eps2,0.0_wp)**2))
+
+        if (ATT_bar .gt. 0.0_wp .and. eps_t .gt. 0.0_wp) then 
+            B      = ATT_bar**(-1.0_wp/n_glen)
+            tau_vm = sqrt(3.0_wp) * B * eps_t**(1.0_wp/n_glen)
+        else 
+            tau_vm = 0.0_wp 
+        end if 
+
+        return 
+
+    end function calc_tau_vonmises_m16
+
+    subroutine calc_calving_rate_vonmises_m16_old(cr_acx,cr_acy,u_acx,v_acy,tau_1,tau_ice_c,f_ice,boundaries)
+        ! Calculate the calving rate [m/yr] from the first principal
+        ! deviatoric stress: c = |v| * max(0,tau_1) / tau_ice.
+        ! Former "vm-m16", which used tau_1 in place of the tensile
+        ! von Mises stress of Morlighem et al. (2016).
 
         implicit none 
 
         real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
         real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
         real(wp), intent(IN)    :: tau_1(:,:)               ! 1st principal stress [Pa]. aa-nodes.
+        real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
+        real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
+        character(len=*), intent(IN) :: boundaries 
+
+        call calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau_1,tau_ice_c,f_ice,boundaries)
+
+        return 
+
+    end subroutine calc_calving_rate_vonmises_m16_old
+
+    subroutine calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau,tau_ice_c,f_ice,boundaries)
+        ! Calving rate on ac-nodes from a stress field on aa-nodes:
+        ! c = -u * max(0,tau/tau_ice). The stress is staggered to the faces
+        ! (mean of the two cells, or the ice cell's value at a face between
+        ! ice and an ice-free cell).
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
+        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
+        real(wp), intent(IN)    :: tau(:,:)                 ! Stress [Pa]. aa-nodes.
         real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
         real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
         character(len=*), intent(IN) :: boundaries 
@@ -123,23 +204,23 @@ contains
             do i = 1, nx
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
                     
-                ! Stagger 1st ppal stress into ac-nodes                        
-                tau1_acx = 0.5*(tau_1(i,j)+tau_1(ip1,j))
-                tau1_acy = 0.5*(tau_1(i,j)+tau_1(i,jp1))
+                ! Stagger stress into ac-nodes
+                tau1_acx = 0.5*(tau(i,j)+tau(ip1,j))
+                tau1_acy = 0.5*(tau(i,j)+tau(i,jp1))
                         
                 ! Special case for border
                 ! x-axis  
                 if ((f_ice(i,j) .gt. 0.0_wp) .and. (f_ice(ip1,j) .eq. 0.0_wp)) then
-                    tau1_acx = tau_1(i,j)
+                    tau1_acx = tau(i,j)
                 else if ((f_ice(i,j) .eq. 0.0_wp) .and. (f_ice(ip1,j) .gt. 0.0_wp)) then
-                    tau1_acx = tau_1(ip1,j)
+                    tau1_acx = tau(ip1,j)
                 end if
 
                 ! y-axis  
                 if ((f_ice(i,j) .gt. 0.0_wp) .and. (f_ice(i,jp1) .eq. 0.0_wp)) then
-                    tau1_acy = tau_1(i,j)
+                    tau1_acy = tau(i,j)
                 else if ((f_ice(i,j) .eq. 0.0_wp) .and. (f_ice(i,jp1) .gt. 0.0_wp)) then
-                    tau1_acy = tau_1(i,jp1)
+                    tau1_acy = tau(i,jp1)
                 end if
 
                 ! Compute calving-rates on ac-nodes
@@ -153,7 +234,7 @@ contains
 
         return 
 
-    end subroutine calc_calving_rate_vonmises_m16
+    end subroutine calc_calving_rate_stress_ac
        
     subroutine calc_calving_rate_eigen_ac(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
         ! Calculate the 'horizontal' calving rate [m/yr] based on the 
