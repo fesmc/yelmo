@@ -79,9 +79,10 @@ modification).
 
 At ice fronts, the depth-integrated imbalance between ice and water pressure
 $\tau_{l,\mathrm{int}}$ enters as a Neumann condition on the front faces.
-`ydyn.ssa_lat_bc` selects the fronts where it is applied: `"marine"`
-(default; floating and marine-terminating fronts), `"floating"` (or
-`"float"`; floating fronts), `"all"` or `"none"`. The other front faces are
+`ydyn.ssa_lat_bc` selects the fronts where it is applied: `"all"`
+(default; every front, also grounded fronts on land), `"marine"` (floating and
+marine-terminating fronts), `"floating"` (or `"float"`; floating fronts) or
+`"none"`. The other front faces are
 solved as inner faces (see [Numerical solution](solvers.md)). A face between
 ice and ice-free land is not an ocean front: next to floating ice it carries
 no velocity, and next to marine ice it is treated as a grounded front.

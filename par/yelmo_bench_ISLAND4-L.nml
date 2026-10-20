@@ -52,4 +52,5 @@
     ssa_iter_max        = 200
     ssa_iter_conv       = 1e-5
     ssa_lis_opt_energy  = "-i cg -p jacobi -maxiter 5000 -tol 1.0e-8 -initx_zeros false"
+    ssa_lat_bc      = "marine"          ! benchmark reference (the default was "marine")
 /
