@@ -74,6 +74,7 @@
     beta_q          = 0.333333333333333
     beta_u0         = 1.0               ! [m/a]
     frz_scale       = False
+    ssa_lat_bc      = "marine"          ! benchmark reference (the default was "marine")
 /
 
 &ytill

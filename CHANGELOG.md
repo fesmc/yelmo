@@ -2,6 +2,10 @@
 
 ## Unreleased (dev)
 
+- Default `ydyn.ssa_lat_bc = "all"` (was `"marine"`): the lateral stress condition at every
+  ice front, also grounded fronts on land. The benchmark par files that used the default
+  (FLOWLINE, ISLAND4, ISLAND4-L, SHELF-R) keep `"marine"`; answer-changing for the initMIP par
+  files (`yelmo_initmip_grl/ant.nml`).
 - `mb_relax` is reset to zero when there is no relaxation (`ytopo.topo_rel = 0`); before,
   the last rate (e.g. from the restart after a relaxation phase) was kept and reported in
   `mb_relax`/`mb_relax_tot`, though not applied.

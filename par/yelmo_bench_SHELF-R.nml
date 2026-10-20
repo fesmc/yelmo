@@ -50,6 +50,7 @@
     beta_method     = -1
     beta_gl_stag    = -1
     ssa_iter_max    = 20                ! Maximum number of Picard iterations
+    ssa_lat_bc      = "marine"          ! benchmark reference (the default was "marine")
 /
 
 ! Constant rate factor A = rf_const (the analytical solution uses the fixture value)
