@@ -2,6 +2,9 @@
 
 ## Unreleased (dev)
 
+- `mb_relax` is reset to zero when there is no relaxation (`ytopo.topo_rel = 0`); before,
+  the last rate (e.g. from the restart after a relaxation phase) was kept and reported in
+  `mb_relax`/`mb_relax_tot`, though not applied.
 - **"infinite" borders are outflow only** (`experiment = "infinite"`, and the non-periodic
   borders of `"periodic-x"`/`"periodic-y"`): ice flows out through the border but not in.
   The border cells are advected as inner points with no flow from them into the domain,
