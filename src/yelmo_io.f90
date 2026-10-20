@@ -725,6 +725,9 @@ contains
         call nc_read_interp(filename,"mb_net",      tpo%now%mb_net,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"mb_relax",    tpo%now%mb_relax,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"mb_resid",    tpo%now%mb_resid,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        ! (restarts written before mb_border have the border reset in mb_resid)
+        if (nc_exists_var(filename,"mb_border")) &
+            call nc_read_interp(filename,"mb_border", tpo%now%mb_border,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"mb_err",      tpo%now%mb_err,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"smb",         tpo%now%smb,        ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"bmb",         tpo%now%bmb,        ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -1158,6 +1161,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("mb_resid")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_resid(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("mb_border")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_border(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("mb_clip")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%mb_clip(i1:i2,j1:j2), &

@@ -328,6 +328,7 @@ contains
       case("tpo_mb_net");        v2D = real(ylmo%tpo%now%mb_net,        c_double)
       case("tpo_mb_relax");      v2D = real(ylmo%tpo%now%mb_relax,      c_double)
       case("tpo_mb_resid");      v2D = real(ylmo%tpo%now%mb_resid,      c_double)
+      case("tpo_mb_border");     v2D = real(ylmo%tpo%now%mb_border,     c_double)
       case("tpo_mb_err");        v2D = real(ylmo%tpo%now%mb_err,        c_double)
       case("tpo_smb");           v2D = real(ylmo%tpo%now%smb,           c_double)
       case("tpo_bmb");           v2D = real(ylmo%tpo%now%bmb,           c_double)

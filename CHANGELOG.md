@@ -2,6 +2,11 @@
 
 ## Unreleased (dev)
 
+- `mb_border` (2D, `yelmo.nc` variable 78) and `mb_border_tot` (`yelmo_ts`): the reset of the cells
+  of outflow ("infinite") borders to their inner neighbours, booked in `mb_border` instead of
+  `mb_resid`. The domain totals of smb, bmb, fmb, dmb, calving, relaxation, mb_resid and the clip
+  leave these cells out; `mb_border_tot` is all their rates plus the reset, the mass that leaves
+  the domain through its border. The model state is unchanged (diagnostics only).
 - **`vm-m16` calving is the tensile von Mises law of Morlighem et al. (2016)**, Eqs. 6-7:
   `tau_vm = sqrt(3) * B_bar * eps_t^(1/n)` with `eps_t^2 = 1/2 (max(0,eps_1)^2 + max(0,eps_2)^2)`
   from the principal strain rates and `B_bar = ATT_bar^(-1/n)`. Before, the law used the first

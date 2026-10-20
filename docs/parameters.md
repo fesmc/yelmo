@@ -63,9 +63,13 @@ domain border use `"fixed"` or `"dynamic"` (`"none"` would empty its outer row).
 With `experiment = "infinite"` and `mask_border = "dynamic"` the border cells
 take the thickness of their inner neighbours. Ice flows out through the border
 but not in: the border cells receive the outflow of their neighbours, and the
-reset to their neighbours' thickness is booked in `mb_resid` (the mass that
+reset to their neighbours' thickness is booked in `mb_border` (the mass that
 leaves the domain). The same holds for the non-periodic borders of
-`"periodic-x"` and `"periodic-y"`.
+`"periodic-x"` and `"periodic-y"`. The border cells keep their mass balance
+(smb, bmb, calving, ...), which the reset undoes; the totals of these terms in
+`yelmo_ts.nc` leave the border cells out, and `mb_border_tot` is the total of
+everything booked in them (their rates and the reset): the mass that leaves the
+domain through its border, so that dV/dt = the terms + `mb_border_tot`.
 
 Without layers the expressions can only be `"all"` or `"none"`. A driver may
 pass the regions (`yelmo_init(..., reg=)`, on the Yelmo grid) instead of

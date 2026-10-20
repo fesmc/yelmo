@@ -11,6 +11,7 @@ module solver_advection
     
     private 
     public :: calc_advec2D
+    public :: outflow_border_mask
     public :: calc_adv2D_expl
     public :: calc_adv2D_impl_upwind
 
@@ -287,8 +288,8 @@ contains
             ! so the flux through their interior faces is kept and booked. So are the
             ! cells of "outflow" borders: they receive the outflow of their inner
             ! neighbours (no inflow, see limit_border_inflow), and calc_G_boundaries
-            ! sets them to their neighbours' thickness and books the change in
-            ! mb_resid (the mass that leaves the domain).
+            ! sets them to their neighbours' thickness; the change is booked in
+            ! mb_border (the mass that leaves the domain, calc_ytopo_pc).
 
             use_border_bc = mask(i,j) .ne. MASK_ICE_NONE
 
@@ -553,7 +554,7 @@ contains
         !   "outflow":  open border of "infinite" domains: the border cells are
         !               inner points without flow from them into the domain
         !               (limit_border_inflow); calc_G_boundaries sets them to
-        !               their inner neighbours and books the outflow in mb_resid.
+        !               their inner neighbours, booked in mb_border.
         !               With "infinite" here, the border cells fed the interior
         !               wherever the flow pointed inwards, without limit and
         !               unbooked.
@@ -619,6 +620,28 @@ contains
         return
 
     end subroutine define_advection_bcs
+
+    function outflow_border_mask(nx,ny,boundaries) result(mask)
+        ! Cells of the "outflow" borders (define_advection_bcs): they take the
+        ! thickness of their inner neighbours (calc_G_boundaries).
+
+        implicit none
+
+        integer,          intent(IN) :: nx, ny
+        character(len=*), intent(IN) :: boundaries
+        logical :: mask(nx,ny)
+
+        character(len=56) :: bcs(4)
+
+        call define_advection_bcs(bcs,boundaries)
+
+        mask = .FALSE.
+        if (bcs(1) .eq. "outflow") mask(nx,:) = .TRUE.   ! right
+        if (bcs(2) .eq. "outflow") mask(:,ny) = .TRUE.   ! top
+        if (bcs(3) .eq. "outflow") mask(1,:)  = .TRUE.   ! left
+        if (bcs(4) .eq. "outflow") mask(:,1)  = .TRUE.   ! bottom
+
+    end function outflow_border_mask
 
     subroutine limit_border_inflow(ux,uy,bcs)
         ! "outflow" borders: no flow from a border cell into its inner neighbour.
