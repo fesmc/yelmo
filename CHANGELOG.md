@@ -12,8 +12,11 @@
   from the principal strain rates and `B_bar = ATT_bar^(-1/n)`. Before, the law used the first
   principal deviatoric stress `tau_1 = 2 visc_bar eps_1` only, i.e. without the second tensile
   term and the sqrt(3) factor; that form is kept as `calv_flt_method`/`calv_grnd_method =
-  "vm-m16-old"`. Answer-changing for every run with the default calving (`vm-m16`); the
-  thresholds `tau_ice_flt`/`tau_ice_grnd` are unchanged and may need recalibration.
+  "vm-m16-old"`. Answer-changing for every run with the default calving (`vm-m16`).
+  `ycalv.tau_ice_flt = 100 kPa` (was 250 kPa; all par files too) from a 16-km GRL/ANT sweep
+  of 250/150/100/75/50 kPa: with the new stress definition shelf fronts never reach 150 kPa, and
+  at 75 kPa and below Filchner-Ronne and Amery calve away; `tau_ice_grnd` stays 1 MPa. Not a
+  full calibration: at 100 kPa the Ross and Ronne fronts still advance beyond observations.
 - Default `ydyn.ssa_lat_bc = "all"` (was `"marine"`): the lateral stress condition at every
   ice front, also grounded fronts on land. The benchmark par files that used the default
   (FLOWLINE, ISLAND4, ISLAND4-L, SHELF-R) keep `"marine"`; answer-changing for the initMIP par

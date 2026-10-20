@@ -38,7 +38,7 @@ tensile deformation counts, and $\bar B = \bar A^{-1/n}$ from the
 depth-averaged rate factor (`ATT_bar`). $\tilde\sigma$ is computed at cell
 centres and staggered to the faces (mean of the two cells, or the ice cell's
 value at a face between ice and an ice-free cell). $\tau_{\rm ice}$ is the ice
-strength: `ycalv.tau_ice_flt` (default 250 kPa) on floating faces
+strength: `ycalv.tau_ice_flt` (default 100 kPa) on floating faces
 (`f_grnd_ac = 0`) and `ycalv.tau_ice_grnd` (default 1 MPa) on the other marine
 faces. The floating law is used on faces with a grounded fraction of zero, the
 grounded law on the other faces. On faces between two land cells (bed at or
