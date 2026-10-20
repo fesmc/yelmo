@@ -79,3 +79,4 @@
 | 76 | mb_clip           | xc, yc      | m/yr        | Clip of negative ice thickness after transport     |
 | 77 | mask_kin          | xc, yc      |             | Column rate given by the applied thickness step    |
 | 78 | mb_border         | xc, yc      | m/yr        | Reset of outflow-border cells (domain outflow)     |
+| 79 | tau_vm            | xc, yc      | Pa          | Tensile von Mises stress (Morlighem et al., 2016)  |

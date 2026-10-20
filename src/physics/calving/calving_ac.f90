@@ -12,8 +12,8 @@ module calving_ac
     
     ! === Floating calving routines === 
     public :: calc_calving_threshold_lsf
+    public :: calc_tau_vm
     public :: calc_calving_rate_vonmises_m16
-    public :: calc_calving_rate_vonmises_m16_old
     
     ! === Grounded calving routines === 
     public :: calc_fmb_ismip7
@@ -93,40 +93,32 @@ contains
         
     end subroutine calc_calving_threshold_lsf
 
-    subroutine calc_calving_rate_vonmises_m16(cr_acx,cr_acy,u_acx,v_acy,eps_eig_1,eps_eig_2,ATT_bar,n_glen,tau_ice_c,f_ice,boundaries)
-        ! Calculate the calving rate [m/yr] based on the tensile
-        ! von Mises stress of Morlighem et al. (2016), DOI: 10.1002/2016gl067695
-        ! Eq. 4: c = |v| * tau_vm / tau_ice (tau_ice_flt or tau_ice_grnd)
+    subroutine calc_tau_vm(tau_vm,eps_eig_1,eps_eig_2,ATT_bar,n_glen,f_ice)
+        ! Tensile von Mises stress [Pa] at ice-covered points, Morlighem et al. (2016),
+        ! DOI: 10.1002/2016gl067695:
         ! Eq. 6: eps_t^2 = 1/2 ( max(0,eps_1)^2 + max(0,eps_2)^2 )
         ! Eq. 7: tau_vm = sqrt(3) * B * eps_t^(1/n), B = A^(-1/n)
 
         implicit none 
 
-        real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
-        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
-        real(wp), intent(IN)    :: eps_eig_1(:,:)           ! 1st principal strain rate [1/yr]. aa-nodes.
-        real(wp), intent(IN)    :: eps_eig_2(:,:)           ! 2nd principal strain rate [1/yr]. aa-nodes.
-        real(wp), intent(IN)    :: ATT_bar(:,:)             ! Depth-averaged rate factor [Pa^-n yr^-1]. aa-nodes.
-        real(wp), intent(IN)    :: n_glen                   ! Glen exponent
-        real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
-        real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
-        character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(OUT) :: tau_vm(:,:)        ! [Pa] aa-nodes
+        real(wp), intent(IN)  :: eps_eig_1(:,:)     ! [1/yr] 1st principal strain rate. aa-nodes.
+        real(wp), intent(IN)  :: eps_eig_2(:,:)     ! [1/yr] 2nd principal strain rate. aa-nodes.
+        real(wp), intent(IN)  :: ATT_bar(:,:)       ! [Pa^-n yr^-1] depth-averaged rate factor. aa-nodes.
+        real(wp), intent(IN)  :: n_glen             ! Glen exponent
+        real(wp), intent(IN)  :: f_ice(:,:)
 
-        ! Local variables
-        real(wp), allocatable :: tau_vm(:,:)
-
-        allocate(tau_vm(size(u_acx,1),size(u_acx,2)))
-
-        tau_vm = calc_tau_vonmises_m16(eps_eig_1,eps_eig_2,ATT_bar,n_glen)
-
-        call calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau_vm,tau_ice_c,f_ice,boundaries)
+        where (f_ice .gt. 0.0_wp)
+            tau_vm = calc_tau_vm_now(eps_eig_1,eps_eig_2,ATT_bar,n_glen)
+        elsewhere
+            tau_vm = 0.0_wp
+        end where
 
         return 
 
-    end subroutine calc_calving_rate_vonmises_m16
+    end subroutine calc_tau_vm
 
-    elemental function calc_tau_vonmises_m16(eps1,eps2,ATT_bar,n_glen) result(tau_vm)
-        ! Tensile von Mises stress [Pa], Morlighem et al. (2016), Eqs. 6-7.
+    elemental function calc_tau_vm_now(eps1,eps2,ATT_bar,n_glen) result(tau_vm)
 
         implicit none 
 
@@ -150,34 +142,15 @@ contains
 
         return 
 
-    end function calc_tau_vonmises_m16
+    end function calc_tau_vm_now
 
-    subroutine calc_calving_rate_vonmises_m16_old(cr_acx,cr_acy,u_acx,v_acy,tau_1,tau_ice_c,f_ice,boundaries)
-        ! Calculate the calving rate [m/yr] from the first principal
-        ! deviatoric stress: c = |v| * max(0,tau_1) / tau_ice.
-        ! Former "vm-m16", which used tau_1 in place of the tensile
-        ! von Mises stress of Morlighem et al. (2016).
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: cr_acx(:,:), cr_acy(:,:) ! Simulated calving rate. ac-nodes.
-        real(wp), intent(IN)    :: u_acx(:,:),  v_acy(:,:)  ! Velocity fields. ac-nodes.
-        real(wp), intent(IN)    :: tau_1(:,:)               ! 1st principal stress [Pa]. aa-nodes.
-        real(wp), intent(IN)    :: tau_ice_c                ! Ice fracture strength [Pa].
-        real(wp), intent(IN)    :: f_ice(:,:)               ! Ocean mask. Extrapolate values into that mask.
-        character(len=*), intent(IN) :: boundaries 
-
-        call calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau_1,tau_ice_c,f_ice,boundaries)
-
-        return 
-
-    end subroutine calc_calving_rate_vonmises_m16_old
-
-    subroutine calc_calving_rate_stress_ac(cr_acx,cr_acy,u_acx,v_acy,tau,tau_ice_c,f_ice,boundaries)
-        ! Calving rate on ac-nodes from a stress field on aa-nodes:
-        ! c = -u * max(0,tau/tau_ice). The stress is staggered to the faces
-        ! (mean of the two cells, or the ice cell's value at a face between
-        ! ice and an ice-free cell).
+    subroutine calc_calving_rate_vonmises_m16(cr_acx,cr_acy,u_acx,v_acy,tau,tau_ice_c,f_ice,boundaries)
+        ! Calving rate [m/yr] on ac-nodes from a stress field on aa-nodes,
+        ! Morlighem et al. (2016) Eq. 4: c = -u * max(0,tau/tau_ice).
+        ! "vm-m16": tau = tensile von Mises stress (calc_tau_vm);
+        ! "vm-m16-old": tau = first principal deviatoric stress.
+        ! The stress is staggered to the faces (mean of the two cells, or the
+        ! ice cell's value at a face between ice and an ice-free cell).
 
         implicit none 
 
@@ -234,7 +207,7 @@ contains
 
         return 
 
-    end subroutine calc_calving_rate_stress_ac
+    end subroutine calc_calving_rate_vonmises_m16
        
     subroutine calc_calving_rate_eigen_ac(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
         ! Calculate the 'horizontal' calving rate [m/yr] based on the 

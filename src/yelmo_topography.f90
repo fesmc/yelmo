@@ -666,6 +666,7 @@ end if
         real(wp), allocatable :: mbal_now(:,:) 
         real(wp), allocatable :: cmb_sd(:,:)
         real(wp), allocatable :: tau_eig_1(:,:), tau_eig_2(:,:)
+        real(wp), allocatable :: eps_eig_1(:,:), eps_eig_2(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         logical,  allocatable :: mask_kill(:,:)
         real(wp), allocatable :: H_grnd_now(:,:), f_grnd_now(:,:)
@@ -678,6 +679,7 @@ end if
         allocate(mask_kill(nx,ny),H_grnd_now(nx,ny),f_grnd_now(nx,ny))
         allocate(cmb_sd(nx,ny)) 
         allocate(tau_eig_1(nx,ny),tau_eig_2(nx,ny))
+        allocate(eps_eig_1(nx,ny),eps_eig_2(nx,ny))
 
 
         ! Make sure current ice mask is correct
@@ -697,6 +699,11 @@ end if
 
         ! tau_eff = effective stress ~ von Mises stress following Lipscomb et al. (2019)
         call calc_tau_eff(tpo%now%tau_eff,tau_eig_1,tau_eig_2,tpo%now%f_ice,tpo%par%w2)
+
+        ! tau_vm = tensile von Mises stress following Morlighem et al. (2016)
+        call fill_stress_new_ice(eps_eig_1,eps_eig_2,mat%now%strn2D%eps_eig_1,mat%now%strn2D%eps_eig_2, &
+                                    tpo%now%f_ice,dyn%now%f_ice_solv,tpo%par%boundaries)
+        call calc_tau_vm(tpo%now%tau_vm,eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%now%f_ice)
 
         ! == Determine thickness threshold for calving spatially ==
 
@@ -965,6 +972,10 @@ end if
         call fill_stress_new_ice(eps_eig_1,eps_eig_2,mat%now%strn2D%eps_eig_1,mat%now%strn2D%eps_eig_2, &
                                     tpo%now%f_ice,dyn%now%f_ice_solv,tpo%par%boundaries)
 
+        ! tau_eff (Lipscomb et al., 2019) and tau_vm (Morlighem et al., 2016) diagnostics
+        call calc_tau_eff(tpo%now%tau_eff,tau_eig_1,tau_eig_2,tpo%now%f_ice,tpo%par%w2)
+        call calc_tau_vm(tpo%now%tau_vm,eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%now%f_ice)
+
         ! === Floating calving laws ===
         
         ! Initialize the calving rates
@@ -986,13 +997,12 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_flt,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                ! Tensile von Mises stress from the principal strain rates (Morlighem et al., 2016)
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                        eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
+                ! Tensile von Mises stress (Morlighem et al., 2016)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%tau_vm,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
 
             case("vm-m16-old")
                 ! First principal deviatoric stress in place of the von Mises stress (former "vm-m16")
-                call calc_calving_rate_vonmises_m16_old(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_flt_x,tpo%now%cmb_flt_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_flt,tpo%now%f_ice,tpo%par%boundaries)
                 
             ! TO DO: Add new laws
     
@@ -1036,13 +1046,12 @@ end if
                 call calc_calving_threshold_lsf(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%H_ice,tpo%par%Hc_ref_grnd,tpo%now%f_ice,tpo%par%boundaries)
         
             case("vm-m16")
-                ! Tensile von Mises stress from the principal strain rates (Morlighem et al., 2016)
-                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar, &
-                                        eps_eig_1,eps_eig_2,mat%now%ATT_bar,mat%par%n_glen,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)
+                ! Tensile von Mises stress (Morlighem et al., 2016)
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tpo%now%tau_vm,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)
 
             case("vm-m16-old")
                 ! First principal deviatoric stress in place of the von Mises stress (former "vm-m16")
-                call calc_calving_rate_vonmises_m16_old(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)    
+                call calc_calving_rate_vonmises_m16(tpo%now%cmb_grnd_x,tpo%now%cmb_grnd_y,dyn%now%ux_bar,dyn%now%uy_bar,tau_eig_1,tpo%par%tau_ice_grnd,tpo%now%f_ice,tpo%par%boundaries)    
 
             case("ismip7")
                 ! Retreat of marine-terminating glaciers following ISMIP7 protocol
@@ -1867,6 +1876,7 @@ end if
 
         allocate(now%eps_eff(nx,ny))
         allocate(now%tau_eff(nx,ny))
+        allocate(now%tau_vm(nx,ny))
         
         allocate(now%dzsdx(nx,ny))
         allocate(now%dzsdy(nx,ny))
@@ -1971,6 +1981,7 @@ end if
 
         now%eps_eff     = 0.0
         now%tau_eff     = 0.0
+        now%tau_vm      = 0.0
         
         now%dzsdx       = 0.0 
         now%dzsdy       = 0.0 
@@ -2090,6 +2101,7 @@ end if
 
         if (allocated(now%eps_eff))     deallocate(now%eps_eff)
         if (allocated(now%tau_eff))     deallocate(now%tau_eff)
+        if (allocated(now%tau_vm))      deallocate(now%tau_vm)
         
         if (allocated(now%dzsdx))       deallocate(now%dzsdx)
         if (allocated(now%dzsdy))       deallocate(now%dzsdy)

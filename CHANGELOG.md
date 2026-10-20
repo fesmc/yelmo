@@ -2,6 +2,10 @@
 
 ## Unreleased (dev)
 
+- Output variable `tau_vm` [Pa]: the tensile von Mises stress of the `vm-m16` calving law
+  (Morlighem et al., 2016, Eqs. 6-7) at cell centres, computed on both calving paths next to
+  `tau_eff`; also `tpo_tau_vm` in the C API. `calc_calving_rate_vonmises_m16` now takes the
+  stress field (`tau_vm`, or the first principal stress for `vm-m16-old`).
 - `mb_border` (2D, `yelmo.nc` variable 78) and `mb_border_tot` (`yelmo_ts`): the reset of the cells
   of outflow ("infinite") borders to their inner neighbours, booked in `mb_border` instead of
   `mb_resid`. The domain totals of smb, bmb, fmb, dmb, calving, relaxation, mb_resid and the clip

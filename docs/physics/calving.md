@@ -56,6 +56,10 @@ The strain rates and stresses come from the last velocity solution. A cell
 that received ice since then takes the mean of its edge neighbours that were
 part of that solution (`fill_stress_new_ice`).
 
+$\tilde\sigma$ is available as the output variable `tau_vm` [Pa] (cell centres,
+zero on ice-free cells), on both calving paths and whichever calving law is
+active, alongside `tau_eff`.
+
 Other laws on this path:
 
 - `"zero"` / `"none"`: no calving;

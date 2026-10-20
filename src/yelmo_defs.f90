@@ -318,6 +318,7 @@ module yelmo_defs
 
         real(wp), allocatable   :: eps_eff(:,:)     ! Effective strain [1/yr]
         real(wp), allocatable   :: tau_eff(:,:)     ! Effective stress [Pa]
+        real(wp), allocatable   :: tau_vm(:,:)      ! Tensile von Mises stress [Pa] (Morlighem et al., 2016)
         
         real(wp), allocatable   :: z_base(:,:)      ! Ice-base elevation [m]
 

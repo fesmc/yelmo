@@ -641,6 +641,7 @@ contains
         call yelmo_write_var(filename,"smb",ylmo,n,ncid)
         call yelmo_write_var(filename,"bmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"cmb",ylmo,n,ncid)
+        call yelmo_write_var(filename,"tau_vm",ylmo,n,ncid)
         call yelmo_write_var(filename,"fmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"dmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"H_grnd",ylmo,n,ncid)

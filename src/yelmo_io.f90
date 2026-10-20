@@ -742,6 +742,9 @@ contains
         call nc_read_interp(filename,"cmb_grnd",    tpo%now%cmb_grnd,   ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"eps_eff",     tpo%now%eps_eff,    ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"tau_eff",     tpo%now%tau_eff,    ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        ! (restarts written before tau_vm lack it; it is recomputed at the first calving step)
+        if (nc_exists_var(filename,"tau_vm")) &
+            call nc_read_interp(filename,"tau_vm",  tpo%now%tau_vm,     ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         call nc_read_interp(filename,"dzsdx",       tpo%now%dzsdx,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)  
         call nc_read_interp(filename,"dzsdy",       tpo%now%dzsdy,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)  
         call nc_read_interp(filename,"dHidx",       tpo%now%dHidx,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -1227,6 +1230,9 @@ contains
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("tau_eff")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%tau_eff(i1:i2,j1:j2), &
+                            start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
+            case("tau_vm")
+                call nc_write(filename,trim(v%varname),ylmo%tpo%now%tau_vm(i1:i2,j1:j2), &
                             start=[1,1,n],units=v%units,long_name=v%long_name,dims=dims,ncid=ncid)
             case("z_base")
                 call nc_write(filename,trim(v%varname),ylmo%tpo%now%z_base(i1:i2,j1:j2), &

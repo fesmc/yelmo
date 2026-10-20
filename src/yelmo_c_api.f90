@@ -358,6 +358,7 @@ contains
       case("tpo_mask_kin");      v2D = real(ylmo%tpo%now%mask_kin,      c_double)
       case("tpo_eps_eff");       v2D = real(ylmo%tpo%now%eps_eff,       c_double)
       case("tpo_tau_eff");       v2D = real(ylmo%tpo%now%tau_eff,       c_double)
+      case("tpo_tau_vm");        v2D = real(ylmo%tpo%now%tau_vm,        c_double)
       case("tpo_z_base");        v2D = real(ylmo%tpo%now%z_base,        c_double)
       case("tpo_dzsdx");         v2D = real(ylmo%tpo%now%dzsdx,         c_double)
       case("tpo_dzsdy");         v2D = real(ylmo%tpo%now%dzsdy,         c_double)
