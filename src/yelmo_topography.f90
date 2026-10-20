@@ -356,6 +356,11 @@ end if
                         ! Get ice-fraction mask for ice thickness  
                         call update_ice_fraction(tpo,bnd)
 
+                    else
+                        ! No relaxation: reset the rate (else the last one, e.g.
+                        ! from a restart, is kept and reported)
+                        tpo%now%mb_relax = 0.0_wp
+
                     end if
 
                     ! Finally, apply all additional (generally artificial) ice thickness adjustments 
