@@ -2,6 +2,13 @@
 
 ## Unreleased (dev)
 
+- **`vm-m16` calving is the tensile von Mises law of Morlighem et al. (2016)**, Eqs. 6-7:
+  `tau_vm = sqrt(3) * B_bar * eps_t^(1/n)` with `eps_t^2 = 1/2 (max(0,eps_1)^2 + max(0,eps_2)^2)`
+  from the principal strain rates and `B_bar = ATT_bar^(-1/n)`. Before, the law used the first
+  principal deviatoric stress `tau_1 = 2 visc_bar eps_1` only, i.e. without the second tensile
+  term and the sqrt(3) factor; that form is kept as `calv_flt_method`/`calv_grnd_method =
+  "vm-m16-old"`. Answer-changing for every run with the default calving (`vm-m16`); the
+  thresholds `tau_ice_flt`/`tau_ice_grnd` are unchanged and may need recalibration.
 - Default `ydyn.ssa_lat_bc = "all"` (was `"marine"`): the lateral stress condition at every
   ice front, also grounded fronts on land. The benchmark par files that used the default
   (FLOWLINE, ISLAND4, ISLAND4-L, SHELF-R) keep `"marine"`; answer-changing for the initMIP par

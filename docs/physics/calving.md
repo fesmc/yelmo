@@ -16,27 +16,45 @@ the subgrid front (`ytopo.front_subgrid = "marine"`). This path is computed in
 
 ### Calving rate
 
-`vm-m16` follows Morlighem et al. (2016, Eq. 4). On each velocity face the
-calving rate is
+`vm-m16` follows Morlighem et al. (2016, Eqs. 4, 6 and 7). On each velocity
+face the calving rate is
 
 $$
-c = u \, \max\left(0, \frac{\tau_1}{\tau_{\rm ice}}\right)
+c = u \, \frac{\tilde\sigma}{\tau_{\rm ice}}
 $$
 
-directed against the ice velocity $u$, where $\tau_1$ is the first principal
-value of the depth-averaged deviatoric stress (mean of the two cells, or the
-ice cell's value at a face between ice and an ice-free cell) and
-$\tau_{\rm ice}$ is the ice strength: `ycalv.tau_ice_flt` (default 250 kPa) on
-floating faces (`f_grnd_ac = 0`) and `ycalv.tau_ice_grnd` (default 1 MPa) on
-the other marine faces. The floating law is used on faces with a grounded
-fraction of zero, the grounded law on the other faces. On faces between two
-land cells (bed at or above sea level), $c = -u$, so the level set does not
-move there. The front is stationary where
-$\tau_1 = \tau_{\rm ice}$.
+directed against the ice velocity $u$, where $\tilde\sigma$ is the tensile von
+Mises stress
 
-The stresses come from the last velocity solution. A cell that received ice
-since then takes the mean of its edge neighbours that were part of that
-solution (`fill_stress_new_ice`).
+$$
+\tilde\sigma = \sqrt{3}\, \bar B\, \tilde{\dot\varepsilon}^{\,1/n},
+\qquad
+\tilde{\dot\varepsilon}^{\,2} = \tfrac{1}{2}\left( \max(0,\dot\varepsilon_1)^2 + \max(0,\dot\varepsilon_2)^2 \right),
+$$
+
+with $\dot\varepsilon_1, \dot\varepsilon_2$ the eigenvalues of the
+depth-averaged horizontal strain-rate tensor (`strn2D%eps_eig_1/2`), so only
+tensile deformation counts, and $\bar B = \bar A^{-1/n}$ from the
+depth-averaged rate factor (`ATT_bar`). $\tilde\sigma$ is computed at cell
+centres and staggered to the faces (mean of the two cells, or the ice cell's
+value at a face between ice and an ice-free cell). $\tau_{\rm ice}$ is the ice
+strength: `ycalv.tau_ice_flt` (default 250 kPa) on floating faces
+(`f_grnd_ac = 0`) and `ycalv.tau_ice_grnd` (default 1 MPa) on the other marine
+faces. The floating law is used on faces with a grounded fraction of zero, the
+grounded law on the other faces. On faces between two land cells (bed at or
+above sea level), $c = -u$, so the level set does not move there. The front is
+stationary where $\tilde\sigma = \tau_{\rm ice}$.
+
+`vm-m16-old` is the previous form of this law: $c = u \max(0, \tau_1 /
+\tau_{\rm ice})$ with $\tau_1$ the first principal value of the depth-averaged
+deviatoric stress $2\bar\mu\,\dot\varepsilon_{ij}$. It drops the second
+tensile eigenvalue and evaluates the stress through the effective viscosity
+rather than through Eq. 7, so its thresholds are not comparable to those of
+`vm-m16`.
+
+The strain rates and stresses come from the last velocity solution. A cell
+that received ice since then takes the mean of its edge neighbours that were
+part of that solution (`fill_stress_new_ice`).
 
 Other laws on this path:
 
