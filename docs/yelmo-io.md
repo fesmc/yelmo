@@ -61,7 +61,7 @@ Importantly, `yelmo_write_init` can be used to initialize a regional output file
 subroutine yelmo_write_var(filename,varname,ylmo,n,ncid,irange,jrange)
 ```
 
-This routine will write a variable to a given `filename` of an already existing NetCDF file, most likely but not necessarily initialized using `yelmo_write_init`. This routine will accept any variable `varname` that is listed in the [Yelmo variable tables](yelmo-variables.md), which will be written with the attributes specified in the table.
+This routine will write a variable to a given `filename` of an already existing NetCDF file, most likely but not necessarily initialized using `yelmo_write_init`. This routine will accept any variable `varname` that is listed in the [Yelmo variable tables](yelmo-variables.md), which will be written with the attributes and the precision (`prec` column) specified in the table.
 
 This routine can also be used to write regional output using the arguments `irange, jrange`.
 
@@ -124,7 +124,7 @@ If no argument is used, then a subset of useful variables is written:
 subroutine yelmo_restart_write(dom,filename,time,init,irange,jrange)
 ```
 
-This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the [Yelmo variable tables](yelmo-variables.md) (except the `ydata` table) and write them to a NetCDF file. The tables are read at `yelmo_init` from `input/yelmo-variables-*.md`, so a field that is missing from a table is not written to the restart file. The file also holds the predictor–corrector state (`pc_tau`, `pc_dt`, `pc_eta`, ...) and the boundary-rate state (`bnd_time_n`, `bnd_rates_init`). With the Lagrangian [tracer](physics/tracers.md) backends, their state is written to separate files next to it (for `restart.nc`: `restart_tracer.nc`, `restart_elsa.nc`). Optionally `init=.FALSE.` will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).
+This routine will save a snapshot of the Yelmo instance. Essentially the routine will loop over every field found in the [Yelmo variable tables](yelmo-variables.md) (except the `ydata` table) and write them to a NetCDF file. The tables are read at `yelmo_init` from `input/yelmo-variables-*.md`, so a field that is missing from a table is not written to the restart file. The fields are written lossless, ignoring the `prec` column of the tables. The file also holds the predictor–corrector state (`pc_tau`, `pc_dt`, `pc_eta`, ...) and the boundary-rate state (`bnd_time_n`, `bnd_rates_init`). With the Lagrangian [tracer](physics/tracers.md) backends, their state is written to separate files next to it (for `restart.nc`: `restart_tracer.nc`, `restart_elsa.nc`). Optionally `init=.FALSE.` will allow writing of multiple timesteps to the same file (largely useful for diagnostic purposes, since the files can get very large).
 
 This routine can also be used to write regional output using the arguments `irange, jrange`.
 
