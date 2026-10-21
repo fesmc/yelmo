@@ -9,7 +9,8 @@
   relative, temperatures 1e-3 K, fractions and mass-balance rates 1e-4, stresses and most other
   fields 1e-4 relative, masks lossless. Restart files stay lossless (`yelmo_restart_write`), as do
   the static fields of `yelmo_write_init` and the time series. The table writers use
-  `var_io_write`; needs fesm-utils with ncio precision support.
+  `var_io_write`; needs fesm-utils with ncio precision support. `yelmo_initmip.x`:
+  `ctrl.nc_lossless = True` switches the rounding off (ncio `nc_set_lossless`).
 - Output variable `tau_vm` [Pa]: the tensile von Mises stress of the `vm-m16` calving law
   (Morlighem et al., 2016, Eqs. 6-7) at cell centres, computed on both calving paths next to
   `tau_eff`; also `tpo_tau_vm` in the C API. `calc_calving_rate_vonmises_m16` now takes the

@@ -16,6 +16,7 @@
     with_ice_sheet  = True              ! Active ice-sheet component?
     equil_method    = "opt"             ! "none", "relax" (relaxation, [relax]), "opt" (relaxation + optimization, [relax] + [opt])
     init_temp       = "robin"           ! Initial temperature profile: "robin" or "robin-cold" (cold base)
+    nc_lossless     = False             ! Write all output lossless (ignore the prec column of the variable tables)
 
     set_nm          = "set_ant_pd"      ! Climate set: "set_ant_pd" or "set_ant_lgm"
 

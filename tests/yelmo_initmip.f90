@@ -66,6 +66,8 @@ program yelmo_test
         real(wp) :: bmb_shlf_const
         real(wp) :: dT_ann
         real(wp) :: z_sl 
+
+        logical  :: nc_lossless             ! Write all output lossless (ignore the variable-table prec)
     end type 
 
     type(ctrl_params)    :: ctl
@@ -92,6 +94,7 @@ program yelmo_test
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
     call nml_read(path_par,"ctrl","init_temp",      ctl%init_temp)          ! Initial temperature profile ("robin", "robin-cold")
+    call nml_read(path_par,"ctrl","nc_lossless",    ctl%nc_lossless)        ! Write all output lossless (ignore the variable-table prec)
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
     
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
@@ -155,6 +158,9 @@ program yelmo_test
     write(*,*) "time_bp = ", ts%time_rel 
     write(*,*) 
     
+    ! Output precision (ncio switch for all later nc_write calls)
+    call nc_set_lossless(ctl%nc_lossless)
+
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects and load initial topography
