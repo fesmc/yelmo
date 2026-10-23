@@ -28,7 +28,6 @@ The Yelmo class defines all data related to a model domain, such as Greenland or
         type(yelmo_param_class) :: par      ! General domain parameters
         type(grid_class)        :: grd      ! Grid definition (fesm-utils/coords)
         type(ytime_class)       :: time     ! Timestep and timing variables
-        type(ytime_class)       :: time_amc ! Timestep and timing variables
         type(ytopo_class)       :: tpo      ! Topography variables
         type(ydyn_class)        :: dyn      ! Dynamics variables
         type(ymat_class)        :: mat      ! Material variables
@@ -40,7 +39,7 @@ The Yelmo class defines all data related to a model domain, such as Greenland or
         type(yregions_class)    :: reg      ! Regionally aggregated variables for whole domain
         type(yregions_class), allocatable :: regs(:)  ! Regionally aggregated variables for sub-regions
         type(yelmo_io_tables)   :: io       ! IO variable tables
-        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics)
+        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics, timesteps, killed)
     end type
 
 ```
@@ -53,7 +52,6 @@ Likewise the module variables are defined in a similar way, e.g. ytopo\_class th
         type(ytopo_param_class) :: par        ! Parameters
         type(ytopo_state_class) :: now        ! Variables
         type(ytopo_pc_class)    :: pc         ! Predictor-corrector variables
-        type(rk4_class)         :: rk4
 
     end type
 ```

@@ -8,6 +8,7 @@
       "equil",
       "threshold",
       "vm-m16",
+      "vm-m16-old",
       "exp1",
       "exp2",
       "exp3",
@@ -49,6 +50,7 @@
       "equil",
       "threshold",
       "vm-m16",
+      "vm-m16-old",
       "ismip7"
     ],
     "conditions": [
@@ -174,7 +176,8 @@
     "allowed": [
       "linear",
       "exp",
-      "tanh"
+      "tanh",
+      "exp-inv"
     ],
     "conditions": []
   },
@@ -188,14 +191,6 @@
       "shear2D-tracer",
       "shear3D",
       "shear3D-tracer"
-    ],
-    "conditions": []
-  },
-  {
-    "group": "ymat",
-    "name": "flow_law",
-    "allowed": [
-      "glen"
     ],
     "conditions": []
   },
@@ -268,15 +263,6 @@
       "equil",
       "active",
       "fixed"
-    ],
-    "conditions": []
-  },
-  {
-    "group": "ytherm",
-    "name": "solver_advec",
-    "allowed": [
-      "expl",
-      "impl-upwind"
     ],
     "conditions": []
   },
