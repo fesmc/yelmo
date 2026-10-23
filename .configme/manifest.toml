@@ -1,9 +1,9 @@
 # configme manifest for yelmo.
-# Dev pins; replaced by the v2.4 release tags of each dependency at release.
+# v2.4 pins: main until the v2.4 tags of each dependency are set.
 package = "yelmo"
 deps = [
-    "fesm-utils:dev",
-    "FastHydrology:dev",
-    "elsa:dev",
-    "tracer:dev",
+    "fesm-utils:main",
+    "FastHydrology:main",
+    "elsa:main",
+    "tracer:main",
 ]

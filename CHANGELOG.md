@@ -1,6 +1,6 @@
 # Yelmo changelog
 
-## [Unreleased]
+## v2.4 (2026-10-23)
 
 Includes the fixes of a whole-source audit (2026-09) and review (2026-10): most
 default runs change a little, MISMIP3D and DIVA runs more.
@@ -333,12 +333,13 @@ default runs change a little, MISMIP3D and DIVA runs more.
   `relax_update`, `optimize_set_transient_param` (libs) and the benchmark
   forcings (`eismint_boundaries`, `dome_boundaries`, `bueler_test_BC`) take
   `real(dp)` time.
-- **Requires the dev branches of fesm-utils, FastHydrology, elsa (v3.0.0) and tracer**
-  (`.configme/manifest.toml`), among them fesm-utils `phys_constants`, `tstep_update`
-  advancing on every call, the `act` argument of the gaussian-quadrature node routines
-  (`gq*_to_nodes_acx/acy`, `gq2D/gq3D_to_nodes_aa`) and ncio precision, and FastHydrology
-  `hydro_calc_N`, `hydro_init_state` taking `H_ice` and `periodic_x`/`periodic_y` in
-  `hydro_init`; the bullets below name further features they must have.
+- **Requires fesm-utils, FastHydrology, elsa (v3.0.0) and tracer at the v2.4-era
+  versions pinned in `.configme/manifest.toml` (tags set at release)**, among them
+  fesm-utils `phys_constants`, `tstep_update` advancing on every call, the `act`
+  argument of the gaussian-quadrature node routines (`gq*_to_nodes_acx/acy`,
+  `gq2D/gq3D_to_nodes_aa`) and ncio precision, and FastHydrology `hydro_calc_N`,
+  `hydro_init_state` taking `H_ice` and `periodic_x`/`periodic_y` in `hydro_init`; the
+  bullets below name further features they must have.
 - **K24 key names follow FastHydrology dev** (fesmc/FastHydrology#14): in `&yhyd`,
   `k24_ub_hook` -> `k24_N_ub_coupled`, `k24_manning_exponent` -> `k24_glen_n`,
   `k24_manning_coefficient_exponent` -> `k24_flux_W_exponent`,
