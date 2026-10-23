@@ -371,12 +371,6 @@ contains
         allocate(now%strn2D%eps_eig_1(nx,ny))
         allocate(now%strn2D%eps_eig_2(nx,ny))
         
-        allocate(now%strs%txx(nx,ny,nz_aa))
-        allocate(now%strs%tyy(nx,ny,nz_aa))
-        allocate(now%strs%txy(nx,ny,nz_aa))
-        allocate(now%strs%txz(nx,ny,nz_aa))
-        allocate(now%strs%tyz(nx,ny,nz_aa))
-        allocate(now%strs%te(nx,ny,nz_aa))
         
         allocate(now%strs2D%txx(nx,ny))
         allocate(now%strs2D%tyy(nx,ny))
@@ -419,12 +413,6 @@ contains
         now%strn2D%eps_eig_1 = 0.0
         now%strn2D%eps_eig_2 = 0.0 
         
-        now%strs%txx     = 0.0 
-        now%strs%tyy     = 0.0 
-        now%strs%txy     = 0.0 
-        now%strs%txz     = 0.0
-        now%strs%tyz     = 0.0
-        now%strs%te      = 0.0
         
         now%strs2D%txx   = 0.0 
         now%strs2D%tyy   = 0.0 
@@ -476,12 +464,6 @@ contains
         if (allocated(now%strn2D%eps_eig_1)) deallocate(now%strn2D%eps_eig_1)
         if (allocated(now%strn2D%eps_eig_2)) deallocate(now%strn2D%eps_eig_2)
         
-        if (allocated(now%strs%txx))        deallocate(now%strs%txx)
-        if (allocated(now%strs%tyy))        deallocate(now%strs%tyy)
-        if (allocated(now%strs%txy))        deallocate(now%strs%txy)
-        if (allocated(now%strs%txz))        deallocate(now%strs%txz)
-        if (allocated(now%strs%tyz))        deallocate(now%strs%tyz)
-        if (allocated(now%strs%te))         deallocate(now%strs%te)
         
         if (allocated(now%strs2D%txx))      deallocate(now%strs2D%txx)
         if (allocated(now%strs2D%tyy))      deallocate(now%strs2D%tyy)

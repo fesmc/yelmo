@@ -366,12 +366,6 @@ contains
       case("tpo_dHidy");         v2D = real(ylmo%tpo%now%dHidy,         c_double)
       case("tpo_dzbdx");         v2D = real(ylmo%tpo%now%dzbdx,         c_double)
       case("tpo_dzbdy");         v2D = real(ylmo%tpo%now%dzbdy,         c_double)
-      case("tpo_dzsdx_aa");      v2D = real(ylmo%tpo%now%dzsdx_aa,      c_double)
-      case("tpo_dzsdy_aa");      v2D = real(ylmo%tpo%now%dzsdy_aa,      c_double)
-      case("tpo_dHidx_aa");      v2D = real(ylmo%tpo%now%dHidx_aa,      c_double)
-      case("tpo_dHidy_aa");      v2D = real(ylmo%tpo%now%dHidy_aa,      c_double)
-      case("tpo_dzbdx_aa");      v2D = real(ylmo%tpo%now%dzbdx_aa,      c_double)
-      case("tpo_dzbdy_aa");      v2D = real(ylmo%tpo%now%dzbdy_aa,      c_double)
       case("tpo_H_eff");         v2D = real(ylmo%tpo%now%H_eff,         c_double)
       case("tpo_H_grnd");        v2D = real(ylmo%tpo%now%H_grnd,        c_double)
       case("tpo_H_calv");        v2D = real(ylmo%tpo%now%H_calv,        c_double)
@@ -597,13 +591,6 @@ contains
       case("mat_strn_de");       v3D = real(ylmo%mat%now%strn%de,       c_double)
       case("mat_strn_div");      v3D = real(ylmo%mat%now%strn%div,      c_double)
       case("mat_strn_f_shear");  v3D = real(ylmo%mat%now%strn%f_shear,  c_double)
-      ! stress_3D_class (mat)
-      case("mat_strs_txx");      v3D = real(ylmo%mat%now%strs%txx,      c_double)
-      case("mat_strs_tyy");      v3D = real(ylmo%mat%now%strs%tyy,      c_double)
-      case("mat_strs_txy");      v3D = real(ylmo%mat%now%strs%txy,      c_double)
-      case("mat_strs_txz");      v3D = real(ylmo%mat%now%strs%txz,      c_double)
-      case("mat_strs_tyz");      v3D = real(ylmo%mat%now%strs%tyz,      c_double)
-      case("mat_strs_te");       v3D = real(ylmo%mat%now%strs%te,       c_double)
 
       ! -----------------------------------------------------------------------
       ! ytherm%now — 3D thermodynamic fields

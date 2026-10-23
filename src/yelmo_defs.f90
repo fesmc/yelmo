@@ -329,14 +329,6 @@ module yelmo_defs
         real(wp), allocatable   :: dzbdx(:,:)       ! Bedrock elevation slope [m m-1], acx nodes
         real(wp), allocatable   :: dzbdy(:,:)       ! Bedrock elevation slope [m m-1], acy nodes
         
-        ! TESTING
-        real(wp), allocatable   :: dzsdx_aa(:,:)       ! Surface elevation slope [m m-1], acx nodes
-        real(wp), allocatable   :: dzsdy_aa(:,:)       ! Surface elevation slope [m m-1], acy nodes
-        real(wp), allocatable   :: dHidx_aa(:,:)       ! Ice thickness gradient slope [m m-1], acx nodes
-        real(wp), allocatable   :: dHidy_aa(:,:)       ! Ice thickness gradient slope [m m-1], acy nodes
-        real(wp), allocatable   :: dzbdx_aa(:,:)       ! Bedrock elevation slope [m m-1], acx nodes
-        real(wp), allocatable   :: dzbdy_aa(:,:)       ! Bedrock elevation slope [m m-1], acy nodes
-        
 
         real(wp), allocatable   :: H_eff(:,:)       ! Effective ice thickness (margin-corrected) [m]
         real(wp), allocatable   :: H_grnd(:,:)      ! Ice thickness overburden [m]
@@ -641,15 +633,6 @@ module yelmo_defs
         
     end type 
 
-    type stress_3D_class 
-        real(wp), allocatable :: txx(:,:,:) 
-        real(wp), allocatable :: tyy(:,:,:) 
-        real(wp), allocatable :: txy(:,:,:) 
-        real(wp), allocatable :: txz(:,:,:) 
-        real(wp), allocatable :: tyz(:,:,:) 
-        real(wp), allocatable :: te(:,:,:) 
-    end type 
-    
     type ymat_param_class
         
         character(len=56)       :: flow_law
@@ -685,7 +668,6 @@ module yelmo_defs
 
         type(strain_3D_class)   :: strn 
         type(strain_2D_class)   :: strn2D
-        type(stress_3D_class)   :: strs 
         type(stress_2D_class)   :: strs2D
         
         real(wp), allocatable :: enh(:,:,:)

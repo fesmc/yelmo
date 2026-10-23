@@ -1927,12 +1927,6 @@ end if
         allocate(now%dzbdx(nx,ny))
         allocate(now%dzbdy(nx,ny))
 
-        allocate(now%dzsdx_aa(nx,ny))
-        allocate(now%dzsdy_aa(nx,ny))
-        allocate(now%dHidx_aa(nx,ny))
-        allocate(now%dHidy_aa(nx,ny))
-        allocate(now%dzbdx_aa(nx,ny))
-        allocate(now%dzbdy_aa(nx,ny))
 
         allocate(now%H_eff(nx,ny))
         allocate(now%H_grnd(nx,ny))
@@ -2032,12 +2026,6 @@ end if
         now%dzbdx       = 0.0 
         now%dzbdy       = 0.0
 
-        now%dzsdx_aa    = 0.0 
-        now%dzsdy_aa    = 0.0 
-        now%dHidx_aa    = 0.0 
-        now%dHidy_aa    = 0.0
-        now%dzbdx_aa    = 0.0 
-        now%dzbdy_aa    = 0.0
 
         now%H_eff       = 0.0 
         now%H_grnd      = 0.0  
@@ -2152,12 +2140,6 @@ end if
         if (allocated(now%dzbdx))       deallocate(now%dzbdx)
         if (allocated(now%dzbdy))       deallocate(now%dzbdy)
         
-        if (allocated(now%dzsdx_aa))       deallocate(now%dzsdx_aa)
-        if (allocated(now%dzsdy_aa))       deallocate(now%dzsdy_aa)
-        if (allocated(now%dHidx_aa))       deallocate(now%dHidx_aa)
-        if (allocated(now%dHidy_aa))       deallocate(now%dHidy_aa)
-        if (allocated(now%dzbdx_aa))       deallocate(now%dzbdx_aa)
-        if (allocated(now%dzbdy_aa))       deallocate(now%dzbdy_aa)
         
         if (allocated(now%H_eff))       deallocate(now%H_eff)
         if (allocated(now%H_grnd))      deallocate(now%H_grnd)

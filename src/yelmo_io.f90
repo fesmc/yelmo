@@ -1032,12 +1032,6 @@ contains
         call nc_read_interp(filename,"strs2D_tau_eig_1",dom%mat%now%strs2D%tau_eig_1,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"strs2D_tau_eig_2",dom%mat%now%strs2D%tau_eig_2,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         
-        call nc_read_interp(filename,"strs_txx", dom%mat%now%strs%txx,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_tyy", dom%mat%now%strs%tyy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_txy", dom%mat%now%strs%txy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_txz", dom%mat%now%strs%txz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_tyz", dom%mat%now%strs%tyz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_te",  dom%mat%now%strs%te,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
 
         ! == ytherm variables ===
 
@@ -1618,18 +1612,6 @@ contains
                 call var_io_write(filename,vw,ylmo%mat%now%strs2D%tau_eig_1(i1:i2,j1:j2),n,ncid)
             case("strs2D_tau_eig_2")
                 call var_io_write(filename,vw,ylmo%mat%now%strs2D%tau_eig_2(i1:i2,j1:j2),n,ncid)
-            case("strs_txx") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txx(i1:i2,j1:j2,:),n,ncid)
-            case("strs_tyy") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%tyy(i1:i2,j1:j2,:),n,ncid)
-            case("strs_txy") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txy(i1:i2,j1:j2,:),n,ncid)
-            case("strs_txz") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txz(i1:i2,j1:j2,:),n,ncid)
-            case("strs_tyz") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%tyz(i1:i2,j1:j2,:),n,ncid)
-            case("strs_te") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%te(i1:i2,j1:j2,:),n,ncid)
             
             case DEFAULT 
 

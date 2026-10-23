@@ -35,9 +35,3 @@
 | 33 | strs2D_te         | xc, yc           | Pa          | 2D effective stress                           | 1e-4r |
 | 34 | strs2D_tau_eig_1  | xc, yc           | Pa          | 2D stress first principal eigenvalue          | 1e-4r |
 | 35 | strs2D_tau_eig_2  | xc, yc           | Pa          | 2D stress second principal eigenvalue         | 1e-4r |
-| 36 | strs_txx          | xc, yc, zeta     | Pa          | Stress tensor component txx                   | 1e-4r |
-| 37 | strs_tyy          | xc, yc, zeta     | Pa          | Stress tensor component tyy                   | 1e-4r |
-| 38 | strs_txy          | xc, yc, zeta     | Pa          | Stress tensor component txy                   | 1e-4r |
-| 39 | strs_txz          | xc, yc, zeta     | Pa          | Stress tensor component txz                   | 1e-4r |
-| 40 | strs_tyz          | xc, yc, zeta     | Pa          | Stress tensor component tyz                   | 1e-4r |
-| 41 | strs_te           | xc, yc, zeta     | Pa          | Effective stress                              | 1e-4r |
