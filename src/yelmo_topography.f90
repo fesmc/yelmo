@@ -106,6 +106,16 @@ contains
         ! then pred/corr are not refreshed and yelmo_update measures no pc error)
         tpo%par%advanced = (.not. topo_fixed .and. dt .gt. 0.0)
 
+        if (trim(pc_step) .eq. "predictor") then
+            ! Start of a step: the applied rates and the advection solver counters
+            ! are zero unless set by the stages of this step. A rate that does not
+            ! apply (mb_relax without relaxation; all of them when the ice is not
+            ! advanced) is then zero instead of kept from an earlier step or a restart.
+            call ytopo_zero_applied_rates(tpo%now)
+            tpo%par%adv_lin_iter = 0
+            tpo%par%adv_lin_fail = 0
+        end if
+
         ! Step 0: Get some diagnostic quantities for mass balance calculation --------
 
         ! Get ice thickness entering routine
@@ -143,8 +153,8 @@ else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,bnd%H_ice_ref,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                  lin_iter=lin_iter,lin_status=lin_status)
-                    tpo%par%adv_lin_iter = lin_iter
-                    tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
+                    tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
+                    tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
                  
 end if
 
@@ -358,11 +368,6 @@ end if
                         ! Get ice-fraction mask for ice thickness  
                         call update_ice_fraction(tpo,bnd)
 
-                    else
-                        ! No relaxation: reset the rate (else the last one, e.g.
-                        ! from a restart, is kept and reported)
-                        tpo%now%mb_relax = 0.0_wp
-
                     end if
 
                     ! Finally, apply all additional (generally artificial) ice thickness adjustments 
@@ -565,14 +570,14 @@ end if
                     tpo%par%advanced,tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
                     tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
-        ! When the ice is not advanced this step -- initialization (pc_step="none")
-        ! or any topo_fixed step -- the mass-balance block above is skipped, so the
-        ! applied-mb diagnostics (smb/bmb/fmb) would otherwise stay zero. Diagnose
-        ! them from the current boundary forcing so the held/initial state carries a
-        ! meaningful mass balance in the output. dt=0 => calc_G_mbal returns the
-        ! forcing masked to the current ice, nothing is applied and H_ice is left
-        ! untouched. mb_net stays zero (nothing applied) and bmb_grnd may still be
-        ! zero at initialization (thermodynamics not yet computed); both expected.
+        ! When the ice is not advanced this step (topo_fixed or dt = 0) the applied
+        ! rates are zero (set at the predictor, above) and the mass-balance block is
+        ! skipped. Diagnose smb, bmb, fmb and dmb from the current forcing, so that
+        ! the held state carries a meaningful mass balance in the output; nothing
+        ! is applied (mb_net and the other applied rates stay zero). The
+        ! initialization sync (pc_step="none") also diagnoses them, but keeps the
+        ! other rates as they are (zero at a cold start, the restart's rates on a
+        ! restart, as for a straight run at that time).
         if (.not. tpo%par%advanced) then
             call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
         end if
@@ -598,18 +603,49 @@ end if
 
     end subroutine calc_ytopo_pc
 
+    subroutine ytopo_zero_applied_rates(now)
+        ! Zero the rates applied to the ice thickness in a step (the fields
+        ! averaged by calc_ytopo_rates, plus dHidt_vert). Called at the start of
+        ! each step (predictor); the stages then set those that apply.
+
+        implicit none
+
+        type(ytopo_state_class), intent(INOUT) :: now
+
+        now%dHidt      = 0.0_wp
+        now%dHidt_dyn  = 0.0_wp
+        now%dHidt_vert = 0.0_wp
+        now%dzsdt      = 0.0_wp
+        now%dlsfdt     = 0.0_wp
+        now%mb_net     = 0.0_wp
+        now%mb_relax   = 0.0_wp
+        now%mb_resid   = 0.0_wp
+        now%mb_border  = 0.0_wp
+        now%mb_clip    = 0.0_wp
+        now%mb_err     = 0.0_wp
+        now%smb        = 0.0_wp
+        now%bmb        = 0.0_wp
+        now%fmb        = 0.0_wp
+        now%dmb        = 0.0_wp
+        now%cmb        = 0.0_wp
+        now%cmb_flt    = 0.0_wp
+        now%cmb_grnd   = 0.0_wp
+
+        return
+
+    end subroutine ytopo_zero_applied_rates
+
     subroutine calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
-        ! Diagnose the applied mass-balance fields (smb, combined bmb, fmb) from the
+        ! Diagnose the mass-balance fields (smb, combined bmb, fmb, dmb) from the
         ! current boundary forcing and geometry WITHOUT advancing the ice. Used by
         ! calc_ytopo_pc when the ice is not evolved this step (initialization via
-        ! pc_step="none", or any topo_fixed step): the main mass-balance block there
-        ! is gated on (.not. topo_fixed .and. dt>0), so without this the output
-        ! smb/bmb/fmb would remain zero at the initial time. The calls mirror the
-        ! diagnostic half of that block (calc_G_mbal etc.) but omit apply_tendency,
-        ! and use dt=0 so calc_G_mbal returns the forcing masked to the current ice
-        ! (no melt-limiting, H_ice untouched). mb_net is deliberately left unchanged
-        ! (nothing is applied); bmb_grnd may still be zero at init (thermodynamics
-        ! not yet computed), which only zeroes the grounded part of the combined bmb.
+        ! pc_step="none", or any topo_fixed or dt = 0 step). The calls mirror the
+        ! diagnostic half of the mass-balance block (calc_G_mbal etc.) but omit
+        ! apply_tendency, and use dt=0 so calc_G_mbal returns the forcing masked to
+        ! the current ice (no melt-limiting, H_ice untouched). mb_net is left
+        ! unchanged (nothing is applied); bmb_grnd may still be zero at init
+        ! (thermodynamics not yet computed), which only zeroes the grounded part
+        ! of the combined bmb.
 
         implicit none
 
@@ -645,6 +681,12 @@ end if
         else
             tpo%now%fmb = 0.0
         end if
+
+        ! === dmb ===
+        call calc_mb_discharge(tpo%now%dmb_ref,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed_sd,tpo%now%dist_grline, &
+                    tpo%now%dist_margin,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
+                    tpo%par%dmb_tau,tpo%par%dmb_sigma_ref,tpo%par%dmb_m_d,tpo%par%dmb_m_r)
+        call calc_G_mbal(tpo%now%dmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%dmb_ref,dt)
 
         return
 
