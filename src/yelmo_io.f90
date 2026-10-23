@@ -12,7 +12,7 @@ module yelmo_io
     use variable_io
     use interp2D
     use coords, only : grid_class
-    use mapping,     only : map_class, map_read
+    use mapping,     only : map_class
     use ncio_interp, only : nc_read_interp
     use yelmo_remapping, only : yelmo_load_map
 
@@ -406,7 +406,7 @@ contains
         end if 
 
         ! == Predictor-corrector (pc) variables ===
-        ! (read back by yelmo_restart_read)
+        ! (diagnostics of the last step, e.g. for yelmo_killed.nc; not read back)
 
         call nc_write(filename,"pc_tau",       dom%time%pc_tau(i1:i2,j1:j2),        units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_masked",dom%time%pc_tau_masked(i1:i2,j1:j2), units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
@@ -488,63 +488,6 @@ contains
         return 
 
     end subroutine yelmo_restart_write
-
-    subroutine yelmo_read_interp_2D(var2D,filename,vname,domain,grid_name)  
-        ! Load a variable from a file.
-        ! Interpolate to current grid as needed. 
-        
-        implicit none 
-
-        real(wp), intent(OUT) :: var2D(:,:)  
-        character(len=*),  intent(IN)    :: filename 
-        character(len=*),  intent(IN)    :: vname
-        character(len=*),  intent(IN)    :: domain 
-        character(len=*),  intent(IN)    :: grid_name  
-        
-        ! Local variables
-        integer :: nx, ny, n 
-        character(len=56) :: file_domain 
-        character(len=56) :: file_grid_name 
-        type(map_class) :: mp 
-
-        nx = size(var2D,1)
-        ny = size(var2D,2) 
-
-        ! Load restart file grid attributes 
-        if (nc_exists_attr(filename,"domain")) then 
-            call nc_read_attr(filename,"domain",    file_domain)
-        else 
-            file_domain = trim(domain)
-        end if 
-
-        if (nc_exists_attr(filename,"grid_name")) then 
-            call nc_read_attr(filename,"grid_name", file_grid_name)
-        else 
-            file_grid_name = trim(grid_name)
-        end if 
-
-        ! Determine which slice to get (last one)
-        n = nc_size(filename,"time")
-
-        if (trim(file_grid_name) .eq. trim(grid_name) ) then 
-            ! File's grid and yelmo grid are the same
-
-            ! Load the data without interpolation (by not specifying mp argument)
-            call nc_read(filename,vname,var2D,start=[1,1,n],count=[nx,ny,1])
-
-        else 
-            ! File's grid is different than Yelmo grid 
-
-            ! Load the scrip map from file (should already have been generated via cdo externally)
-            call map_read(mp,file_grid_name,grid_name,"maps","con")
-
-            call nc_read_interp(filename,vname,var2D,start=[1,1,n],count=[nx,ny,1],map=mp) 
-            
-        end if 
-
-        return 
-
-    end subroutine yelmo_read_interp_2D
 
     subroutine yelmo_restart_read_topo_bnd(tpo,bnd,tme,restart_interpolated,grd,domain,grid_name,filename,time)  
         ! Load yelmo variables from restart file: [tpo] 
@@ -712,13 +655,11 @@ contains
         n = 1 
 
         ! == time variables ===
-        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart)
+        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart;
+        ! pc_tau, pc_tau_masked and pc_tau_max are written as diagnostics only: the first
+        ! step computes them anew)
         call nc_read(filename,"pc_dt",       tme%pc_dt, start=[1,n],count=[3,1],ncid=ncid)
         call nc_read(filename,"pc_eta",      tme%pc_eta,start=[1,n],count=[3,1],ncid=ncid)
-        
-        call nc_read_interp(filename,"pc_tau",       tme%pc_tau,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"pc_tau_masked",tme%pc_tau_masked,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"pc_tau_max",   tme%pc_tau_max,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         
         ! == ytopo variables ===
         call nc_read_interp(filename,"H_ice",       tpo%now%H_ice,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -884,11 +825,9 @@ contains
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.FALSE.)
         
-        ! == ytopo variables ===
+        ! (mask_bed, which depends on the thermodynamic state, is recomputed from
+        ! it by the next calc_ytopo_diagnostic)
 
-        ! Reload mask_bed since it contains thermodynamic information too
-        call nc_read_interp(filename,"mask_bed",      dom%tpo%now%mask_bed,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        
         ! == ydyn variables ===
 
         call nc_read_interp(filename,"ux",            dom%dyn%now%ux,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 

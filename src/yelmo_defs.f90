@@ -111,7 +111,6 @@ module yelmo_defs
 
     ! Internal parameters 
     ! real(wp)   :: conv_we_ie            ! Conversion water equiv. => m/a ice equiv. 
-    ! real(wp)   :: conv_mmdwe_maie       ! Conversion mm/d water equiv. => m/a ice equiv.
     ! real(wp)   :: conv_mmawe_maie       ! Conversion mm/a water equiv. => m/a ice equiv. 
     ! real(wp)   :: conv_m3_Gt            ! Conversion m^3 ice to Gt of ice 
     ! real(wp)   :: conv_km3_Gt           ! Conversion km^3 ice to Gt of ice 
@@ -199,21 +198,6 @@ module yelmo_defs
         integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
         logical    :: advanced                  ! Ice thickness advanced this step (not topo_fixed and dt > 0)
 
-    end type
-
-    type rk4_class
-        real(wp), allocatable  :: tau(:,:) 
-        real(wp), allocatable  :: y_np1(:,:) 
-        real(wp), allocatable  :: y_n(:,:) 
-        real(wp), allocatable  :: y_nm1(:,:) 
-        real(wp), allocatable  :: y_nm2(:,:) 
-        real(wp), allocatable  :: f_np1(:,:) 
-        real(wp), allocatable  :: f_n(:,:) 
-        real(wp), allocatable  :: f_nm1(:,:) 
-        real(wp), allocatable  :: f_nm2(:,:) 
-        real(wp) :: dt 
-        real(wp) :: dt_nm1
-        real(wp) :: dt_nm2
     end type
 
     type ytopo_pc_class 
@@ -374,7 +358,6 @@ module yelmo_defs
         type(ytopo_param_class) :: par          ! Parameters
         type(ytopo_state_class) :: now          ! Variables
         type(ytopo_pc_class)    :: pc           ! pc-related variables
-        type(rk4_class)         :: rk4 
         
     end type
 
@@ -901,7 +884,6 @@ module yelmo_defs
 
         ! Internal parameters 
         real(wp)   :: conv_we_ie            ! Conversion water equiv. => m/a ice equiv. 
-        real(wp)   :: conv_mmdwe_maie       ! Conversion mm/d water equiv. => m/a ice equiv.
         real(wp)   :: conv_mmawe_maie       ! Conversion mm/a water equiv. => m/a ice equiv. 
         real(wp)   :: conv_m3_Gt            ! Conversion m^3 ice to Gt of ice 
         real(wp)   :: conv_km3_Gt           ! Conversion km^3 ice to Gt of ice 
@@ -1208,7 +1190,6 @@ module yelmo_defs
         type(yelmo_param_class) :: par      ! General domain parameters
         type(grid_class)        :: grd      ! Grid definition (fesm-utils/coords)
         type(ytime_class)       :: time     ! Timestep and timing variables
-        type(ytime_class)       :: time_amc ! Timestep and timing variables
         type(ytopo_class)       :: tpo      ! Topography variables
         type(ydyn_class)        :: dyn      ! Dynamics variables
         type(ymat_class)        :: mat      ! Material variables
@@ -1295,18 +1276,6 @@ contains
         return
 
     end subroutine yelmo_check_file
-
-    function yelmo_get_precision() result(yelmo_prec)
-
-        implicit none 
-
-        integer :: yelmo_prec 
-
-        yelmo_prec = kind(wp)
-
-        return 
-
-    end function yelmo_get_precision
 
     pure function is_equal(value1, value2, eps) result(equal)
         implicit none

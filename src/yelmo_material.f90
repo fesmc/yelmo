@@ -4,7 +4,7 @@ module yelmo_material
     use nml 
 
     use yelmo_defs
-    use yelmo_tools, only : calc_vertical_integrated_2D, calc_vertical_integrated_3D
+    use yelmo_tools, only : calc_vertical_integrated_2D
     
     use deformation
     use ice_tracer  
