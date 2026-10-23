@@ -146,7 +146,7 @@ contains
 
                     call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),thrm%par%advecxy_order, &
+                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,thrm%par%advecxy_order, &
                                         thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
 
                 end if 
@@ -282,7 +282,6 @@ contains
         call nml_validate(filename,def_file,group,defaults_group=def_ymat)
 
         ! Store local parameter values in output object
-        call nml_read(filename,group,"flow_law",               par%flow_law,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_method",              par%rf_method,              init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_const",               par%rf_const,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_use_eismint2",        par%rf_use_eismint2,        init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
@@ -300,7 +299,6 @@ contains
         call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
 
         ! Validate parameter values
-        call yelmo_check_enum(group,"flow_law",      par%flow_law,      "glen")
         call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|simple-tracer|shear2D|shear2D-tracer|shear3D|shear3D-tracer")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
 

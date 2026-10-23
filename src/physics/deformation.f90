@@ -380,7 +380,7 @@ contains
         ! the rate factor is for T_pmp 
         ! Parameterization following Greve and Blatter (2016) Eq. 14,
         ! following Lliboutry and Duval (1985):
-        ! A = A(melting_temp)*(1.18125*omega*100)
+        ! A = A(melting_temp)*(1+181.25*omega)
 
         implicit none 
 
@@ -443,14 +443,6 @@ contains
 
         integer  :: BC
 
-        ! Parameter to limit sigma-coordinate corrective factor
-        ! to reasonable slope values. Maybe could help avoid
-        ! getting strange results in thermodynamics, including
-        ! highly negative bmb_grnd values (high basal melt for grounded ice)
-        ! ajr: 0.05 is too restrictive! See comments below. For now,
-        ! set to very high value and disabled.
-        real(wp), parameter :: corr_grad_lim = 0.2
-        
         ! Determine sizes and allocate local variables 
         nx    = size(ux,1)
         ny    = size(ux,2)
@@ -705,23 +697,6 @@ end if
                                 act_acy(i,j),act_acy(ip1,j),act_acy(i,jm1),act_acy(ip1,jm1))
                 c_y_acx = - ( (1.0-zeta_aa(k))*dzbdy_acx + zeta_aa(k)*dzsdy_acx)
 
-if (.FALSE.) then
-    ! ajr: so far, this wasn't helpful. But I only tested a value of corr_grad_lim=0.05,
-    ! which could be quite restrictive. In ANT-32KM, c_x and c_y show values up to 0.12.
-    ! Consider for future testing: 
-
-                ! Limit the corrective factor to avoid extremes
-                ! (e.g., in the case of very steep ice base gradient)
-                if (c_x .gt. corr_grad_lim) c_x =  corr_grad_lim
-                if (c_x .lt. corr_grad_lim) c_x = -corr_grad_lim
-                if (c_y .gt. corr_grad_lim) c_y =  corr_grad_lim
-                if (c_y .lt. corr_grad_lim) c_y = -corr_grad_lim
-                if (c_x_acy .gt. corr_grad_lim) c_x_acy =  corr_grad_lim
-                if (c_x_acy .lt. corr_grad_lim) c_x_acy = -corr_grad_lim
-                if (c_y_acx .gt. corr_grad_lim) c_y_acx =  corr_grad_lim
-                if (c_y_acx .lt. corr_grad_lim) c_y_acx = -corr_grad_lim
-end if 
-
                 ! Apply the correction 
 
                 jvel%dxx(i,j,k) = jvel%dxx(i,j,k) + c_x*jvel%dxz(i,j,k)
@@ -786,14 +761,6 @@ end if
         real(dp) :: h1, h2 
         
         integer  :: BC
-
-        ! Parameter to limit sigma-coordinate corrective factor
-        ! to reasonable slope values. Maybe could help avoid
-        ! getting strange results in thermodynamics, including
-        ! highly negative bmb_grnd values (high basal melt for grounded ice)
-        ! ajr: 0.05 is too restrictive! See comments below. For now,
-        ! set to very high value and disabled.
-        real(wp), parameter :: corr_grad_lim = 0.2
 
         ! Determine sizes and allocate local variables 
         nx    = size(ux,1)
@@ -872,14 +839,7 @@ else
 
                 end do 
 
-                ! Top layer - downwind derivative (centered not possible)
-                ! k = nz_ac
-                ! h1 = H_now*(zeta_ac(k-2)-zeta_ac(k-1))
-                ! h2 = H_now*(zeta_ac(k)-zeta_ac(k-1))
-                ! jvel%dzz(i,j,k) = h2/(h1*(h1+h2))*uz(i,j,k-2) - (h1+h2)/(h1*h2)*uz(i,j,k-1) + (h1+2.0*h2)/(h2*(h1+h2))*uz(i,j,k)
-                
-                ! ajr: derivative for top layer seems broken for now - check!
-                ! Use simple downwind derivative instead:
+                ! Top layer - first-order downwind derivative (centered not possible)
                 k = nz_ac
                 jvel%dzz(i,j,k) = (uz(i,j,k)-uz(i,j,k-1)) / (H_now*(zeta_ac(k)-zeta_ac(k-1)))
 end if

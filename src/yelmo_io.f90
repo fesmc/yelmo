@@ -802,8 +802,6 @@ contains
 
         call nc_read_interp(filename,"duxdz",         dom%dyn%now%duxdz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"duydz",         dom%dyn%now%duydz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"duxdz_bar",     dom%dyn%now%duxdz_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
-        call nc_read_interp(filename,"duydz_bar",     dom%dyn%now%duydz_bar,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
         call nc_read_interp(filename,"taud_acx",      dom%dyn%now%taud_acx,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"taud_acy",      dom%dyn%now%taud_acy,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
@@ -823,7 +821,6 @@ contains
         call nc_read_interp(filename,"qq_acy",        dom%dyn%now%qq_acy,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"qq",            dom%dyn%now%qq,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
-        call nc_read_interp(filename,"de_eff",        dom%dyn%now%de_eff,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"visc_eff",      dom%dyn%now%visc_eff,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"visc_eff_int",  dom%dyn%now%visc_eff_int,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
 
@@ -923,7 +920,6 @@ contains
         call nc_read_interp(filename,"f_pmp",       dom%thrm%now%f_pmp,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"bmb_grnd",    dom%thrm%now%bmb_grnd,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)    
         call nc_read_interp(filename,"Q_strn",      dom%thrm%now%Q_strn,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)      
-        call nc_read_interp(filename,"dQsdT",       dom%thrm%now%dQsdT,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp)      
         call nc_read_interp(filename,"Q_b",         dom%thrm%now%Q_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)         
         call nc_read_interp(filename,"Q_ice_b",     dom%thrm%now%Q_ice_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)         
         call nc_read_interp(filename,"T_prime_b",   dom%thrm%now%T_prime_b,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -1297,10 +1293,6 @@ contains
                 call var_io_write(filename,vw,ylmo%dyn%now%duxdz(i1:i2,j1:j2,:),n,ncid)
             case("duydz") ! 3D
                 call var_io_write(filename,vw,ylmo%dyn%now%duydz(i1:i2,j1:j2,:),n,ncid)
-            case("duxdz_bar")
-                call var_io_write(filename,vw,ylmo%dyn%now%duxdz_bar(i1:i2,j1:j2),n,ncid)
-            case("duydz_bar")
-                call var_io_write(filename,vw,ylmo%dyn%now%duydz_bar(i1:i2,j1:j2),n,ncid)
             case("taud_acx")
                 call var_io_write(filename,vw,ylmo%dyn%now%taud_acx(i1:i2,j1:j2),n,ncid)
             case("taud_acy")
@@ -1327,8 +1319,6 @@ contains
                 call var_io_write(filename,vw,ylmo%dyn%now%qq_acy(i1:i2,j1:j2),n,ncid)
             case("qq")
                 call var_io_write(filename,vw,ylmo%dyn%now%qq(i1:i2,j1:j2),n,ncid)
-            case("de_eff") ! 3D
-                call var_io_write(filename,vw,ylmo%dyn%now%de_eff(i1:i2,j1:j2,:),n,ncid)
             case("visc_eff") ! 3D
                 call var_io_write(filename,vw,ylmo%dyn%now%visc_eff(i1:i2,j1:j2,:),n,ncid)
             case("visc_eff_int")
@@ -1613,8 +1603,6 @@ contains
                 call var_io_write(filename,vw,ylmo%thrm%now%bmb_grnd(i1:i2,j1:j2),n,ncid)
             case("Q_strn") ! 3D
                 call var_io_write(filename,vw,ylmo%thrm%now%Q_strn(i1:i2,j1:j2,:),n,ncid)
-            case("dQsdT") ! 3D
-                call var_io_write(filename,vw,ylmo%thrm%now%dQsdT(i1:i2,j1:j2,:),n,ncid)
             case("Q_b")
                 call var_io_write(filename,vw,ylmo%thrm%now%Q_b(i1:i2,j1:j2),n,ncid)
             case("Q_ice_b")

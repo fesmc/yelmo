@@ -193,7 +193,6 @@ program yelmo_mismip
     end if
     
     time     = time_init 
-    yelmo1%dyn%par%use_ssa = .TRUE. 
 
     ! Initialize the yelmo state (dyn,therm,mat)
     call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")

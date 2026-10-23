@@ -87,7 +87,7 @@ contains
 
             call calc_tracer_3D(trc%now%t_dep_euler_rel,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
                 tpo%now%H_ice,tpo%now%bmb,trc%par%zeta_aa,trc%par%zeta_ac,trc%par%tracer_method, &
-                trc%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),trc%par%advecxy_order, &
+                trc%par%tracer_impl_kappa,dt,thrm%par%dx,trc%par%advecxy_order, &
                 trc%par%advecxy_cfl,trc%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
 
             call ytrc_euler_t_dep(trc)
@@ -497,9 +497,8 @@ contains
                 call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),time)
             end if
 
-            ! Initialize deposition/stats cadence trackers from the tracer namelist
+            ! Initialize the deposition cadence tracker
             trc%par%time_dep_next   = time
-            trc%par%time_stats_next = time
         end if
 
         return
