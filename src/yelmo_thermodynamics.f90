@@ -109,7 +109,7 @@ contains
             case("full")
                 ! Calculate strain heating from strain rate tensor and viscosity (general approach)
 
-                call calc_strain_heating(thrm%now%Q_strn,mat%now%strn%de,mat%now%visc,thrm%now%cp,bnd%c%rho_ice, &
+                call calc_strain_heating(thrm%now%Q_strn,mat%now%strn%de,mat%now%visc, &
                                                                         thrm%par%dt_beta(1),thrm%par%dt_beta(2))
 
             case("sia")
@@ -213,7 +213,7 @@ contains
                     ! Use Robin solution for ice temperature
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.FALSE.,enth_integral=thrm%par%enth_integral,enth_cp0=thrm%par%enth_cp0)
 
@@ -222,7 +222,7 @@ contains
                     ! to ensure cold ice at the base
 
                     call define_temp_robin_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%T_pmp,thrm%par%const_cp,thrm%par%const_kt, &
-                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,hyd%now%W_til,bnd%smb, &
+                                       thrm%now%Q_rock,bnd%T_srf,tpo%now%H_ice_dyn,bnd%smb, &
                                        thrm%now%bmb_grnd,tpo%now%f_grnd,thrm%par%z%zeta_aa, &
                                        bnd%c%rho_ice,bnd%c%L_ice,bnd%c%sec_year,cold=.TRUE.,enth_integral=thrm%par%enth_integral,enth_cp0=thrm%par%enth_cp0)
 
@@ -230,7 +230,7 @@ contains
                     ! Use linear solution for ice temperature
 
                     ! Calculate the ice temperature (eventually water content and enthalpy too)
-                    call define_temp_linear_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,thrm%now%cp,tpo%now%H_ice_dyn,bnd%T_srf,thrm%par%z%zeta_aa, &
+                    call define_temp_linear_3D(thrm%now%enth,thrm%now%T_ice,thrm%now%omega,tpo%now%H_ice_dyn,bnd%T_srf,thrm%par%z%zeta_aa, &
                                         bnd%c%T0,bnd%c%rho_ice,bnd%c%L_ice,bnd%c%T_pmp_beta,bnd%c%g,enth_integral=thrm%par%enth_integral, &
                                         enth_cp0=thrm%par%enth_cp0)
 
@@ -258,7 +258,7 @@ contains
             ! ==== Bedrock ======================================
 
             ! Update the bedrock temperature profile 
-            ! (using basal ice temperature from previous timestep)
+            ! (using the basal ice temperature of the ice solve above)
             select case(trim(thrm%par%rock_method))
 
                 case("equil")
@@ -347,7 +347,7 @@ contains
         real(wp), intent(IN)    :: uy(:,:,:)      ! [m a-1] Horizontal y-velocity 
         real(wp), intent(IN)    :: uz(:,:,:)      ! [m a-1] Vertical velocity 
         real(wp), intent(IN)    :: Q_strn(:,:,:)  ! [J a-1 m-3] Internal strain heat production in ice
-        real(wp), intent(IN)    :: Q_b(:,:)       ! [J a-1 m-2] Basal frictional heat production 
+        real(wp), intent(IN)    :: Q_b(:,:)       ! [mW m-2] Basal frictional heat production 
         real(wp), intent(IN)    :: Q_rock(:,:)    ! [mW m-2] Heat flux at bed surface from bedrock (like Q_geo)
         real(wp), intent(IN)    :: T_srf(:,:)     ! [K] Surface temperature 
         real(wp), intent(IN)    :: H_ice_dyn(:,:) ! [m] Active column thickness (tpo%now%H_ice_dyn)
@@ -463,7 +463,7 @@ contains
                 if (trim(solver) .eq. "enth") then 
 
                     call calc_enth_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
-                            H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
+                            H_cts(i,j),T_pmp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
                             zeta_ac,dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0, &
                             basal_bc_method,C_cap(i,j),Q_wat(i,j),cap_eps, &
@@ -474,7 +474,7 @@ contains
                     call calc_temp_column(enth(i,j,:),T_ice(i,j,:),omega(i,j,:),bmb_grnd(i,j),Q_ice_b(i,j), &
                             H_cts(i,j),T_pmp(i,j,:),cp(i,j,:),kt(i,j,:),advecxy(i,j,:),uz(i,j,:),Q_strn(i,j,:), &
                             Q_b(i,j),Q_rock(i,j),T_srf(i,j),T_shlf,H_ice_now,W_til(i,j),f_grnd(i,j),zeta_aa, &
-                            zeta_ac,dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0, &
+                            zeta_ac,dzeta_a,dzeta_b,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0, &
                             gl_temp=gl_temp)
                     bmb_grnd_star(i,j) = 0.0_wp
                     bc_b(i,j)          = 0.0_wp
@@ -691,7 +691,6 @@ end if
 
         ! ===================================================
 
-        ! ajr: openmp problematic here - leads to NaNs
         !$omp parallel do collapse(2) private(i,j,T_base)
         do j = 1, ny
         do i = 1, nx 

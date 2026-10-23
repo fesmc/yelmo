@@ -716,7 +716,7 @@ module yelmo_defs
         logical           :: use_tracer         ! Lagrangian particle backend (tracer library)
         logical           :: use_elsa           ! Lagrangian layer backend (elsa library)
         logical           :: elsa_restart       ! On a restart, restore elsa's layers (False: start them fresh)
-        character(len=56) :: t_dep_source       ! "euler"|"tracer"|"elsa": fills authoritative t_dep
+        character(len=56) :: t_dep_source       ! "euler"|"trc"|"elsa": fills authoritative t_dep
 
         ! elsa layer-stack sizing: elsa allocates its isochrone stack once at init
         ! from (time_end - time)/layer_resolution and never grows it, so the run's

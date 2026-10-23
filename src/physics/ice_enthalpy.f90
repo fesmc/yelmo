@@ -22,7 +22,7 @@ contains
     
     subroutine calc_temp_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0,gl_temp)
+                                dzeta_a,dzeta_b,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0,gl_temp)
         ! Thermodynamics solver for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -56,7 +56,6 @@ contains
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: omega_max      ! [-] Maximum allowed water fraction inside ice, typically omega_max=0.02 
         real(wp), intent(IN)    :: T0             ! [K or degreesCelcius] Reference melting temperature  
         real(wp), intent(IN)    :: rho_ice 
         real(wp), intent(IN)    :: rho_w
@@ -550,7 +549,7 @@ end if
 
     end subroutine calc_temp_column_internal
 
-    subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
+    subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
                                 dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
                                 enth_cp0,basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
@@ -572,13 +571,12 @@ end if
         real(wp), intent(OUT)   :: Q_ice_b        ! [mW m-2] Ice basal heat flux (positive up)
         real(wp), intent(OUT)   :: H_cts          ! [m] cold-temperate transition surface (CTS) height
         real(wp), intent(IN)    :: T_pmp(:)       ! nz_aa [K] Pressure melting point temp.
-        real(wp), intent(IN)    :: cp(:)          ! nz_aa [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:)          ! nz_aa [J a-1 m-1 K-1] Heat conductivity 
         real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
         real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J a-1 m-3] Internal strain heat production in ice
-        real(wp), intent(IN)    :: Q_b            ! [J a-1 m-2] Basal frictional heat production
-        real(wp), intent(IN)    :: Q_lith         ! [J a-1 m-2] Bedrock heat flux (positive up)
+        real(wp), intent(IN)    :: Q_b            ! [mW m-2] Basal frictional heat production
+        real(wp), intent(IN)    :: Q_lith         ! [mW m-2] Bedrock heat flux (positive up)
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
         real(wp), intent(IN)    :: T_shlf         ! [K] Marine-shelf interface temperature
         real(wp), intent(IN)    :: H_ice          ! [m] Ice thickness 
@@ -847,7 +845,7 @@ end if
         ! below), so a large horizontal-advection excursion at a thin margin
         ! drives enth arbitrarily negative and the column rings to NaN
         ! (the initmip-grl-16km 2D failure). enth is made consistent with the
-        ! clamped T_ice by the convert_to_enthalpy call at the end.
+        ! clamped T_ice by the convert_to_enthalpy_ice call below.
         where (T_ice(:) .lt. T_min_lim) T_ice(:) = T_min_lim
 
         ! Set internal melt to zero
@@ -1354,8 +1352,8 @@ end if
     end function calc_cts_height
 
     subroutine calc_dzeta_terms(dzeta_a,dzeta_b,zeta_aa,zeta_ac)
-        ! zeta_aa  = depth axis at layer centers (plus base and surface values)
-        ! zeta_ac  = depth axis (1: base, nz: surface), at layer boundaries
+        ! zeta_aa  = height axis at layer centers (plus base and surface values)
+        ! zeta_ac  = height axis (1: base, nz: surface), at layer boundaries
         ! Calculate ak, bk terms as defined in Hoffmann et al (2018)
         implicit none 
 

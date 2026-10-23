@@ -1,8 +1,6 @@
 module thermodynamics 
-    ! This module contains some general thermodynamics subroutines
-    ! that could be used by many icetemp solver approaches.
-    ! Note: once icetemp is working well, this module could be 
-    ! remerged into icetemp as one module. 
+    ! This module contains general thermodynamics subroutines
+    ! used by the column solvers (ice_enthalpy) and by ytherm.
 
     use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW, io_unit_err
 
@@ -73,7 +71,6 @@ module thermodynamics
     public :: calc_basal_heating_faces_nodes
 
     public :: convert_to_enthalpy
-    public :: convert_from_enthalpy_column
     public :: convert_to_enthalpy_ice
     public :: convert_from_enthalpy_ice
     public :: enth_int_from_temp
@@ -482,7 +479,7 @@ contains
 
     end function calc_advecxy_cfl_number
 
-    subroutine calc_strain_heating(Q_strn,de,visc,cp,rho_ice,beta1,beta2)
+    subroutine calc_strain_heating(Q_strn,de,visc,beta1,beta2)
         ! Calculate the general 3D internal strain heating
         ! as sum(D_ij*tau_ij)  (strain*stress)
         ! where stress has been calculated as stress_ij = 2*visc*strain
@@ -512,8 +509,6 @@ contains
         real(wp), intent(INOUT) :: Q_strn(:,:,:)      ! nx,ny,nz_aa [J yr-1 m-3] Heat production
         real(wp), intent(IN)    :: de(:,:,:)          ! nx,ny,nz_aa [yr-1] Effective strain rate 
         real(wp), intent(IN)    :: visc(:,:,:)        ! nx,ny,nz_aa [Pa yr-1] Viscosity
-        real(wp), intent(IN)    :: cp(:,:,:)          ! nx,ny,nz_aa [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)    :: rho_ice            ! [kg m-3] Ice density 
         real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
         real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
         
@@ -949,10 +944,10 @@ contains
     subroutine calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,stencil,BC)
         ! Face products of basal friction work, Qx = |taub_acx*ux_b| (acx) and
         ! Qy = |taub_acy*uy_b| (acy) [Pa m a-1] == [J a-1 m-2], for qb_method = 1
-        ! (stencil = "faces") and 4 (stencil = "nodes").
+        ! (stencil = "faces") and 2 (stencil = "nodes").
         !
         ! Each method gives every face's heat to the cells of its stencil with weights
-        ! that sum to one (3: 1/2 to each of the two cells the face separates; 4: 1/4 to
+        ! that sum to one (1: 1/2 to each of the two cells the face separates; 2: 1/4 to
         ! each of these and 1/8 to each of their neighbours across the face direction,
         ! from the quadrature mean = mean of the four cell-corner values, each corner the
         ! mean of two faces). Cells that are not fully ice covered get Q_b = 0, so their
@@ -1304,7 +1299,7 @@ contains
 
     end function calc_T_freeze_sw
     
-    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral,enth_cp0)
+    subroutine define_temp_linear_3D(enth,T_ice,omega,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral,enth_cp0)
         ! Define a linear vertical temperature profile
 
         implicit none
@@ -1312,7 +1307,6 @@ contains
         real(wp), intent(OUT) :: enth(:,:,:)          ! [J kg-1] Enthalpy
         real(wp), intent(OUT) :: T_ice(:,:,:)         ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)         ! [--] Water content
-        real(wp), intent(IN)  :: cp(:,:,:)            ! Heat capacity
         real(wp), intent(IN)  :: H_ice(:,:)
         real(wp), intent(IN)  :: T_srf(:,:)
         real(wp), intent(IN)  :: zeta_aa(:)
@@ -1433,7 +1427,7 @@ contains
 
     end function define_temp_linear_column
 
-    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,kt,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
+    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,kt,Q_rock,T_srf,H_ice,smb,bmb, &
                                                                     f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral,enth_cp0)
         ! Robin solution for thermodynamics for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface
@@ -1452,7 +1446,6 @@ contains
         real(wp), intent(IN)  :: Q_rock(:,:)      ! [mW m-2] Bedrock surface heat flux 
         real(wp), intent(IN)  :: T_srf(:,:)       ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_ice(:,:)       ! [m] Ice thickness 
-        real(wp), intent(IN)  :: W_til(:,:)       ! [m] Basal till water thickness (from hyd; unused but kept for signature stability)
         real(wp), intent(IN)  :: smb(:,:)         ! [m a-1] Surface mass balance (melting is negative)
         real(wp), intent(IN)  :: bmb(:,:)         ! [m a-1] Basal mass balance (melting is negative)
         real(wp), intent(IN)  :: f_grnd(:,:)      ! [--] Floating point or grounded?
@@ -1794,69 +1787,6 @@ contains
 
     end subroutine convert_to_enthalpy
 
-    subroutine convert_from_enthalpy_column(enth,temp,omega,T_pmp,cp,L)
-        ! Given enthalpy, calculate temperature and water content. 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: enth(:)            ! [J kg-1] Enthalpy, nz_aa nodes
-        real(wp), intent(OUT)   :: temp(:)            ! [K] Temperature, nz_aa nodes  
-        real(wp), intent(OUT)   :: omega(:)           ! [-] Water content (fraction), nz_aa nodes 
-        real(wp), intent(IN)    :: T_pmp(:)           ! [K] Pressure melting point, nz_aa nodes 
-        real(wp), intent(IN)    :: cp(:)              ! [J kg-1 K-1] Heat capacity,nz_aa nodes 
-        real(wp), intent(IN)    :: L                  ! [J kg-1] Latent heat of fusion
-        
-        ! Local variables
-        integer    :: k, nz_aa  
-        real(wp), allocatable :: enth_pmp(:)  
-
-        nz_aa = size(enth,1)
-
-        allocate(enth_pmp(nz_aa))
-
-        ! Find pressure melting point enthalpy
-        enth_pmp = T_pmp * cp 
-
-        ! Column interior and basal layer
-        ! Note: although the k=1 is a boundary value with no thickness,
-        ! allow it to retain omega to maintain consistency with grid points above.
-        do k = 1, nz_aa-1
-
-            if (enth(k) .gt. enth_pmp(k)) then
-                ! Temperate ice 
-                
-                temp(k)  = T_pmp(k)
-                omega(k) = (enth(k) - enth_pmp(k)) / L 
-             else
-                ! Cold ice 
-
-                temp(k)  = enth(k) / cp(k) 
-                omega(k) = 0.0_wp
-
-             end if
-
-        end do 
-
-        ! Surface layer 
-        if (enth(nz_aa) .ge. enth_pmp(nz_aa)) then 
-            ! Temperate surface, reset omega to zero and enth to pmp value 
-            
-            enth(nz_aa)  = enth_pmp(nz_aa)
-            temp(nz_aa)  = enth(nz_aa) / cp(nz_aa)
-            omega(nz_aa) = 0.0_wp 
-        
-        else 
-            ! Cold surface, calculate T, and reset omega to zero 
-            
-            temp(nz_aa)  = enth(nz_aa) / cp(nz_aa)
-            omega(nz_aa) = 0.0_wp 
-        
-        end if 
-        
-        return 
-
-    end subroutine convert_from_enthalpy_column
-
     elemental subroutine convert_to_enthalpy_ice(enth,temp,omega,T_pmp,L,integral,cp0)
         ! Ice enthalpy from (temp,omega), with the cold-ice enthalpy definition
         ! of enth_cold_from_temp (A1: cp0*temp; A2: int_0^T cp dT).
@@ -1874,8 +1804,8 @@ contains
     end subroutine convert_to_enthalpy_ice
 
     subroutine convert_from_enthalpy_ice(enth,temp,omega,T_pmp,L,integral,cp0)
-        ! Inverse of convert_to_enthalpy_ice for a column (mirrors
-        ! convert_from_enthalpy_column, with the A1/A2 enthalpy definition).
+        ! Inverse of convert_to_enthalpy_ice for a column, with the A1/A2
+        ! enthalpy definition.
         implicit none
         real(wp), intent(INOUT) :: enth(:)
         real(wp), intent(OUT)   :: temp(:)

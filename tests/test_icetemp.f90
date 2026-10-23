@@ -393,12 +393,12 @@ program test_icetemp
                 call calc_temp_column(ice1%vec%enth,ice1%vec%T_ice,ice1%vec%omega,ice1%bmb,ice1%Q_ice_b,ice1%H_cts,ice1%vec%T_pmp, &
                         ice1%vec%cp,ice1%vec%kt,ice1%vec%advecxy,ice1%vec%uz,ice1%vec%Q_strn,ice1%Q_b,ice1%Q_rock,ice1%T_srf,ice1%T_shlf, &
                         ice1%H_ice,ice1%H_w,ice1%f_grnd,ice1%z%zeta,ice1%z%zeta_ac,ice1%z%dzeta_a,ice1%z%dzeta_b, &
-                        omega_max,T0_ref,rho_ice,rho_w,L_ice,sec_year,dt)
+                        T0_ref,rho_ice,rho_w,L_ice,sec_year,dt)
 
             case("enth")
 
                 call calc_enth_column(ice1%vec%enth,ice1%vec%T_ice,ice1%vec%omega,ice1%bmb,ice1%Q_ice_b,ice1%H_cts,ice1%vec%T_pmp, &
-                        ice1%vec%cp,ice1%vec%kt,ice1%vec%advecxy,ice1%vec%uz,ice1%vec%Q_strn,ice1%Q_b,ice1%Q_geo,ice1%T_srf,ice1%T_shlf, &
+                        ice1%vec%kt,ice1%vec%advecxy,ice1%vec%uz,ice1%vec%Q_strn,ice1%Q_b,ice1%Q_geo,ice1%T_srf,ice1%T_shlf, &
                         ice1%H_ice,ice1%H_w,ice1%f_grnd,ice1%z%zeta,ice1%z%zeta_ac,ice1%z%dzeta_a,ice1%z%dzeta_b, &
                         enth_cr,omega_max,T0_ref,rho_ice,rho_w,L_ice,sec_year,dt)
 
