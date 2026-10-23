@@ -10,8 +10,9 @@ testdir = tests
 
 # Command-line options at make call
 debug  ?= 0
-openmp ?= 0 
+openmp ?= 1
 petsc  ?= 0 
+pic    ?= 0
 
 ## COMPILER CONFIGURATION ##
 # Loaded from a config/<host> fragment by `python config.py config/<host>`,
@@ -24,7 +25,7 @@ petsc  ?= 0
 ## SHARED DEPENDENCY WIRING ##
 # Pulled in after the compiler/machine fragment so it can reference FFLAGS,
 # FFLAGS_OPENMP, LIB_NC, and LFLAGS_EXTRA set there. Defines the FESMUTILS,
-# LIS, FASTHYDRO, FFTW, and (optional) PETSc paths, the openmp= / petsc=
+# LIS, FASTHYDRO, FFTW, and (optional) PETSc paths, the openmp= / petsc= / pic=
 # build switches, and the final LFLAGS.
 
 include config/common.mk
@@ -61,28 +62,41 @@ check-hash:
 # sources `use` (transitively via yelmo_defs, which declares a hydro_class
 # member of yelmo_class), so this must build before yelmo-static.
 fasthydro-static:
-	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp)
+	$(MAKE) -C $(FASTHYDROROOT) fasthydro-static openmp=$(openmp) pic=$(pic)
 
 # elsa/tracer static archives provide the .mod files yelmo `use`s (transitively
 # via yelmo_defs, which declares elsa_class/tracer_class members of ytrc_class),
 # so they must build before yelmo-static.
 elsa-static:
-	$(MAKE) -C $(ELSAROOT) elsa-static openmp=$(openmp)
+	$(MAKE) -C $(ELSAROOT) elsa-static openmp=$(openmp) pic=$(pic)
 
 tracer-static:
-	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp)
+	$(MAKE) -C $(TRACERROOT) tracer-static openmp=$(openmp) pic=$(pic)
 
-# Static library compilation
-yelmo-static: fasthydro-static elsa-static tracer-static $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	ar rc $(objdir)/libyelmo.a $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	ranlib $(objdir)/libyelmo.a
+# Static library compilation. The archive is a file target, so its mtime only
+# changes when an object does (hosts such as yelmox depend on it to rebuild
+# after a type change).
+yelmo-static: fasthydro-static elsa-static tracer-static $(objdir)/libyelmo.a
 	./check_githash > git_yelmo.txt
 	@echo " "
 	@echo "    $(objdir)/libyelmo.a is ready."
 	@echo " "
 
+$(objdir)/libyelmo.a: $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+	ar rc $@ $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
+	ranlib $@
+
+# Shared libraries link libyelmo.a and the static deps, so every object must be
+# position-independent (required on Linux): build with pic=1, with fesm-utils
+# also built pic=1.
+ifneq ($(filter yelmo-c yelmo-shared,$(MAKECMDGOALS)),)
+ifneq ($(pic), 1)
+$(error yelmo-c/yelmo-shared need pic=1 (all objects and static deps built with -fPIC): make clean, then make $(filter yelmo-c yelmo-shared,$(MAKECMDGOALS)) pic=1)
+endif
+endif
+
 yelmo-c: yelmo-static
-	$(FC) -shared -fPIC $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
+	$(FC) -shared $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) $(srcdir)/yelmo_c_api.f90 -o $(objdir)/libyelmo_c_api.so \
 	-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 	@echo " "
 	@echo "    $(objdir)/libyelmo_c_api.so is ready."
@@ -110,6 +124,13 @@ calving : yelmo-static
 		@echo "    yelmo_calving.x is ready."
 		@echo " "
 
+bench : yelmo-static
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_bench.x tests/yelmo_bench.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    yelmo_bench.x is ready."
+		@echo " "
+
 symmetry : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_symmetry.x tests/test_symmetry.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -129,13 +150,6 @@ ismiphom : yelmo-static
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 		@echo " "
 		@echo "    yelmo_ismiphom.x is ready."
-		@echo " "
-
-regridding : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_ismiphom.x tests/yelmo_test_regridding.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_test_regridding.x is ready."
 		@echo " "
 
 icetemp : yelmo-static
@@ -166,6 +180,27 @@ ssa_energy : yelmo-static tests/test_ssa_energy.f90
 		@echo "    test_ssa_energy.x is ready."
 		@echo " "
 
+front_strain : yelmo-static tests/test_front_strain.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_front_strain.x tests/test_front_strain.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_front_strain.x is ready."
+		@echo " "
+
+f_grnd : yelmo-static tests/test_f_grnd.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_f_grnd.x tests/test_f_grnd.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_f_grnd.x is ready."
+		@echo " "
+
+lsf_front : yelmo-static tests/test_lsf_front.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_lsf_front.x tests/test_lsf_front.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_lsf_front.x is ready."
+		@echo " "
+
 ssa_energy_sym : yelmo-static tests/test_ssa_energy_sym.f90
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_ssa_energy_sym.x tests/test_ssa_energy_sym.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -178,13 +213,6 @@ ssa_energy_lr_sym : yelmo-static tests/test_ssa_energy_lr_sym.f90
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
 		@echo " "
 		@echo "    test_ssa_energy_lr_sym.x is ready."
-		@echo " "
-
-opt : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_opt.x tests/yelmo_opt.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_opt.x is ready."
 		@echo " "
 
 trough : yelmo-static
@@ -213,12 +241,31 @@ usage:
 	@echo ""
 	@echo "    * USAGE * "
 	@echo ""
-	@echo " make initmip    : compiles yelmo_initmip.x, for running yelmo on a given domain defined in param file."
-	@echo " make benchmarks : compiles yelmo_benchmarks.x, for running various EISMINT domain experiments.""
-	@echo " make mismip     : compiles yelmo_mismip.x, for running various MISMIP domain experiments.""
-	@echo " make opt        : compiles yelmo_opt.x, for running various MISMIP domain experiments.""
-	@echo " make trough     : compiles yelmo_trough.x, for running trough domain experiments.""
-	@echo " make clean      : cleans object files"
+	@echo " Drivers (libyelmo/bin/, runme alias in brackets):"
+	@echo " make initmip     : yelmo_initmip.x     [initmip]    realistic domains (initMIP, spin-up with optimisation)"
+	@echo " make benchmarks  : yelmo_benchmarks.x  [benchmarks] EISMINT, HALFAR, BUELER"
+	@echo " make mismip      : yelmo_mismip.x      [mismip]     MISMIP3D"
+	@echo " make trough      : yelmo_trough.x      [trough]     TROUGH-F17, MISMIP+, SLAB-S06"
+	@echo " make calving     : yelmo_calving.x     [calving]    CalvingMIP"
+	@echo " make bench       : yelmo_bench.x       [bench]      benchmark protocol (fixtures from tests/bench)"
+	@echo " make ismiphom    : yelmo_ismiphom.x    [ismiphom]   ISMIP-HOM"
+	@echo " make mask_ice    : yelmo_mask_ice.x    [mask_ice]   MASK_ICE test"
+	@echo ""
+	@echo " Tests:"
+	@echo " make symmetry          : test_symmetry.x (args: <file.nc> [varname] [axis]) symmetry check of an output file"
+	@echo " make icetemp           : test_icetemp.x"
+	@echo " make enthalpy          : test_enthalpy.x"
+	@echo " make variables         : test_variables.x"
+	@echo " make ssa_energy        : test_ssa_energy.x"
+	@echo " make ssa_energy_sym    : test_ssa_energy_sym.x"
+	@echo " make ssa_energy_lr_sym : test_ssa_energy_lr_sym.x"
+	@echo " make front_strain      : test_front_strain.x"
+	@echo " make lsf_front         : test_lsf_front.x"
+	@echo " make f_grnd            : test_f_grnd.x"
+	@echo " make check_sim         : check_sim.x"
+	@echo ""
+	@echo " Libraries: yelmo-static, yelmo-shared, yelmo-c"
+	@echo " make clean       : removes executables and object files"
 	@echo ""
 
 clean:
@@ -227,11 +274,13 @@ clean:
 	rm -rf *.x.dSYM
 	rm -f ./git_yelmo.txt
 	$(MAKE) -C $(FASTHYDROROOT) clean
+	$(MAKE) -C $(ELSAROOT) clean
+	$(MAKE) -C $(TRACERROOT) clean
 
 
 # Experimental
 yelmo-shared: $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests)
-	$(FC) -shared -o $(objdir)/libyelmo.so -fPIC $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests) \
+	$(FC) -shared -o $(objdir)/libyelmo.so $(yelmo_libs) $(yelmo_physics) $(yelmo_base) $(yelmo_tests) \
 		$(LFLAGS) $(INC_LIS) 
 	./check_githash > git_yelmo.txt
 	@echo " "

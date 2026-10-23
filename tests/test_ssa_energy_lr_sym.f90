@@ -32,7 +32,6 @@ program test_ssa_energy_lr_sym
 
     integer, parameter :: nx = 11, ny = 11
     real(wp), parameter :: dx = 5000.0_wp, dy = 5000.0_wp
-    real(wp), parameter :: beta_min = 0.0_wp
     real(wp), parameter :: tol_K = 1.0e-3_wp     ! abs tol on |K(n,c) - mirror|
     real(wp), parameter :: tol_b = 1.0e-3_wp     ! abs tol on |b(n) - mirror|
 
@@ -40,8 +39,8 @@ program test_ssa_energy_lr_sym
     real(wp) :: beta_acx(nx,ny), beta_acy(nx,ny)
     real(wp) :: N_aa(nx,ny)
     integer  :: ssa_mask_acx(nx,ny), ssa_mask_acy(nx,ny)
-    integer  :: mask_frnt(nx,ny)
     real(wp) :: H_ice(nx,ny), f_ice(nx,ny)
+    real(wp) :: z_bed(nx,ny), z_sl(nx,ny)
     real(wp) :: taud_acx(nx,ny), taud_acy(nx,ny)
     real(wp) :: taul_int_acx(nx,ny), taul_int_acy(nx,ny)
 
@@ -53,6 +52,8 @@ program test_ssa_energy_lr_sym
     ! ---- Uniform symmetric base inputs ----
     H_ice         = 1000.0_wp
     f_ice         = 0.0_wp                  ! Ice-free by default; cases below carve out an ice patch
+    z_bed         = -1000.0_wp              ! Bed below sea level: ice-free cells are ocean
+    z_sl          = 0.0_wp
     N_aa          = 1.0e10_wp
     beta_acx      = 0.0_wp                  ! Floating shelf — no basal drag
     beta_acy      = 0.0_wp
@@ -62,7 +63,6 @@ program test_ssa_energy_lr_sym
     uy            = 0.0_wp
     taul_int_acx  = 0.0_wp
     taul_int_acy  = 0.0_wp
-    mask_frnt     = 0
     ssa_mask_acx  = 0
     ssa_mask_acy  = 0
 
@@ -108,8 +108,8 @@ program test_ssa_energy_lr_sym
     ! using fully-periodic is fine and keeps the boundary handling out of
     ! the symmetry check.
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, z_bed, z_sl, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy,  "periodic")
     call check_lr_reflection(lgs, total_fail)
 
     ! ---------- Case B: horizontal ice strip, T<->B reflection ----------
@@ -136,8 +136,8 @@ program test_ssa_energy_lr_sym
     end do
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "periodic", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, z_bed, z_sl, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy,  "periodic")
     call check_tb_reflection(lgs, total_fail)
 
     ! ---------- Case C: square ice patch, both reflections at once ----------
@@ -174,8 +174,29 @@ program test_ssa_energy_lr_sym
     end do
 
     call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
-                ssa_mask_acx, ssa_mask_acy, mask_frnt, H_ice, f_ice, taud_acx, taud_acy, &
-                taul_int_acx, taul_int_acy, dx, dy, beta_min, "infinite", "none")
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, z_bed, z_sl, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy,  "infinite")
+    call check_lr_reflection(lgs, total_fail)
+    call check_tb_reflection(lgs, total_fail)
+
+    ! ---------- Case D: square ice patch on land, both reflections ----------
+    ! As Case C, but the bed is above sea level, so the margin corners keep
+    ! the mean viscosity of the ice-covered cells (stagger_visc_aa_ab) instead
+    ! of zero. Viscosity varies mirror-symmetrically about the centre.
+    write(*,*)
+    write(*,*) "============================================================"
+    write(*,*) "Case D: square ice patch on land, both L<->R and T<->B"
+    write(*,*) "============================================================"
+    z_bed = 100.0_wp
+    do j = 1, ny
+        do i = 1, nx
+            N_aa(i, j) = 1.0e10_wp * (1.0_wp + 0.1_wp*abs(i-6) + 0.05_wp*abs(j-6))
+        end do
+    end do
+
+    call linear_solver_matrix_ssa_ac_csr_2D_energy(lgs, ux, uy, beta_acx, beta_acy, N_aa, &
+                ssa_mask_acx, ssa_mask_acy, H_ice, f_ice, z_bed, z_sl, taud_acx, taud_acy, &
+                taul_int_acx, taul_int_acy, dx, dy,  "infinite")
     call check_lr_reflection(lgs, total_fail)
     call check_tb_reflection(lgs, total_fail)
 
@@ -185,7 +206,7 @@ program test_ssa_energy_lr_sym
         write(*,*) " ALL CASES PASS: K and b are reflection-symmetric"
     else
         write(*,'(a,i0,a)') "  FAIL across ", total_fail, " case(s)"
-        stop 1
+        error stop 1
     end if
 
 contains

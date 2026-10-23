@@ -4,6 +4,7 @@ fesm-utils
 FastHydrology
 libs/lis*
 ice_data
+fesmdata
 elsa
 tracer
 tests/plots
@@ -30,3 +31,6 @@ git_yelmo.txt
 docs/_site/
 docs/.quarto/
 .local/
+
+# Benchmark fixtures (tests/bench/make_fixture.jl)
+input/bench/

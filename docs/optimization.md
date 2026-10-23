@@ -1,90 +1,80 @@
 # Basal friction optimization
 
-A simple optimization program has developed that attempts
-to optimize the basal friction field applied in Yelmo so
-that the errors between simulated and observed ice thickness
-are minimized.
+Yelmo can adjust the basal friction coefficient `cb_ref` during a simulation so
+that the simulated ice thickness approaches an observed thickness. The method
+follows Lipscomb et al. (2021) and is implemented in `optimize_cb_ref`
+([`libs/ice_optimization.f90`](https://github.com/fesmc/yelmo/blob/main/libs/ice_optimization.f90)).
+It is a spin-up option of `yelmo_initmip.x`, with `ctrl.equil_method = "opt"`
+and the `&opt` group of `par/yelmo_initmip_grl.nml` and `par/yelmo_initmip_ant.nml` (see the initmip
+[benchmarks](benchmarks.md)). initmip sets `ytill.method = -1`, so that
+`cb_ref` is not recomputed by Yelmo.
 
-Program: `tests/yelmo_opt.f90`
-To compile: `make opt`
-To run:
+## Update of `cb_ref`
 
-```bash
-runme -rs -e opt -o output/test -n par/yelmo_Antarctica_opt.nml
-```
+At every outer time step `dt`, `cb_ref` is updated in each cell where the
+simulated speed is non-zero and the observed ice is grounded:
 
-The program consists of the following steps:
+$$
+\frac{\mathrm d c}{\mathrm d t} = -\frac{c}{H_0}\left(\frac{H - H_\mathrm{obs}}{\tau_c} + 2\,\frac{\partial H}{\partial t} + \frac{f_\mathrm{tgt}}{\tau_c}\ln\frac{c}{c_\mathrm{tgt}}\right),
+$$
 
-## 1. Spin-up a steady-state ice sheet with constant forcing and fixed topography
+with $c$ = `cb_ref`. The thickness error and the thickness change are taken
+from the upstream neighbours, weighted by the flow direction. The second term
+damps oscillations. The third term, with $f_\mathrm{tgt} = 0.05$ `H0`, pulls
+`cb_ref` towards the target field `cb_tgt` (zero for
+`H0 = 0`). Where there is no observed velocity, the upstream thickness error is
+the mean of the two upstream neighbours. The parameters are:
 
-For this step, the restart parameter should be set to `yelmo.restart='none'`, to
-ensure that the spin-up is performed with the current parameters. Currently,
-the program is hard-coded to spin-up the ice sheet for 20 kyr using SIA only,
-followed by another 10 kyr using the solver of choice, as seen in the following lines of code:
+| Parameter | Meaning |
+|---|---|
+| `tau_c` | [yr] Time scale of the adjustment (default 500 yr) |
+| `H0` | [m] Thickness scale of the adjustment. With `H0 = 0` (initmip default), $H_0 = \max(H_\mathrm{obs}, 50\ \mathrm m)$ in each cell. Negative values should not be used |
+| `fill_method` | Value in cells where the observed ice is floating or absent: `"cf_min"` or `"target"` (`cb_tgt`). Grounded cells with zero simulated speed get `cf_min` |
+| `cf_min`, `cf_max` | Limits of `cb_ref`. In initmip these are `ytill.cf_min` and `ytill.cf_ref` |
 
-```bash
-call yelmo_update_equil_external(yelmo1,hyd1,cf_ref,time_init,time_tot=20e3,topo_fixed=.TRUE.,dt=5.0,ssa_vel_max=0.0)
-call yelmo_update_equil_external(yelmo1,hyd1,cf_ref,time_init,time_tot=10e3, topo_fixed=.TRUE.,dt=1.0,ssa_vel_max=5000.0)
-```
+`sigma_err` and `sigma_vel` are read, but the smoothing of the thickness error
+they control is switched off in `optimize_cb_ref`.
 
-Note that this spin-up is obtained with a fixed topography set to the present-day
-observed fields (`H_ice`,`z_bed`). After the spin-up finishes, a restart file is
-written in the output directory with the name `yelmo_restart.nc`. The simulation
-will terminate at this point.
+## Relaxation of the ice shelves
 
-## 2. Optimization
+The optimization works best when the floating ice and the grounding zone are
+first held close to the observed thickness and then gradually released. This
+relaxation is separate from the optimization (`relax_params`, `relax_par_load`,
+`relax_update`, group `&relax`): while active, `ytopo.topo_rel` is
+`relax.topo_rel`, and the time scale `tau` (`tpo%par%topo_rel_tau`) is `tau1`
+until `time1` and increases to `tau2` at `time2` as
 
-The restart file from Step 1 should be saved somewhere convenient for the model
-(like in the `input` folder). Then the restart parameter should be set to that
-location `yelmo.restart='PATH_TO_RESTART.nc'`. This will ensure that the spin-up
-step is skipped, and instead the program will start directly with the optimization
-iterations.
+$$
+\tau = \tau_1 + (\tau_2 - \tau_1)\left(\frac{t - t_1}{t_2 - t_1}\right)^m.
+$$
 
-The optimization method follows Pollard and DeConto (2012), in that the basal
-friction coefficient is scaled as a function of the error in elevation. Here we
-do not modify `beta` directly, however, we assume that `beta = cf_ref * lambda_bed * N_eff * f(u)`.
-`lambda_bed`, `N_eff` and `f(u)` are all controlled by parameter choices in the .nml file
-like normal. Thus we are left with a unitless field `cf_ref`, which for any given
-friction law varies within the range of about [0:1]. When `cf_ref=1.0`, sliding will
-diminish to near zero, and `cf_ref~0.0` (near, but not zero) will give fast sliding.
-This gives a convenient range for optimization.  
+After `time2`, the `ytopo` values `topo_rel` and `topo_rel_tau` of the par file
+apply again. initmip relaxes the grounding zone (`relax.topo_rel = 4`), for
+`equil_method = "relax"` (relaxation only) and `"opt"` (relaxation +
+optimization).
 
-Parameters that control the total run time are hard coded:
+## Parameters
 
-- `qmax`: number of total iterations to run, where `qmax-1` is the number of optimization steps,
-during which `cf_ref` is updated, and the last step is a steady-state run with `cf_ref` held constant.
-- `time_iter`: time to run the model for each iteration before updating `cf_ref`.
-- `time_steady`: Time to run the model to steady state with `cf_ref` held constant (last iteration step).
+In `&opt` (times are counted from `ctrl.time_init`, also after a restart):
 
-So, the program runs for, e.g., `time_iter=500` years with a given initial field of `cf_ref`
-(with `C_bed` and `beta` updating every time step to follow changes in `u/v` and `N_eff`). At the end
-of `time_iter`, the error in ice thickness is determined and used to update `cf_ref`
-via the function `update_cf_ref_thickness_simple`. The model is again run for `time_iter` years
-and the process is repeated.
+- `opt_cf`: method of the friction optimization, `"none"` or `"L21"`
+  (`optimize_cb_ref`, above), active between `cf_time_init` and `cf_time_end`
+  (default 0–15 kyr);
+- `cf_init`: initial `cb_ref` everywhere without a restart (must be positive);
+- `tau_c`, `H0`, `fill_method` as above.
 
-Two important parameters control the optimization process: `tau` and `H_scale`.
-The optimization works best when the ice shelves are relaxed to the reference
-(observed) ice thickness in the beginning of the simulation, and then gradually
-allowed to freely evolve. `tau` is the time scale of relaxation, which is applied
-in Yelmo as `yelmo1%tpo%par%topo_rel_tau`. A lower value of `tau` means that the
-ice shelves are more tightly held to the observed thickness. Likewise, `H_scale` controls the scaling
-of the ice thickness error, which determines how to modify `cf_ref` at each iteration.
-A higher value of `H_scale` means that changes to `cf_ref` will be applied more slowly.
+In `&relax` (times also counted from `ctrl.time_init`): `topo_rel`, `tau1`,
+`tau2`, `time1`, `time2`, `m` as above.
 
-These parameters are designed to change over time with the simulation. `tau` is
-set to `rel_tau1` from the start of the simulation until `rel_time1`. Between `rel_time1`
-and `rel_time2`, `tau` is linearly scaled from the value of `rel_tau1` to `rel_tau2`.
-Or, if `rel_q > 1`, then the scaling is non-linear with an exponent of `rel_q` (this helps
-maintain small values of `tau` longer which seems to help keep errors low).
-Once `rel_time2` is reached, relaxation in the model is disabled, and the ice shelves
-are allowed to freely evolve. Analogously, `H_scale` is modified the same way:
-it is constant at the value of `scale_H1` until `scale_time1`,
-linearly scaled between `scale_time1` and `scale_time2`,
-and then constant thereafter at the value of `scale_H2`. Increasing the value of
-`H_scale` over time helps to avoid oscillations in the optimization procedure as
-`cf_ref` approaches the best fit.
+The optimization of the ocean thermal forcing `tf_corr` (`opt_tf`) needs an
+ocean model, so initmip only accepts `opt_tf = "none"`. Drivers with an ocean
+model (yelmox) can use `"L21"` (`optimize_tf_corr_basin`, one correction per
+basin, basins in `tf_basins`) or `"L21-points"` (`optimize_tf_corr`, a correction
+in each point, smoothed with `tf_sigma`).
 
-Finally, after `qmax-1` iterations or `time=(qmax-1)*time_iter`, `cf_ref` is held
-constant, and the simulation runs for `time_steady` years to equilibrate the model
-with the current conditions. This step minimizes drift in the final result and
-confirms that the optimized `cf_ref` field works well.
+## Reference
+
+Lipscomb, W. H., Leguy, G. R., Jourdain, N. C., Asay-Davis, X., Seroussi, H.,
+and Nowicki, S. (2021). ISMIP6-based projections of ocean-forced Antarctic ice
+sheet evolution using the Community Ice Sheet Model. The Cryosphere, 15,
+633–661. <https://doi.org/10.5194/tc-15-633-2021>

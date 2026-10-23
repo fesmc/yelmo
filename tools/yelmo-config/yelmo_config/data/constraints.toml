@@ -11,7 +11,8 @@
 #
 # Keep in sync with src/*.f90 when the Fortran checks change.
 
-# --- scalar range checks: op is one of  gt | ge | lt | le  (vs `bound`) ---
+# --- scalar range checks: `min`/`max` with `min_inclusive`/`max_inclusive`
+# (default true), or `any_of` = a list of such intervals (union) ---
 [[range]]
 group = "yelmo"
 name = "cfl_max"
@@ -55,6 +56,182 @@ name = "nzr_aa"
 min = 2
 min_inclusive = true
 note = "must be >= 2"
+
+[[range]]
+group = "yelmo"
+name = "pc_cfl_max"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+note = "must be in (0, 1]"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_H_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_u_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_eta_trim"
+min = 0.0
+max = 0.5
+min_inclusive = true
+max_inclusive = false
+note = "must be in [0, 0.5)"
+
+[[range]]
+group = "ytopo"
+name = "front_H_eff_min"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ytopo"
+name = "front_dHdx"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ycalv"
+name = "H_min_tau"
+min = 0.0
+min_inclusive = true
+note = "must be >= 0"
+
+[[range]]
+group = "ycalv"
+name = "tau_ice_flt"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ycalv"
+name = "tau_ice_grnd"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "yelmo"
+name = "dt_min"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "yelmo"
+name = "pc_rho_max"
+min = 1.0
+min_inclusive = false
+note = "must be > 1"
+
+[[range]]
+group = "ydyn"
+name = "ssa_vel_max"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ydyn"
+name = "neff_nxi"
+min = 0
+min_inclusive = true
+note = "must be >= 0 (checked in calc_ydyn_neff, at the first velocity solve)"
+
+[[range]]
+group = "ytherm"
+name = "qb_method"
+min = 1
+max = 4
+note = "must be in 1..4"
+
+[[range]]
+group = "ytherm"
+name = "advecxy_cfl"
+min = 0.0
+min_inclusive = false
+note = "must be > 0"
+
+[[range]]
+group = "ytherm"
+name = "advecxy_nmax"
+min = 1
+note = "must be >= 1"
+
+[[range]]
+group = "ytherm"
+name = "cap_W_floor"
+min = 0.0
+note = "must be >= 0"
+
+[[range]]
+group = "ytherm"
+name = "cap_eps"
+min = 0.0
+note = "must be >= 0"
+
+# Union of intervals: the value must lie in one of the `any_of` intervals.
+[[range]]
+group = "ycalv"
+name = "dt_lsf"
+note = "must be <= 0 (disabled) or >= 0.01 yr"
+any_of = [
+    { max = 0.0, max_inclusive = true },
+    { min = 0.01, min_inclusive = true },
+]
+
+[[range]]
+group = "ytherm"
+name = "advecxy_order"
+note = "must be 1 or 2"
+any_of = [
+    { min = 1, max = 1 },
+    { min = 2, max = 2 },
+]
+
+[[range]]
+group = "ytopo"
+name = "gl_sep"
+note = "must be 1 or 3 (2 is deprecated, use 3)"
+any_of = [
+    { min = 1, max = 1 },
+    { min = 3, max = 3 },
+]
+
+# Conditional ranges: enforced only when the guard holds (as for [[order]] below).
+[[range]]
+group = "ydyn"
+name = "frz_efold"
+min = 0.0
+min_inclusive = false
+when_name = "frz_scale"
+when_value = "True"
+note = "must be > 0 with frz_scale = True"
+
+[[range]]
+group = "ydyn"
+name = "frz_min"
+min = 0.0
+max = 1.0
+min_inclusive = false
+max_inclusive = true
+when_name = "frz_scale"
+when_value = "True"
+note = "must be in (0, 1] with frz_scale = True"
 
 # --- ordering checks: `left` `op` `right` (both in the same group) ---
 # op is one of  lt (<) | le (<=) | gt (>) | ge (>=)

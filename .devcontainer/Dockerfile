@@ -1,1 +1,0 @@
-FROM tgoelles/yelmo:0.1.0

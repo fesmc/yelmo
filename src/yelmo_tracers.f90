@@ -51,7 +51,7 @@ contains
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         type(grid_class),   intent(IN)    :: grd
-        real(wp),           intent(IN)    :: time
+        real(dp),           intent(IN)    :: time
 
         ! Local variables
         integer  :: nx, ny, nz_aa
@@ -67,8 +67,8 @@ contains
         if (trc%par%time .gt. time) trc%par%time = time
 
         ! Get time step and advance current time
-        dt           = real(time,wp) - real(trc%par%time,wp)
-        trc%par%time = real(time,dp)
+        dt           = real(time - trc%par%time,wp)
+        trc%par%time = time
 
         ! === 1. Eulerian backend ==========================================
         if (trc%par%use_euler .and. trc%par%calc_age .and. dt .gt. 0.0_wp) then
@@ -76,16 +76,21 @@ contains
             allocate(X_srf(nx,ny))
             allocate(mask_tracers(nx,ny))
 
-            ! Surface boundary condition is the current time
-            X_srf = time
+            ! Surface boundary condition is the current time. The deposition time
+            ! is transported relative to t_ref_euler, so that its precision does
+            ! not depend on the absolute time.
+            X_srf = real(time - trc%par%t_ref_euler,wp)
 
             ! Restrict tracing away from very fast-flowing ice (surface value imposed there)
             mask_tracers = .TRUE.
             where (dyn%now%uxy_bar .gt. 500.0_wp) mask_tracers = .FALSE.
 
-            call calc_tracer_3D(trc%now%t_dep_euler,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
+            call calc_tracer_3D(trc%now%t_dep_euler_rel,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star, &
                 tpo%now%H_ice,tpo%now%bmb,trc%par%zeta_aa,trc%par%zeta_ac,trc%par%tracer_method, &
-                trc%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
+                trc%par%tracer_impl_kappa,dt,thrm%par%dx,trc%par%advecxy_order, &
+                trc%par%advecxy_cfl,trc%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
+
+            call ytrc_euler_t_dep(trc)
 
             deallocate(X_srf,mask_tracers)
 
@@ -114,12 +119,12 @@ contains
                 trc%now%t_dep = trc%now%t_dep_elsa
             case DEFAULT
                 write(io_unit_err,*) "calc_ytrc:: Error: t_dep_source not recognized: "//trim(trc%par%t_dep_source)
-                stop "Program stopped."
+                error stop 1
         end select
 
         ! Diagnose isochrone depths from the authoritative deposition-time field
         call calc_isochrones(trc%now%depth_iso,trc%now%t_dep,tpo%now%H_ice,trc%par%time_iso, &
-                                                                        trc%par%zeta_aa,time)
+                                                                        trc%par%zeta_aa,real(time,wp))
 
         return
 
@@ -134,12 +139,12 @@ contains
         type(ytrc_class),  intent(INOUT) :: trc
         type(ytopo_class), intent(IN)    :: tpo
         type(ydyn_class),  intent(IN)    :: dyn
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
 
-        ! elsa is double-precision internally; pass dp copies to the _dp interface.
-        call elsa_update(trc%elsa,real(time,dp),real(tpo%now%H_ice,dp), &
-                         real(dyn%now%ux,dp),real(dyn%now%uy,dp), &
-                         real(tpo%now%smb,dp),real(tpo%now%bmb,dp))
+        ! Pass the native arrays: elsa's generic interface handles the precision,
+        ! integrates the rates in place and converts H_ice only when an update is due.
+        call elsa_update(trc%elsa,time,tpo%now%H_ice,dyn%now%ux,dyn%now%uy, &
+                         tpo%now%smb,tpo%now%bmb)
 
         return
 
@@ -281,7 +286,7 @@ contains
         type(ytopo_class), intent(IN)    :: tpo
         type(ydyn_class),  intent(IN)    :: dyn
         type(grid_class),  intent(IN)    :: grd
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
 
         ! Local variables
         integer :: nx, ny
@@ -304,12 +309,12 @@ contains
         ! Gridded-stats output is off; the harmonized t_dep_trc is built afterwards.
         dep_now   = .FALSE.
         stats_now = .FALSE.
-        if (real(time,dp) .ge. trc%par%time_dep_next) then
+        if (time .ge. trc%par%time_dep_next) then
             dep_now = .TRUE.
             trc%par%time_dep_next = trc%par%time_dep_next + real(trc%trc%par%dt_dep,dp)
         end if
 
-        call tracer_update(trc%trc,real(time,wp), &
+        call tracer_update(trc%trc,time, &
                            real(grd%G%x,wp),real(grd%G%y,wp),trc%par%zeta_aa, &
                            tpo%now%z_srf,tpo%now%H_ice, &
                            dyn%now%ux,dyn%now%uy,dyn%now%uz, &
@@ -338,7 +343,7 @@ contains
         ! Local variables
         integer  :: p, np, i, j, k, nx, ny, nz_aa
         real(wp) :: x0, y0, dx, dy, sig
-        real(wp), allocatable :: sum_t(:,:,:)
+        real(dp), allocatable :: sum_t(:,:,:)
         integer,  allocatable :: cnt(:,:,:)
 
         nx    = trc%par%nx
@@ -350,7 +355,7 @@ contains
         dx = real(grd%G%dx,wp)
         dy = real(grd%G%dy,wp)
 
-        allocate(sum_t(nx,ny,nz_aa)); sum_t = 0.0_wp
+        allocate(sum_t(nx,ny,nz_aa)); sum_t = 0.0_dp
         allocate(cnt(nx,ny,nz_aa));   cnt   = 0
 
         np = size(trc%trc%now%active,1)
@@ -374,7 +379,7 @@ contains
         end do
 
         where (cnt .gt. 0)
-            trc%now%t_dep_trc = sum_t / real(cnt,wp)
+            trc%now%t_dep_trc = real(sum_t / real(cnt,dp),wp)
         elsewhere
             trc%now%t_dep_trc = MV
         end where
@@ -417,7 +422,7 @@ contains
 
         type(ytrc_class), intent(INOUT) :: trc
         type(grid_class), intent(IN)    :: grd
-        real(wp),         intent(IN)    :: time
+        real(dp),         intent(IN)    :: time
         real(wp),         intent(IN)    :: H_ice(:,:)
         character(len=*), intent(IN), optional :: restart
 
@@ -430,25 +435,40 @@ contains
             if (trim(restart) .ne. "None" .and. len_trim(restart) .gt. 0) is_restart = .TRUE.
         end if
 
-        ! Eulerian backend: seed deposition time to the current time on a cold
-        ! start. On a restart, t_dep_euler is read from the yelmo restart file by
-        ! yelmo_restart_read (which runs before this), so do not overwrite it.
-        if (.not. is_restart) trc%now%t_dep_euler = real(time,wp)
+        ! Eulerian backend: on a cold start, the reference time and the
+        ! deposition time are the current time. On a restart,
+        ! t_ref_euler and t_dep_euler_rel are read from the yelmo restart file by
+        ! yelmo_restart_read (which runs before this), so do not overwrite them.
+        if (.not. is_restart) then
+            trc%par%t_ref_euler     = time
+            trc%now%t_dep_euler_rel = 0.0_wp
+        end if
+        call ytrc_euler_t_dep(trc)
 
         ! Layer backend (elsa): allocate the layer stack (sized by par%time_end on
-        ! a cold start, or read from the sidecar on a restart).
+        ! a cold start, or read from the sidecar on a restart). With
+        ! elsa_restart = False, elsa starts fresh also on a restart (e.g. a
+        ! transient run on another clock than the spin-up it restarts from).
         if (trc%par%use_elsa) then
 
-            if (is_restart) then
+            ! elsa sizes its layer stack up to time_end: it must be later than the
+            ! start of this run (segment) also on a restart
+            if (trc%par%time_end .le. time) then
+                write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires ytrc.time_end later than the &
+                                     &start time (the default 0.0 is present day)."
+                write(io_unit_err,*) "time, ytrc.time_end = ", time, trc%par%time_end
+                error stop 1
+            end if
+
+            if (is_restart .and. trc%par%elsa_restart) then
                 elsa_rst = ytrc_restart_filename(restart,"elsa")
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
-                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy", &
-                               restart=trim(elsa_rst))
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               trc%par%zeta_aa,H_ice,"acx_acy",restart=trim(elsa_rst))
             else
                 call elsa_init(trc%elsa,trim(trc%par%elsa_nml),trim(trc%par%elsa_group), &
-                               real(time,dp),real(trc%par%time_end,dp),grd%G%x,grd%G%y, &
-                               real(trc%par%zeta_aa,dp),real(H_ice,dp),"acx_acy")
+                               time,trc%par%time_end,real(grd%G%x,wp),real(grd%G%y,wp), &
+                               trc%par%zeta_aa,H_ice,"acx_acy")
             end if
 
             ! The t_dep_elsa diagnostic maps elsa's layer stack onto the host
@@ -457,7 +477,7 @@ contains
             if (abs(trc%elsa%par%grid_factor - 1.0_wp) .gt. 1e-6_wp) then
                 write(io_unit_err,*) "ytrc_init:: Error: use_elsa requires grid_factor=1 in the elsa &
                                      &namelist (for the t_dep_elsa diagnostic); got ", trc%elsa%par%grid_factor
-                stop "Program stopped."
+                error stop 1
             end if
 
         end if
@@ -469,35 +489,48 @@ contains
             ! Pass yelmo's isochrone targets (time_iso) so the tracer's gridded
             ! stats share the authoritative deposition-time axis, independent of
             ! the tracer namelist (see tracer_init).
-            call tracer_init(trc%trc,trim(trc%par%tracer_nml),real(time,wp), &
+            call tracer_init(trc%trc,trim(trc%par%tracer_nml),time, &
                              real(grd%G%x,wp),real(grd%G%y,wp),is_sigma=.TRUE.,grid=grd, &
                              time_iso=trc%par%time_iso)
 
             if (is_restart) then
-                call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),real(time,wp))
+                call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),time)
             end if
 
-            ! Initialize deposition/stats cadence trackers from the tracer namelist
-            trc%par%time_dep_next   = real(time,dp)
-            trc%par%time_stats_next = real(time,dp)
+            ! Initialize the deposition cadence tracker
+            trc%par%time_dep_next   = time
         end if
 
         return
 
     end subroutine ytrc_init
 
+    subroutine ytrc_euler_t_dep(trc)
+        ! Absolute Eulerian deposition time from the transported field,
+        ! which is relative to the reference time t_ref_euler.
+
+        implicit none
+
+        type(ytrc_class), intent(INOUT) :: trc
+
+        trc%now%t_dep_euler = real(trc%par%t_ref_euler + real(trc%now%t_dep_euler_rel,dp),wp)
+
+        return
+
+    end subroutine ytrc_euler_t_dep
+
     subroutine ytrc_restart_write(trc,filename,time)
         ! Write the native restart state of each enabled backend to a sidecar
         ! file alongside the yelmo restart (e.g. yelmo_restart.nc ->
         ! yelmo_restart_elsa.nc / _tracer.nc). The Eulerian backend needs no
-        ! sidecar: its t_dep_euler field is written into the yelmo restart via
-        ! the io%trc table.
+        ! sidecar: its t_dep_euler_rel field is written into the yelmo restart via
+        ! the io%trc table, and t_ref_euler by yelmo_restart_write.
 
         implicit none
 
         type(ytrc_class), intent(IN) :: trc
         character(len=*), intent(IN) :: filename
-        real(wp),         intent(IN) :: time
+        real(dp),         intent(IN) :: time
 
         ! Local variables
         integer            :: is
@@ -527,7 +560,7 @@ contains
             end if
             trc_tmp = trc%trc
             call tracer_write_init(trc_tmp,trim(fldr),trim(fname))
-            call tracer_write(trc_tmp,real(time,wp),trim(fldr),trim(fname))
+            call tracer_write(trc_tmp,time,trim(fldr),trim(fname))
         end if
 
         return
@@ -580,19 +613,23 @@ contains
         time_iso = 0.0
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group,defaults_group=def_ytrc)
 
         call nml_read(filename,group,"use_euler",         par%use_euler,         init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"use_tracer",        par%use_tracer,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"use_elsa",          par%use_elsa,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"elsa_restart",      par%elsa_restart,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"t_dep_source",      par%t_dep_source,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"time_end",          par%time_end,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"calc_age",          par%calc_age,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"time_iso",          time_iso,              init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_method",     par%tracer_method,     init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_impl_kappa", par%tracer_impl_kappa, init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_order",     par%advecxy_order,     init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_cfl",       par%advecxy_cfl,       init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
+        call nml_read(filename,group,"advecxy_nmax",      par%advecxy_nmax,      init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"elsa_nml",          par%elsa_nml,          init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"elsa_group",        par%elsa_group,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
         call nml_read(filename,group,"tracer_nml",        par%tracer_nml,        init=init_pars,defaults_file=def_file,defaults_group=def_ytrc)
@@ -600,6 +637,21 @@ contains
         ! Validate parameter values
         call yelmo_check_enum(group,"t_dep_source",  par%t_dep_source,  "euler|trc|elsa")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
+
+        if (par%advecxy_order .ne. 1 .and. par%advecxy_order .ne. 2) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_order must be 1 or 2; got ", par%advecxy_order
+            error stop 1
+        end if
+
+        if (par%advecxy_cfl .le. 0.0_wp) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_cfl must be > 0; got ", par%advecxy_cfl
+            error stop 1
+        end if
+
+        if (par%advecxy_nmax .lt. 1) then
+            write(io_unit_err,*) "ytrc_par_load:: error: advecxy_nmax must be >= 1; got ", par%advecxy_nmax
+            error stop 1
+        end if
 
         ! Set internal parameters
         par%nx    = nx
@@ -631,6 +683,9 @@ contains
         ! Define current time as unrealistic value
         par%time = 1000000000   ! [a] 1 billion years in the future
 
+        ! Reference time of the Eulerian tracer (set by ytrc_init or the restart)
+        par%t_ref_euler = 0.0_dp
+
         return
 
     end subroutine ytrc_par_load
@@ -646,15 +701,17 @@ contains
 
         allocate(now%t_dep(nx,ny,nz_aa))
         allocate(now%t_dep_euler(nx,ny,nz_aa))
+        allocate(now%t_dep_euler_rel(nx,ny,nz_aa))
         allocate(now%t_dep_trc(nx,ny,nz_aa))
         allocate(now%t_dep_elsa(nx,ny,nz_aa))
         allocate(now%depth_iso(nx,ny,n_iso))
 
-        now%t_dep       = 0.0
-        now%t_dep_euler = 0.0
-        now%t_dep_trc   = MV
-        now%t_dep_elsa  = MV
-        now%depth_iso   = 0.0
+        now%t_dep           = 0.0
+        now%t_dep_euler     = 0.0
+        now%t_dep_euler_rel = 0.0
+        now%t_dep_trc       = MV
+        now%t_dep_elsa      = MV
+        now%depth_iso       = 0.0
 
         return
 
@@ -666,11 +723,12 @@ contains
 
         type(ytrc_state_class), intent(INOUT) :: now
 
-        if (allocated(now%t_dep))        deallocate(now%t_dep)
-        if (allocated(now%t_dep_euler))  deallocate(now%t_dep_euler)
-        if (allocated(now%t_dep_trc))    deallocate(now%t_dep_trc)
-        if (allocated(now%t_dep_elsa))   deallocate(now%t_dep_elsa)
-        if (allocated(now%depth_iso))    deallocate(now%depth_iso)
+        if (allocated(now%t_dep))           deallocate(now%t_dep)
+        if (allocated(now%t_dep_euler))     deallocate(now%t_dep_euler)
+        if (allocated(now%t_dep_euler_rel)) deallocate(now%t_dep_euler_rel)
+        if (allocated(now%t_dep_trc))       deallocate(now%t_dep_trc)
+        if (allocated(now%t_dep_elsa))      deallocate(now%t_dep_elsa)
+        if (allocated(now%depth_iso))       deallocate(now%depth_iso)
 
         return
 

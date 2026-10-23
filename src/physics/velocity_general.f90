@@ -1,15 +1,17 @@
 module velocity_general 
     ! This module contains general routines that are used by several solvers. 
     
-    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class
+    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, io_unit_err, jacobian_3D_class, MASK_FRNT_ICE_FREE_LAND, &
+                            A_FRONT_MIN
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions, &
-                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax
+                            integrate_trapezoid1D_1D, integrate_trapezoid1D_pt, minmax, is_finite
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
                                     gq2D_to_nodes_acx, gq2D_to_nodes_acy, &
                                     gq3D_class, gq3D_init, gq3D_to_nodes_aa, &
                                     gq3D_to_nodes_acx, gq3D_to_nodes_acy
 
-    use deformation, only : calc_strain_rate_horizontal_2D
+    use solver_linear, only : linear_solver_status_str
+    use deformation, only : calc_strain_rate_horizontal_2D, calc_active_faces
 
     use solver_ssa_ac, only : ssa_diagnostics_write_init, ssa_diagnostics_write_step
 
@@ -19,15 +21,16 @@ module velocity_general
     public :: calc_uz_3D_jac
     public :: calc_uz_3D
     public :: calc_uz_3D_aa
+    public :: calc_uz_3D_flux
     public :: calc_driving_stress
     public :: calc_driving_stress_gl
     public :: calc_lateral_bc_stress_2D
     public :: set_inactive_margins
     public :: calc_ice_flux
+    public :: calc_grounding_line_flux
     public :: calc_vel_ratio
+    public :: calc_visc_eff_int
 
-    public :: picard_calc_error 
-    public :: picard_calc_error_angle 
     public :: picard_calc_convergence_l1rel_matrix
     public :: picard_calc_convergence_l2
     public :: picard_relax_vel
@@ -35,14 +38,14 @@ module velocity_general
     
 contains 
     
-    subroutine calc_uz_3D_jac(uz,uz_star,ux,uy,jvel,H_ice,f_ice,f_grnd,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D_jac(uz,uz_star,ux,uy,jvel,H_ice,f_ice,f_grnd,smb,bmb,dzbdt,dzsdt, &
                                     dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of ice-base elevation change (dzbdt) is deduced from dzbdt = dzsdt - dhdt. 
-        ! This formulation does not depend on rate of bedrock uplift (which is implicit in dzsdt),
-        ! and is valid for both grounded and floating ice. 
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -56,7 +59,7 @@ contains
         real(wp), intent(IN)  :: f_grnd(:,:)
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:) 
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -96,13 +99,10 @@ contains
         real(wp) :: c_z 
 
         real(wp) :: dzsdtn(4)
-        real(wp) :: dhdtn(4)
         real(wp) :: dzbdxn(4)
         real(wp) :: dzbdyn(4)
         real(wp) :: dzsdxn(4)
         real(wp) :: dzsdyn(4)
-        real(wp) :: dudxn(4) 
-        real(wp) :: dvdyn(4) 
         real(wp) :: uxn_up(4) 
         real(wp) :: uxn_dn(4) 
         real(wp) :: uxn(4) 
@@ -116,33 +116,24 @@ contains
         real(wp) :: dvdyn8(8) 
 
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
         
-        logical, allocatable :: is_ice(:,:)
-        
-        real(wp), parameter :: uz_min = -10.0       ! [m/yr] Minimum allowed vertical velocity downwards for stability
-        real(wp), parameter :: uz_lim =  10.0       ! [m/yr] Absolute limit allowed for vertical velocity in any direction
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         type(gq2D_class) :: gq2D, gq2D_global
         type(gq3D_class) :: gq3D, gq3D_global
-        real(wp) :: dz0, dz1
         integer  :: km1, kp1
-        logical, parameter :: use_gq3D = .TRUE.
 
         integer  :: BC
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
-        if (use_gq3D) call gq3D_init(gq3D_global)
+        call gq3D_init(gq3D_global)
 
         nx    = size(ux,1)
         ny    = size(ux,2)
         nz_aa = size(zeta_aa,1)
         nz_ac = size(zeta_ac,1) 
-        
-        allocate(is_ice(nx,ny))
-        is_ice = (f_ice .eq. 1.0)
         
         ! Initialize vertical velocity to zero 
         uz = 0.0 
@@ -157,40 +148,33 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
         ! Next, calculate vertical velocity at each point through the column
 
         !$omp parallel &
         !$omp& private(i,j,im1,ip1,jm1,jp1,gq2D,gq3D) &
-        !$omp& private(dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv,dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa) &
+        !$omp& private(dzsdt_now,dzbdt_now,H_now,H_inv,dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa) &
         !$omp& private(dzsdxn,dzsdx_aa,dzsdyn,dzsdy_aa,uxn,ux_aa,uyn,uy_aa,uz_grid,k,kmid) &
-        !$omp& private(dudxn,dudx_aa,dvdyn,dvdy_aa,km1,kp1,dz0,dudxn8,dvdyn8) &
+        !$omp& private(dudx_aa,dvdy_aa,km1,kp1,dudxn8,dvdyn8) &
         !$omp& private(kup,kdn,uxn_up,uxn_dn,uyn_up,uyn_dn,zeta_now,c_x,c_y,c_t,c_z) &
         !$omp& shared(gq2D_global,gq3D_global)
         gq2D = gq2D_global
         gq3D = gq3D_global
 
-        !$omp do collapse(2)
+        !$omp do collapse(2) schedule(dynamic,64)
         do j = 1, ny
         do i = 1, nx
 
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
-
-            ! ajr: checking for EISMINT
-            !dzbdt_now = 0.0 
-            ! Note that using the approximation above (dzbdt_now = dzsdt_now - dhdt_now)
-            ! to determine dzbdt instead of passing it directly can lead to numerical errors
-            ! related mainly to the use of the predictor-corrector method. In EISMINT, for example,
-            ! it is possible to calculate a negative velocity at the base of the ice sheet
-            ! related to dzbdt, when by definition, it is zero in the EISMINT experiments. It
-            ! is a (small) artifact of this indirect approach.
-            ! So far, I see no major harm in it, and the error diminishes in steady-state cases.
-            ! But it should be considered in the future.
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -198,24 +182,24 @@ contains
                 H_inv = 1.0/H_now 
 
                 ! Get the centered ice-base gradient
-                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzbdx_aa = sum(dzbdxn*gq2d%wt)/gq2d%wt_tot
 
-                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzbdy_aa = sum(dzbdyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Get the centered surface gradient
-                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzsdx_aa = sum(dzsdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzsdy_aa = sum(dzsdyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Get the aa-node centered horizontal velocity at the base
-                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Determine grid vertical velocity at the base due to sigma-coordinates 
@@ -232,14 +216,6 @@ contains
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
                 uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limits on basal uz value.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min
-
-                ! Extreme limit
-                call minmax(uz(i,j,1),uz_lim)
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -252,39 +228,20 @@ contains
                     ! Note: center of cell below this one is zeta_aa(k-1)
                     kmid = k-1
 
-                    ! Get dudz/dvdz values at vertical aa-nodes, in order
+                    ! Get dudx/dvdy values at vertical aa-nodes (3D quadrature), in order
                     ! to vertically integrate each cell up to ac-node border.
-
-if (.not. use_gq3D) then
-    ! 2D QUADRATURE
-
-                    call gq2D_to_nodes_acx(gq2d,dudxn,jvel%dxx(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    dudx_aa = sum(dudxn*gq2d%wt)/gq2d%wt_tot
-
-                    call gq2D_to_nodes_acy(gq2d,dvdyn,jvel%dyy(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    dvdy_aa = sum(dvdyn*gq2d%wt)/gq2d%wt_tot
-
-else 
-    ! 3D QUADRATURE
+                    ! (The dz arguments, 0 here, are not used by the gq3D mapping.)
 
                     km1 = kmid-1
                     kp1 = kmid+1
                     if (kmid .eq. 1)  km1 = 1
                     if (kmid .eq. nz_aa) kp1 = nz_aa
 
-                    if (kmid .gt. 1) then
-                        dz0 = H_ice(i,j)*(zeta_aa(kmid) - zeta_aa(km1))
-                    else
-                        dz0 = H_ice(i,j)*(zeta_aa(2) - zeta_aa(1))
-                    end if
-
-                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,0.0_wp,0.0_wp,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     dudx_aa = sum(dudxn8*gq3D%wt)/gq3D%wt_tot
 
-                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1)
+                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,0.0_wp,0.0_wp,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     dvdy_aa = sum(dvdyn8*gq3D%wt)/gq3D%wt_tot
-
-end if 
 
                     ! Calculate vertical velocity of this layer
                     ! (Greve and Blatter, 2009, Eq. 5.95)
@@ -294,9 +251,6 @@ end if
                     !uz(i,j,k) = uz(i,j,k) - zeta_ac(k)*(uz(i,j,k)-uz_srf)
 
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
-                    
-                    ! Apply hard-limit to vertical velocity in rare cases (usually spinup)
-                    call minmax(uz(i,j,k),uz_lim)  
 
                 end do 
 
@@ -328,13 +282,13 @@ end if
                         kdn = k-1 
                     end if
                     
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     uxn = 0.5_wp*(uxn_up+uxn_dn)
                     ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                     
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     uyn = 0.5_wp*(uyn_up+uyn_dn)
                     uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                     
@@ -363,9 +317,6 @@ end if
                     uz_star(i,j,k) = ux_aa*c_x + uy_aa*c_y + uz(i,j,k)*c_z + c_t
 
                     if (abs(uz_star(i,j,k)) .lt. TOL_UNDERFLOW) uz_star(i,j,k) = 0.0_wp
-                    
-                    ! Apply hard-limit to uz_star too, in rare cases (usually spinup)
-                    call minmax(uz_star(i,j,k),uz_lim)  
 
                 end do 
                 
@@ -376,7 +327,6 @@ end if
 
                     uz(i,j,k) = dzbdt_now - max(smb(i,j),0.0)
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
-                    call minmax(uz(i,j,k),uz_lim)  
 
                     uz_star(i,j,k) = uz(i,j,k)
 
@@ -393,14 +343,14 @@ end if
 
     end subroutine calc_uz_3D_jac
 
-    subroutine calc_uz_3D(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,smb,bmb,dzbdt,dzsdt, &
                                     dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of ice-base elevation change (dzbdt) is deduced from dzbdt = dzsdt - dhdt. 
-        ! This formulation does not depend on rate of bedrock uplift (which is implicit in dzsdt),
-        ! and is valid for both grounded and floating ice. 
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -413,7 +363,7 @@ end if
         real(wp), intent(IN)  :: f_grnd(:,:)
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:) 
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -451,7 +401,6 @@ end if
         real(wp) :: c_t 
 
         real(wp) :: dzsdtn(4)
-        real(wp) :: dhdtn(4)
         real(wp) :: dzbdxn(4)
         real(wp) :: dzbdyn(4)
         real(wp) :: dzsdxn(4)
@@ -468,7 +417,6 @@ end if
         real(wp) :: dvdzn(4) 
         
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
 
         real(wp), allocatable :: dudx(:,:,:)
@@ -476,8 +424,9 @@ end if
         real(wp), allocatable :: dudy(:,:)
         real(wp), allocatable :: dvdx(:,:)
         
-        real(wp), parameter :: uz_min = -10.0     ! [m/yr] Minimum allowed vertical velocity downwards for stability
         
+        logical, allocatable :: act_acx(:,:), act_acy(:,:)
+
         type(gq2D_class) :: gq2D, gq2D_global
         
         integer  :: BC
@@ -509,19 +458,23 @@ end if
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
+        ! Velocity faces with a solution (next to an ice-covered cell); the
+        ! others hold zero velocity and do not enter the quadrature means
+        allocate(act_acx(nx,ny),act_acy(nx,ny))
+        call calc_active_faces(act_acx,act_acy,f_ice,BC)
+
         ! First calculate horizontal strain rates at each layer for later use,
         ! with no correction factor for sigma-transformation.
         ! Note: we only need dudx and dvdy, but routine also calculate cross terms, which will not be used.
+        ! Serial loop over k: calc_strain_rate_horizontal_2D opens its own parallel regions.
 
-        !$omp parallel do private(k,dudy,dvdx)
         do k = 1, nz_aa
             call calc_strain_rate_horizontal_2D(dudx(:,:,k),dudy,dvdx,dvdy(:,:,k),ux(:,:,k),uy(:,:,k),f_ice,dx,dy,boundaries)
         end do
-        !$omp end parallel do
 
         ! Next, calculate vertical velocity at each point through the column
 
-        !$omp parallel private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv) &
+        !$omp parallel private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dzbdt_now,H_now,H_inv) &
         !$omp& private(dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa,dzsdxn,dzsdx_aa,dzsdyn,dzsdy_aa,uxn,ux_aa,uyn,uy_aa) &
         !$omp& private(uz_grid,dudxn,dudx_aa,dvdyn,dvdy_aa) &
         !$omp& private(kup,kdn,uxn_up,uxn_dn,dudzn,dudz_aa,uyn_up,uyn_dn,dvdzn,dvdz_aa,zeta_now,c_x,c_y,c_t,gq2d) &
@@ -535,10 +488,9 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -546,24 +498,24 @@ end if
                 H_inv = 1.0/H_now 
 
                 ! Get the centered ice-base gradient
-                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzbdxn,dzbdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzbdx_aa = sum(dzbdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzbdyn,dzbdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzbdy_aa = sum(dzbdyn*gq2d%wt)/gq2d%wt_tot
 
                 ! Get the centered surface gradient
-                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,dzsdxn,dzsdx,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 dzsdx_aa = sum(dzsdxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,dzsdyn,dzsdy,dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 dzsdy_aa = sum(dzsdyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Get the aa-node centered horizontal velocity at the base
-                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acx(gq2d,uxn,ux(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                 ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                 
-                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2d,uyn,uy(:,:,1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                 uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                 
                 ! Determine grid vertical velocity at the base due to sigma-coordinates 
@@ -580,11 +532,6 @@ end if
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
                 uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limit on basal uz value.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min 
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -621,21 +568,21 @@ end if
                         kdn = k-2
                     end if
 
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     dudzn = (uxn_up - uxn_dn) / (zeta_aa(kup)-zeta_aa(kdn))
                     dudz_aa = sum(dudzn*gq2d%wt)/gq2d%wt_tot
 
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     dvdzn = (uyn_up - uyn_dn) / (zeta_aa(kup)-zeta_aa(kdn))
                     dvdz_aa = sum(dvdzn*gq2d%wt)/gq2d%wt_tot
 
                     ! Calculate sigma-corrected derivatives
-                    call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,dudxn,dudx(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     dudx_aa = sum(dudxn*gq2d%wt)/gq2d%wt_tot  +  c_x*dudz_aa 
 
-                    call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,dvdyn,dvdy(:,:,k-1),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     dvdy_aa = sum(dvdyn*gq2d%wt)/gq2d%wt_tot  +  c_y*dvdz_aa 
 
                     ! Calculate vertical velocity of this layer
@@ -678,13 +625,13 @@ end if
                         kdn = k-1 
                     end if
                     
-                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acx(gq2d,uxn_up,ux(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
+                    call gq2D_to_nodes_acx(gq2d,uxn_dn,ux(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
                     uxn = 0.5_wp*(uxn_up+uxn_dn)
                     ux_aa = sum(uxn*gq2d%wt)/gq2d%wt_tot
                     
-                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1)
-                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1)
+                    call gq2D_to_nodes_acy(gq2d,uyn_up,uy(:,:,kup),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
+                    call gq2D_to_nodes_acy(gq2d,uyn_dn,uy(:,:,kdn),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
                     uyn = 0.5_wp*(uyn_up+uyn_dn)
                     uy_aa = sum(uyn*gq2d%wt)/gq2d%wt_tot
                     
@@ -733,13 +680,14 @@ end if
 
     end subroutine calc_uz_3D
 
-    subroutine calc_uz_3D_aa(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,z_bed,z_srf,smb,bmb,dHdt,dzsdt, &
+    subroutine calc_uz_3D_aa(uz,uz_star,ux,uy,H_ice,f_ice,f_grnd,z_bed,z_srf,smb,bmb,dzbdt,dzsdt, &
                                             dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
         ! Following algorithm outlined by the Glimmer ice sheet model:
         ! https://www.geos.ed.ac.uk/~mhagdorn/glide/glide-doc/glimmer_htmlse9.html#x17-660003.1.5
 
-        ! Note: rate of bedrock uplift (dzbdt) no longer considered, since the rate is 
-        ! very small and now z_bed is updated externally (ie, now assume dzbdt = 0.0 here)
+        ! Note: dzbdt and dzsdt are the kinematic rates of the base and surface of the
+        ! ice column (tpo%now%dzbdt_kin, dzsdt_kin): vertical column change plus bedrock
+        ! and sea-level rates, without lateral changes (calving, front advance, removals).
 
         implicit none 
 
@@ -754,7 +702,7 @@ end if
         real(wp), intent(IN)  :: z_srf(:,:) 
         real(wp), intent(IN)  :: smb(:,:) 
         real(wp), intent(IN)  :: bmb(:,:) 
-        real(wp), intent(IN)  :: dHdt(:,:) 
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
         real(wp), intent(IN)  :: dzsdt(:,:)
         real(wp), intent(IN)  :: dzsdx(:,:) 
         real(wp), intent(IN)  :: dzsdy(:,:) 
@@ -793,11 +741,8 @@ end if
         real(wp) :: c_t 
 
         real(wp) :: dzsdt_now
-        real(wp) :: dhdt_now
         real(wp) :: dzbdt_now 
 
-        real(wp), parameter :: dzbdt        = 0.0     ! For posterity, keep dzbdt variable, but set to zero 
-        real(wp), parameter :: uz_min       = -10.0   ! [m/yr] Minimum allowed vertical velocity downwards for stability
         
         integer  :: BC
 
@@ -821,7 +766,7 @@ end if
 
         ! Next, calculate velocity 
 
-        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dhdt_now,dzbdt_now,H_now,H_inv) &
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,dzsdt_now,dzbdt_now,H_now,H_inv) &
         !$omp& private(dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa,ux_aa,uy_aa) &
         !$omp& private(uz_grid,duxdx_aa,duydy_aa,duxdz_aa,duydz_aa,duxdx_now,duydy_now) &
         !$omp& private(zeta_now,c_x,c_y,c_t)
@@ -831,10 +776,9 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            ! Diagnose rate of ice-base elevation change (needed for all points)
-            dzsdt_now = dzsdt(i,j) 
-            dhdt_now  = dhdt(i,j) 
-            dzbdt_now = dzsdt_now - dhdt_now
+            ! Kinematic rates of the column surface and base
+            dzsdt_now = dzsdt(i,j)
+            dzbdt_now = dzbdt(i,j)
 
             if (f_ice(i,j) .eq. 1.0) then
 
@@ -869,13 +813,8 @@ end if
 
                 ! Determine basal vertical velocity for this grid point 
                 ! Following Eq. 5.31 of Greve and Blatter (2009)
-                uz(i,j,1) = dzbdt + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
+                uz(i,j,1) = dzbdt_now + uz_grid + f_bmb*bmb(i,j) + ux_aa*dzbdx_aa + uy_aa*dzbdy_aa
                 if (abs(uz(i,j,1)) .lt. TOL_UNDERFLOW) uz(i,j,1) = 0.0_wp 
-                
-                ! Set stability limit on basal uz value for grounded ice.
-                ! This only gets applied in rare cases when something
-                ! is going wrong in the model. 
-                if (f_grnd(i,j) .eq. 1.0 .and. uz(i,j,1) .lt. uz_min) uz(i,j,1) = uz_min 
 
                 ! Determine surface vertical velocity following kinematic boundary condition 
                 ! Glimmer, Eq. 3.10 [or Folwer, Chpt 10, Eq. 10.8]
@@ -988,7 +927,7 @@ end if
 
                 do k = 1, nz_ac 
 
-                    uz(i,j,k) = dzbdt - max(smb(i,j),0.0)
+                    uz(i,j,k) = dzbdt_now - max(smb(i,j),0.0)
                     if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp 
 
                     uz_star(i,j,k) = uz(i,j,k)
@@ -1005,6 +944,177 @@ end if
 
     end subroutine calc_uz_3D_aa
 
+    subroutine calc_uz_3D_flux(uz,uz_star,ux,uy,ux_bar,uy_bar,H_ice,f_ice,smb,bmb,dHidt_dyn,mask_kin, &
+                                dzbdt,dzsdt,dzsdx,dzsdy,dzbdx,dzbdy,zeta_aa,zeta_ac,dx,dy,use_bmb,boundaries)
+        ! Flux-consistent vertical velocity (see docs/dev/uz-flux-consistent.md).
+        ! The sigma-coordinate vertical velocity uz_star = H*dzeta/dt follows from
+        ! the mass budget of each layer k between zeta_ac(k) and zeta_ac(k+1):
+        !   uz_star(k+1) = uz_star(k) - dzeta_k*dHdt - D_k,
+        ! with D_k = div(H dzeta_k u_k) and uz_star(1) = bmb. D_k is formed with the
+        ! stencil of the thickness solver (upwind face thickness of H_ice by the sign
+        ! of the depth-averaged velocity), so that sum_k D_k = div(H u_bar), since
+        ! the trapezoid weights of zeta_aa are dzeta_k. Where the column rate is
+        ! given by the applied thickness step (mask_kin == 1), D_k is corrected
+        ! additively so that sum_k D_k equals the applied transport -dHidt_dyn. The
+        ! surface value is then uz_star = -smb (plus clip and relaxation terms), as
+        ! required by the kinematic condition. Elsewhere (topo_fixed, initialization,
+        ! re-derived columns) D_k is the flux of the current velocity.
+        ! uz is recovered from uz_star with the coordinate terms of calc_uz_3D_aa.
+
+        implicit none
+
+        real(wp), intent(OUT) :: uz(:,:,:)          ! nx,ny,nz_ac
+        real(wp), intent(OUT) :: uz_star(:,:,:)     ! nx,ny,nz_ac
+        real(wp), intent(IN)  :: ux(:,:,:)          ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: uy(:,:,:)          ! nx,ny,nz_aa
+        real(wp), intent(IN)  :: ux_bar(:,:)
+        real(wp), intent(IN)  :: uy_bar(:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)         ! [m] Thickness advected by the thickness solver
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: smb(:,:)
+        real(wp), intent(IN)  :: bmb(:,:)
+        real(wp), intent(IN)  :: dHidt_dyn(:,:)     ! [m/a] Applied transport rate of the thickness step
+        integer,  intent(IN)  :: mask_kin(:,:)      ! 1: column rate given by the applied thickness step
+        real(wp), intent(IN)  :: dzbdt(:,:)         ! [m/a] Kinematic rate of the column base
+        real(wp), intent(IN)  :: dzsdt(:,:)         ! [m/a] Kinematic rate of the column surface
+        real(wp), intent(IN)  :: dzsdx(:,:)
+        real(wp), intent(IN)  :: dzsdy(:,:)
+        real(wp), intent(IN)  :: dzbdx(:,:)
+        real(wp), intent(IN)  :: dzbdy(:,:)
+        real(wp), intent(IN)  :: zeta_aa(:)
+        real(wp), intent(IN)  :: zeta_ac(:)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy
+        logical,  intent(IN)  :: use_bmb
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, nz_aa, nz_ac
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: f_bmb
+        real(wp) :: Hx_w, Hx_e, Hy_s, Hy_n
+        real(wp) :: dHdt, D_raw_tot, D_corr
+        real(wp) :: dzbdx_aa, dzbdy_aa, dzsdx_aa, dzsdy_aa
+        real(wp) :: ux_aa, uy_aa, zeta_now, c_x, c_y, c_t
+        real(wp), allocatable :: dzeta(:)
+        real(wp), allocatable :: D_k(:)
+
+        nx    = size(ux,1)
+        ny    = size(ux,2)
+        nz_aa = size(zeta_aa,1)
+        nz_ac = size(zeta_ac,1)
+
+        allocate(dzeta(nz_aa))
+        allocate(D_k(nz_aa))
+
+        ! Layer thicknesses (layer k contains zeta_aa(k))
+        do k = 1, nz_aa
+            dzeta(k) = zeta_ac(k+1) - zeta_ac(k)
+        end do
+
+        if (use_bmb) then
+            f_bmb = 1.0_wp
+        else
+            f_bmb = 0.0_wp
+        end if
+
+        BC = boundary_code(boundaries)
+
+        uz      = 0.0_wp
+        uz_star = 0.0_wp
+
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,Hx_w,Hx_e,Hy_s,Hy_n) &
+        !$omp& private(dHdt,D_raw_tot,D_corr,D_k,dzbdx_aa,dzbdy_aa,dzsdx_aa,dzsdy_aa) &
+        !$omp& private(ux_aa,uy_aa,zeta_now,c_x,c_y,c_t)
+        do j = 1, ny
+        do i = 1, nx
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (f_ice(i,j) .eq. 1.0_wp) then
+
+                ! Upwind face thicknesses by the sign of the depth-averaged velocity
+                ! (as in the thickness solver)
+                Hx_w = merge(H_ice(im1,j), H_ice(i,j),   ux_bar(im1,j) .ge. 0.0_wp)
+                Hx_e = merge(H_ice(i,j),   H_ice(ip1,j), ux_bar(i,j)   .ge. 0.0_wp)
+                Hy_s = merge(H_ice(i,jm1), H_ice(i,j),   uy_bar(i,jm1) .ge. 0.0_wp)
+                Hy_n = merge(H_ice(i,j),   H_ice(i,jp1), uy_bar(i,j)   .ge. 0.0_wp)
+
+                ! Layer flux divergences of the current velocity
+                do k = 1, nz_aa
+                    D_k(k) = dzeta(k) * ( (Hx_e*ux(i,j,k) - Hx_w*ux(im1,j,k))/dx &
+                                        + (Hy_n*uy(i,j,k) - Hy_s*uy(i,jm1,k))/dy )
+                end do
+
+                ! Additive correction to the applied transport of the thickness step
+                if (mask_kin(i,j) .eq. 1) then
+                    D_raw_tot = sum(D_k)
+                    D_corr    = -dHidt_dyn(i,j) - D_raw_tot
+                    D_k       = D_k + dzeta*D_corr
+                end if
+
+                ! Vertical thickness change of the column
+                dHdt = dzsdt(i,j) - dzbdt(i,j)
+
+                ! Integrate the layer mass budget upward from the base
+                uz_star(i,j,1) = f_bmb*bmb(i,j)
+                do k = 1, nz_aa
+                    uz_star(i,j,k+1) = uz_star(i,j,k) - dzeta(k)*dHdt - D_k(k)
+                end do
+
+                ! Physical vertical velocity: remove the coordinate terms of uz_star
+                ! (same terms as in calc_uz_3D_aa)
+                dzbdx_aa = 0.5_wp*(dzbdx(i,j)+dzbdx(im1,j))
+                dzbdy_aa = 0.5_wp*(dzbdy(i,j)+dzbdy(i,jm1))
+                dzsdx_aa = 0.5_wp*(dzsdx(i,j)+dzsdx(im1,j))
+                dzsdy_aa = 0.5_wp*(dzsdy(i,j)+dzsdy(i,jm1))
+
+                do k = 1, nz_ac
+
+                    if (k .eq. 1) then
+                        ux_aa = 0.5_wp*(ux(im1,j,k) + ux(i,j,k))
+                        uy_aa = 0.5_wp*(uy(i,jm1,k) + uy(i,j,k))
+                    else if (k .eq. nz_ac) then
+                        ux_aa = 0.5_wp*(ux(im1,j,k-1) + ux(i,j,k-1))
+                        uy_aa = 0.5_wp*(uy(i,jm1,k-1) + uy(i,j,k-1))
+                    else
+                        ux_aa = 0.25_wp*(ux(im1,j,k) + ux(i,j,k) + ux(im1,j,k-1) + ux(i,j,k-1))
+                        uy_aa = 0.25_wp*(uy(i,jm1,k) + uy(i,j,k) + uy(i,jm1,k-1) + uy(i,j,k-1))
+                    end if
+
+                    zeta_now = zeta_ac(k)
+                    c_x = -ux_aa * ( (1.0_wp-zeta_now)*dzbdx_aa  + zeta_now*dzsdx_aa )
+                    c_y = -uy_aa * ( (1.0_wp-zeta_now)*dzbdy_aa  + zeta_now*dzsdy_aa )
+                    c_t =         -( (1.0_wp-zeta_now)*dzbdt(i,j) + zeta_now*dzsdt(i,j) )
+
+                    uz(i,j,k) = uz_star(i,j,k) - (c_x + c_y + c_t)
+
+                    if (abs(uz(i,j,k))      .lt. TOL_UNDERFLOW) uz(i,j,k)      = 0.0_wp
+                    if (abs(uz_star(i,j,k)) .lt. TOL_UNDERFLOW) uz_star(i,j,k) = 0.0_wp
+
+                end do
+
+            else
+                ! No ice here, set vertical velocity equal to negative accum and bedrock change
+                ! (as in calc_uz_3D_aa)
+
+                do k = 1, nz_ac
+                    uz(i,j,k) = dzbdt(i,j) - max(smb(i,j),0.0_wp)
+                    if (abs(uz(i,j,k)) .lt. TOL_UNDERFLOW) uz(i,j,k) = 0.0_wp
+                    uz_star(i,j,k) = uz(i,j,k)
+                end do
+
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_uz_3D_flux
+
     subroutine calc_driving_stress(taud_acx,taud_acy,H_ice,f_ice,dzsdx,dzsdy,dx,taud_lim,rho_ice,g,boundaries)
         ! Calculate driving stress on staggered grid points
         ! Units: taud [Pa] == [kg m-1 s-2]
@@ -1014,7 +1124,7 @@ end if
 
         ! Note: use parameter taud_lim to limit maximum allowed driving stress magnitude applied in the model.
         ! Should be an extreme value. eg, if dzdx = taud_lim / (rho*g*H), 
-        ! then for taud_lim=5e5 and H=3000m, dzdx = 2e5 / (910*9.81*3000) = 0.02, 
+        ! then for taud_lim=5e5 and H=3000m, dzdx = 5e5 / (910*9.81*3000) = 0.02, 
         ! which is a rather steep slope for a shallow-ice model.
 
         implicit none 
@@ -1036,22 +1146,12 @@ end if
         integer    :: im1, ip1, jm1, jp1 
         real(wp) :: dy, rhog 
         real(wp) :: H_mid
-        real(wp) :: taud_mean 
-        real(wp) :: taud_eps
-
-        real(wp) :: taud_eps_lim = 0.4
-
-        real(wp), allocatable :: taud_acx_0(:,:)
-        real(wp), allocatable :: taud_acy_0(:,:)
 
         integer  :: BC
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
 
-        allocate(taud_acx_0(nx,ny))
-        allocate(taud_acy_0(nx,ny))
-        
         ! Define shortcut parameter 
         rhog = rho_ice * g 
 
@@ -1100,58 +1200,12 @@ end if
         end do 
         !$omp end parallel do
 
-        ! SPECIAL CASES: edge cases for stability...
-
-if (.FALSE.) then
-        taud_acx_0 = taud_acx 
-        taud_acy_0 = taud_acy 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! === x-direction ===
-
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .eq. 1.0_wp) then 
-
-                taud_mean = 0.5*(taud_acx_0(im1,j)+taud_acx_0(ip1,j))
-                taud_eps  = (taud_acx_0(i,j) - taud_mean) / taud_lim
-
-                if (abs(taud_acx_0(i,j)) .eq. taud_lim .and. abs(taud_eps) .gt. taud_eps_lim) then 
-                    ! Set driving stress equal to weighted average of neighbors
-                    taud_acx(i,j) = 0.20*taud_acx_0(i,j) + 0.40*taud_acx_0(im1,j)+ 0.40*taud_acx_0(ip1,j)
-                end if 
-
-            end if
-
-            ! === y-direction ===
-
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .eq. 1.0_wp) then 
-
-                taud_mean = 0.5*(taud_acy_0(i,jm1)+taud_acy_0(i,jp1))
-                taud_eps  = (taud_acy_0(i,j) - taud_mean) / taud_lim
-
-                if (abs(taud_acy_0(i,j)) .eq. taud_lim .and. abs(taud_eps) .gt. taud_eps_lim) then 
-                    ! Set driving stress equal to weighted average of neighbors
-                    taud_acy(i,j) = 0.20*taud_acy_0(i,j) + 0.40*taud_acy_0(i,jm1)+ 0.40*taud_acy_0(i,jp1)
-                end if 
-
-            end if
-            
-        end do
-        end do 
-
-end if 
-
-
         return 
 
     end subroutine calc_driving_stress
 
     subroutine calc_driving_stress_gl(taud_acx,taud_acy,H_ice,z_srf,z_bed,z_sl,H_grnd, &
-                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method,beta_gl_stag)
+                                      f_grnd,f_grnd_acx,f_grnd_acy,dx,rho_ice,rho_sw,g,method)
         ! taud = rho_ice*g*H_ice
         ! Calculate driving stress on staggered grid points, with 
         ! special treatment of the grounding line 
@@ -1176,7 +1230,6 @@ end if
         real(wp), intent(IN)  :: rho_sw 
         real(wp), intent(IN)  :: g 
         integer,    intent(IN)  :: method        ! Which driving stress calculation to use
-        integer,    intent(IN)  :: beta_gl_stag  ! Method of grounding line staggering of beta 
 
         ! Local variables 
         integer :: i, j, nx, ny
@@ -1467,6 +1520,10 @@ end if
                 z_srf_now = z_srf(i1,j) 
                 z_sl_now  = z_sl(i1,j) 
 
+                ! No water back-pressure across a face to ice-free land
+                if (mask_frnt(i,j) .eq. MASK_FRNT_ICE_FREE_LAND .or. &
+                    mask_frnt(ip1,j) .eq. MASK_FRNT_ICE_FREE_LAND) z_sl_now = z_srf_now - H_ice_now
+
                 ! Calculate the lateral stress bc for this point
                 call calc_lateral_bc_stress(tau_bc_int_acx(i,j),H_ice_now, &
                                                 z_srf_now,z_sl_now,rho_ice,rho_sw,g)
@@ -1497,6 +1554,10 @@ end if
                 H_ice_now = H_ice(i,j1)     
                 z_srf_now = z_srf(i,j1) 
                 z_sl_now  = z_sl(i,j1) 
+
+                ! No water back-pressure across a face to ice-free land
+                if (mask_frnt(i,j) .eq. MASK_FRNT_ICE_FREE_LAND .or. &
+                    mask_frnt(i,jp1) .eq. MASK_FRNT_ICE_FREE_LAND) z_sl_now = z_srf_now - H_ice_now
 
                 ! Calculate the lateral stress bc for this point
                 call calc_lateral_bc_stress(tau_bc_int_acy(i,j),H_ice_now, &
@@ -1623,7 +1684,14 @@ end if
 
     end subroutine integrate_gl_driving_stress_linear
     
-    subroutine set_inactive_margins(ux,uy,f_ice,boundaries)
+    subroutine set_inactive_margins(ux,uy,f_ice,boundaries,a_front)
+        ! Zero the velocity on faces between an ice-free cell and a cell that
+        ! is not fully ice covered: a partial cell fills before ice flows
+        ! beyond it. With a_front, the area fraction of each cell behind a
+        ! prescribed front (the level set), a face into an ice-free cell stays
+        ! open where the front covers at least A_FRONT_MIN of that cell, so
+        ! cells fill as the front advances over them. Without a prescribed
+        ! front the only front is the ice itself (a_front = f_ice).
 
         implicit none
 
@@ -1631,11 +1699,13 @@ end if
         real(wp), intent(INOUT) :: uy(:,:) 
         real(wp), intent(IN)    :: f_ice(:,:) 
         character(len=*), intent(IN) :: boundaries 
+        real(wp), intent(IN), optional :: a_front(:,:)  ! [--] Area fraction behind a prescribed front
 
         ! Local variables 
         integer :: i, j, nx, ny 
         integer :: im1, ip1, jm1, jp1
         integer :: BC
+        logical, allocatable :: fill(:,:)               ! Ice-free cells that may be filled
 
         nx = size(f_ice,1) 
         ny = size(f_ice,2) 
@@ -1643,9 +1713,13 @@ end if
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        ! Find partially-filled outer margins and set velocity to zero
-        ! (this will also treat all other ice-free points too) 
-        
+        allocate(fill(nx,ny))
+        if (present(a_front)) then
+            fill = a_front .ge. A_FRONT_MIN
+        else
+            fill = .FALSE.
+        end if
+
         !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
         do j = 1, ny 
         do i = 1, nx 
@@ -1653,19 +1727,8 @@ end if
             ! Get neighbor indices
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-            if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(ip1,j) .eq. 0.0_wp) then 
-                ux(i,j) = 0.0_wp 
-            end if
-            if (f_ice(i,j) .eq. 0.0_wp .and. f_ice(ip1,j) .lt. 1.0_wp) then 
-                ux(i,j) = 0.0_wp
-            end if 
-
-            if (f_ice(i,j) .lt. 1.0_wp .and. f_ice(i,jp1) .eq. 0.0_wp) then 
-                uy(i,j) = 0.0_wp 
-            end if
-            if (f_ice(i,j) .eq. 0.0_wp .and. f_ice(i,jp1) .lt. 1.0_wp) then 
-                uy(i,j) = 0.0_wp 
-            end if
+            if (face_closed(f_ice(i,j),f_ice(ip1,j),fill(i,j),fill(ip1,j))) ux(i,j) = 0.0_wp
+            if (face_closed(f_ice(i,j),f_ice(i,jp1),fill(i,j),fill(i,jp1))) uy(i,j) = 0.0_wp
 
         end do
         end do
@@ -1673,11 +1736,22 @@ end if
 
         return
 
+    contains
+
+        pure logical function face_closed(f_a,f_b,fill_a,fill_b)
+            ! Face between an ice-free cell that may not be filled and a
+            ! cell that is not fully ice covered
+            real(wp), intent(IN) :: f_a, f_b
+            logical,  intent(IN) :: fill_a, fill_b
+            face_closed = (f_b .eq. 0.0_wp .and. .not. fill_b .and. f_a .lt. 1.0_wp) .or. &
+                          (f_a .eq. 0.0_wp .and. .not. fill_a .and. f_b .lt. 1.0_wp)
+        end function face_closed
+
     end subroutine set_inactive_margins
 
     subroutine calc_ice_flux(qq_acx,qq_acy,ux_bar,uy_bar,H_ice,dx,dy,boundaries)
-        ! Calculate the ice flux at a given point.
-        ! Note: calculated on ac-nodes.
+        ! Calculate the ice flux through each cell face (ac-nodes), using the
+        ! upwind ice thickness, as in the advection solvers (impl-lis, expl-upwind).
         ! qq      [m3 a-1] 
         ! ux,uy   [m a-1]
         ! H_ice   [m] 
@@ -1722,7 +1796,11 @@ end if
         do j = 1, ny 
         do i = 1, i2 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(ip1,j))) * dx 
+            if (ux_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dy
+            else
+                area_ac = H_ice(ip1,j) * dy
+            end if
             qq_acx(i,j) = area_ac*ux_bar(i,j)
         end do 
         end do 
@@ -1731,7 +1809,11 @@ end if
         do j = 1, j2 
         do i = 1, nx 
             call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            area_ac     = (0.5_wp*(H_ice(i,j)+H_ice(i,jp1))) * dy 
+            if (uy_bar(i,j) .ge. 0.0_wp) then
+                area_ac = H_ice(i,j)   * dx
+            else
+                area_ac = H_ice(i,jp1) * dx
+            end if
             qq_acy(i,j) = area_ac*uy_bar(i,j)
         end do 
         end do 
@@ -1739,6 +1821,69 @@ end if
         return 
 
     end subroutine calc_ice_flux
+
+    subroutine calc_grounding_line_flux(qq_gl_acx,qq_gl_acy,qq_acx,qq_acy,f_grnd,f_ice,boundaries)
+        ! Ice flux across the grounding line [m3 a-1], on ac-nodes: the ice flux
+        ! (qq_acx/qq_acy, see calc_ice_flux) through faces between a (partially)
+        ! grounded cell (f_grnd > 0) and a floating ice cell (f_grnd = 0, f_ice > 0),
+        ! and zero elsewhere. As for qq, the sign gives the direction (+x/+y).
+        ! Grounding-line cells are defined as in calc_distance_to_grounding_line.
+
+        implicit none
+
+        real(wp), intent(OUT) :: qq_gl_acx(:,:)  ! [m3 a-1] Grounding-line flux (acx nodes)
+        real(wp), intent(OUT) :: qq_gl_acy(:,:)  ! [m3 a-1] Grounding-line flux (acy nodes)
+        real(wp), intent(IN)  :: qq_acx(:,:)     ! [m3 a-1] Ice flux (acx nodes)
+        real(wp), intent(IN)  :: qq_acy(:,:)     ! [m3 a-1] Ice flux (acy nodes)
+        real(wp), intent(IN)  :: f_grnd(:,:)     ! [--]     Grounded fraction, aa-nodes
+        real(wp), intent(IN)  :: f_ice(:,:)      ! [--]     Ice-covered fraction, aa-nodes
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer :: i, j, nx, ny
+        integer :: im1, ip1, jm1, jp1
+        integer :: BC
+
+        nx = size(f_grnd,1)
+        ny = size(f_grnd,2)
+
+        BC = boundary_code(boundaries)
+
+        qq_gl_acx = 0.0_wp
+        qq_gl_acy = 0.0_wp
+
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(ip1,j),f_ice(i,j),f_ice(ip1,j))) then
+                qq_gl_acx(i,j) = qq_acx(i,j)
+            end if
+
+            if (is_gl_face(f_grnd(i,j),f_grnd(i,jp1),f_ice(i,j),f_ice(i,jp1))) then
+                qq_gl_acy(i,j) = qq_acy(i,j)
+            end if
+
+        end do
+        end do
+
+        return
+
+    contains
+
+        pure logical function is_gl_face(fg0,fg1,fi0,fi1)
+            ! Face between a (partially) grounded cell and a floating ice cell
+
+            implicit none
+
+            real(wp), intent(IN) :: fg0, fg1, fi0, fi1
+
+            is_gl_face = (fg0 .gt. 0.0_wp .and. fg1 .eq. 0.0_wp .and. fi1 .gt. 0.0_wp) .or. &
+                         (fg1 .gt. 0.0_wp .and. fg0 .eq. 0.0_wp .and. fi0 .gt. 0.0_wp)
+
+        end function is_gl_face
+
+    end subroutine calc_grounding_line_flux
 
     elemental function calc_vel_ratio(uxy_base,uxy_srf) result(f_vbvs)
 
@@ -1759,75 +1904,6 @@ end if
 
     end function calc_vel_ratio
 
-    subroutine picard_calc_error(corr,ux,uy,ux_prev,uy_prev)
-        ! Calculate the current error, ie, the 'correction vector'
-        ! as defined by De Smedt et al. (2010):
-        ! corr = U_now - U_prev.
-
-        implicit none
-
-        real(wp), intent(OUT) :: corr(:) 
-        real(wp), intent(IN)  :: ux(:,:) 
-        real(wp), intent(IN)  :: uy(:,:) 
-        real(wp), intent(IN)  :: ux_prev(:,:)
-        real(wp), intent(IN)  :: uy_prev(:,:) 
-        
-        ! Local variables 
-        integer :: i, j, nx, ny, k  
-
-        nx = size(ux,1)
-        ny = size(ux,2) 
-
-        ! Consistency check 
-        if (size(corr,1) .ne. 2*nx*ny) then 
-            write(*,*) "calc_convergence_angle:: Error: corr(N) must have N=2*nx*ny."
-            stop 
-        end if 
-
-        k = 0
-
-        do j = 1, ny 
-        do i = 1, nx  
-
-            k = k+1 
-            corr(k) = ux(i,j) - ux_prev(i,j) 
-
-            k = k+1 
-            corr(k) = uy(i,j) - uy_prev(i,j) 
-
-        end do 
-        end do 
-
-        return
-
-    end subroutine picard_calc_error
-
-    subroutine picard_calc_error_angle(theta,corr_nm1,corr_nm2)
-        ! Calculate the current error, ie, the 'correction vector'
-        ! as defined by De Smedt et al. (2010):
-        ! corr = U_now - U_prev.
-
-        implicit none
-
-        real(wp), intent(OUT) :: theta
-        real(wp), intent(IN)  :: corr_nm1(:) 
-        real(wp), intent(IN)  :: corr_nm2(:) 
-        
-        
-        ! Local variables   
-        real(dp) :: val 
-
-        real(dp), parameter :: tol = 1e-5 
-
-        val = sum(corr_nm1*corr_nm2) / &
-                (sqrt(sum(corr_nm1**2))*sqrt(sum(corr_nm2**2))+tol)
-
-        theta = acos(val) 
-
-        return
-
-    end subroutine picard_calc_error_angle
-
     subroutine picard_calc_convergence_l1rel_matrix(err_x,err_y,ux,uy,ux_prev,uy_prev)
 
         implicit none 
@@ -1840,30 +1916,39 @@ end if
         real(wp), intent(IN)  :: uy_prev(:,:)  
 
         ! Local variables
+        integer :: i, j
 
         real(wp), parameter :: ssa_vel_tolerance = 1e-2   ! [m/a] only consider points with velocity above this tolerance limit
         real(wp), parameter :: tol = 1e-5 
 
-        ! Error in x-direction
-        where (abs(ux) .gt. ssa_vel_tolerance) 
-            err_x = 2.0_wp * abs(ux - ux_prev) / abs(ux + ux_prev + tol)
-        elsewhere 
-            err_x = 0.0_wp
-        end where 
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
 
-        ! Error in y-direction 
-        where (abs(uy) .gt. ssa_vel_tolerance) 
-            err_y = 2.0_wp * abs(uy - uy_prev) / abs(uy + uy_prev + tol)
-        elsewhere 
-            err_y = 0.0_wp
-        end where 
+            ! Error in x-direction
+            if (abs(ux(i,j)) .gt. ssa_vel_tolerance) then
+                err_x(i,j) = 2.0_wp * abs(ux(i,j) - ux_prev(i,j)) / abs(ux(i,j) + ux_prev(i,j) + tol)
+            else
+                err_x(i,j) = 0.0_wp
+            end if
+
+            ! Error in y-direction 
+            if (abs(uy(i,j)) .gt. ssa_vel_tolerance) then
+                err_y(i,j) = 2.0_wp * abs(uy(i,j) - uy_prev(i,j)) / abs(uy(i,j) + uy_prev(i,j) + tol)
+            else
+                err_y(i,j) = 0.0_wp
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
 
         return 
 
     end subroutine picard_calc_convergence_l1rel_matrix
 
     subroutine picard_calc_convergence_l2(is_converged,resid,ux,uy,ux_prev,uy_prev, &
-                                                mask_acx,mask_acy,resid_tol,iter,iter_max,log)
+                                                mask_acx,mask_acy,resid_tol,iter,iter_max,log,lin_iter,lin_status)
 
         ! Calculate the current level of convergence using the 
         ! L2 relative error norm between the current and previous
@@ -1891,11 +1976,16 @@ end if
         integer,  intent(IN) :: iter 
         integer,  intent(IN) :: iter_max 
         logical,  intent(IN) :: log 
+        integer,  intent(IN) :: lin_iter                ! Linear solver iterations of this Picard iteration
+        integer,  intent(IN) :: lin_status              ! Linear solver return status
 
         ! Local variables
         integer :: i, j, nx, ny, k
         real(dp) :: tmpx, tmpy
-        real(dp) :: res1, res2
+        real(dp) :: res1, res2, res3
+        real(dp) :: res1_j(size(ux,2))              ! Row sums of res1, res2, res3
+        real(dp) :: res2_j(size(ux,2))
+        real(dp) :: res3_j(size(ux,2))
         
         real(wp) :: ux_resid_max 
         real(wp) :: uy_resid_max 
@@ -1909,70 +1999,86 @@ end if
         nx = size(ux,1)
         ny = size(ux,2)
 
-        ! Count how many points should be checked for convergence
-        nx_check = count(abs(ux).gt.vel_tol .and. mask_acx)
-        ny_check = count(abs(uy).gt.vel_tol .and. mask_acy)
+        ! One pass over the domain: count the points to check, sum the
+        ! squared differences and get the maximum difference per direction.
+        ! The squared differences are summed per row here and the rows are
+        ! added serially below, so the residual (and the convergence decision)
+        ! does not depend on the number of threads.
+        nx_check = 0
+        ny_check = 0
+        ux_resid_max = 0.0
+        uy_resid_max = 0.0
+
+        !$omp parallel do private(i,j,tmpx,tmpy,res1,res2,res3) &
+        !$omp& reduction(+:nx_check,ny_check) reduction(max:ux_resid_max,uy_resid_max)
+        do j = 1, ny
+
+        res1 = 0.0
+        res2 = 0.0
+        res3 = 0.0
+
+        do i = 1, nx
+
+            ! x-direction contribution (acx-node, own mask)
+            if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
+                nx_check = nx_check + 1
+                ux_resid_max = max(ux_resid_max,abs(ux(i,j)-ux_prev(i,j)))
+
+                tmpx = ux(i,j)-ux_prev(i,j)
+                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                res1 = res1 + tmpx*tmpx
+
+                tmpx = ux_prev(i,j)
+                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
+                res2 = res2 + tmpx*tmpx
+
+                tmpx = ux(i,j)+ux_prev(i,j)
+                res3 = res3 + tmpx*tmpx
+            end if
+
+            ! y-direction contribution (acy-node, own mask)
+            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
+                ny_check = ny_check + 1
+                uy_resid_max = max(uy_resid_max,abs(uy(i,j)-uy_prev(i,j)))
+
+                tmpy = uy(i,j)-uy_prev(i,j)
+                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                res1 = res1 + tmpy*tmpy
+
+                tmpy = uy_prev(i,j)
+                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
+                res2 = res2 + tmpy*tmpy
+
+                tmpy = uy(i,j)+uy_prev(i,j)
+                res3 = res3 + tmpy*tmpy
+            end if
+
+        end do
+
+        res1_j(j) = res1
+        res2_j(j) = res2
+        res3_j(j) = res3
+
+        end do
+        !$omp end parallel do
+
+        res1 = sum(res1_j)
+        res2 = sum(res2_j)
+        res3 = sum(res3_j)
 
         if ( (nx_check+ny_check) .gt. 0 ) then
 
             select case(norm_method)
 
                 case(1)
-                    
-                    res1 = 0.0
-                    res2 = 0.0
 
-                    do j = 1, ny
-                    do i = 1, nx
-
-                            ! x-direction contribution (acx-node, own mask)
-                            if (abs(ux(i,j)) .gt. vel_tol .and. mask_acx(i,j)) then
-                                tmpx = ux(i,j)-ux_prev(i,j)
-                                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                res1 = res1 + tmpx*tmpx
-
-                                tmpx = ux_prev(i,j)
-                                if (dabs(tmpx) .lt. TOL_UNDERFLOW) tmpx = 0.0
-                                res2 = res2 + tmpx*tmpx
-                            end if
-
-                            ! y-direction contribution (acy-node, own mask)
-                            if (abs(uy(i,j)) .gt. vel_tol .and. mask_acy(i,j)) then
-                                tmpy = uy(i,j)-uy_prev(i,j)
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res1 = res1 + tmpy*tmpy
-
-                                tmpy = uy_prev(i,j)
-                                if (dabs(tmpy) .lt. TOL_UNDERFLOW) tmpy = 0.0
-                                res2 = res2 + tmpy*tmpy
-                            end if
-                    end do
-                    end do
-
-                    ! res1 = sqrt( sum((ux-ux_prev)*(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                    !            + sum((uy-uy_prev)*(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    ! res2 = sqrt( sum((ux_prev)*(ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                    !            + sum((uy_prev)*(uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    res1 = sqrt(res1)
-                    res2 = sqrt(res2)
-
-                    resid = res1/(res2+du_reg)
+                    resid = sqrt(res1)/(sqrt(res2)+du_reg)
 
                 case(2)
 
-                    res1 = sqrt( sum((ux-ux_prev)*(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                               + sum((uy-uy_prev)*(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    res2 = sqrt( sum((ux+ux_prev)*(ux+ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx) &
-                               + sum((uy+uy_prev)*(uy+uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy) )
-
-                    resid = 2.0_wp*res1/(res2+du_reg)
+                    resid = 2.0_wp*sqrt(res1)/(sqrt(res3)+du_reg)
 
             end select 
-
-             
 
         else 
             ! No points available for comparison, set residual equal to zero 
@@ -1993,37 +2099,45 @@ end if
             converged_txt = ""
         end if 
 
-        ! Also calculate maximum error magnitude for perspective
-        if (nx_check .gt. 0) then 
-            ux_resid_max = maxval(abs(ux-ux_prev),mask=abs(ux).gt.vel_tol .and. mask_acx)
-        else 
-            ux_resid_max = 0.0 
-        end if 
-
-        if (ny_check .gt. 0) then 
-            uy_resid_max = maxval(abs(uy-uy_prev),mask=abs(uy).gt.vel_tol .and. mask_acy)
-        else 
-            uy_resid_max = 0.0 
-        end if 
-
         !if (log .and. is_converged) then
         if (log) then
             ! Write summary to log if desired and iterations have completed
 
             ! Write summary to log
-            write(*,"(a,a2,i4,g12.4,a3,2i8,2g12.4)") &
-                "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max 
+            write(*,"(a,a2,i4,g12.4,a3,2i8,2g12.4,a,i6,1x,a)") &
+                "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max, &
+                " | lin", lin_iter, trim(linear_solver_status_str(lin_status))
 
         end if 
 
 
-if (.TRUE.) then
-        if (ux_resid_max .ge. 9999.0_wp .or. uy_resid_max .ge. 9999.0_wp) then 
-            ! Strange case is occurring. Poor convergence with high error, investigate
+        ! Stop if the solution is not finite: NaN/Inf on a solved face, or in the residual
+        ! (a NaN velocity is not counted in the norm above, since abs(NaN) > vel_tol is false)
+        if ( (.not. is_finite(resid)) .or. any(mask_acx .and. .not. is_finite(ux)) &
+                                      .or. any(mask_acy .and. .not. is_finite(uy)) ) then
 
-            write(io_unit_err,*) "ssa: Error: strange case occurring."
+            write(io_unit_err,*) "ssa: Error: velocity solution is not finite."
             write(io_unit_err,"(a,a2,i4,g12.4,a3,2i8,2g12.4)") &
             "ssa: ", trim(converged_txt), iter, resid, " | ", nx_check, ny_check, ux_resid_max, uy_resid_max 
+            write(io_unit_err,*) "Picard iteration: ", iter
+
+            ! Report the first non-finite face in each direction
+            acx_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acx(i,j) .and. .not. is_finite(ux(i,j))) then 
+                    write(io_unit_err,*) "ux (acx-node) not finite at i, j = ", i, j, ": ", ux(i,j)
+                    exit acx_bad
+                end if 
+            end do 
+            end do acx_bad
+            acy_bad: do j = 1, ny 
+            do i = 1, nx 
+                if (mask_acy(i,j) .and. .not. is_finite(uy(i,j))) then 
+                    write(io_unit_err,*) "uy (acy-node) not finite at i, j = ", i, j, ": ", uy(i,j)
+                    exit acy_bad
+                end if 
+            end do 
+            end do acy_bad
 
             write(io_unit_err,*) "Writing diagnostic file: ssa_check.nc."
 
@@ -2035,49 +2149,116 @@ if (.TRUE.) then
                                     int(ux*0.0_wp),int(ux*0.0_wp),ux-ux_prev,uy-uy_prev,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp, &
                                     ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux*0.0_wp,ux_prev,uy_prev,time=real(iter,wp))
 
-            stop 
+            error stop 1
 
         end if 
-end if 
         
         return 
 
     end subroutine picard_calc_convergence_l2
 
-    elemental subroutine picard_relax_vel(ux,uy,ux_prev,uy_prev,rel)
+    subroutine picard_relax_vel(ux,uy,ux_prev,uy_prev,rel)
         ! Relax velocity solution with previous iteration 
 
         implicit none 
 
-        real(wp), intent(INOUT) :: ux
-        real(wp), intent(INOUT) :: uy
-        real(wp), intent(IN)    :: ux_prev
-        real(wp), intent(IN)    :: uy_prev
+        real(wp), intent(INOUT) :: ux(:,:)
+        real(wp), intent(INOUT) :: uy(:,:)
+        real(wp), intent(IN)    :: ux_prev(:,:)
+        real(wp), intent(IN)    :: uy_prev(:,:)
         real(wp), intent(IN)    :: rel
 
+        ! Local variables
+        integer :: i, j
+
         ! Apply relaxation 
-        ux = ux_prev + rel*(ux-ux_prev)
-        uy = uy_prev + rel*(uy-uy_prev)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, size(ux,2)
+        do i = 1, size(ux,1)
+            ux(i,j) = ux_prev(i,j) + rel*(ux(i,j)-ux_prev(i,j))
+            uy(i,j) = uy_prev(i,j) + rel*(uy(i,j)-uy_prev(i,j))
+        end do
+        end do
+        !$omp end parallel do
         
         return 
 
     end subroutine picard_relax_vel
 
-    elemental subroutine picard_relax_visc(visc,visc_prev,rel)
-        ! Relax velocity solution with previous iteration 
+    subroutine picard_relax_visc(visc,visc_prev,rel)
+        ! Relax viscosity solution with previous iteration, in log-space
 
         implicit none 
 
-        real(wp), intent(INOUT) :: visc
-        real(wp), intent(IN)    :: visc_prev
+        real(wp), intent(INOUT) :: visc(:,:,:)
+        real(wp), intent(IN)    :: visc_prev(:,:,:)
         real(wp), intent(IN)    :: rel
 
+        ! Local variables
+        integer :: i, j, k
+
         ! Apply relaxation 
-        visc = exp( (1.0-rel)*log(visc_prev) + rel*log(visc) )
+        !$omp parallel do collapse(2) private(i,j,k)
+        do k = 1, size(visc,3)
+        do j = 1, size(visc,2)
+        do i = 1, size(visc,1)
+            visc(i,j,k) = exp( (1.0-rel)*log(visc_prev(i,j,k)) + rel*log(visc(i,j,k)) )
+        end do
+        end do
+        end do
+        !$omp end parallel do
         
         return 
 
     end subroutine picard_relax_visc
+
+    subroutine calc_visc_eff_int(visc_eff_int,visc_eff,H_ice,f_ice,zeta_aa)
+        ! Vertically integrated effective viscosity (SSA and DIVA):
+        ! visc_eff_int = H_ice * mean(visc_eff) over zeta in full ice cells,
+        ! visc_min elsewhere. Only the vertical integration is shared; the 3D
+        ! viscosity itself (with or without the vertical shear contribution)
+        ! comes from the solver's own calc_visc_eff_3D_* routines.
+
+        implicit none 
+
+        real(wp), intent(OUT) :: visc_eff_int(:,:)
+        real(wp), intent(IN)  :: visc_eff(:,:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: zeta_aa(:)
+
+        ! Local variables 
+        integer  :: i, j, nx, ny
+        real(wp) :: visc_eff_mean 
+
+        real(wp), parameter :: visc_min = 1e5_wp
+
+        nx = size(visc_eff_int,1)
+        ny = size(visc_eff_int,2)
+
+        !$omp parallel do collapse(2) schedule(dynamic,64) private(i,j,visc_eff_mean)
+        do j = 1, ny 
+        do i = 1, nx
+
+            if ( f_ice(i,j) .eq. 1.0_wp ) then
+                ! Calculate the vertically averaged viscosity for this point
+                visc_eff_mean = integrate_trapezoid1D_pt(visc_eff(i,j,:),zeta_aa) 
+
+                visc_eff_int(i,j) = visc_eff_mean*H_ice(i,j) 
+            else
+                visc_eff_int(i,j) = visc_min 
+            end if 
+
+            ! Avoid very low viscosity values, e.g. when ice thickness is < 1m
+            if (visc_eff_int(i,j) .lt. visc_min) visc_eff_int(i,j) = visc_min 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_visc_eff_int
 
 
 

@@ -19,6 +19,7 @@ module calving_aa
     ! Calving related stress/strain routines 
     public :: calc_eps_eff
     public :: calc_tau_eff
+    public :: fill_stress_new_ice
 
     ! Floating calving routines 
     public :: define_calving_thickness_threshold
@@ -225,8 +226,7 @@ contains
                 end if 
 
 
-                ! ajr: this code needs testing in realistic setting - not activated yet!
-
+                ! Embayed front: halve the calving rate
                 if (embayed) then 
 
                     mb_calv(i,j) = 0.5_wp * mb_calv(i,j)
@@ -481,6 +481,7 @@ contains
                 ! Floating ice point, calculate calving rate at the margin 
 
                 ! How many calving-fronts for this cell?
+                ! (wt only selects front cells, the rate is not weighted by it)
                 wt = 0.0 
                 if (f_grnd(im1,j) .eq. 0.0 .and. f_ice(im1,j).eq.0.0) wt = wt + 1.0_wp
                 if (f_grnd(ip1,j) .eq. 0.0 .and. f_ice(ip1,j).eq.0.0) wt = wt + 1.0_wp
@@ -600,8 +601,8 @@ contains
                     ! Get effective ice thickness
                     call calc_H_eff(H_eff,H_ice(i,j),f_ice(i,j))
 
-                    ! Convert to horizontal volume change, weighted
-                    ! by number of exposed faces.
+                    ! Convert to vertical height change spread over the cell, for
+                    ! one front face (wt only selects front cells, it is not a weight)
                     calv_now = (H_eff*calv_ref) / sqrt(dx*dy)
 
                     ! write(*,*) "calv", tau_eff, calv_ref,  &
@@ -625,7 +626,9 @@ contains
 
     end subroutine calc_calving_rate_eigen
 
-    subroutine calc_eps_eff(eps_eff,eps_eig_1,eps_eig_2,f_ice,boundaries)
+    subroutine calc_eps_eff(eps_eff,eps_eig_1,eps_eig_2,f_ice)
+        ! Effective strain rate at ice-covered points. Partial front cells are
+        ! part of the active ice geometry (f_ice_dyn) and carry their own strain rates.
 
         implicit none 
 
@@ -633,62 +636,12 @@ contains
         real(wp), intent(IN)  :: eps_eig_1(:,:)
         real(wp), intent(IN)  :: eps_eig_2(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
-        character(len=*), intent(IN) :: boundaries 
 
-        ! Local variables 
-        integer  :: i, j, nx, ny, n  
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: eps_eff_neighb(4)
-        integer  :: BC
-
-        nx = size(eps_eff,1)
-        ny = size(eps_eff,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,eps_eff_neighb)
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            if (f_ice(i,j) .eq. 0.0_wp) then 
-                ! Ice-free point, no strain
-
-                eps_eff(i,j) = 0.0_wp 
-
-            else if (eps_eig_1(i,j) .eq. 0.0 .and. eps_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no strain rates available, 
-                ! use the mean of the non-zero eps_eff values of ice-covered neighbors.
-
-                eps_eff_neighb = 0.0_wp 
-
-                if (f_ice(im1,j).gt.0.0) eps_eff_neighb(1) = calc_eps_eff_now(eps_eig_1(im1,j),eps_eig_2(im1,j))
-                if (f_ice(ip1,j).gt.0.0) eps_eff_neighb(2) = calc_eps_eff_now(eps_eig_1(ip1,j),eps_eig_2(ip1,j))
-                if (f_ice(i,jm1).gt.0.0) eps_eff_neighb(3) = calc_eps_eff_now(eps_eig_1(i,jm1),eps_eig_2(i,jm1))
-                if (f_ice(i,jp1).gt.0.0) eps_eff_neighb(4) = calc_eps_eff_now(eps_eig_1(i,jp1),eps_eig_2(i,jp1))
-
-                n = count(eps_eff_neighb.ne.0.0_wp)
-
-                if (n .gt. 0) then 
-                    eps_eff(i,j) = sum(eps_eff_neighb,mask=eps_eff_neighb.ne.0.0_wp) / real(n,wp)
-                else 
-                    eps_eff(i,j) = 0.0_wp
-                end if 
-
-            else 
-                ! Strain rates are available at this margin point. 
-                ! Calculate the effective strain rate directly.
-
-                eps_eff(i,j) = calc_eps_eff_now(eps_eig_1(i,j),eps_eig_2(i,j))
-                
-            end if 
-            
-        end do 
-        end do 
-        !$omp end parallel do
+        where (f_ice .gt. 0.0_wp)
+            eps_eff = calc_eps_eff_now(eps_eig_1,eps_eig_2)
+        elsewhere
+            eps_eff = 0.0_wp
+        end where
 
         return 
 
@@ -711,7 +664,81 @@ contains
 
     end function calc_eps_eff_now
     
-    subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2,boundaries)
+    subroutine fill_stress_new_ice(tau_eig_1_f,tau_eig_2_f,tau_eig_1,tau_eig_2,f_ice,f_ice_solv,boundaries)
+        ! Principal stresses for the calving laws on the current ice geometry.
+        ! The stresses come from the last velocity solution (geometry f_ice_solv),
+        ! so a cell that received ice since then (f_ice > 0, f_ice_solv == 0) has
+        ! none: it takes the mean of its edge neighbours that were part of the
+        ! solution (zero if there are none).
+
+        implicit none 
+
+        real(wp), intent(OUT) :: tau_eig_1_f(:,:)
+        real(wp), intent(OUT) :: tau_eig_2_f(:,:)
+        real(wp), intent(IN)  :: tau_eig_1(:,:)
+        real(wp), intent(IN)  :: tau_eig_2(:,:) 
+        real(wp), intent(IN)  :: f_ice(:,:) 
+        real(wp), intent(IN)  :: f_ice_solv(:,:) 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer  :: i, j, k, nx, ny, n
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        integer  :: inb(4), jnb(4)
+        real(wp) :: tau1, tau2
+
+        nx = size(tau_eig_1,1)
+        ny = size(tau_eig_1,2)
+
+        BC = boundary_code(boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,k,n,im1,ip1,jm1,jp1,inb,jnb,tau1,tau2)
+        do j = 1, ny 
+        do i = 1, nx 
+
+            tau_eig_1_f(i,j) = tau_eig_1(i,j)
+            tau_eig_2_f(i,j) = tau_eig_2(i,j)
+
+            if (f_ice(i,j) .gt. 0.0_wp .and. f_ice_solv(i,j) .eq. 0.0_wp) then 
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                inb = [im1,ip1,i,i]
+                jnb = [j,j,jm1,jp1]
+
+                n    = 0
+                tau1 = 0.0_wp
+                tau2 = 0.0_wp
+                do k = 1, 4
+                    if (f_ice_solv(inb(k),jnb(k)) .eq. 1.0_wp) then 
+                        n    = n + 1
+                        tau1 = tau1 + tau_eig_1(inb(k),jnb(k))
+                        tau2 = tau2 + tau_eig_2(inb(k),jnb(k))
+                    end if 
+                end do 
+
+                if (n .gt. 0) then 
+                    tau_eig_1_f(i,j) = tau1 / real(n,wp)
+                    tau_eig_2_f(i,j) = tau2 / real(n,wp)
+                else 
+                    tau_eig_1_f(i,j) = 0.0_wp
+                    tau_eig_2_f(i,j) = 0.0_wp
+                end if 
+
+            end if 
+
+        end do 
+        end do 
+        !$omp end parallel do
+
+        return 
+
+    end subroutine fill_stress_new_ice
+
+    subroutine calc_tau_eff(tau_eff,tau_eig_1,tau_eig_2,f_ice,w2)
+        ! Effective stress at ice-covered points. Partial front cells are
+        ! part of the active ice geometry (f_ice_dyn) and carry their own stresses.
 
         implicit none 
 
@@ -720,62 +747,12 @@ contains
         real(wp), intent(IN)  :: tau_eig_2(:,:) 
         real(wp), intent(IN)  :: f_ice(:,:) 
         real(wp), intent(IN)  :: w2 
-        character(len=*), intent(IN) :: boundaries 
 
-        ! Local variables 
-        integer  :: i, j, nx, ny, n  
-        integer  :: im1, jm1, ip1, jp1 
-        real(wp) :: tau_eff_neighb(4) 
-        integer  :: BC
-
-        nx = size(tau_eff,1)
-        ny = size(tau_eff,2) 
-        
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,n,tau_eff_neighb)
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-            
-            if (f_ice(i,j) .eq. 0.0_wp) then 
-                ! Ice-free point, no stress
-
-                tau_eff(i,j) = 0.0_wp 
-
-            else if (tau_eig_1(i,j) .eq. 0.0 .and. tau_eig_2(i,j) .eq. 0.0) then 
-                ! Margin point was likely just advected, no stresses available, 
-                ! use maximum value of tau_eff from upstream neighbors.
-
-                tau_eff_neighb = 0.0_wp 
-
-                if (f_ice(im1,j).gt.0.0) tau_eff_neighb(1) = calc_tau_eff_now(tau_eig_1(im1,j),tau_eig_2(im1,j),w2)
-                if (f_ice(ip1,j).gt.0.0) tau_eff_neighb(2) = calc_tau_eff_now(tau_eig_1(ip1,j),tau_eig_2(ip1,j),w2)
-                if (f_ice(i,jm1).gt.0.0) tau_eff_neighb(3) = calc_tau_eff_now(tau_eig_1(i,jm1),tau_eig_2(i,jm1),w2)
-                if (f_ice(i,jp1).gt.0.0) tau_eff_neighb(4) = calc_tau_eff_now(tau_eig_1(i,jp1),tau_eig_2(i,jp1),w2)
-
-                n = count(tau_eff_neighb.ne.0.0_wp)
-
-                if (n .gt. 0) then 
-                    tau_eff(i,j) = sum(tau_eff_neighb,mask=tau_eff_neighb.ne.0.0_wp) / real(n,wp)
-                else 
-                    tau_eff(i,j) = 0.0_wp 
-                end if 
-
-            else 
-                ! Stresses are available at this margin point. 
-                ! Calculate the effective strain rate directly.
-
-                tau_eff(i,j) = calc_tau_eff_now(tau_eig_1(i,j),tau_eig_2(i,j),w2)
-            
-            end if 
-
-        end do 
-        end do
-        !$omp end parallel do
+        where (f_ice .gt. 0.0_wp)
+            tau_eff = calc_tau_eff_now(tau_eig_1,tau_eig_2,w2)
+        elsewhere
+            tau_eff = 0.0_wp
+        end where
 
         return 
 
@@ -795,7 +772,7 @@ contains
 
         tau1    = max(teig1,0.0_wp)
         tau2    = max(teig2,0.0_wp)
-        tau_eff = sqrt(tau1**2 + (w2 * tau2)**2)
+        tau_eff = sqrt(tau1**2 + w2*tau2**2)
 
         return 
 

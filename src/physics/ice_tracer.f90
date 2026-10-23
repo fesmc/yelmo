@@ -2,7 +2,10 @@ module ice_tracer
     ! Module to treat online age calculations 
 
     use yelmo_defs, only : prec, mv 
+    use yelmo_tools, only : boundary_code, get_periodic_directions, fill_borders_3D
     use solver_tridiagonal, only : solve_tridiag 
+    use thermodynamics, only : calc_advec_horizontal_3D
+    use ice_enthalpy, only : calc_dzeta_terms
     
     implicit none
     
@@ -16,8 +19,8 @@ module ice_tracer
 contains
 
 
-    subroutine calc_tracer_3D(X_ice,X_srf,ux,uy,uz,H_ice,bmb,zeta_aa,zeta_ac,solver, &
-                                                                impl_kappa,dt,dx,time,mask)
+    subroutine calc_tracer_3D(X_ice,X_srf,ux,uy,uz,H_ice,bmb,zeta_aa,zeta_ac,solver,impl_kappa,dt,dx, &
+                                            advecxy_order,advecxy_cfl,advecxy_nmax,boundaries,mask)
         ! Solver for the age of the ice 
         ! Note zeta=height, k=1 base, k=nz surface 
 
@@ -40,14 +43,19 @@ contains
         real(prec), intent(IN)    :: impl_kappa     ! [m2 a-1] Artificial diffusivity
         real(prec), intent(IN)    :: dt             ! [a] Time step 
         real(prec), intent(IN)    :: dx             ! [a] Horizontal grid step 
-        real(prec), intent(IN)    :: time           ! [a] Current time 
+        integer,    intent(IN)    :: advecxy_order  ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
+        real(prec), intent(IN)    :: advecxy_cfl    ! [--] Target Courant number per horizontal-advection sub-step
+        integer,    intent(IN)    :: advecxy_nmax   ! [--] Max horizontal-advection sub-steps
+        character(len=*), intent(IN) :: boundaries  ! Boundary conditions
         logical,    intent(IN), optional :: mask(:,:)   ! Where to perform tracing 
 
         ! Local variables
-        integer    :: i, j, k, nx, ny, nz_aa, nz_ac  
-        real(prec) :: X_base, f_diff    
-        real(prec), allocatable :: advecxy(:)   ! [X a-1 m-2] Horizontal advection  
-        real(prec), allocatable :: X_prev(:,:,:) 
+        integer    :: i, j, nx, ny, nz_aa
+        integer    :: i1, i2, j1, j2
+        integer    :: BC
+        logical    :: per_x, per_y
+        real(prec) :: X_base
+        real(prec), allocatable :: advecxy(:,:,:)   ! [X a-1] Horizontal advection  
         
         logical,    allocatable :: mask_tracers(:,:) 
 
@@ -59,10 +67,8 @@ contains
         nx    = size(X_ice,1)
         ny    = size(X_ice,2)
         nz_aa = size(zeta_aa,1)
-        nz_ac = size(zeta_ac,1)
 
-        allocate(advecxy(nz_aa))
-        allocate(X_prev(nx,ny,nz_aa))
+        allocate(advecxy(nx,ny,nz_aa))
         allocate(mask_tracers(nx,ny))
 
         ! If mask was provided as argument, load it locally, 
@@ -79,57 +85,63 @@ contains
         where ( H_ice .lt. H_ice_min )          mask_tracers = .FALSE. 
         where ( abs(uz(:,:,1)) .gt. uz_max )    mask_tracers = .FALSE. 
 
-        ! Store X_ice from previous timestep 
-        X_prev = X_ice 
+        ! Explicit horizontal advection of X_ice from the previous time step, as in ytherm
+        ! (flux-limited 2nd-order upwind on the face velocities, sub-cycled to a Courant
+        ! number of advecxy_cfl). It enters the interior layers and the basal value;
+        ! the surface value is imposed.
+        call calc_advec_horizontal_3D(advecxy,X_ice,H_ice,ux,uy,dx,dt,advecxy_order, &
+                                                        advecxy_cfl,advecxy_nmax,boundaries)
 
-        do j = 3, ny-2
-        do i = 3, nx-2 
-            ! Skip 2 points at grid borders to permit horizontal 2nd-order upwind scheme 
+        ! Include all points in periodic directions, otherwise only the interior
+        ! (non-periodic borders are filled from their interior neighbors below)
+        BC = boundary_code(boundaries)
+        call get_periodic_directions(per_x,per_y,BC)
+
+        i1 = 2
+        i2 = nx-1
+        if (per_x) then
+            i1 = 1
+            i2 = nx
+        end if
+
+        j1 = 2
+        j2 = ny-1
+        if (per_y) then
+            j1 = 1
+            j2 = ny
+        end if
+
+        do j = j1, j2
+        do i = i1, i2 
 
             if ( mask_tracers(i,j) ) then
                 ! Tracers should be calculated here (see above)
 
-                ! Pre-calculate the contribution of horizontal advection to column solution
-                ! (from X_prev: neighbours i-1/j-1 of X_ice have already been updated in this sweep)
-                call calc_advec_horizontal_column(advecxy,X_prev,ux,uy,dx,i,j,ulim=5000.0_prec)
-                
                 ! Calculate the updated basal value of X from 
                 ! basal mass balance including additional thinning term
-                call calc_X_base(X_base,X_ice(i,j,:),H_ice(i,j),advecxy(1),bmb(i,j),bmb_thinning,zeta_aa,dt)
+                call calc_X_base(X_base,X_ice(i,j,:),H_ice(i,j),advecxy(i,j,1),bmb(i,j),bmb_thinning,zeta_aa,dt)
 
                 select case(trim(solver))
 
                     case("expl")
                         ! Explicit, upwind solver 
                         
-                        call calc_tracer_column_expl(X_ice(i,j,:),uz(i,j,:),advecxy, &
+                        call calc_tracer_column_expl(X_ice(i,j,:),uz(i,j,:),advecxy(i,j,:), &
                                     X_srf(i,j),X_base,H_ice(i,j),zeta_aa,zeta_ac,dt)
 
                     case("impl")
-                        ! Implicit solver vertically, upwind horizontally 
+                        ! Implicit solver vertically
                         
-                        call calc_tracer_column(X_ice(i,j,:),uz(i,j,:),advecxy, &
+                        call calc_tracer_column(X_ice(i,j,:),uz(i,j,:),advecxy(i,j,:), &
                                     X_srf(i,j),X_base,H_ice(i,j),zeta_aa,zeta_ac,impl_kappa,dt) 
 
                     case DEFAULT 
 
                         write(*,*) "calc_tracer_3D:: Error: solver choice must be [expl,impl]."
                         write(*,*) "solver = ", trim(solver)
-                        stop 
+                        error stop 1
 
                 end select 
-
-                ! Determine maximum allowed rate of change in tracer values
-                ! for numerical safety. Allowed rate is reduced for margin points. 
-                if (H_ice(i,j) .gt. 0.0_prec .and. count(H_ice(i-1:i+1,j-1:j+1).eq.0.0_prec).gt.0) then 
-                    ! Margin point
-                    f_diff    = 0.05_prec
-                else
-                    f_diff    = 0.1_prec 
-                end if 
-                
-                ! Check for tracer inconsistencies (usually for very fast-flowing regions)
-                call fix_tracer_violation(X_ice(i,j,:),X_prev(i,j,:),X_base,X_srf(i,j),dt,f_diff)
 
             else
                 ! Conditions not met for tracing, simply set column
@@ -142,76 +154,12 @@ contains
         end do 
         end do 
 
-        ! Fill in borders 
-        X_ice(2,:,:)    = X_ice(3,:,:) 
-        X_ice(1,:,:)    = X_ice(3,:,:) 
-        X_ice(nx-1,:,:) = X_ice(nx-2,:,:) 
-        X_ice(nx,:,:)   = X_ice(nx-2,:,:) 
-        
-        X_ice(:,2,:)    = X_ice(:,3,:) 
-        X_ice(:,1,:)    = X_ice(:,3,:) 
-        X_ice(:,ny-1,:) = X_ice(:,ny-2,:) 
-        X_ice(:,ny,:)   = X_ice(:,ny-2,:) 
+        ! Fill in non-periodic borders from interior neighbors
+        call fill_borders_3D(X_ice,nfill=1,fill_x=.not.per_x,fill_y=.not.per_y)
         
         return 
 
     end subroutine calc_tracer_3D
-
-    subroutine fix_tracer_violation(X_ice,X_prev,X_base,X_srf,dt,f_diff)
-
-        implicit none 
-
-        real(prec), intent(INOUT) :: X_ice(:)           ! [units] Predicted values 
-        real(prec), intent(IN)    :: X_prev(:)          ! [units] Previous values
-        real(prec), intent(IN)    :: X_base             ! [units] Basal boundary value
-        real(prec), intent(IN)    :: X_srf              ! [units] Surface boudnary value 
-        real(prec), intent(IN)    :: dt                 ! [yr]    Timestep 
-        real(prec), intent(IN)    :: f_diff             ! Fraction difference in X/yr of allowed change in tracer value
-                                                        ! Typically f_diff = 0.1-0.2
-
-        ! Local variables
-        integer :: nz   
-        real(prec) :: X_min, X_max, X_mean                
-        logical    :: is_active 
-
-        nz = size(X_ice,1) 
-
-        if (minval(X_ice) .eq. X_srf .and. maxval(X_ice) .eq. X_srf) then 
-            ! This column had X_srf imposed everywhere, so ignore it.
-            is_active = .FALSE. 
-        else 
-            is_active = .TRUE. 
-        end if 
-
-        if (is_active) then 
-            ! Check this column for errors:
-            ! Column values cannot be outside of the range of
-            ! previous values or the boundary values. 
-
-            ! Determine mean value of column for previous timestep 
-            X_mean = abs(sum(X_prev) / real(nz,prec))
-            X_max  = abs(maxval(X_prev))
-
-            ! Limit any value change in X to eg 50% per year if X_mean .ne. 0.0
-            if (X_mean .ne. 0.0_prec) then  
-                where ( (X_ice-X_prev)/dt .gt. f_diff*X_mean )
-                    X_ice = X_prev + f_diff*X_mean*dt 
-                else where ( (X_ice-X_prev)/dt .lt. -f_diff*X_mean )
-                    X_ice = X_prev - f_diff*X_mean*dt 
-                end where
-            end if 
-
-            ! Finally, also reset tracer to previous value if value is too large, or appears problematic 
-            ! (likely redundant with previous check, but kept for safety)
-            if (maxval(abs(X_ice)) .gt. 1e10) then 
-                X_ice = X_srf 
-            end if 
-
-        end if 
-
-        return 
-
-    end subroutine fix_tracer_violation
 
     subroutine calc_tracer_column(X_ice,uz,advecxy,X_srf,X_base,H_ice,zeta_aa,zeta_ac,kappa,dt)
         ! Tracer solver for a given column of ice 
@@ -258,12 +206,9 @@ contains
         nz_aa = size(zeta_aa,1)
         nz_ac = size(zeta_ac,1)
 
-        allocate(dzeta_a(nz_aa))
-        allocate(dzeta_b(nz_aa))
-
         allocate(kappa_aa(nz_aa))
 
-        ! Define dzeta terms for this column
+        ! Define dzeta terms for this column (allocates dzeta_a/dzeta_b)
         ! Note: for constant zeta axis, this can be done once outside
         ! instead of for each column. However, it is done here to allow
         ! use of adaptive vertical axis.
@@ -380,25 +325,39 @@ contains
         real(prec), intent(IN)    :: zeta_ac(:)   ! nz_ac [--] Vertical sigma coordinates (zeta==height), layer boundary ac-nodes
         real(prec), intent(IN)    :: dt           ! [a] Time step 
 
-        ! Local variables 
-        integer :: k, nz_aa 
+        ! Local variables
+        integer    :: k, n, nz_aa, n_sub
+        real(prec) :: dt_sub
         real(prec), allocatable :: advecz(:)   ! nz_aa, for explicit vertical advection solving
 
         nz_aa = size(zeta_aa,1)
-        
+
         allocate(advecz(nz_aa))
 
         ! Update base and surface values
-        X_ice(1)     = X_base 
-        X_ice(nz_aa) = X_srf 
+        ! (X_base already includes the horizontal advection of the basal layer)
+        X_ice(1)     = X_base
+        X_ice(nz_aa) = X_srf
 
-        ! Calculate vertical advection 
-        call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
-!         call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+        ! Sub-step the vertical advection so that its Courant number is at most 1
+        ! (the time step of the host model does not limit it, e.g. for thin ice).
+        ! The horizontal advection (from the previous time step) is spread over the sub-steps.
+        n_sub  = max(1,ceiling(calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt)))
+        dt_sub = dt / real(n_sub,prec)
 
-        ! Use advection terms to advance column tracer value 
-        X_ice = X_ice - dt*advecxy - dt*advecz
+        do n = 1, n_sub
+
+            ! Calculate vertical advection
+            call calc_advec_vertical_column_upwind1(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_upwind2(advecz,X_ice,uz,H_ice,zeta_aa)
+!             call calc_advec_vertical_column_new2(advecz,X_ice,uz,H_ice,zeta_aa,zeta_ac,dt)
+
+            ! Use advection terms to advance the interior column tracer values
+            do k = 2, nz_aa-1
+                X_ice(k) = X_ice(k) - dt_sub*advecxy(k) - dt_sub*advecz(k)
+            end do
+
+        end do
 
         ! Ensure tiny values are removed to avoid underflow errors 
         where (abs(X_ice) .lt. 1e-5) X_ice = 0.0_prec 
@@ -450,6 +409,43 @@ contains
         return 
 
     end subroutine calc_advec_vertical_column_upwind1
+
+    function calc_courant_vertical_upwind1(uz,H_ice,zeta_aa,dt) result(courant)
+        ! Maximum Courant number of the vertical upwind advection
+        ! (calc_advec_vertical_column_upwind1) over the internal cell centers
+
+        implicit none
+
+        real(prec), intent(IN) :: uz(:)          ! nz_ac: cell boundaries
+        real(prec), intent(IN) :: H_ice          ! Ice thickness
+        real(prec), intent(IN) :: zeta_aa(:)     ! nz_aa, cell centers
+        real(prec), intent(IN) :: dt             ! [a] Time step
+        real(prec) :: courant
+
+        ! Local variables
+        integer :: k, nz_aa
+        real(prec) :: u_aa
+
+        nz_aa = size(zeta_aa,1)
+
+        courant = 0.0_prec
+
+        ! Same upwind velocity and spacing as calc_advec_vertical_column_upwind1
+        do k = 2, nz_aa-1
+
+            u_aa = 0.5_prec*(uz(k)+uz(k+1))
+
+            if (u_aa < 0.0) then
+                courant = max(courant, abs(uz(k+1))*dt / (H_ice*(zeta_aa(k+1)-zeta_aa(k))))
+            else
+                courant = max(courant, abs(uz(k))*dt / (H_ice*(zeta_aa(k)-zeta_aa(k-1))))
+            end if
+
+        end do
+
+        return
+
+    end function calc_courant_vertical_upwind1
 
     subroutine calc_advec_vertical_column_upwind2(advecz,Q,uz,H_ice,zeta_aa)
         ! Calculate vertical advection term advecz, which enters
@@ -524,7 +520,7 @@ contains
                     zout = H_ice*zeta_aa(k-1)-dz
                     if (zout .lt. z2) then 
                         write(*,*) "calc_advec_vertical_column_upwind2:: Error: upwind2 interp step doesnt work for this spacing."
-                        stop 
+                        error stop 1
                     end if 
                     Q2   = interp_linear_pt([z2,z1],[Q(k-2),Q(k-1)],zout)
 
@@ -709,233 +705,6 @@ contains
 
     end subroutine calc_X_base
 
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,ux,uy,dx,i,j,ulim)
-        ! Newly implemented advection algorithms (ajr)
-        ! Output: [K a-1]
-
-        ! [m-1] * [m a-1] * [K] = [K a-1]
-
-        implicit none
-
-        real(prec), intent(OUT) :: advecxy(:)       ! nz_aa 
-        real(prec), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(prec), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz
-        real(prec), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz
-        real(prec), intent(IN)  :: dx  
-        integer,    intent(IN)  :: i, j 
-        real(prec), intent(IN)  :: ulim             ! [m/a] Maximum allowed velocity to apply
-
-        ! Local variables 
-        integer :: k, nx, ny, nz_aa 
-        real(prec) :: ux_aa, uy_aa, u_now  
-        real(prec) :: dx_inv, dx_inv2
-        real(prec) :: advecx, advecy 
-
-        ! Define some constants 
-        dx_inv  = 1.0_prec / dx 
-        dx_inv2 = 1.0_prec / (2.0_prec*dx)
-
-        nx  = size(var_ice,1)
-        ny  = size(var_ice,2)
-        nz_aa = size(var_ice,3) 
-
-        advecx  = 0.0_prec 
-        advecy  = 0.0_prec 
-        advecxy = 0.0_prec 
-
-        ! Loop over each point in the column
-        do k = 1, nz_aa-1 
-
-            ! ajr: ux is already vertically centered on aa-nodes, is the below averaging between k and k-1 useful??
-            ! Estimate direction of current flow into cell (x and y), centered in vertical layer and grid point
-            if (k .eq. 1) then 
-                ! Basal layer, take current k-value 
-                ux_aa = 0.5_prec*(ux(i,j,k)+ux(i-1,j,k))
-                uy_aa = 0.5_prec*(uy(i,j,k)+uy(i,j-1,k))
-            else 
-                ! Internal layer, mean between k and k-1
-                ux_aa = 0.25_prec*(ux(i,j,k)+ux(i-1,j,k)+ux(i,j,k-1)+ux(i-1,j,k-1))
-                uy_aa = 0.25_prec*(uy(i,j,k)+uy(i,j-1,k)+uy(i,j,k-1)+uy(i,j-1,k-1))
-            end if 
-
-            ! Explicit form (to test different order approximations)
-            if (ux_aa .gt. 0.0 .and. i .ge. 3) then  
-                ! Flow to the right 
-
-                ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim 
-                u_now = ux(i-1,j,k)
-                u_now = sign(min(abs(u_now),ulim),u_now)
-
-                ! 1st order
-!                 advecx = dx_inv * u_now *(var_ice(i,j,k)-var_ice(i-1,j,k))
-                ! 2nd order
-                advecx = dx_inv2 * u_now *(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
-
-            else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then 
-                ! Flow to the left
-
-                ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-                u_now = ux(i,j,k)
-                u_now = sign(min(abs(u_now),ulim),u_now)
-
-                ! 1st order 
-!                 advecx = dx_inv * u_now *(var_ice(i+1,j,k)-var_ice(i,j,k))
-                ! 2nd order
-                advecx = dx_inv2 * u_now *((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-            else 
-                ! No flow 
-                advecx = 0.0
-
-            end if 
-
-            if (uy_aa .gt. 0.0 .and. j .ge. 3) then   
-                ! Flow to the right 
-
-                ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-                u_now = uy(i,j-1,k)
-                u_now = sign(min(abs(u_now),ulim),u_now)
-
-                ! 1st order
-!                 advecy = dx_inv * u_now*(var_ice(i,j,k)-var_ice(i,j-1,k))
-                ! 2nd order
-                advecy = dx_inv2 * u_now *(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
-
-            else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then 
-                ! Flow to the left
-
-                ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-                u_now = uy(i,j,k)
-                u_now = sign(min(abs(u_now),ulim),u_now)
-
-                ! 1st order 
-!                 advecy = dx_inv * u_now *(var_ice(i,j+1,k)-var_ice(i,j,k))
-                ! 2nd order
-                advecy = dx_inv2 * u_now *((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-
-            else
-                ! No flow 
-                advecy = 0.0 
-
-            end if 
-                    
-            ! Combine advection terms for total contribution 
-            advecxy(k) = (advecx+advecy)
-
-        end do 
-
-        return 
-
-    end subroutine calc_advec_horizontal_column
-    
-    subroutine calc_advec_horizontal_base(advecxy,var_ice,ux,uy,dx,i,j,ulim)
-        ! Newly implemented advection algorithms (ajr)
-        ! Output: [K a-1]
-
-        ! [m-1] * [m a-1] * [K] = [K a-1]
-
-        implicit none
-
-        real(prec), intent(OUT) :: advecxy   
-        real(prec), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(prec), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz
-        real(prec), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz
-        real(prec), intent(IN)  :: dx  
-        integer,    intent(IN)  :: i, j 
-        real(prec), intent(IN)  :: ulim             ! [m/a] Maximum allowed velocity to apply
-
-        ! Local variables 
-        integer :: k, nx, ny, nz_aa 
-        real(prec) :: ux_aa, uy_aa, u_now  
-        real(prec) :: dx_inv, dx_inv2
-        real(prec) :: advecx, advecy 
-
-        ! Define some constants 
-        dx_inv  = 1.0_prec / dx 
-        dx_inv2 = 1.0_prec / (2.0_prec*dx)
-
-        nx  = size(var_ice,1)
-        ny  = size(var_ice,2)
-        nz_aa = size(var_ice,3) 
-
-        advecx = 0.0 
-        advecy = 0.0 
-
-        ! Calculate horizontal advection terms only for the base 
-        k = 1 
-
-        ! Estimate direction of current flow into cell (x and y), centered in grid point
-        ux_aa = 0.5_prec*(ux(i,j,k)+ux(i-1,j,k))
-        uy_aa = 0.5_prec*(uy(i,j,k)+uy(i,j-1,k))
-
-        ! Explicit form (to test different order approximations)
-        if (ux_aa .gt. 0.0 .and. i .ge. 3) then  
-            ! Flow to the right 
-
-            ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim 
-            u_now = ux(i-1,j,k)
-            u_now = sign(min(abs(u_now),ulim),u_now)
-
-            ! 1st order
-!                 advecx = dx_inv * u_now *(var_ice(i,j,k)-var_ice(i-1,j,k))
-            ! 2nd order
-            advecx = dx_inv2 * u_now *(-(4.0*var_ice(i-1,j,k)-var_ice(i-2,j,k)-3.0*var_ice(i,j,k)))
-
-        else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then 
-            ! Flow to the left
-
-            ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-            u_now = ux(i,j,k)
-            u_now = sign(min(abs(u_now),ulim),u_now)
-
-            ! 1st order 
-!                 advecx = dx_inv * u_now *(var_ice(i+1,j,k)-var_ice(i,j,k))
-            ! 2nd order
-            advecx = dx_inv2 * u_now *((4.0*var_ice(i+1,j,k)-var_ice(i+2,j,k)-3.0*var_ice(i,j,k)))
-
-        else 
-            ! No flow 
-            advecx = 0.0
-
-        end if 
-
-        if (uy_aa .gt. 0.0 .and. j .ge. 3) then   
-            ! Flow to the right 
-
-            ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-            u_now = uy(i,j-1,k)
-            u_now = sign(min(abs(u_now),ulim),u_now)
-
-            ! 1st order
-!                 advecy = dx_inv * u_now*(var_ice(i,j,k)-var_ice(i,j-1,k))
-            ! 2nd order
-            advecy = dx_inv2 * u_now *(-(4.0*var_ice(i,j-1,k)-var_ice(i,j-2,k)-3.0*var_ice(i,j,k)))
-
-        else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then 
-            ! Flow to the left
-
-            ! Velocity on horizontal ac-node, vertical aa-node, limited to ulim
-            u_now = uy(i,j,k)
-            u_now = sign(min(abs(u_now),ulim),u_now)
-
-            ! 1st order 
-!                 advecy = dx_inv * u_now *(var_ice(i,j+1,k)-var_ice(i,j,k))
-            ! 2nd order
-            advecy = dx_inv2 * u_now *((4.0*var_ice(i,j+1,k)-var_ice(i,j+2,k)-3.0*var_ice(i,j,k)))
-
-        else
-            ! No flow 
-            advecy = 0.0 
-
-        end if 
-                
-        ! Combine advection terms for total contribution 
-        advecxy = (advecx+advecy)
-
-        return 
-
-    end subroutine calc_advec_horizontal_base
-    
     function interp_linear_pt(x,y,xout) result(yout)
         ! Interpolates for the y value at the desired x value, 
         ! given x and y values around the desired point.
@@ -950,7 +719,7 @@ contains
             write(*,*) "xout = ",xout
             write(*,*) "x0   = ",x(1)
             write(*,*) "x1   = ",x(2)
-            stop
+            error stop 1
         end if
 
         alph = (xout - x(1)) / (x(2) - x(1))
@@ -960,39 +729,6 @@ contains
 
     end function interp_linear_pt
 
-    subroutine calc_dzeta_terms(dzeta_a,dzeta_b,zeta_aa,zeta_ac)
-        ! zeta_aa  = depth axis at layer centers (plus base and surface values)
-        ! zeta_ac  = depth axis (1: base, nz: surface), at layer boundaries
-        ! Calculate ak, bk terms as defined in Hoffmann et al (2018)
-        implicit none 
-
-        real(prec), intent(INOUT) :: dzeta_a(:)    ! nz_aa
-        real(prec), intent(INOUT) :: dzeta_b(:)    ! nz_aa
-        real(prec), intent(IN)    :: zeta_aa(:)    ! nz_aa 
-        real(prec), intent(IN)    :: zeta_ac(:)    ! nz_ac == nz_aa+1 
-
-        ! Local variables 
-        integer :: k, nz_layers, nz_aa    
-
-        nz_aa = size(zeta_aa)
-
-        ! Note: zeta_aa is calculated outside in the main program 
-
-        ! Initialize dzeta_a/dzeta_b to zero, first and last indices will not be used (end points)
-        dzeta_a = 0.0 
-        dzeta_b = 0.0 
-        
-        do k = 2, nz_aa-1 
-            dzeta_a(k) = 1.0/ ( (zeta_ac(k+1) - zeta_ac(k)) * (zeta_aa(k) - zeta_aa(k-1)) )
-        enddo
-
-        do k = 2, nz_aa-1
-            dzeta_b(k) = 1.0/ ( (zeta_ac(k+1) - zeta_ac(k)) * (zeta_aa(k+1) - zeta_aa(k)) )
-        end do
-
-        return 
-
-    end subroutine calc_dzeta_terms
 
     subroutine calc_isochrones(depth_iso,dep_time,H_ice,time_iso,zeta,time)
         ! Calculate specific isochronal layers (depth_iso) at specified deposition

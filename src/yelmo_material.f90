@@ -4,7 +4,7 @@ module yelmo_material
     use nml 
 
     use yelmo_defs
-    use yelmo_tools, only : calc_vertical_integrated_2D, calc_vertical_integrated_3D
+    use yelmo_tools, only : calc_vertical_integrated_2D
     
     use deformation
     use ice_tracer  
@@ -29,7 +29,7 @@ contains
         type(ydyn_class),   intent(IN)    :: dyn 
         type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd     
-        real(wp),           intent(IN)    :: time    ! Current time (for age tracing)
+        real(dp),           intent(IN)    :: time    ! Current time (for age tracing)
 
         ! Local variables
         integer  :: k, nz_aa
@@ -53,8 +53,8 @@ contains
         end if 
 
         ! Get time step and advance current time 
-        dt            = dble(time) - mat%par%time 
-        mat%par%time  = dble(time) 
+        dt            = time - mat%par%time 
+        mat%par%time  = time 
 
         ! Note: the age tracer (dep_time) moved to the ytrc subsystem (yelmo_tracers)
         ! for v2.0. The Eulerian solver is still used below for the enh_bnd
@@ -117,7 +117,7 @@ contains
             case DEFAULT 
 
                 write(*,*) "calc_ymat:: Error: enhancement method not recognized: "//trim(mat%par%enh_method)
-                stop 
+                error stop 1
 
         end select 
 
@@ -146,7 +146,8 @@ contains
 
                     call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,time,mask=mask_tracers)
+                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,thrm%par%advecxy_order, &
+                                        thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
 
                 end if 
 
@@ -211,7 +212,7 @@ contains
                     &is prescribed (ydyn.visc_method=0) and ymat.n_glen=1.0."
                     write(*,*) "ydyn.visc_method = ", dyn%par%visc_method 
                     write(*,*) "ymat.n_glen      = ", mat%par%n_glen 
-                    stop 
+                    error stop 1
                 end if 
 
                 ! ATT = (2.0*visc_eff)^(-1) 
@@ -224,7 +225,7 @@ contains
 
                 write(*,*) "calc_ymat:: Error: rf_method not recognized."
                 write(*,*) "rf_method = ", mat%par%rf_method
-                stop 
+                error stop 1
 
         end select 
 
@@ -232,12 +233,16 @@ contains
         ! Note: this viscosity which is used for material and thermodynamic properties may be
         ! different than the visocity calculated locally in the dynamics module
         
-        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,tpo%now%H_ice,tpo%now%f_ice, &
+        ! On the active ice geometry of the last velocity solution (dyn%now%H_ice_solv,
+        ! f_ice_solv), where the strain rate was computed (the predicted geometry, not
+        ! the start-of-step geometry restored in tpo): partial front cells get their
+        ! own viscosity, and so do cells that filled during the step
+        mat%now%visc = calc_viscosity_glen(mat%now%strn%de,mat%now%ATT,dyn%now%f_ice_solv, &
                                                             mat%par%n_glen,mat%par%visc_min,dyn%par%eps_0)
-        
+
         ! Calculate visc_bar and visc_int (vertically integrated visc) as diagnostic quantities
         mat%now%visc_bar = calc_vertical_integrated_2D(mat%now%visc,mat%par%zeta_aa)
-        call calc_visc_int(mat%now%visc_int,mat%now%visc,tpo%now%H_ice,tpo%now%f_ice, &
+        call calc_visc_int(mat%now%visc_int,mat%now%visc,dyn%now%H_ice_solv,dyn%now%f_ice_solv, &
                                                     mat%par%zeta_aa,dyn%par%boundaries)
 
         ! 3. Calculate the deviatoric stress tensor and 2D average
@@ -246,7 +251,6 @@ contains
         ! ajr: for now, only calculate the 2D stress tensor directly. This is 
         ! currently only used for calving, and so only horizontal stresses are
         ! needed (ie, assume constant vertical profile for horizontal velocity)
-        !call calc_stress_tensor(mat%now%strs,mat%now%strs2D,mat%now%visc,mat%now%strn,mat%par%zeta_aa) 
         call calc_stress_tensor_2D(mat%now%strs2D,mat%now%visc_bar,mat%now%strn2D)
 
         return
@@ -273,12 +277,11 @@ contains
         character(len=*), parameter :: def_ymat = "ymat"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group,defaults_group=def_ymat)
 
         ! Store local parameter values in output object
-        call nml_read(filename,group,"flow_law",               par%flow_law,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_method",              par%rf_method,              init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_const",               par%rf_const,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_use_eismint2",        par%rf_use_eismint2,        init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
@@ -296,20 +299,19 @@ contains
         call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
 
         ! Validate parameter values
-        call yelmo_check_enum(group,"flow_law",      par%flow_law,      "glen")
         call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|simple-tracer|shear2D|shear2D-tracer|shear3D|shear3D-tracer")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
 
         if (par%n_glen .le. 0.0_wp) then
             write(io_unit_err,*) "ymat_par_load:: error: n_glen must be > 0; got ", par%n_glen
-            stop "Program stopped."
+            error stop 1
         end if
         ! The '*-tracer' enh methods use enh_umin/enh_umax as the velocity transition range
         ! for the enh_bnd tracer mask (see calc_ymat), so enforce the ordering there.
         if (index(trim(par%enh_method),"-tracer") > 0 .and. par%enh_umin .ge. par%enh_umax) then
             write(io_unit_err,*) "ymat_par_load:: error: enh_umin must be < enh_umax for &
                                  &'*-tracer' enh_method; got ", par%enh_umin, par%enh_umax
-            stop "Program stopped."
+            error stop 1
         end if
 
         ! Set internal parameters
@@ -367,12 +369,6 @@ contains
         allocate(now%strn2D%eps_eig_1(nx,ny))
         allocate(now%strn2D%eps_eig_2(nx,ny))
         
-        allocate(now%strs%txx(nx,ny,nz_aa))
-        allocate(now%strs%tyy(nx,ny,nz_aa))
-        allocate(now%strs%txy(nx,ny,nz_aa))
-        allocate(now%strs%txz(nx,ny,nz_aa))
-        allocate(now%strs%tyz(nx,ny,nz_aa))
-        allocate(now%strs%te(nx,ny,nz_aa))
         
         allocate(now%strs2D%txx(nx,ny))
         allocate(now%strs2D%tyy(nx,ny))
@@ -415,12 +411,6 @@ contains
         now%strn2D%eps_eig_1 = 0.0
         now%strn2D%eps_eig_2 = 0.0 
         
-        now%strs%txx     = 0.0 
-        now%strs%tyy     = 0.0 
-        now%strs%txy     = 0.0 
-        now%strs%txz     = 0.0
-        now%strs%tyz     = 0.0
-        now%strs%te      = 0.0
         
         now%strs2D%txx   = 0.0 
         now%strs2D%tyy   = 0.0 
@@ -472,12 +462,6 @@ contains
         if (allocated(now%strn2D%eps_eig_1)) deallocate(now%strn2D%eps_eig_1)
         if (allocated(now%strn2D%eps_eig_2)) deallocate(now%strn2D%eps_eig_2)
         
-        if (allocated(now%strs%txx))        deallocate(now%strs%txx)
-        if (allocated(now%strs%tyy))        deallocate(now%strs%tyy)
-        if (allocated(now%strs%txy))        deallocate(now%strs%txy)
-        if (allocated(now%strs%txz))        deallocate(now%strs%txz)
-        if (allocated(now%strs%tyz))        deallocate(now%strs%tyz)
-        if (allocated(now%strs%te))         deallocate(now%strs%te)
         
         if (allocated(now%strs2D%txx))      deallocate(now%strs2D%txx)
         if (allocated(now%strs2D%tyy))      deallocate(now%strs2D%tyy)

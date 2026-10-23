@@ -83,7 +83,7 @@ contains
 
         if (i .eq. 1 .or. i .eq. nx .or. j .eq. 1 .or. j .eq. ny) then 
             write(*,*) "Cannot advect at border!"
-            stop 
+            error stop 1
         end if 
 
         ux_1 = ux(i-1,j)

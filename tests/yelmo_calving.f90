@@ -5,7 +5,6 @@ program yelmo_calving
     use yelmo 
     use lsf_module
     use yelmo_tools, only : get_region_indices
-    use topography, only: calc_ice_fraction_new
 
     use calving_benchmarks
     use, intrinsic :: iso_fortran_env, only : int64
@@ -110,7 +109,7 @@ program yelmo_calving
             ctl%x1     = 800.0
         case DEFAULT
             write(*,*) "ctl.exp = ",trim(ctl%domain), " not recognized."
-            stop
+            error stop 1
     end select
 
     ! Get grid size
@@ -126,7 +125,7 @@ program yelmo_calving
     call yelmo_init_grid(yelmo1%grd,ctl%grid_name,units="km",dx=ctl%dx,nx=ctl%nx,dy=ctl%dx,ny=ctl%nx)
 
     ! Initialize data objects (without loading topography, which will be defined inline below)
-    call yelmo_init(yelmo1,filename=ctl%path_par,grid_def="none",time=ctl%time_init, &
+    call yelmo_init(yelmo1,filename=ctl%path_par,grid_def="none",time=dble(ctl%time_init), &
                     load_topo=.FALSE.,domain=ctl%domain,grid_name=ctl%grid_name)
 
     ! === Define initial topography ===
@@ -166,17 +165,17 @@ program yelmo_calving
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize state variables (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=ctl%time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(ctl%time_init),thrm_method="robin")
 
     ! == Write initial state ==
 
     ! Standard yelmo 2D output
-    call yelmo_write_init(yelmo1,ctl%file2D,time_init=ctl%time_init,units="years")
-    call yelmo_write_step(yelmo1,ctl%file2D,time=ctl%time_init)
+    call yelmo_write_init(yelmo1,ctl%file2D,time_init=dble(ctl%time_init),units="years")
+    call yelmo_write_step(yelmo1,ctl%file2D,time=dble(ctl%time_init))
 
     ! Standard yelmo 1D regional output
-    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=ctl%time_init,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,ctl%file1D,time=ctl%time_init)
+    call yelmo_write_reg_init(yelmo1,ctl%file1D,time_init=dble(ctl%time_init),units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
+    call yelmo_write_reg_step(yelmo1,ctl%file1D,time=dble(ctl%time_init))
 
     ! Optional CalvingMIP output (wiki-spec file with Time1 / Time100 dims)
     if (ctl%calvingmip_out) then
@@ -201,19 +200,19 @@ program yelmo_calving
         time = ctl%time_init + n*ctl%dtt
         
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
         
         ! == MODEL OUTPUT =======================================================
 
         ! Standard yelmo 2D output at user-specified frequency
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
         if (mod(nint(time*100,int64),nint(ctl%dt2D_out*100,int64))==0) then
-            call yelmo_write_step(yelmo1,ctl%file2D,time=time)
+            call yelmo_write_step(yelmo1,ctl%file2D,time=dble(time))
         end if
 
         ! Standard yelmo 1D regional output at main-loop timestep
         if (mod(nint(time*100,int64),nint(ctl%dt1D_out*100,int64))==0) then
-            call yelmo_write_reg_step(yelmo1,ctl%file1D,time=time)
+            call yelmo_write_reg_step(yelmo1,ctl%file1D,time=dble(time))
         end if
 
         ! CalvingMIP output (hardcoded frequencies per wiki experiment spec)
@@ -224,10 +223,10 @@ program yelmo_calving
     end do
 
     ! Write a restart file too
-    call yelmo_restart_write(yelmo1,ctl%file_restart,time=time)
+    call yelmo_restart_write(yelmo1,ctl%file_restart,time=dble(time))
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)

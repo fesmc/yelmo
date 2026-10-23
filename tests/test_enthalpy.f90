@@ -3,7 +3,7 @@ program test_enthalpy
     !
     ! Purpose: exercise and validate the enthalpy solver (calc_enth_column)
     ! against the temperature solver (calc_temp_column) and the Kleiner et al.
-    ! (2015) enthalpy benchmarks. See docs/physics/enthalpy-transition-plan.md.
+    ! (2015) enthalpy benchmarks. See docs/physics/thermodynamics.md.
     !
     ! Experiments (1st cmdline arg, default "cold-limit"):
     !   cold-limit : identical cold column solved by both solvers; asserts that
@@ -11,14 +11,24 @@ program test_enthalpy
     !   kleiner-a  : Kleiner (2015) Exp A - transient basal melt under a
     !                time-varying surface temperature, no flow. Reference:
     !                tests/data/Kleiner2015/Kleiner2015_EXPA_Fig2-IIIa-melt.txt
-    !
+    !   kleiner-a-cap : as kleiner-a, with the capacity basal BC
+    !                (basal_bc_method="capacity") and the freeze-on capacity
+    !                C = (rho_w/rho_ice)*W_til/dt of the column's own basal water.
+    !                Also reports the water created by the W_til zero floor, the
+    !                time the base leaves T_pmp after cooling, and BC statistics.
+    !   shelf-freeze : thin floating columns, temperate inside, cooled from the
+    !                ocean base (T_shlf) and the cold surface, on the exponential
+    !                zeta grid of the 3D runs. Asserts that no node cools below
+    !                the coldest boundary (a temperate node next to cold ice must
+    !                not overshoot as it freezes).
+!
     ! Usage: test_enthalpy.x [experiment] [solver] [nz]
     !   solver: "temp" | "enth" | "both" (default: experiment-dependent)
     !   nz    : number of aa-nodes (default 51)
     !
     ! Output: output/test_enthalpy_<experiment>_<solver>.nc
 
-    use yelmo_defs,     only : wp, prec, ybound_const_class
+    use yelmo_defs,     only : wp, prec, ybound_const_class, io_unit_err
     use ncio
     use yelmo_grid,     only : calc_zeta
     use thermodynamics, only : convert_to_enthalpy, convert_to_enthalpy_ice, calc_T_pmp, cp_ref, &
@@ -35,6 +45,7 @@ program test_enthalpy
         real(wp), allocatable :: cp(:), kt(:), advecxy(:), uz(:), Q_strn(:)
         real(wp) :: H_ice, T_srf, T_shlf, smb, Q_b, Q_rock, W_til, f_grnd
         real(wp) :: bmb, Q_ice_b, H_cts
+        real(wp) :: bmb_star, bc_b, bmb_clamp   ! basal BC diagnostics (capacity rule)
     end type
 
     type(ybound_const_class) :: c
@@ -75,10 +86,12 @@ program test_enthalpy
         case("kleiner-a")
             if (trim(solver) .eq. "") solver = "enth"
             call run_experiment(c,"kleiner-a",trim(solver),nz,cr_arg)
+        case("kleiner-a-cap")
+            call run_experiment(c,"kleiner-a-cap","enth",nz,cr_arg)
         case("kleiner-b")
             if (trim(solver) .eq. "") solver = "enth"
             call run_experiment(c,"kleiner-b",trim(solver),nz,cr_arg)
-        case("thin-margin")
+case("thin-margin")
             ! Reproduce the initmip-grl-16km 2D failure in a single column:
             ! a thin polythermal margin column (temperate/melting base, cold
             ! surface) is where the enth solver rings while the temp solver is
@@ -86,6 +99,8 @@ program test_enthalpy
             ! amplitude for both solvers to localize the defect. cr_arg (4th
             ! arg, >=0) overrides the enth conductivity ratio.
             call run_thin_margin(c,nz,cr_arg)
+        case("shelf-freeze")
+            call run_shelf_freeze(c,nz,cr_arg)
         case("robin-column")
             ! Ground-truth vertical-physics check vs the Robin (1955) analytic
             ! basal temperature; run both solvers and compare. Settles whether
@@ -93,8 +108,8 @@ program test_enthalpy
             call run_robin_column(c,nz,cr_arg)
         case DEFAULT
             write(*,*) "test_enthalpy:: unknown experiment: ", trim(experiment)
-            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-b, thin-margin, robin-column"
-            stop 1
+            write(*,*) "  choose one of: cold-limit, kleiner-a, kleiner-a-cap, kleiner-b, thin-margin, shelf-freeze, robin-column"
+            error stop 1
     end select
 
 contains
@@ -108,7 +123,6 @@ contains
         c%rho_ice    = 910.0_wp
         c%rho_w      = 1000.0_wp
         c%rho_sw     = 1028.0_wp
-        c%rho_rock   = 2000.0_wp
         c%L_ice      = 3.34e5_wp
         c%T_pmp_beta = 7.9e-8_wp       ! Kleiner (2015) Table A1 Clausius-Clapeyron
         return
@@ -158,8 +172,11 @@ contains
         col%bmb     = 0.0_wp
         col%Q_ice_b = 0.0_wp
         col%H_cts   = 0.0_wp
+        col%bmb_star  = 0.0_wp
+        col%bc_b      = 0.0_wp
+        col%bmb_clamp = 0.0_wp
 
-        ! Constant material properties (Kleiner: cp, kt fixed)
+        ! Constant material properties(Kleiner: cp, kt fixed)
         col%cp = 2009.0_wp                        ! [J kg-1 K-1]
         col%kt = 2.1_wp * c%sec_year              ! [W m-1 K-1] => [J a-1 m-1 K-1]
 
@@ -194,7 +211,8 @@ contains
                     col%Q_strn(k) = 2.0_wp*A_glen*tau_gam**4*(col%H_ice-z)**4 * c%sec_year
                 end do
             case DEFAULT
-                stop "setup_experiment:: unknown experiment"
+                write(io_unit_err,*) "setup_experiment:: unknown experiment"
+                error stop 1
         end select
 
         ! Pressure melting point profile
@@ -251,9 +269,28 @@ contains
         real(wp) :: enth_cr, omega_max, Q_lith
         real(wp) :: ab_warm, ab_cold, ab_warm_an, ab_cold_an
         integer  :: n
+        character(len=64) :: base_exp      ! experiment that defines setup/forcing/checks
+        logical  :: is_cap                 ! capacity basal BC (kleiner-a-cap)
+        real(wp) :: C_cap, W_attempt
+        real(wp) :: W_created              ! [m] water added by the W_til zero floor
+        real(wp) :: clamp_sum              ! [m] ice-equivalent freeze-on removed by the clamp
+        real(wp) :: t_leave                ! [a] first time after 150 ka the base is below T_pmp
+        real(wp) :: cts_min, cts_max       ! [m] H_cts range over the last 1 ka (Exp B)
+        integer  :: n_held, n_flux
 
         ab_warm = -999.0_wp
         ab_cold = -999.0_wp
+
+        base_exp = experiment
+        is_cap   = (trim(experiment) .eq. "kleiner-a-cap")
+        if (is_cap) base_exp = "kleiner-a"
+        W_created = 0.0_wp
+        clamp_sum = 0.0_wp
+        t_leave   = -1.0_wp
+        cts_min   =  huge(1.0_wp)
+        cts_max   = -huge(1.0_wp)
+        n_held    = 0
+        n_flux    = 0
 
 
         ! Enthalpy solver parameters
@@ -267,14 +304,14 @@ contains
         ! (Kleiner applies no water-content restriction). The analytic solution is
         ! the K0 -> 0 limit, so use a small conductivity ratio by default; the
         ! solution converges to the analytic as cr decreases (paper: CR 1e-1..1e-5).
-        if (trim(experiment) .eq. "kleiner-b") then
+        if (trim(base_exp) .eq. "kleiner-b") then
             omega_max = 1.0_wp
             enth_cr   = 1.0e-4_wp
         end if
         if (cr_override .ge. 0.0_wp) enth_cr = cr_override
 
         ! Time control
-        select case(trim(experiment))
+        select case(trim(base_exp))
             case("cold-limit")
                 time_end = 50000.0_wp;  dt = 5.0_wp;  dt_out = 1000.0_wp
             case("kleiner-a")
@@ -285,7 +322,7 @@ contains
                 time_end = 50000.0_wp;  dt = 5.0_wp;  dt_out = 1000.0_wp
         end select
 
-        call setup_experiment(col,c,experiment,nz)
+        call setup_experiment(col,c,base_exp,nz)
 
         write(filename,"(a)") "output/test_enthalpy_"//trim(experiment)//"_"//trim(solver)//".nc"
         call write_init(col,filename)
@@ -297,7 +334,7 @@ contains
         do while (time .lt. time_end - 1e-6_wp)
 
             ! Update time-varying surface forcing
-            if (trim(experiment) .eq. "kleiner-a") then
+            if (trim(base_exp) .eq. "kleiner-a") then
                 col%T_srf = surf_temp_kleiner_a(time,c)
             end if
 
@@ -307,33 +344,67 @@ contains
                     call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                             col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                            col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                            col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                 case("enth")
                     ! enth solver takes basal fluxes in [mW m-2] and converts internally
                     Q_lith = col%Q_rock
-                    call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                            col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                    if (is_cap) then
+                        ! Freeze-on capacity of the stored basal water [m/a ice equiv.]
+                        C_cap = (c%rho_w/c%rho_ice) * col%W_til / dt
+                        call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                            col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                             col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
-                            c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
+                            c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt, &
+                            basal_bc_method="capacity",C_cap=C_cap,Q_wat=0.0_wp,cap_eps=1e-6_wp, &
+                            bmb_star_out=col%bmb_star,bc_b_out=col%bc_b,bmb_clamp_out=col%bmb_clamp)
+                    else
+                        call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                            col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                            col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                            col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
+                            c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt, &
+                            bc_b_out=col%bc_b)
+                    end if
                 case DEFAULT
-                    write(*,*) "run_experiment:: unknown solver: ", trim(solver); stop 1
+                    write(*,*) "run_experiment:: unknown solver: ", trim(solver)
+                    error stop 1
             end select
 
             ! Basal water: accumulate freely with no drainage or cap, following
             ! Kleiner (2015) Exp A. Basal melt (bmb<0) adds water, freeze-on
             ! (bmb>0) removes it; floored at zero. Same water-equivalent
             ! conversion as the solver's W_til_predicted.
-            col%W_til = max(0.0_wp, col%W_til - col%bmb*(c%rho_ice/c%rho_w)*dt)
+            ! Track the water the zero floor creates (freeze-on of water that
+            ! was not there) - ideally zero.
+            W_attempt = col%W_til - col%bmb*(c%rho_ice/c%rho_w)*dt
+            if (W_attempt .lt. 0.0_wp) W_created = W_created - W_attempt
+            col%W_til = max(0.0_wp, W_attempt)
+
+            ! Basal BC statistics (enth solver)
+            if (trim(solver) .eq. "enth") then
+                if (col%bc_b .eq. 1.0_wp) n_held = n_held + 1
+                if (col%bc_b .eq. 2.0_wp) n_flux = n_flux + 1
+                clamp_sum = clamp_sum + col%bmb_clamp*dt
+                if (time .ge. 150000.0_wp .and. t_leave .lt. 0.0_wp .and. &
+                    col%T_ice(1) .lt. col%T_pmp(1) - 0.01_wp) t_leave = time
+            end if
 
             ! Sample steady basal melt (as +melt, mm/a) in the warm and cold phases
-            if (trim(experiment) .eq. "kleiner-a") then
+            if (trim(base_exp) .eq. "kleiner-a") then
                 if (abs(time-148000.0_wp) .lt. 0.5_wp*dt) ab_warm = -col%bmb*1000.0_wp
                 if (abs(time-168000.0_wp) .lt. 0.5_wp*dt) ab_cold = -col%bmb*1000.0_wp
             end if
 
             time = time + dt
+
+            ! Range of the CTS height over the last 1 ka, every step (a steady
+            ! state must not oscillate between output snapshots)
+            if (trim(base_exp) .eq. "kleiner-b" .and. time .gt. time_end - 1000.0_wp) then
+                cts_min = min(cts_min,col%H_cts)
+                cts_max = max(cts_max,col%H_cts)
+            end if
 
             if (time - time_out .ge. dt_out - 1e-6_wp) then
                 call write_step(col,filename,time)
@@ -346,23 +417,40 @@ contains
                 "] T_base = ", col%T_ice(1), " K, bmb = ", col%bmb
 
         ! T4: compare steady polythermal structure to the Kleiner (2015) Exp B
-        ! analytic solution (CTS at 19 m, base water content 2.07%).
+        ! analytic solution (CTS at 19 m, base water content 2.07%), and check
+        ! that the CTS is steady.
         if (trim(experiment) .eq. "kleiner-b" .and. trim(solver) .eq. "enth") then
             write(*,*) ""
             write(*,*) "=== Kleiner Exp B polythermal structure vs analytic (T4) ==="
             write(*,"(a,f7.2,a)")   "  CTS height = ", col%H_cts,   " m     (analytic 19.0 m)"
+            write(*,"(a,f8.4,a)")   "  CTS range  = ", cts_max-cts_min, " m    (last 1 ka, every step)"
             write(*,"(a,f8.4,a)")   "  base omega = ", col%omega(1), "      (analytic 0.0207)"
-            if (abs(col%H_cts-19.0_wp) .lt. 2.0_wp .and. &
-                abs(col%omega(1)-0.0207_wp) .lt. 0.10_wp*0.0207_wp) then
-                write(*,*) "  PASS: CTS within 2 m and base omega within 10% of analytic."
+            if (abs(col%H_cts-19.0_wp) .lt. 0.5_wp .and. cts_max-cts_min .lt. 0.05_wp .and. &
+                abs(col%omega(1)-0.0207_wp) .lt. 0.05_wp*0.0207_wp) then
+                write(*,*) "  PASS: CTS within 0.5 m and steady (range < 5 cm), base omega within 5% of analytic."
             else
                 write(*,*) "  FAIL: exceeds tolerance (try larger nz / smaller cr)."
             end if
             write(*,*) ""
         end if
 
+        ! Basal BC / water consistency summary (Exp A, both rules)
+        if (trim(base_exp) .eq. "kleiner-a" .and. trim(solver) .eq. "enth") then
+            write(*,*) ""
+            write(*,*) "=== Basal BC summary [", trim(experiment), "] ==="
+            write(*,"(a,es12.4,a)") "  water created by W_til zero floor = ", W_created, " m"
+            write(*,"(a,es12.4,a)") "  freeze-on removed by clamp        = ", clamp_sum, " m ice"
+            write(*,"(a,i8,a,i8)")  "  steps held at T_pmp = ", n_held, ",  flux = ", n_flux
+            if (t_leave .ge. 0.0_wp) then
+                write(*,"(a,f10.1,a,f8.1,a)") "  base leaves T_pmp at t = ", t_leave, " a  (", &
+                                              (t_leave-150000.0_wp)/1000.0_wp, " ka after cooling starts)"
+            else
+                write(*,*) "  base stays at T_pmp after cooling starts"
+            end if
+        end if
+
         ! T3: compare warm/cold steady melt to the Kleiner (2015) analytic solution
-        if (trim(experiment) .eq. "kleiner-a" .and. trim(solver) .eq. "enth") then
+        if (trim(base_exp) .eq. "kleiner-a" .and. trim(solver) .eq. "enth") then
             ab_warm_an = analytic_ab_steady(c%T0-10.0_wp,c,col%H_ice)
             ab_cold_an = analytic_ab_steady(c%T0-30.0_wp,c,col%H_ice)
             write(*,*) ""
@@ -418,12 +506,12 @@ contains
             call calc_temp_column(cold_t%enth,cold_t%T_ice,cold_t%omega,cold_t%bmb,cold_t%Q_ice_b, &
                     cold_t%H_cts,cold_t%T_pmp,cold_t%cp,cold_t%kt,cold_t%advecxy,cold_t%uz,cold_t%Q_strn, &
                     cold_t%Q_b,cold_t%Q_rock,cold_t%T_srf,cold_t%T_shlf,cold_t%H_ice,cold_t%W_til,cold_t%f_grnd, &
-                    cold_t%zeta_aa,cold_t%zeta_ac,cold_t%dzeta_a,cold_t%dzeta_b,omega_max,c%T0, &
+                    cold_t%zeta_aa,cold_t%zeta_ac,cold_t%dzeta_a,cold_t%dzeta_b,c%T0, &
                     c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
 
             Q_lith = cold_e%Q_rock
             call calc_enth_column(cold_e%enth,cold_e%T_ice,cold_e%omega,cold_e%bmb,cold_e%Q_ice_b, &
-                    cold_e%H_cts,cold_e%T_pmp,cold_e%cp,cold_e%kt,cold_e%advecxy,cold_e%uz,cold_e%Q_strn, &
+                    cold_e%H_cts,cold_e%T_pmp,cold_e%kt,cold_e%advecxy,cold_e%uz,cold_e%Q_strn, &
                     cold_e%Q_b,Q_lith,cold_e%T_srf,cold_e%T_shlf,cold_e%H_ice,cold_e%W_til,cold_e%f_grnd, &
                     cold_e%zeta_aa,cold_e%zeta_ac,cold_e%dzeta_a,cold_e%dzeta_b,1.0_wp,omega_max,c%T0, &
                     c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
@@ -518,7 +606,7 @@ contains
                 end if
                 call setup_robin_column(col,c,H_ice,T_srf,smb,Qs(iq))
                 ! Initialize enth in the form the solver expects (A1 const or A2 integral)
-                call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,use_int2)
+                call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,use_int2,cp_ref)
                 time = 0.0_wp
                 do while (time .lt. time_end - 1e-6_wp)
                     ! Recompute T-dependent cp and kt each step, exactly as the
@@ -529,12 +617,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=use_int2)
@@ -583,12 +671,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
@@ -708,6 +796,102 @@ contains
         return
     end subroutine setup_thin_column
 
+    subroutine run_shelf_freeze(c,nz,cr_override)
+        ! Thin floating columns, initially temperate (omega = 0.5 %) below a cold
+        ! surface, refrozen from the ocean base held at T_shlf. Exponential zeta
+        ! grid (as in the 3D runs) and the integral enthalpy (A2, the default),
+        ! so the basal layer is thin and Kc*dt/dz^2 is large. Every step, every
+        ! node must stay finite and no colder than the coldest boundary.
+        type(ybound_const_class), intent(IN) :: c
+        integer,                  intent(IN) :: nz
+        real(wp),                 intent(IN) :: cr_override
+
+        type(column_class) :: col
+        integer, parameter :: nH = 4
+        real(wp) :: Hs(nH)
+        real(wp) :: enth_cr, omega_max, dt, time, time_end, T_lim, dT_min, dT_min_all
+        integer  :: ih, k, nz_ac
+        real(wp), allocatable :: zeta_aa(:), zeta_ac(:)
+        logical  :: ok
+
+        Hs = [20.0_wp, 50.0_wp, 100.0_wp, 200.0_wp]
+
+        enth_cr   = 1.0e-3_wp
+        if (cr_override .ge. 0.0_wp) enth_cr = cr_override
+        omega_max = 0.01_wp
+        time_end  = 500.0_wp
+        dt        = 2.0_wp
+
+        call column_alloc(col,nz)
+        call calc_zeta(zeta_aa,zeta_ac,nz_ac,nz,zeta_scale="exp",zeta_exp=2.0_wp)
+        col%zeta_aa = zeta_aa
+        col%zeta_ac = zeta_ac
+        call calc_dzeta_terms(col%dzeta_a,col%dzeta_b,col%zeta_aa,col%zeta_ac)
+
+        write(*,*) ""
+        write(*,*) "=== shelf-freeze: floating temperate column refrozen from base and surface ==="
+        write(*,*) "  H [m] | min(T_ice - T_lim) over run [K] | status"
+
+        ok = .TRUE.
+        dT_min_all = huge(1.0_wp)
+        do ih = 1, nH
+            col%H_ice   = Hs(ih)
+            col%f_grnd  = 0.0_wp
+            col%W_til   = 0.0_wp
+            col%Q_b     = 0.0_wp
+            col%Q_rock  = 0.0_wp
+            col%advecxy = 0.0_wp
+            col%uz      = 0.0_wp
+            col%Q_strn  = 0.0_wp
+            col%bmb     = 0.0_wp
+            col%cp      = 2009.0_wp
+            col%kt      = 2.1_wp * c%sec_year
+            col%T_srf   = c%T0 - 10.0_wp
+            do k = 1, nz
+                col%T_pmp(k) = calc_T_pmp(col%H_ice,col%zeta_aa(k),c%T0,c%T_pmp_beta,c%rho_ice,c%g)
+            end do
+            col%T_shlf  = c%T0 - 1.9_wp                ! ocean freezing point, below T_pmp
+            col%T_ice   = col%T_pmp
+            col%omega   = 0.005_wp
+            col%T_ice(nz) = col%T_srf
+            col%omega(nz) = 0.0_wp
+            call convert_to_enthalpy_ice(col%enth,col%T_ice,col%omega,col%T_pmp,c%L_ice,.TRUE.,cp_ref)
+
+            T_lim  = min(col%T_shlf,col%T_srf)
+            dT_min = huge(1.0_wp)
+            time   = 0.0_wp
+            do while (time .lt. time_end - 1e-6_wp)
+                call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
+                        col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                        col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
+                        col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
+                        c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=.TRUE.)
+                if (any(col%T_ice .ne. col%T_ice)) then
+                    dT_min = -huge(1.0_wp)
+                    exit
+                end if
+                dT_min = min(dT_min,minval(col%T_ice-T_lim))
+                time = time + dt
+            end do
+
+            dT_min_all = min(dT_min_all,dT_min)
+            if (dT_min .gt. -0.01_wp) then
+                write(*,"(a,f6.1,a,es12.3,a)") "  ",Hs(ih)," |   ",dT_min,"                     | ok"
+            else
+                write(*,"(a,f6.1,a,es12.3,a)") "  ",Hs(ih)," |   ",dT_min,"                     | OVERSHOOT/NaN"
+                ok = .FALSE.
+            end if
+        end do
+
+        if (ok) then
+            write(*,*) "  PASS: no node colder than the coldest boundary (tol 0.01 K)."
+        else
+            write(*,*) "  FAIL: a node cooled below the coldest boundary."
+        end if
+        write(*,*) ""
+        return
+    end subroutine run_shelf_freeze
+
     subroutine run_thin_margin(c,nz,cr_override)
         ! Sweep column thickness x horizontal-advection amplitude for both
         ! solvers, reporting the peak |T_ice| reached (a blow-up diagnostic).
@@ -762,12 +946,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
@@ -830,7 +1014,10 @@ contains
         call nc_write(filename,"bmb",    col%bmb,   units="m a-1", long_name="Basal mass balance",     dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"H_cts",  col%H_cts, units="m",     long_name="CTS height",             dim1="time",start=[n],ncid=ncid)
         call nc_write(filename,"W_til",  col%W_til, units="m",     long_name="Basal till water",       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"T_srf",  col%T_srf, units="K",     long_name="Surface temperature",    dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"bmb_star",col%bmb_star,units="m a-1",long_name="bmb of a base held at T_pmp",dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"bc_b",   col%bc_b,  units="1",     long_name="Basal BC: 1 held at T_pmp, 2 flux",dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"bmb_clamp",col%bmb_clamp,units="m a-1",long_name="Freeze-on removed by clamp",dim1="time",start=[n],ncid=ncid)
+call nc_write(filename,"T_srf",  col%T_srf, units="K",     long_name="Surface temperature",    dim1="time",start=[n],ncid=ncid)
         call nc_close(ncid)
         return
     end subroutine write_step

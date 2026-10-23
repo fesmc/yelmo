@@ -30,6 +30,8 @@ program yelmo_mismip
 
     integer :: n_att, n_att_tot, q_att, q
     real(prec), allocatable :: ATT_values(:)
+    real(wp),   allocatable :: H_init(:,:)          ! [m] Analytic initial ice thickness
+    real(wp),   allocatable :: z_srf_init(:,:)      ! [m] Analytic initial surface elevation
     real(prec) :: ATT_time, ATT_dt 
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
@@ -127,7 +129,7 @@ program yelmo_mismip
     else 
 
         write(*,*) "experiment not recognized: ", trim(experiment)
-        stop 
+        error stop 1
 
     end if 
     
@@ -142,7 +144,7 @@ program yelmo_mismip
     if (abs(ny*dx-(ymax-ymin)) .gt. 1e-6*(ymax-ymin)) then
         write(*,*) "yelmo_mismip:: Error: the domain width (ymax-ymin) must be a multiple of dx."
         write(*,*) "ymax-ymin, dx = ", ymax-ymin, dx
-        stop
+        error stop 1
     end if
     call yelmo_init_grid(yelmo1%grd,grid_name,units="km",x0=0.0,dx=dx,nx=int(xmax/dx)+1, &
                             y0=-real(ny/2,prec)*dx,dy=dx,ny=ny)
@@ -150,7 +152,7 @@ program yelmo_mismip
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init,load_topo=.FALSE., &
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(time_init),load_topo=.FALSE., &
                         domain=domain,grid_name=grid_name)
 
     if (trim(experiment) .eq. "RF") then
@@ -172,11 +174,18 @@ program yelmo_mismip
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize output file 
-    call yelmo_write_init(yelmo1,file2D,time_init=time_init,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(time_init),units="years")
     
-    ! Intialize topography 
-    call mismip3D_topo_init(yelmo1%bnd%z_bed,yelmo1%tpo%now%H_ice,yelmo1%tpo%now%z_srf, &
+    ! Intialize topography (bed always; the initial ice thickness only
+    ! if it does not come from the restart file, loaded by yelmo_init)
+    allocate(H_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    allocate(z_srf_init(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    call mismip3D_topo_init(yelmo1%bnd%z_bed,H_init,z_srf_init, &
                             yelmo1%grd%G%x*1e-3,yelmo1%grd%G%y*1e-3,experiment)
+    if (.not. (yelmo1%par%use_restart .and. yelmo1%par%restart_H_ice)) then
+        yelmo1%tpo%now%H_ice = H_init
+        yelmo1%tpo%now%z_srf = z_srf_init
+    end if
 
     ! Initialize the LSF mask from the topography, if not restarting
     if (.not. yelmo1%par%use_restart) then
@@ -184,10 +193,9 @@ program yelmo_mismip
     end if
     
     time     = time_init 
-    yelmo1%dyn%par%use_ssa = .TRUE. 
 
     ! Initialize the yelmo state (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")
 
     ! Write initial state (grounding line on the centreline y=0 and at the channel wall)
     x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
@@ -246,7 +254,7 @@ program yelmo_mismip
 
 
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
 
         x_gl      = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=0.0)
         x_gl_edge = find_x_gl(yelmo1%grd%x*1e-3,yelmo1%grd%y*1e-3,yelmo1%tpo%now%H_grnd,y_abs=ymax)
@@ -273,10 +281,10 @@ program yelmo_mismip
     write(*,*) "nz, H0 = ", yelmo1%par%nz_aa, maxval(yelmo1%tpo%now%H_ice)
 
     ! Write a resart file for diagnostics
-    call yelmo_restart_write(yelmo1,file_restart,time)
+    call yelmo_restart_write(yelmo1,file_restart,dble(time))
     
     ! Finalize program
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
@@ -430,9 +438,9 @@ contains
         call nc_write(filename,"uxy_bar",ylmo%dyn%now%uxy_bar,units="m/a",long_name="Vertically averaged velocity magnitude", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
-        call nc_write(filename,"qq_gl_acx",ylmo%dyn%now%qq_gl_acx,units="m2/a",long_name="Grounding line flux (x)", &
+        call nc_write(filename,"qq_gl_acx",ylmo%dyn%now%qq_gl_acx,units="m3/a",long_name="Grounding line flux (x)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"qq_gl_acy",ylmo%dyn%now%qq_gl_acy,units="m2/a",long_name="Grounding line flux (y)", &
+        call nc_write(filename,"qq_gl_acy",ylmo%dyn%now%qq_gl_acy,units="m3/a",long_name="Grounding line flux (y)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
 
 !         call nc_write(filename,"ux",ylmo%dyn%now%ux,units="m/a",long_name="Horizontal velocity (x)", &

@@ -1,0 +1,13 @@
+name = "YelmoBench"
+uuid = "5b0c7e8a-3f2d-4c61-9a8e-2d7f1b4c6e90"
+version = "0.1.0"
+authors = ["Alexander Robinson <alexander.robinson@awi.de>"]
+
+[deps]
+IceColumnSolutions = "0ea515b4-5d8c-4262-8c88-cbce37f5e8a3"
+IceSheetBenchmarks = "8c4d0a2e-6f3b-4e0a-9f6e-1e2d3a4b5c6d"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+
+[sources]
+IceColumnSolutions = {rev = "main", url = "https://github.com/fesmc/IceColumnSolutions.jl.git"}
+IceSheetBenchmarks = {rev = "main", url = "https://github.com/fesmc/IceSheetBenchmarks.jl.git"}

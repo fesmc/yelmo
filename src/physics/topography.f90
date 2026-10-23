@@ -1,10 +1,10 @@
 module topography 
 
-    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal, &
-                           MASK_FRNT_ICE_FREE, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
+    use yelmo_defs, only : wp, dp, io_unit_err, TOL, is_equal, &
+                           MASK_FRNT_ICE_FREE, MASK_FRNT_ICE_FREE_LAND, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
                            MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
-    use subgrid, only : calc_subgrid_array, calc_subgrid_array_cell
+    use subgrid, only : calc_subgrid_array_quad
 
     implicit none 
 
@@ -18,24 +18,37 @@ module topography
     integer, parameter :: mask_bed_island  = 6
     integer, parameter :: mask_bed_partial = 7
 
+    ! CISM limits of the effective surface at marine-grounded fronts
+    ! ("AIS testing showed that values of 25 m and 0.001 prevent large
+    ! ice speeds that can lead to instability")
+    ! Ice thinner than H_ice_eps is ice free for the area fraction (f_ice = 0)
+    ! and the front classification. A cell holding round-off amounts of ice
+    ! would otherwise become a front cell with the full reference thickness
+    ! H_eff >= front_H_eff_min, so that the front force would jump by one cell
+    ! on round-off (CISM uses thck > eps11 for the same masks, in double
+    ! precision).
+    real(wp), parameter :: H_ice_eps     = 1e-3_wp  ! [m]
+    real(wp), parameter :: dz_srf_max    = 25.0_wp  ! [m]   z_srf_eff - z_srf
+    real(wp), parameter :: dz_srf_dx_max = 0.001_wp ! [m/m] upward surface slope at the front
+
     private  
 
     public :: gen_mask_bed
+    public :: calc_column_kinematic_rates
 
     public :: calc_ice_fraction
-    public :: calc_ice_fraction_new
-    public :: calc_ice_fraction_lsf
+    public :: calc_front_H_ref
+    public :: calc_lsf_area_fraction
+    public :: calc_front_cells
     public :: calc_ice_front
 
-    public :: calc_z_srf
     public :: calc_z_srf_max
-    public :: calc_z_srf_gl_subgrid_area
     public :: calc_H_eff
     public :: calc_H_grnd
     public :: calc_H_af
-    public :: calc_f_grnd_subgrid_area_aa
-    public :: calc_f_grnd_subgrid_area
     public :: calc_f_grnd_subgrid_linear
+    public :: calc_f_grnd_subgrid_area
+    public :: bilinear_grounded_fraction
     public :: calc_f_grnd_pinning_points
     public :: remove_englacial_lakes
     public :: calc_distance_to_ice_margin
@@ -43,12 +56,12 @@ module topography
     public :: calc_grounding_line_zone
     public :: calc_bmb_total
     public :: calc_fmb_total
+    public :: calc_melt_rate_rignot16
     
     ! ajr: these routines are slow, do not use...
     !public :: distance_to_grline
     !public :: distance_to_margin
     
-    public :: determine_grounded_fractions
 
     ! Integers
     public :: mask_bed_ocean  
@@ -60,6 +73,71 @@ module topography
     public :: mask_bed_island
     
 contains 
+
+    subroutine calc_column_kinematic_rates(dzsdt_kin,dzbdt_kin,mask_kin,dHidt_vert,advanced,f_grnd,f_ice, &
+                                            H_ice,H_ice_dyn,H_ice_n,H_ice_dyn_n,dz_bed_dt,dz_sl_dt,rho_ice,rho_sw)
+        ! Kinematic rates of the surface and base of the ice column, the
+        ! boundary conditions of the vertical velocity. Grounded ice: the base
+        ! follows the bedrock; floating ice: the column floats at sea level
+        ! (z_b = z_sl - rho_ice/rho_sw*H). Blended by the grounded fraction.
+        ! dHidt_vert holds only vertical changes of the column (not calving,
+        ! front advance or removals) and follows the actual thickness, so it
+        ! is only the column's rate where the column is the actual ice
+        ! (H_ice_dyn == H_ice) at the start and the end of the step. Elsewhere
+        ! (partial front cells, cells on the H_eff floor, newly ice-covered
+        ! cells) the column is re-derived: zero rates.
+        ! mask_kin marks the columns whose rate is given by the thickness step
+        ! applied this step (valid column and ice advanced), where the vertical
+        ! velocity can be closed against the applied thickness tendency.
+
+        implicit none
+
+        real(wp), intent(OUT) :: dzsdt_kin(:,:)     ! [m/a]
+        real(wp), intent(OUT) :: dzbdt_kin(:,:)     ! [m/a]
+        integer,  intent(OUT) :: mask_kin(:,:)
+        real(wp), intent(IN)  :: dHidt_vert(:,:)    ! [m/a]
+        logical,  intent(IN)  :: advanced           ! Ice thickness advanced this step
+        real(wp), intent(IN)  :: f_grnd(:,:)
+        real(wp), intent(IN)  :: f_ice(:,:)
+        real(wp), intent(IN)  :: H_ice(:,:)         ! [m] Thickness at the end of the step
+        real(wp), intent(IN)  :: H_ice_dyn(:,:)     ! [m] Active column thickness at the end of the step
+        real(wp), intent(IN)  :: H_ice_n(:,:)       ! [m] Thickness at the start of the step
+        real(wp), intent(IN)  :: H_ice_dyn_n(:,:)   ! [m] Active column thickness at the start of the step
+        real(wp), intent(IN)  :: dz_bed_dt(:,:)     ! [m/a]
+        real(wp), intent(IN)  :: dz_sl_dt(:,:)      ! [m/a]
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+
+        integer  :: i, j, nx, ny
+        real(wp) :: rho_frac, dzb_flt
+
+        nx = size(dzsdt_kin,1)
+        ny = size(dzsdt_kin,2)
+
+        rho_frac = rho_ice/rho_sw
+
+        !$omp parallel do collapse(2) private(i,j,dzb_flt)
+        do j = 1, ny
+        do i = 1, nx
+            if (f_ice(i,j) .eq. 1.0_wp .and. H_ice_n(i,j) .gt. 0.0_wp .and. &
+                H_ice_dyn(i,j) .eq. H_ice(i,j) .and. H_ice_dyn_n(i,j) .eq. H_ice_n(i,j)) then
+                dzb_flt        = dz_sl_dt(i,j) - rho_frac*dHidt_vert(i,j)
+                dzbdt_kin(i,j) = f_grnd(i,j)*dz_bed_dt(i,j) + (1.0_wp-f_grnd(i,j))*dzb_flt
+                dzsdt_kin(i,j) = dzbdt_kin(i,j) + dHidt_vert(i,j)
+                mask_kin(i,j)  = merge(1,0,advanced)
+            else
+                dzbdt_kin(i,j) = 0.0_wp
+                dzsdt_kin(i,j) = 0.0_wp
+                mask_kin(i,j)  = 0
+            end if
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_column_kinematic_rates
+
 
     elemental subroutine gen_mask_bed(mask,f_ice,f_pmp,f_grnd,mask_grline)
         ! Generate an output mask for model conditions at bed
@@ -78,7 +156,7 @@ contains
 
             mask = mask_bed_grline
 
-        else if ( is_equal(f_ice,0.0_wp) ) then 
+        else if ( f_ice .eq. 0.0_wp ) then 
             ! Ice-free points 
 
             if (f_grnd .gt. 0.0) then
@@ -129,504 +207,420 @@ contains
 
     end subroutine gen_mask_bed
 
-    subroutine find_connected_mask(mask,mask_ref,mask_now,boundaries)
-        ! Brute-force routine to find all points 
-        ! that touch or are connected with other points in a mask.
-        ! Here use to find any floating ice points that are
-        ! not connected to grounded ice or ice-free land. 
-
-        ! AJR: TO DO, this routine is not ready!!!
-
-        implicit none 
-
-        logical, intent(INOUT) :: mask(:,:)         ! Connected points of interest
-        logical, intent(IN)    :: mask_ref(:,:)     ! Points to be connected to
-        logical, intent(IN)    :: mask_now(:,:)     ! Points of interest
-        character(len=*), intent(IN) :: boundaries
-    
-        ! Local variables 
-        integer :: i, j, q, nx, ny
-        integer :: im1, ip1, jm1, jp1 
-        integer :: n_unfilled 
-        integer :: BC
-
-        logical, allocatable :: mask0(:,:) 
-
-        integer, parameter :: qmax = 1000 
-
-        nx = size(mask,1)
-        ny = size(mask,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Allocate local mask object for diagnosing points of interest
-        allocate(mask0(nx,ny))
-
-        ! Initially assume all points are unconnected
-        mask = .FALSE. 
-
-        ! Set purely land points to zero 
-        where (mask_ref .and. mask_now) mask = .TRUE. 
-
-        ! Iteratively fill in open-ocean points that are found
-        ! next to known open-ocean points
-        do q = 1, qmax 
-
-            n_unfilled = 0 
-
-            do j = 1, ny 
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                if (mask_now(i,j)) then 
-                    ! This is a point of interest
-                    ! Define any neighbor points of interest as connected
-
-                    if (mask_now(im1,j)) then 
-                        mask(im1,j) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                    if (mask_now(ip1,j)) then 
-                        mask(ip1,j) = .TRUE. 
-                        n_unfilled = n_unfilled + 1
-                    end if
-
-                    if (mask_now(i,jm1)) then 
-                        mask(i,jm1) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                    if (mask_now(i,jp1)) then 
-                        mask(i,jp1) = .TRUE.
-                        n_unfilled = n_unfilled + 1
-                    end if 
-
-                end if
-                    
-            end do 
-            end do  
-
-            !write(*,*) q, n_unfilled, count(mask .eq. -1) 
-
-            ! Exit loop if no more open-ocean points are found 
-            if (n_unfilled .eq. 0) exit 
-
-        end do 
-
-        return 
-
-    end subroutine find_connected_mask
-    
-    subroutine calc_ice_fraction_new(f_ice,H_ice,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Determine the area fraction of a grid cell
-        ! that is ice-covered. Assume that marginal points
-        ! have equal thickness to inland neighbors 
-
-        ! Note: routine works well, but apparently not as stable as routine below
-        ! for GRL-16KM initmip tests. Reasons are not really clear (ajr, 2022-02-24)
-
-        implicit none 
-
-        real(wp), intent(OUT) :: f_ice(:,:)             ! [--] Ice covered fraction (aa-nodes)
-        real(wp), intent(IN)  :: H_ice(:,:)             ! [m] Ice thickness on standard grid (aa-nodes)
-        real(wp), intent(IN)  :: z_bed(:,:)             ! [m] Bedrock elevation
-        real(wp), intent(IN)  :: z_sl(:,:)              ! [m] Sea-level elevation
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: rho_sw 
-        character(len=*), intent(IN) :: boundaries
-        logical, optional     :: flt_subgrid            ! Option to allow fractions for floating ice margins             
-        
-        ! Local variables 
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: H_eff  
-        logical  :: get_fractional_cover 
-
-        real(wp) :: H_neighb(4)
-        logical  :: cf_neighb(4) 
-        logical  :: mask(4) 
-        real(wp), allocatable :: H_grnd(:,:)            ! [m] Thickness until flotation - floating if H_grnd<=0 (aa-nodes)
-        logical, allocatable :: mask_cf(:,:) 
-        integer  :: BC
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        allocate(H_grnd(nx,ny))
-        allocate(mask_cf(nx,ny)) 
-
-        ! By default, fractional cover will be determined
-        get_fractional_cover = .TRUE. 
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid 
-
-        if (get_fractional_cover) then 
-            ! Calculate H_grnd, without accounting for fractional ice cover
-            call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
-        end if 
-
-        ! Initialize mask_cf to False 
-        mask_cf = .FALSE. 
-
-        ! Initialize f_ice to binary values first 
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp 
-        elsewhere
-            f_ice = 0.0_wp 
-        end where
-
-        if (get_fractional_cover) then 
-            ! For floating ice-covered points with ice-free neighbors (ie, at the floating calving margin),
-            ! determine the fraction of grid point that should be ice covered. 
-
-            ! First determine which points are at the floating calving front.
-
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-    
-                ! Determine calving front mask 
-                if (H_ice(i,j) .gt. 0.0 .and. H_grnd(i,j) .lt. 0.0) then 
-                    ! Current point is floating 
-
-                    ! If any neighbor is ice-free ocean (ie, is grounded below sea level),
-                    ! then this point is a calving front point.
-                    mask_cf(i,j) = .FALSE. 
-                    if (H_ice(im1,j) .eq. 0.0 .and. H_grnd(im1,j) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(ip1,j) .eq. 0.0 .and. H_grnd(ip1,j) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(i,jm1) .eq. 0.0 .and. H_grnd(i,jm1) .lt. 0.0) mask_cf(i,j) = .TRUE.
-                    if (H_ice(i,jp1) .eq. 0.0 .and. H_grnd(i,jp1) .lt. 0.0) mask_cf(i,j) = .TRUE.
-
-                end if 
-
-            end do 
-            end do
-
-            ! Next calculate the effective ice thickness of points at the 
-            ! calving front and determine f_ice. 
-
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                if (mask_cf(i,j)) then 
-                    ! This is a calving front point 
-
-                    H_neighb  = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                    cf_neighb = [mask_cf(im1,j),mask_cf(ip1,j),mask_cf(i,jm1),mask_cf(i,jp1)]
-                    
-                    ! Get a mask of available ice-covered neighbors that are not
-                    ! at the calving front. 
-                    mask = H_neighb .gt. 0.0 .and. (.not. cf_neighb)
-                    
-                    if ( count(mask) .eq. 0 ) then 
-                        ! This point does not have any upstream ice-covered neighbors,
-                        ! simply assign a fraction of 1.0.
-
-                        f_ice(i,j) = 1.0_wp 
-
-                    else
-                        ! This point does have upstream ice-covered neighbors,
-                        ! determine fraction.
-
-                        H_eff = minval(H_neighb,mask=mask)
-
-                        ! If thickest upstream ice is thinner than current
-                        ! point, then set effective ice thickness equal
-                        ! to that of current point. This ensures
-                        ! f_ice below will be bounded 0 < f_ice <= 1
-                        if (H_eff .lt. H_ice(i,j)) H_eff = H_ice(i,j) 
-
-                        ! Determine the cell ice fraction
-                        ! Note: fraction is determined as a ratio of 
-                        ! thicknesses, derived from volume conservation 
-                        ! vol = H_ice*dx*dy = H_eff*area_frac 
-                        ! f_ice = area_frac / (dx*dy)
-                        ! f_ice = H_ice/H_eff 
-                        
-                        f_ice(i,j) = H_ice(i,j) / H_eff
-                        
-                    end if 
-
-                end if 
-
-            end do 
-            end do 
-
-        end if 
-
-        return 
-
-    end subroutine calc_ice_fraction_new
-    
-    subroutine calc_ice_fraction(f_ice,H_ice,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Determine the area fraction of a grid cell
-        ! that is ice-covered. Assume that marginal points
-        ! have equal thickness to inland neighbors 
-
-        implicit none 
-
-        real(wp), intent(OUT) :: f_ice(:,:)             ! [--] Ice covered fraction (aa-nodes)
-        real(wp), intent(IN)  :: H_ice(:,:)             ! [m] Ice thickness on standard grid (aa-nodes)
-        real(wp), intent(IN)  :: z_bed(:,:)             ! [m] Bedrock elevation
-        real(wp), intent(IN)  :: z_sl(:,:)              ! [m] Sea-level elevation
-        real(wp), intent(IN)  :: rho_ice
-        real(wp), intent(IN)  :: rho_sw
-        character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN), optional :: flt_subgrid   ! Option to allow fractions for floating ice margins             
-        
-        ! Local variables 
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: H_eff  
-        logical  :: get_fractional_cover 
-
-        real(wp) :: H_neighb(4)
-        real(wp) :: Hg_neighb(4)
-        logical  :: float_neighb(4)
-        integer  :: n_neighb(4)
-        logical  :: mask(4) 
-        logical  :: mask_grnd(4)
-        integer  :: n_now
-        integer, allocatable  :: n_ice(:,:) 
-        real(wp), allocatable :: H_grnd(:,:)            ! [m] Thickness until flotation - floating if H_grnd<=0 (aa-nodes)
-        integer  :: BC
-
-        real(wp), parameter :: H_lim        = 100.0_wp 
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        allocate(n_ice(nx,ny))
-        allocate(H_grnd(nx,ny))
-
-        ! By default, fractional cover will be determined
-        get_fractional_cover = .TRUE. 
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid 
-
-        if (get_fractional_cover) then 
-            ! Calculate H_grnd, without accounting for fractional ice cover
-            call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
-        end if 
-
-        ! Initialize f_ice to binary values first 
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp 
-        elsewhere
-            f_ice = 0.0_wp 
-        end where
-
-        if (get_fractional_cover) then
-            ! For ice-covered points with ice-free neighbors (ie, at the floating or grounded margin),
-            ! determine the fraction of grid point that should be ice covered. 
-
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1, H_neighb,mask)
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-                
-                ! Count how many neighbors are ice covered  
-                H_neighb   = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                mask       = H_neighb .gt. 0.0_wp 
-                n_ice(i,j) = count(mask) 
-
-                ! ajr: test.
-                ! Count how many neighbors are ice covered and floating
-                ! This appears to perform worse.
-                ! H_neighb   = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-                ! Hg_neighb  = [H_grnd(im1,j),H_grnd(ip1,j),H_grnd(i,jm1),H_grnd(i,jp1)]
-                ! mask       = H_neighb .gt. 0.0_wp .and. Hg_neighb .le. 0.0_wp 
-                ! n_ice(i,j) = count(mask) 
-
-            end do 
-            end do
-            !$omp end parallel do
-
-            ! Determine ice fractional cover for margin points 
-
-            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1, H_neighb,mask,n_now,H_eff)
-            do j = 1, ny
-            do i = 1, nx 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-                
-                if (H_ice(i,j) .gt. 0.0_wp .and. n_ice(i,j) .eq. 0) then 
-                    ! First, treat a special case:
-                    ! Island point, assume the cell is fully covered
-                    ! to ensure it is dynamically active.
-
-                    f_ice(i,j) = 1.0_wp
-
-                else if (H_ice(i,j) .gt. 0.0_wp .and. n_ice(i,j) .lt. 4) then
-                    ! This point is ice-covered, but is at the ice margin 
-
-                    ! Get neighbor ice thicknesses
-                    H_neighb = [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)]
-
-                    ! Use all ice-bearing neighbors as upstream references.
-                    ! Dropping the (n_neighb == 4) "fully interior" filter
-                    ! removes a discrete neighbor-classification switch that
-                    ! seeds asymmetries on symmetric problems.
-                    mask     = H_neighb .gt. 0.0_wp
-                    n_now    = count(mask)
-
-                    if (H_grnd(i,j) .le. 0.0) then
-                        ! Floating point
-
-                        if (n_now .gt. 0) then
-                            ! Get mean value of upstream neighbors.
-                            ! Using mean (instead of minval) makes H_eff a
-                            ! continuous function of neighbor thicknesses,
-                            ! removing the discrete switch that otherwise
-                            ! seeds asymmetries on symmetric problems.
-                            H_eff = sum(H_neighb,mask=mask) / real(n_now,wp)
-                        else
-                            ! No upstream neighbors available, compare
-                            ! ice thickness against minimum allowed
-                            ! 'full' ice thickness value H_lim.
-                            H_eff = max(H_ice(i,j),H_lim)
-                        end if
-
-                    else 
-                        ! Grounded point, set H_eff = H_ice following CISM
-                        ! (do not allow partially filled cells for grounded ice)
-
-                        H_eff = H_ice(i,j) 
-
-                    end if
-                
-                    ! Determine the cell ice fraction
-                    ! Note: fraction is determined as a ratio of 
-                    ! thicknesses, derived from volume conservation 
-                    ! vol = H_ice*dx*dy = H_eff*area_frac 
-                    ! f_ice = area_frac / (dx*dy)
-                    ! f_ice = H_ice/H_eff 
-                    ! Note: H_eff == 0.0 probably won't happen, but keep if-statement 
-                    ! for safety 
-
-                    if (H_eff .gt. 0.0_wp) then 
-                        f_ice(i,j) = min( H_ice(i,j) / H_eff, 1.0_wp )
-                        if (f_ice(i,j) .lt. TOL) f_ice(i,j) = TOL
-                    else 
-                        f_ice(i,j) = 1.0_wp 
-                    end if 
-                
-                end if 
-
-            end do 
-            end do 
-            !$omp end parallel do
-
-        end if 
-
-        return 
-
-    end subroutine calc_ice_fraction
-
-    subroutine calc_ice_fraction_lsf(f_ice,H_ice,lsf,z_bed,z_sl,rho_ice,rho_sw,boundaries,flt_subgrid)
-        ! Alternative to calc_ice_fraction: derive the floating-ice area
-        ! fraction of each cell geometrically from the level-set function.
-        ! Corner LSF values are obtained by averaging the four surrounding
-        ! aa-node lsf values, then the negative-LSF area inside each unit
-        ! cell is computed via marching-squares (linear edge interpolation).
+    subroutine calc_ice_fraction(f_ice,H_eff,H_ice,z_bed,z_sl,rho_ice,rho_sw, &
+                                    front_subgrid,H_eff_min,dHdx,dx,boundaries,a_lsf)
+        ! Ice area fraction f_ice and effective thickness H_eff of each cell,
+        ! following the CISM subgrid calving-front scheme (which_ho_calving_front).
         !
-        ! Behaviour matches calc_ice_fraction in the binary cases:
-        !   - flt_subgrid == .FALSE. : f_ice is binary everywhere (1 where
-        !     H_ice > 0, 0 elsewhere). The LSF geometry is unused.
-        !   - Grounded ice (H_grnd > 0): f_ice = 1 always.
-        ! Only floating, ice-bearing cells receive a fractional value drawn
-        ! from the LSF zero-crossing geometry. Cells with H_ice == 0 are
-        ! forced to f_ice = 0 so H_eff = H_ice/f_ice stays well-defined.
+        ! front_subgrid = "none":     f_ice binary, H_eff = H_ice.
+        ! front_subgrid = "floating": floating cells can be partial front cells.
+        ! front_subgrid = "marine":   floating and marine-grounded cells can be.
+        !
+        ! A front cell is an eligible ice cell with an ice-free ocean edge
+        ! neighbour (with the level set a_lsf, also one cut by the front that
+        ! touches the ocean at a corner; calc_front_cells). Its H_eff is the
+        ! reference thickness from its interior (eligible, not front)
+        ! neighbours (calc_front_H_ref); for "marine" the
+        ! effective surface is also at most dz_srf_max above the actual
+        ! surface. Front cells without an interior neighbour keep H_eff = H_ice.
+        ! With the level set, front cells entirely behind the front (a_lsf = 1)
+        ! take no reference either: the level set sets their area fraction,
+        ! so they are full (H_eff = H_ice, above H_eff_min).
+        ! H_eff >= H_eff_min in front cells, and <= flotation in floating
+        ! front cells ("floating"); H_eff = H_ice in all other ice cells.
+        ! f_ice = min(H_ice/H_eff,1) in front cells, 1 in other ice cells
+        ! (H_ice > H_ice_eps), 0 elsewhere.
 
-        implicit none
+        implicit none 
 
-        real(wp), intent(OUT) :: f_ice(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: lsf(:,:)
-        real(wp), intent(IN)  :: z_bed(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
+        real(wp), intent(OUT) :: f_ice(:,:)             ! [--] Ice covered fraction (aa-nodes)
+        real(wp), intent(OUT) :: H_eff(:,:)             ! [m]  Effective ice thickness (aa-nodes)
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness (aa-nodes)
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
+        real(wp), intent(IN)  :: H_eff_min              ! [m]  Minimum H_eff of front cells
+        real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
+        real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN), optional :: flt_subgrid
+        real(wp), optional, intent(IN) :: a_lsf(:,:)    ! [--] Level-set area fraction (LSF calving)
 
-        integer  :: i, j, nx, ny, BC
-        integer  :: im1, ip1, jm1, jp1
-        real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
-        real(wp) :: f_geom
-        logical  :: get_fractional_cover
-        real(wp), allocatable :: H_grnd(:,:)
+        ! Local variables 
+        integer  :: i, j, nx, ny
+        real(wp) :: z_srf_eff, z_srf_max
+        logical  :: is_none, is_flt, is_mar             ! front_subgrid choice
+        logical, allocatable  :: mask_elig(:,:)         ! Eligible (marine) ice cells
+        logical, allocatable  :: mask_cf(:,:)           ! Front cells (eligible, ocean edge neighbour)
+        logical, allocatable  :: mask_ocn(:,:)          ! Ice-free ocean cells
+        logical, allocatable  :: has_ref(:,:)           ! Front cells with an interior neighbour
+        logical, allocatable  :: mask_ref(:,:)          ! Front cells that take a reference
+        real(wp), allocatable :: H_ref(:,:)             ! [m] Reference thickness of front cells
+        real(wp), allocatable :: H_flot(:,:)            ! [m] Flotation thickness
 
-        nx = size(lsf,1)
-        ny = size(lsf,2)
-        BC = boundary_code(boundaries)
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
 
-        get_fractional_cover = .TRUE.
-        if (present(flt_subgrid)) get_fractional_cover = flt_subgrid
+        is_none = trim(front_subgrid) .eq. "none"
+        is_flt  = trim(front_subgrid) .eq. "floating"
+        is_mar  = trim(front_subgrid) .eq. "marine"
 
-        ! Initialise as a binary mask, same as calc_ice_fraction.
-        where(H_ice .gt. 0.0_wp)
-            f_ice = 1.0_wp
-        elsewhere
-            f_ice = 0.0_wp
-        end where
+        if (.not. is_none) allocate(H_flot(nx,ny))
 
-        if (.not. get_fractional_cover) return
+        ! Binary defaults (and flotation thickness)
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny
+        do i = 1, nx
+            if (H_ice(i,j) .gt. H_ice_eps) then
+                f_ice(i,j) = 1.0_wp
+                H_eff(i,j) = H_ice(i,j)
+            else
+                f_ice(i,j) = 0.0_wp
+                H_eff(i,j) = 0.0_wp
+            end if
+            if (.not. is_none) H_flot(i,j) = max( (z_sl(i,j)-z_bed(i,j))*rho_sw/rho_ice, 0.0_wp )
+        end do
+        end do
+        !$omp end parallel do
 
-        ! Compute H_grnd to identify floating cells.
-        allocate(H_grnd(nx,ny))
-        call calc_H_grnd(H_grnd,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw,use_f_ice=.FALSE.)
+        if (is_none) return
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_BL,phi_BR,phi_TR,phi_TL,f_geom)
+        allocate(mask_elig(nx,ny))
+        allocate(mask_cf(nx,ny))
+        allocate(mask_ocn(nx,ny))
+        allocate(has_ref(nx,ny))
+        allocate(H_ref(nx,ny))
+        allocate(mask_ref(nx,ny))
+
+        call calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
+
+        ! Front cells entirely behind the level-set front take no reference
+        mask_ref = mask_cf
+        if (present(a_lsf)) mask_ref = mask_cf .and. a_lsf .lt. 1.0_wp
+
+        call calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_ref, &
+                              mask_elig .and. .not. mask_cf,front_subgrid,dHdx,dx,boundaries)
+
+        !$omp parallel do collapse(2) private(i,j,z_srf_eff,z_srf_max)
         do j = 1, ny
         do i = 1, nx
 
-            ! Only revise floating, ice-bearing cells; everything else keeps
-            ! the binary value set above.
-            if (H_ice(i,j) .le. 0.0_wp) cycle
-            if (H_grnd(i,j) .gt. 0.0_wp) cycle
+            if (has_ref(i,j)) then
 
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                H_eff(i,j) = H_ref(i,j)
 
-            ! Corner LSF values via averaging the four adjacent aa-node values.
-            phi_BL = 0.25_wp*(lsf(im1,jm1) + lsf(i,jm1) + lsf(im1,j) + lsf(i,j))
-            phi_BR = 0.25_wp*(lsf(i,jm1)   + lsf(ip1,jm1) + lsf(i,j)   + lsf(ip1,j))
-            phi_TR = 0.25_wp*(lsf(i,j)     + lsf(ip1,j)   + lsf(i,jp1) + lsf(ip1,jp1))
-            phi_TL = 0.25_wp*(lsf(im1,j)   + lsf(i,j)     + lsf(im1,jp1) + lsf(i,jp1))
+                if (is_mar) then
+                    ! Limit the effective surface to dz_srf_max above the actual surface
+                    z_srf_eff = srf_elev(H_eff(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+                    z_srf_max = srf_elev(H_ice(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw) + dz_srf_max
+                    if (z_srf_eff .gt. z_srf_max) &
+                        H_eff(i,j) = srf_thickness(z_srf_max,z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+                end if
 
-            f_geom = lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL)
+            end if
 
-            ! Keep mass-bearing cells nonzero so H_eff stays finite even if
-            ! the LSF and H_ice fields disagree about coverage transiently.
-            if (f_geom .lt. TOL) f_geom = TOL
+            ! Lower limit in front cells (most fronts are at least a few tens of metres thick)
+            if (mask_cf(i,j)) H_eff(i,j) = max(H_eff(i,j), H_eff_min)
 
-            f_ice(i,j) = f_geom
+            ! Floating fronts do not exceed flotation (allows H_eff < H_eff_min in shallow water)
+            if (is_flt .and. mask_cf(i,j)) H_eff(i,j) = min(H_eff(i,j), H_flot(i,j))
+
+            ! Area fraction of front cells
+            if (mask_cf(i,j) .and. H_eff(i,j) .gt. 0.0_wp) f_ice(i,j) = max( min(H_ice(i,j)/H_eff(i,j), 1.0_wp), TOL )
 
         end do
         end do
         !$omp end parallel do
 
-        deallocate(H_grnd)
+        return 
+
+    end subroutine calc_ice_fraction
+
+    subroutine calc_front_H_ref(H_ref,has_ref,H_ice,z_bed,z_sl,rho_ice,rho_sw,mask_tgt,mask_int, &
+                                    front_subgrid,dHdx,dx,boundaries)
+        ! Reference (full-column) thickness of subgrid front cells, independent
+        ! of the cell's own thickness: the thickest interior edge neighbour, or
+        ! diagonal neighbour if there is none, minus dHdx*distance. Floating
+        ! neighbours are capped at their flotation thickness ("floating"); for
+        ! "marine" the effective surface rises at most dz_srf_dx_max*distance
+        ! above the neighbour's surface. has_ref is false for target cells
+        ! without an interior neighbour and outside mask_tgt (H_ref = 0).
+
+        implicit none
+
+        real(wp), intent(OUT) :: H_ref(:,:)             ! [m]  Reference thickness
+        logical,  intent(OUT) :: has_ref(:,:)           ! Reference found
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        logical,  intent(IN)  :: mask_tgt(:,:)          ! Cells that need a reference
+        logical,  intent(IN)  :: mask_int(:,:)          ! Interior cells (references)
+        character(len=*), intent(IN) :: front_subgrid   ! "floating" or "marine"
+        real(wp), intent(IN)  :: dHdx                   ! [m/m] Thickness gradient assumed at a full front
+        real(wp), intent(IN)  :: dx                     ! [m]  Grid resolution
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, k, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: in(8), jn(8)
+        integer  :: k_max
+        real(wp) :: H_nb, H_max, dist
+        real(wp) :: z_srf_eff, z_srf_max, z_srf_nb
+        logical  :: is_flt, is_mar
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        is_flt = trim(front_subgrid) .eq. "floating"
+        is_mar = trim(front_subgrid) .eq. "marine"
+
+        !$omp parallel do collapse(2) private(i,j,k,im1,ip1,jm1,jp1,in,jn,k_max,H_nb,H_max,dist) &
+        !$omp& private(z_srf_eff,z_srf_max,z_srf_nb)
+        do j = 1, ny
+        do i = 1, nx
+
+            H_ref(i,j)   = 0.0_wp
+            has_ref(i,j) = .FALSE.
+
+            if (.not. mask_tgt(i,j)) cycle
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Edge neighbours (1-4), then diagonal neighbours (5-8)
+            in = [im1,ip1,i,i,  im1,ip1,im1,ip1]
+            jn = [j,j,jm1,jp1,  jm1,jm1,jp1,jp1]
+
+            ! Thickest interior edge neighbour, else thickest interior diagonal
+            k_max = 0
+            H_max = 0.0_wp
+            do k = 1, 8
+                if (k .eq. 5 .and. k_max .gt. 0) exit
+                if (.not. mask_int(in(k),jn(k))) cycle
+                H_nb = H_ice(in(k),jn(k))
+                if (is_flt) H_nb = min(H_nb, max( (z_sl(in(k),jn(k))-z_bed(in(k),jn(k)))*rho_sw/rho_ice, 0.0_wp ))
+                if (H_nb .gt. H_max) then
+                    H_max = H_nb
+                    k_max = k
+                end if
+            end do
+
+            if (k_max .eq. 0) cycle
+
+            dist = dx
+            if (k_max .gt. 4) dist = sqrt(2.0_wp)*dx
+
+            H_ref(i,j)   = H_max - dHdx*dist
+            has_ref(i,j) = .TRUE.
+
+            if (is_mar) then
+                ! Limit the upward slope of the effective surface from the neighbour
+                z_srf_nb  = srf_elev(H_ice(in(k_max),jn(k_max)),z_bed(in(k_max),jn(k_max)),z_sl(in(k_max),jn(k_max)), &
+                                     rho_ice,rho_sw)
+                z_srf_eff = srf_elev(H_ref(i,j),z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+                z_srf_max = z_srf_nb + dz_srf_dx_max*dist
+                if (z_srf_eff .gt. z_srf_max) H_ref(i,j) = srf_thickness(z_srf_max,z_bed(i,j),z_sl(i,j),rho_ice,rho_sw)
+            end if
+
+        end do
+        end do
+        !$omp end parallel do
 
         return
 
-    end subroutine calc_ice_fraction_lsf
+    end subroutine calc_front_H_ref
+
+    pure function srf_elev(H,zb,zsl,rho_ice,rho_sw) result(zs)
+        ! Surface elevation of a column: floating or grounded
+        real(wp), intent(IN) :: H, zb, zsl, rho_ice, rho_sw
+        real(wp) :: zs
+        if (zb - zsl .lt. -rho_ice/rho_sw*H) then
+            zs = zsl + (1.0_wp - rho_ice/rho_sw)*H
+        else
+            zs = zb + H
+        end if
+    end function srf_elev
+
+    pure function srf_thickness(zs,zb,zsl,rho_ice,rho_sw) result(H)
+        ! Thickness of a column with surface zs: floating, or grounded if thinner
+        real(wp), intent(IN) :: zs, zb, zsl, rho_ice, rho_sw
+        real(wp) :: H
+        H = min( (zs - zsl)*rho_sw/(rho_sw-rho_ice), zs - zb )
+    end function srf_thickness
+
+    subroutine calc_front_cells(mask_cf,mask_elig,mask_ocn,H_ice,z_bed,z_sl,rho_ice,rho_sw,front_subgrid,boundaries,a_lsf)
+        ! Front cells of the subgrid front scheme (ytopo.front_subgrid):
+        ! eligible ice cells (floating, or floating and marine-grounded)
+        ! with at least one ice-free ocean edge neighbour. With the level-set
+        ! area fraction a_lsf (LSF calving), eligible cells not entirely behind
+        ! the front (a_lsf < 1) that touch the ocean only at a corner are front
+        ! cells too. This is the one front/interior classification of the
+        ! level-set trim (calc_G_lsf_front) and of calc_ice_fraction. With
+        ! "none" no cell is eligible.
+
+        implicit none
+
+        logical,  intent(OUT) :: mask_cf(:,:)           ! Front cells
+        logical,  intent(OUT) :: mask_elig(:,:)         ! Eligible ice cells
+        logical,  intent(OUT) :: mask_ocn(:,:)          ! Ice-free ocean cells
+        real(wp), intent(IN)  :: H_ice(:,:)
+        real(wp), intent(IN)  :: z_bed(:,:)
+        real(wp), intent(IN)  :: z_sl(:,:)
+        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN)  :: rho_sw
+        character(len=*), intent(IN) :: front_subgrid   ! "none", "floating" or "marine"
+        character(len=*), intent(IN) :: boundaries
+        real(wp), optional, intent(IN) :: a_lsf(:,:)    ! [--] Area fraction behind the level-set front
+
+        ! Local variables
+        integer :: i, j, nx, ny, im1, ip1, jm1, jp1, BC
+        integer :: elig                                 ! 0: none, 1: floating, 2: marine
+
+        nx = size(H_ice,1)
+        ny = size(H_ice,2)
+        BC = boundary_code(boundaries)
+
+        select case(trim(front_subgrid))
+            case("none")
+                elig = 0
+            case("floating")
+                elig = 1
+            case("marine")
+                elig = 2
+            case DEFAULT
+                write(io_unit_err,*) "calc_front_cells:: Error: front_subgrid not recognized: ", trim(front_subgrid)
+                error stop 1
+        end select
+
+        !$omp parallel do collapse(2) private(i,j)
+        do j = 1, ny
+        do i = 1, nx
+            mask_ocn(i,j) = H_ice(i,j) .le. H_ice_eps .and. z_bed(i,j) .lt. z_sl(i,j)
+            select case(elig)
+                case(1)
+                    mask_elig(i,j) = H_ice(i,j) .gt. H_ice_eps .and. H_ice(i,j)*rho_ice/rho_sw .le. (z_sl(i,j)-z_bed(i,j))
+                case(2)
+                    mask_elig(i,j) = H_ice(i,j) .gt. H_ice_eps .and. z_bed(i,j) .lt. z_sl(i,j)
+                case DEFAULT
+                    mask_elig(i,j) = .FALSE.
+            end select
+        end do
+        end do
+        !$omp end parallel do
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            mask_cf(i,j) = mask_elig(i,j) .and. &
+                ( mask_ocn(im1,j) .or. mask_ocn(ip1,j) .or. mask_ocn(i,jm1) .or. mask_ocn(i,jp1) )
+        end do
+        end do
+        !$omp end parallel do
+
+        if (present(a_lsf)) then
+            ! Corner cells cut by the level-set front
+            !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+            do j = 1, ny
+            do i = 1, nx
+                if (mask_cf(i,j) .or. .not. mask_elig(i,j) .or. a_lsf(i,j) .ge. 1.0_wp) cycle
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+                mask_cf(i,j) = mask_ocn(im1,jm1) .or. mask_ocn(ip1,jm1) .or. &
+                               mask_ocn(im1,jp1) .or. mask_ocn(ip1,jp1)
+            end do
+            end do
+            !$omp end parallel do
+        end if
+
+        return
+
+    end subroutine calc_front_cells
+
+    subroutine calc_lsf_area_fraction(a_lsf,lsf,H_ice,z_bed,z_sl,boundaries)
+        ! Area fraction of each cell behind the level-set front (lsf < 0).
+        ! The cell is split into four quadrants with vertices at the cell
+        ! centre, two edge midpoints and a corner (edge midpoints: mean of two
+        ! aa-nodes, corners: mean of four), and the negative-LSF area of each
+        ! quadrant is computed via marching squares. Including the centre value
+        ! keeps the fraction continuous for 1-cell-wide features, where all
+        ! four corner means are >= 0.
+        ! Ice-free land neighbours take the value of the cell itself: their
+        ! lsf is pinned to -1 to keep the level set off land, which says
+        ! nothing about the front position in the cell. Counted as ice side,
+        ! they gave an ocean cell (lsf > 0) between land cells an area fraction
+        ! of ~0.4, so that it filled from a neighbouring front cell.
+
+        implicit none
+
+        real(wp), intent(OUT) :: a_lsf(:,:)             ! [--] Area fraction behind the front
+        real(wp), intent(IN)  :: lsf(:,:)               ! [--] Level-set function (< 0: ice side)
+        real(wp), intent(IN)  :: H_ice(:,:)             ! [m]  Ice thickness
+        real(wp), intent(IN)  :: z_bed(:,:)             ! [m]  Bedrock elevation
+        real(wp), intent(IN)  :: z_sl(:,:)              ! [m]  Sea-level elevation
+        character(len=*), intent(IN) :: boundaries
+
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1
+        real(wp) :: l_c, l_W, l_E, l_S, l_N, l_SW, l_SE, l_NE, l_NW
+        real(wp) :: phi_c, phi_W, phi_E, phi_S, phi_N
+        real(wp) :: phi_BL, phi_BR, phi_TR, phi_TL
+        logical, allocatable :: is_land(:,:)            ! Ice-free land cells
+
+        nx = size(lsf,1)
+        ny = size(lsf,2)
+        BC = boundary_code(boundaries)
+
+        allocate(is_land(nx,ny))
+        is_land = z_bed .ge. z_sl .and. H_ice .le. H_ice_eps
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,phi_c,phi_W,phi_E,phi_S,phi_N) &
+        !$omp& private(phi_BL,phi_BR,phi_TR,phi_TL,l_c,l_W,l_E,l_S,l_N,l_SW,l_SE,l_NE,l_NW)
+        do j = 1, ny
+        do i = 1, nx
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Neighbour values (ice-free land: the cell's own value)
+            l_c  = lsf(i,j)
+            l_W  = merge(l_c, lsf(im1,j),   is_land(im1,j))
+            l_E  = merge(l_c, lsf(ip1,j),   is_land(ip1,j))
+            l_S  = merge(l_c, lsf(i,jm1),   is_land(i,jm1))
+            l_N  = merge(l_c, lsf(i,jp1),   is_land(i,jp1))
+            l_SW = merge(l_c, lsf(im1,jm1), is_land(im1,jm1))
+            l_SE = merge(l_c, lsf(ip1,jm1), is_land(ip1,jm1))
+            l_NE = merge(l_c, lsf(ip1,jp1), is_land(ip1,jp1))
+            l_NW = merge(l_c, lsf(im1,jp1), is_land(im1,jp1))
+
+            ! Centre and edge midpoints
+            phi_c = l_c
+            phi_W = 0.5_wp*(l_W + l_c)
+            phi_E = 0.5_wp*(l_c + l_E)
+            phi_S = 0.5_wp*(l_S + l_c)
+            phi_N = 0.5_wp*(l_c + l_N)
+
+            ! Corners
+            phi_BL = 0.25_wp*(l_SW + l_S + l_W + l_c)
+            phi_BR = 0.25_wp*(l_S  + l_SE + l_c + l_E)
+            phi_TR = 0.25_wp*(l_c  + l_E + l_N + l_NE)
+            phi_TL = 0.25_wp*(l_W  + l_c + l_NW + l_N)
+
+            ! Quadrants (BL, BR, TR, TL vertices of each)
+            a_lsf(i,j) = 0.25_wp*( lsf_negative_area_fraction(phi_BL,phi_S, phi_c, phi_W ) &
+                                 + lsf_negative_area_fraction(phi_S, phi_BR,phi_E, phi_c ) &
+                                 + lsf_negative_area_fraction(phi_c, phi_E, phi_TR,phi_N ) &
+                                 + lsf_negative_area_fraction(phi_W, phi_c, phi_N, phi_TL) )
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    end subroutine calc_lsf_area_fraction
 
     function lsf_negative_area_fraction(phi_BL,phi_BR,phi_TR,phi_TL) result(f)
         ! Compute the area fraction of a unit square where a bilinear
@@ -768,7 +762,7 @@ contains
             f_neighb = [f_ice(im1,j),f_ice(ip1,j),f_ice(i,jm1),f_ice(i,jp1)]
             n = count(f_neighb .lt. 1.0)
 
-            if ( is_equal(f_ice(i,j),1.0_wp) .and. n .gt. 0) then 
+            if ( f_ice(i,j) .eq. 1.0_wp .and. n .gt. 0) then 
                 ! This point is an ice front. 
 
                 if (f_grnd(i,j) .gt. 0.0 .and. (z_sl(i,j) .le. z_bed(i,j)) ) then 
@@ -788,11 +782,13 @@ contains
 
                 end if 
 
-                ! Ensure adjacent ice-free points are marked too
-                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = MASK_FRNT_ICE_FREE
-                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = MASK_FRNT_ICE_FREE
-                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = MASK_FRNT_ICE_FREE
-                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = MASK_FRNT_ICE_FREE
+                ! Ensure adjacent ice-free points are marked too, as ocean
+                ! or land depending on their own bed, so that the front type
+                ! can be decided per face (see set_ssa_masks)
+                if (f_ice(im1,j) .lt. 1.0) mask_frnt(im1,j) = ice_free_code(z_bed(im1,j),z_sl(im1,j))
+                if (f_ice(ip1,j) .lt. 1.0) mask_frnt(ip1,j) = ice_free_code(z_bed(ip1,j),z_sl(ip1,j))
+                if (f_ice(i,jm1) .lt. 1.0) mask_frnt(i,jm1) = ice_free_code(z_bed(i,jm1),z_sl(i,jm1))
+                if (f_ice(i,jp1) .lt. 1.0) mask_frnt(i,jp1) = ice_free_code(z_bed(i,jp1),z_sl(i,jp1))
 
             end if 
 
@@ -802,47 +798,24 @@ contains
 
         return 
 
+    contains
+
+        pure integer function ice_free_code(z_bed_now,z_sl_now)
+            ! Ice-free point next to a front: ocean if the bed is below sea level
+
+            implicit none
+
+            real(wp), intent(IN) :: z_bed_now, z_sl_now
+
+            if (z_bed_now .lt. z_sl_now) then
+                ice_free_code = MASK_FRNT_ICE_FREE
+            else
+                ice_free_code = MASK_FRNT_ICE_FREE_LAND
+            end if
+
+        end function ice_free_code
+
     end subroutine calc_ice_front
-
-    elemental subroutine calc_z_srf(z_srf,H_ice,f_ice,H_grnd,z_bed,z_sl,rho_ice,rho_sw)
-        ! Calculate surface elevation
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: z_srf
-        real(wp), intent(IN)    :: H_ice
-        real(wp), intent(IN)    :: f_ice
-        real(wp), intent(IN)    :: H_grnd
-        real(wp), intent(IN)    :: z_bed
-        real(wp), intent(IN)    :: z_sl
-        real(wp), intent(IN)    :: rho_ice 
-        real(wp), intent(IN)    :: rho_sw
-        
-        ! Local variables 
-        real(wp) :: rho_ice_sw
-        real(wp)   :: H_eff 
-
-        rho_ice_sw = rho_ice/rho_sw ! Ratio of density of ice to seawater [--]
-        
-        ! Get effective ice thickness
-        call calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero=.TRUE.)
-
-        ! Update the surface elevation based on z_bed, H_ice and overburden ice thickness 
-        if (H_grnd .gt. 0.0) then 
-            ! Grounded ice or ice-free land
-
-            z_srf = z_bed + H_eff 
-
-        else
-            ! Floating ice or open ocean
-
-            z_srf = z_sl + (1.0-rho_ice_sw)*H_eff
-
-        end if 
-        
-        return 
-
-    end subroutine calc_z_srf
 
     elemental subroutine calc_z_srf_max(z_srf,H_ice,f_ice,z_bed,z_sl,rho_ice,rho_sw)
         ! Calculate surface elevation
@@ -874,101 +847,6 @@ contains
         return 
 
     end subroutine calc_z_srf_max
-
-    subroutine calc_z_srf_gl_subgrid_area(z_srf,f_grnd,H_ice,f_ice,z_bed,z_sl,gz_nx,rho_ice,rho_sw,boundaries)
-        ! Interpolate variables at grounding line to subgrid level to 
-        ! calculate the average z_srf value for the aa-node cell
-
-        implicit none
-        
-        real(wp), intent(OUT) :: z_srf(:,:)       ! aa-nodes 
-        real(wp), intent(IN)  :: f_grnd(:,:)      ! aa-nodes
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: z_bed(:,:)
-        real(wp), intent(IN)  :: z_sl(:,:)
-        integer,  intent(IN)  :: gz_nx            ! Number of interpolation points per side (nx*nx)
-        real(wp), intent(IN)  :: rho_ice 
-        real(wp), intent(IN)  :: rho_sw
-        character(len=*), intent(IN) :: boundaries
-    
-        ! Local variables
-        integer  :: i, j, nx, ny 
-        integer  :: im1, ip1, jm1, jp1
-        real(wp) :: H_eff 
-        real(wp) :: f_grnd_neighb(4) 
-        logical  :: is_grline 
-        integer  :: BC
-
-        real(wp), allocatable :: z_srf_int(:,:) 
-        real(wp), allocatable :: H_ice_int(:,:)
-        real(wp), allocatable :: f_ice_int(:,:)  
-        real(wp), allocatable :: z_bed_int(:,:) 
-        real(wp), allocatable :: z_sl_int(:,:) 
-        
-        nx = size(z_srf,1)
-        ny = size(z_srf,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Allocate the subgrid arrays 
-        allocate(z_srf_int(gz_nx,gz_nx))
-        allocate(H_ice_int(gz_nx,gz_nx))
-        allocate(f_ice_int(gz_nx,gz_nx))
-        allocate(z_bed_int(gz_nx,gz_nx))
-        allocate(z_sl_int(gz_nx,gz_nx))
-        
-        ! ajr: assume f_ice_int=1 everywhere this is used for now. 
-        ! Needs to be fixed in the future potentially. 
-        f_ice_int = 1.0_wp 
-
-        write(*,*) "calc_z_srf_gl_subgrid_area:: routine not ready for f_ice values. Fix!"
-        stop 
-        
-        ! Calculate the surface elevation based on whole grid values,
-        ! except at the grounding line which is treated with subgrid interpolations. 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,f_grnd_neighb,is_grline,H_ice_int,z_bed_int,z_sl_int,z_srf_int)
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            f_grnd_neighb = [f_grnd(im1,j),f_grnd(ip1,j),f_grnd(i,jm1),f_grnd(i,jp1)]
-
-            if ( is_equal(f_grnd(i,j),0.0_wp) .and. count(f_grnd_neighb .gt. 0.0).gt.0) then
-                is_grline = .TRUE. 
-            else if (f_grnd(i,j) .gt. 0.0 .and. count((abs(f_grnd_neighb-0.0_wp).lt.TOL)).gt.0 ) then
-                is_grline = .TRUE. 
-            else 
-                is_grline = .FALSE. 
-            end if 
-
-            if ( is_grline .and. is_equal(f_ice(i,j),1.0_wp) ) then 
-                ! Only treat grounding line points that are fully ice-covered:  
-                ! Perform subgrid calculations 
-
-                ! Calculate subgrid values for this cell
-                call calc_subgrid_array(H_ice_int,H_ice,gz_nx,i,j,im1,ip1,jm1,jp1)
-                call calc_subgrid_array(z_bed_int,z_bed,gz_nx,i,j,im1,ip1,jm1,jp1)
-                call calc_subgrid_array(z_sl_int, z_sl, gz_nx,i,j,im1,ip1,jm1,jp1)
-                
-                ! Calculate subgrid surface elevations
-                call calc_z_srf_max(z_srf_int,H_ice_int,f_ice_int,z_bed_int,z_sl_int,rho_ice,rho_sw)
-
-                ! Calculate full grid z_srf value as the mean of subgrid values 
-                z_srf(i,j) = sum(z_srf_int) / real(gz_nx*gz_nx,wp)
-
-            end if 
-
-        end do 
-        end do
-        !$omp end parallel do
-
-        return
-        
-    end subroutine calc_z_srf_gl_subgrid_area
 
     elemental subroutine calc_H_eff(H_eff,H_ice,f_ice,set_frac_zero)
         ! Calculate ice-thickness, scaled at margins to actual thickness
@@ -1096,216 +974,6 @@ contains
 
     end subroutine calc_H_af
 
-    subroutine calc_f_grnd_subgrid_area_aa(f_grnd,H_grnd,gz_nx,boundaries)
-        ! Use H_grnd to determined grounded area fraction of grid point.
-
-        implicit none
-        
-        real(wp), intent(OUT) :: f_grnd(:,:)        ! aa-nodes 
-        real(wp), intent(IN)  :: H_grnd(:,:)        ! aa-nodes
-        integer,  intent(IN)  :: gz_nx              ! Number of interpolation points per side (nx*nx)
-        character(len=*), intent(IN) :: boundaries
-
-        ! Local variables
-        integer  :: i, j, nx, ny
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_nb(9)
-        real(wp) :: Hg_int(gz_nx,gz_nx)
-        integer  :: BC
-
-        !integer, parameter :: nx_interp = 15
-
-        nx = size(H_grnd,1)
-        ny = size(H_grnd,2) 
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! First binary estimate of f_grnd based on aa-nodes
-        f_grnd = 1.0
-        where (H_grnd .lt. 0.0) f_grnd = 0.0
-        
-        ! Find grounding line cells and determine fraction 
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! Gather the 3x3 neighborhood explicitly (a slice im1:ip1 is
-            ! empty where the neighbor indices wrap around the domain)
-            Hg_nb = [H_grnd(im1,jm1),H_grnd(i,jm1),H_grnd(ip1,jm1), &
-                     H_grnd(im1,j),  H_grnd(i,j),  H_grnd(ip1,j),   &
-                     H_grnd(im1,jp1),H_grnd(i,jp1),H_grnd(ip1,jp1)]
-
-            if (maxval(Hg_nb) .ge. 0.0 .and. minval(Hg_nb) .lt. 0.0) then
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array(Hg_int, H_grnd,gz_nx,i,j,im1,ip1,jm1,jp1)
-                
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            end if 
-
-        end do 
-        end do 
-
-        return
-        
-    end subroutine calc_f_grnd_subgrid_area_aa
-    
-    subroutine calc_f_grnd_subgrid_area(f_grnd,f_grnd_acx,f_grnd_acy,H_grnd,gz_nx,boundaries)
-        ! Use H_grnd to determined grounded area fraction of grid point.
-
-        implicit none
-        
-        real(wp), intent(OUT) :: f_grnd(:,:)        ! aa-nodes 
-        real(wp), intent(OUT) :: f_grnd_acx(:,:)    ! ac-nodes
-        real(wp), intent(OUT) :: f_grnd_acy(:,:)    ! ac-nodes
-        real(wp), intent(IN)  :: H_grnd(:,:)        ! aa-nodes
-        integer,  intent(IN)  :: gz_nx          ! Number of interpolation points per side (nx*nx)
-        character(len=*), intent(IN) :: boundaries
-        
-        ! Local variables
-        integer  :: i, j, nx, ny
-        real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4
-        real(wp) :: Hg_min, Hg_max  
-        integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_int(gz_nx,gz_nx)
-        integer  :: BC
-        logical  :: per_x, per_y
-
-        !integer, parameter :: nx_interp = 15
-
-        nx = size(H_grnd,1)
-        ny = size(H_grnd,2) 
-        
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Initialize all masks to zero (fully floating) to start
-        f_grnd     = 0.0_wp 
-        f_grnd_acx = 0.0_wp 
-        f_grnd_acy = 0.0_wp 
-
-        ! Find grounding line cells and determine fraction 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_max,Hg_min,Hg_int)
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! === f_grnd at aa-nodes ===
-
-            ! Calculate Hg at corners (ab-nodes)
-            Hg_1 = 0.25_wp*(H_grnd(i,j) + H_grnd(ip1,j) + H_grnd(ip1,jp1) + H_grnd(i,jp1))
-            Hg_2 = 0.25_wp*(H_grnd(i,j) + H_grnd(im1,j) + H_grnd(im1,jp1) + H_grnd(i,jp1))
-            Hg_3 = 0.25_wp*(H_grnd(i,j) + H_grnd(im1,j) + H_grnd(im1,jm1) + H_grnd(i,jm1))
-            Hg_4 = 0.25_wp*(H_grnd(i,j) + H_grnd(ip1,j) + H_grnd(ip1,jm1) + H_grnd(i,jm1))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then 
-                ! Fully grounded point
-
-                f_grnd(i,j) = 1.0_wp 
-
-            end if 
-
-            ! === f_grnd at acx nodes === 
-
-            ! First, calculate Hg at corners (acy-nodes)
-            Hg_1 = 0.5_wp*(H_grnd(ip1,j) + H_grnd(ip1,jp1))
-            Hg_2 = 0.5_wp*(H_grnd(i,j)   + H_grnd(i,jp1))
-            Hg_3 = 0.5_wp*(H_grnd(i,j)   + H_grnd(i,jm1))
-            Hg_4 = 0.5_wp*(H_grnd(ip1,j) + H_grnd(ip1,jm1))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd_acx(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then
-                ! Purely grounded point 
-
-                f_grnd_acx(i,j) = 1.0_wp 
-
-            end if 
-
-            ! === f_grnd at acy-nodes ===
-        
-            ! First, calculate Hg at corners (acx-nodes)
-            Hg_1 = 0.5_wp*(H_grnd(i,jp1)   + H_grnd(ip1,jp1))
-            Hg_2 = 0.5_wp*(H_grnd(im1,jp1) + H_grnd(i,jp1))
-            Hg_3 = 0.5_wp*(H_grnd(im1,j)   + H_grnd(i,j))
-            Hg_4 = 0.5_wp*(H_grnd(ip1,j)   + H_grnd(i,j))
-            
-            Hg_min = min(Hg_1,Hg_2,Hg_3,Hg_4)
-            Hg_max = max(Hg_1,Hg_2,Hg_3,Hg_4)
-
-            if (Hg_max .ge. 0.0 .and. Hg_min .lt. 0.0) then 
-                ! Point contains grounding line, get grounded area  
-                
-                call calc_subgrid_array_cell(Hg_int,Hg_1,Hg_2,Hg_3,Hg_4,gz_nx)
-
-                ! Calculate weighted fraction (assume all points have equal weight)
-                f_grnd_acy(i,j) = real(count(Hg_int .ge. 0.0),wp) / real(gz_nx*gz_nx,wp)
-
-            else if (Hg_min .ge. 0.0) then 
-                ! Purely grounded point 
-                    
-                f_grnd_acy(i,j) = 1.0_wp 
-                
-            end if 
-
-        end do 
-        end do 
-        !$omp end parallel do
-
-
-if (.TRUE.) then 
-    ! Replace subgrid acx/acy estimates with linear average to ac-nodes 
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            f_grnd_acx(i,j) = 0.5_wp*(f_grnd(i,j) + f_grnd(ip1,j))
-            f_grnd_acy(i,j) = 0.5_wp*(f_grnd(i,j) + f_grnd(i,jp1))
-
-        end do 
-        end do
-
-        ! Non-periodic borders: set equal to inner neighbor
-        call get_periodic_directions(per_x,per_y,BC)
-        if (.not. per_x) f_grnd_acx(nx,:) = f_grnd_acx(nx-1,:) 
-        if (.not. per_y) f_grnd_acy(:,ny) = f_grnd_acy(:,ny-1) 
-
-end if 
-
-        return
-        
-    end subroutine calc_f_grnd_subgrid_area
-    
     subroutine calc_f_grnd_subgrid_linear(f_grnd,f_grnd_x,f_grnd_y,H_grnd,boundaries)
         ! Calculate the grounded fraction of a cell in the x- and y-directions
         ! at the ac nodes
@@ -1435,6 +1103,202 @@ end if
         return 
 
     end subroutine calc_f_grnd_subgrid_linear
+
+    subroutine calc_f_grnd_subgrid_area(f_grnd,f_grnd_acx,f_grnd_acy,f_grnd_ab,H_grnd,boundaries)
+        ! Grounded fractions of cells (aa), faces (acx, acy) and corners (ab)
+        ! (gl_sep = 3, and f_grnd_bmb for the basal mass balance with any
+        ! gl_sep): the area where H_grnd >= 0, with H_grnd interpolated
+        ! bilinearly between cell centres, as in Leguy et al. (2021). On each
+        ! quarter of a cell the interpolant is bilinear between the cell
+        ! centre, the two face midpoints (mean of two centres) and the cell
+        ! corner (mean of four). Each quarter is computed once; a cell, face
+        ! or corner is the mean of the four quarters it covers.
+        ! See docs/physics/grounded-fraction.md.
+
+        implicit none
+
+        real(wp), intent(OUT) :: f_grnd(:,:)                  ! aa-nodes
+        real(wp), intent(OUT), optional :: f_grnd_acx(:,:)    ! acx-nodes
+        real(wp), intent(OUT), optional :: f_grnd_acy(:,:)    ! acy-nodes
+        real(wp), intent(OUT), optional :: f_grnd_ab(:,:)     ! ab-nodes
+        real(wp), intent(IN)  :: H_grnd(:,:)                  ! aa-nodes
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny, BC
+        integer  :: im1, ip1, jm1, jp1
+        real(wp) :: hc, hw, he, hs, hn
+        real(wp), allocatable :: q(:,:,:)       ! Quarter fractions: 1 SW, 2 SE, 3 NW, 4 NE
+
+        nx = size(H_grnd,1)
+        ny = size(H_grnd,2)
+
+        BC = boundary_code(boundaries)
+
+        allocate(q(4,nx,ny))
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,hc,hw,he,hs,hn)
+        do j = 1, ny
+        do i = 1, nx
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            ! Centre and face midpoints
+            hc = H_grnd(i,j)
+            hw = 0.5_wp*(hc + H_grnd(im1,j))
+            he = 0.5_wp*(hc + H_grnd(ip1,j))
+            hs = 0.5_wp*(hc + H_grnd(i,jm1))
+            hn = 0.5_wp*(hc + H_grnd(i,jp1))
+
+            ! Quarters, corner values in the order (x0,y0), (x1,y0), (x0,y1), (x1,y1)
+            q(1,i,j) = bilinear_grounded_fraction(corner(i,j,im1,jm1),hs,hw,hc)
+            q(2,i,j) = bilinear_grounded_fraction(hs,corner(i,j,ip1,jm1),hc,he)
+            q(3,i,j) = bilinear_grounded_fraction(hw,hc,corner(i,j,im1,jp1),hn)
+            q(4,i,j) = bilinear_grounded_fraction(hc,he,hn,corner(i,j,ip1,jp1))
+
+        end do
+        end do
+        !$omp end parallel do
+
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
+        do j = 1, ny
+        do i = 1, nx
+
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+            f_grnd(i,j) = 0.25_wp*sum(q(:,i,j))
+            if (present(f_grnd_acx)) f_grnd_acx(i,j) = 0.25_wp*(q(2,i,j) + q(4,i,j) + q(1,ip1,j) + q(3,ip1,j))
+            if (present(f_grnd_acy)) f_grnd_acy(i,j) = 0.25_wp*(q(3,i,j) + q(4,i,j) + q(1,i,jp1) + q(2,i,jp1))
+            if (present(f_grnd_ab))  f_grnd_ab(i,j)  = 0.25_wp*(q(4,i,j) + q(3,ip1,j) + q(2,i,jp1) + q(1,ip1,jp1))
+
+        end do
+        end do
+        !$omp end parallel do
+
+        return
+
+    contains
+
+        real(wp) function corner(i0,j0,ii,jj)
+            ! Value at the corner of cell (i0,j0) towards cell (ii,jj)
+            ! (indices passed: the loop indices are private to the OpenMP threads)
+            integer, intent(IN) :: i0, j0, ii, jj
+            corner = 0.25_wp*(H_grnd(i0,j0) + H_grnd(ii,j0) + H_grnd(i0,jj) + H_grnd(ii,jj))
+        end function corner
+
+    end subroutine calc_f_grnd_subgrid_area
+
+    elemental function bilinear_grounded_fraction(h00,h10,h01,h11) result(f)
+        ! Fraction of the unit square where the bilinear function with corner
+        ! values h00 (x=0,y=0), h10 (1,0), h01 (0,1), h11 (1,1) is >= 0.
+        !
+        ! On each line x = const, h is linear in y, from B(x) = h(x,0) to
+        ! T(x) = h(x,1), so the part of the line where h >= 0 is 1, 0 or P/D,
+        ! with P = max(B,T) and D = P - min(B,T) = |B-T|. B and T are linear
+        ! in x, so [0,1] is split at their roots, and P/D, a ratio of two
+        ! linear functions, is integrated exactly on each piece of length w:
+        !
+        !   int_0^w (Pa + Ps*t)/(Da + Ds*t) dt = w/Da*(Pa*psi(z) + Ps*w*chi(z)),
+        !   z = Ds*w/Da, psi(z) = log(1+z)/z, chi(z) = (z - log(1+z))/z**2,
+        !
+        ! taken from the end of the piece with the larger D, so that -1 <= z <= 0.
+        ! z = -1 only where P and D vanish together (two straight zero lines
+        ! crossing at the far end), and there P/D = Ps/Ds is constant.
+
+        implicit none
+
+        real(wp), intent(IN) :: h00, h10, h01, h11
+        real(wp) :: f
+
+        ! Local variables
+        integer  :: k
+        real(dp) :: B0, Bs, T0, Ts, xs(4), x0, w, Bm, Tm
+        real(dp) :: Pa, Ps, Da, Ds, Db, z, a
+
+        B0 = real(h00,dp)
+        Bs = real(h10,dp) - B0
+        T0 = real(h01,dp)
+        Ts = real(h11,dp) - T0
+
+        ! Piece ends: 0, the roots of B and T clipped to [0,1], 1
+        xs = [0.0_dp, root(B0,Bs), root(T0,Ts), 1.0_dp]
+        if (xs(2) .gt. xs(3)) xs(2:3) = xs(3:2:-1)
+
+        a = 0.0_dp
+        do k = 1, 3
+
+            x0 = xs(k)
+            w  = xs(k+1) - x0
+            if (w .le. 0.0_dp) cycle
+
+            Bm = B0 + Bs*(x0+0.5_dp*w)
+            Tm = T0 + Ts*(x0+0.5_dp*w)
+
+            if (Bm .ge. 0.0_dp .and. Tm .ge. 0.0_dp) then
+                a = a + w
+            else if (Bm .ge. 0.0_dp .or. Tm .ge. 0.0_dp) then
+                ! P: the end >= 0 (B or T), D = P - (the other end)
+                if (Bm .ge. 0.0_dp) then
+                    Pa = B0 + Bs*x0
+                    Ps = Bs
+                else
+                    Pa = T0 + Ts*x0
+                    Ps = Ts
+                end if
+                Ds = 2.0_dp*Ps - (Bs + Ts)
+                Da = 2.0_dp*Pa - (B0 + T0 + (Bs + Ts)*x0)
+                Db = Da + Ds*w
+                if (Db .gt. Da) then
+                    ! Take the piece from its other end
+                    Pa = Pa + Ps*w
+                    Ps = -Ps
+                    Ds = -Ds
+                    Da = Db
+                end if
+                z = Ds*w/Da
+                if (z .le. -1.0_dp) then
+                    a = a + w*Ps/Ds
+                else
+                    a = a + w/Da*(Pa*psi(z) + Ps*w*chi(z))
+                end if
+            end if
+
+        end do
+
+        f = real(min(max(a,0.0_dp),1.0_dp),wp)
+
+        return
+
+    contains
+
+        pure real(dp) function root(v0,vs)
+            ! Root of v0 + vs*x, clipped to [0,1] (0 if none)
+            real(dp), intent(IN) :: v0, vs
+            root = 0.0_dp
+            if (vs .ne. 0.0_dp) root = min(max(-v0/vs,0.0_dp),1.0_dp)
+        end function root
+
+        pure real(dp) function psi(z)
+            ! log(1+z)/z
+            real(dp), intent(IN) :: z
+            if (abs(z) .lt. 1e-4_dp) then
+                psi = 1.0_dp - z/2.0_dp + z**2/3.0_dp
+            else
+                psi = log(1.0_dp+z)/z
+            end if
+        end function psi
+
+        pure real(dp) function chi(z)
+            ! (z - log(1+z))/z**2
+            real(dp), intent(IN) :: z
+            if (abs(z) .lt. 1e-4_dp) then
+                chi = 0.5_dp - z/3.0_dp + z**2/4.0_dp
+            else
+                chi = (z - log(1.0_dp+z))/z**2
+            end if
+        end function chi
+
+    end function bilinear_grounded_fraction
     
     subroutine calc_f_grnd_pinning_points(f_grnd,H_ice,f_ice,z_bed,z_bed_sd,z_sl,rho_ice,rho_sw)
         ! For floating points, determine how much of bed could be
@@ -1495,14 +1359,9 @@ end if
 
                 else
 
-                    ! Calculate inverse cdf at z = ice_base, ie,
-                    ! probability to have points at or higher than z,
-                    ! which would be grounded. 
-
-                    !f_grnd(i,j) = cdf(x,mu,sigma,inv=.TRUE.)
-
-                    ! Alternatively, use approximation given by
-                    ! Pollard and DeConto (2012), Eq. 13:
+                    ! Probability to have points at or higher than z = ice_base,
+                    ! which would be grounded (inverse cdf), approximated
+                    ! following Pollard and DeConto (2012), Eq. 13:
 
                     f_grnd(i,j) = 0.5_wp*max(0.0_wp,(1.0_wp-(x-mu)/sigma))
 
@@ -1574,63 +1433,49 @@ end if
 
     end subroutine remove_englacial_lakes
 
-    subroutine calc_distance_to_ice_margin(dist_mrgn,f_ice,dx,boundaries,calc_distances)
-        ! Calculate distance to the ice margin
+    subroutine calc_distance_to_ice_margin(dist_mrgn,f_ice,boundaries)
+        ! Locate the ice margin (0 at the margin, +dist_max ice covered,
+        ! -dist_max ice free); see calc_distance_to_grounding_line.
         
         ! Note: this subroutine is a wrapper that calls the
-        ! grounding-line distance routine, since the algorithm
+        ! grounding-line routine, since the algorithm
         ! works the same way. Simply substitute f_ice for f_grnd. 
 
         implicit none 
 
-        real(wp), intent(OUT) :: dist_mrgn(:,:) ! [km] Distance to grounding line
+        real(wp), intent(OUT) :: dist_mrgn(:,:) ! [km] 0 at the margin, +/-dist_max elsewhere
         real(wp), intent(IN)  :: f_ice(:,:)     ! [1]  Fraction of grid-cell ice coverage 
-        real(wp), intent(IN)  :: dx             ! [m]  Grid resolution (assume dy=dx)
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN)  :: calc_distances
 
-        call calc_distance_to_grounding_line(dist_mrgn,f_ice,dx,boundaries,calc_distances)
+        call calc_distance_to_grounding_line(dist_mrgn,f_ice,boundaries)
 
         return 
 
     end subroutine calc_distance_to_ice_margin
     
-    subroutine calc_distance_to_grounding_line(dist_gl,f_grnd,dx,boundaries,calc_distances)
-        ! Calculate distance to the grounding line 
+    subroutine calc_distance_to_grounding_line(dist_gl,f_grnd,boundaries)
+        ! Locate the grounding line: 0 at the grounding line, +dist_max
+        ! grounded, -dist_max floating. The distances themselves are computed
+        ! from this mask by the caller (yelmo_topography).
         
         implicit none 
 
-        real(wp), intent(OUT) :: dist_gl(:,:)   ! [km] Distance to grounding line
+        real(wp), intent(OUT) :: dist_gl(:,:)   ! [km] 0 at the grounding line, +/-dist_max elsewhere
         real(wp), intent(IN)  :: f_grnd(:,:)    ! [1]  Grounded grid-cell fraction 
-        real(wp), intent(IN)  :: dx             ! [m]  Grid resolution (assume dy=dx)
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN)  :: calc_distances
 
         ! Local variables 
-        integer  :: i, j, nx, ny, q
+        integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
-        real(wp) :: dist_direct_min 
-        real(wp) :: dist_corners_min
-        real(wp) :: dx_km 
-        real(wp) :: dists(8) 
         integer  :: BC
 
         real(wp), parameter :: dist_max = 1e10          ! [km]
-        real(wp), parameter :: sqrt_2   = sqrt(2.0_wp) 
-        integer,  parameter :: iter_max = 1000
-
-        real(wp), allocatable :: dist_gl_ref(:,:) 
 
         nx = size(dist_gl,1)
         ny = size(dist_gl,2)
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
-
-        allocate(dist_gl_ref(nx,ny)) 
-
-        ! Units
-        dx_km = dx*1e-3 
 
         ! 0: Assign a big distance to all points to start  ======================
 
@@ -1657,74 +1502,6 @@ end if
         end do 
         end do 
         !$omp end parallel do
-
-        ! 2. Next, determine distances to grounding line ======================
-        
-        if (calc_distances) then
-
-            do q = 1, iter_max  
-                ! Iterate distance of one neighbor at a time until grid is filled in
-
-                dist_gl_ref = dist_gl
-
-                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,dists,dist_direct_min,dist_corners_min)
-                do j = 1, ny 
-                do i = 1, nx
-
-                    if ( is_equal(dist_gl(i,j),dist_max) ) then 
-                        ! Distance needs to be determined for this point 
-
-                        ! Get neighbor indices
-                        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                        ! Get distances to direct and corner neighbors
-                        dists = [dist_gl_ref(im1,j),dist_gl_ref(ip1,j), &       ! Direct neighbors
-                                dist_gl_ref(i,jm1),dist_gl_ref(i,jp1), &       ! Direct neighbors
-                                dist_gl_ref(im1,jp1),dist_gl_ref(ip1,jp1), &   ! Corner neighbors
-                                dist_gl_ref(im1,jm1),dist_gl_ref(ip1,jm1)]     ! Corner neighbors
-
-                        if (count(dists .lt. dist_max) .ge. 2) then 
-                            ! Some neighbors have been calculated already 
-                            ! Note: check for at least 2 neighbors already
-                            ! calculated to reduce errors in points with 
-                            ! neighbors on both sides with similar distances. This 
-                            ! Waiting for even more neighbors would reduce errors
-                            ! further but greatly increases iterations. 
-
-                            ! Determine minimum distance to grounding line for 
-                            ! direct and diagonal neighbors, separately.
-                            dist_direct_min  = minval(dists(1:4))
-                            dist_corners_min = minval(dists(5:8))
-
-                            if (dist_direct_min .le. dist_corners_min) then 
-                                ! Assume nearest path to grounding line is along
-                                ! direct neighbor path - add dx to dist for this point 
-
-                                dist_gl(i,j) = dist_direct_min + dx_km 
-
-                            else
-                                ! Assume nearest path to grounding line is via 
-                                ! a diagonal neighbor - add sqrt(2) to dist for this point
-
-                                dist_gl(i,j) = dist_corners_min + sqrt_2*dx_km
-
-                            end if 
-
-                        end if 
-                    end if
-
-                end do 
-                end do
-                !$omp end parallel do
-                
-                if (count(dist_gl .eq. dist_max) .eq. 0) then 
-                    ! No more points to check 
-                    exit 
-                end if 
-
-            end do
-
-        end if 
 
         ! Set all floating-point distances to negative values 
         where (f_grnd .eq. 0.0_wp) 
@@ -1871,7 +1648,8 @@ end if
     end subroutine calc_bmb_total
 
     subroutine calc_fmb_total(fmb,fmb_shlf,bmb_shlf,H_ice,H_grnd,f_ice, &
-                                fmb_method,fmb_scale,rho_ice,rho_sw,dx,boundaries)
+                                fmb_method,fmb_scale,fmb_lambda,rho_ice,rho_sw,dx,boundaries, &
+                                Q_sg, tf_shlf)
 
         implicit none 
 
@@ -1883,10 +1661,13 @@ end if
         real(wp), intent(IN)  :: f_ice(:,:)
         integer,  intent(IN)  :: fmb_method 
         real(wp), intent(IN)  :: fmb_scale
+        real(wp), intent(IN)  :: fmb_lambda         
         real(wp), intent(IN)  :: rho_ice
         real(wp), intent(IN)  :: rho_sw
         real(wp), intent(IN)  :: dx
         character(len=*), intent(IN) :: boundaries
+        real(wp), intent(IN), optional :: Q_sg(:,:)      ! Subglacial discharge [m3/s]
+        real(wp), intent(IN), optional :: tf_shlf(:,:)  
     
         ! Local variables
         integer    :: i, j, nx, ny, n_margin
@@ -1897,6 +1678,7 @@ end if
         real(wp) :: bmb_eff 
         logical  :: mask(4) 
         integer  :: BC
+
 
         real(wp) :: rho_ice_sw 
         
@@ -1987,17 +1769,119 @@ end if
                 end do
                 !$omp end parallel do
 
+            case(3)
+                ! Calculate fmb using the Rignot et al. (2016) parameterization
+                ! (see calc_melt_rate_rignot16), scaled by fmb_lambda, with
+                ! h the depth of the submerged face, A its area, Q_sg the
+                ! subglacial discharge [m3/s] and TF = tf_shlf [K]
+                
+                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,mask,n_margin,H_eff,dz,area_flt)
+                do j = 1, ny 
+                do i = 1, nx 
+ 
+                    ! Get neighbor indices
+                    call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+ 
+                    ! Get mask of neighbors that are ice free 
+                    mask = ( [H_ice(im1,j),H_ice(ip1,j),H_ice(i,jm1),H_ice(i,jp1)].eq.0.0 )
+ 
+                    ! Count how many neighbors are ice free 
+                    n_margin = count(mask) 
+ 
+                    if (H_ice(i,j) .gt. 0.0_wp .and. &
+                        H_grnd(i,j) .lt. H_ice(i,j) .and. &
+                                            n_margin .gt. 0) then 
+                        ! Cell is ice-covered, [grounded below sea level or floating] and at the ice margin
+ 
+                        ! Get effective ice thickness
+                        call calc_H_eff(H_eff,H_ice(i,j),f_ice(i,j))
+ 
+                        ! Determine depth of adjacent water (h in Rignot et al., 2016)
+                        if (H_grnd(i,j) .lt. 0.0_wp) then 
+                            ! Cell is floating, calculate submerged ice thickness 
+                            dz = (H_eff*rho_ice_sw)
+                            
+                        else 
+                            ! Cell is grounded, recover depth of seawater
+                            dz = max( (H_eff - H_grnd(i,j)) * rho_ice_sw, 0.0_wp)
+ 
+                        end if 
+ 
+                        ! Get area of ice submerged and adjacent to seawater
+                        area_flt = real(n_margin,wp)*dz*dx 
+
+                        if (area_flt .gt. 0.0_wp) then
+                            ! Melt rate [m/yr] of the submerged face, A = area_flt [m2],
+                            ! scaled to the cell area
+                            fmb(i,j) = - fmb_lambda * calc_melt_rate_rignot16(dz,Q_sg(i,j),area_flt,tf_shlf(i,j)) &
+                                            * (area_flt/area_tot)
+                        else
+                            fmb(i,j) = 0.0_wp
+                        end if 
+ 
+                    else 
+                        ! Set front mass balance equal to zero 
+                        fmb(i,j) = 0.0_wp 
+ 
+                    end if 
+ 
+                end do 
+                end do
+                !$omp end parallel do
+
             case DEFAULT 
 
                 write(*,*) "calc_fmb_total:: Error: fmb_method not recognized."
                 write(*,*) "fmb_method = ", fmb_method 
-                stop 
+                error stop 1
 
         end select
 
         return 
 
     end subroutine calc_fmb_total
+
+    elemental function calc_melt_rate_rignot16(h,Q,area,TF) result(m)
+        ! Submarine melt rate of a marine-terminating glacier front
+        ! following Rignot et al. (2016) (ISMIP7 protocol):
+        !
+        !   m = (a*h*q^alpha + b)*TF^beta [m/d],  q = 86400*Q/area [m/d]
+        !
+        ! h:  water depth at the front [m]
+        ! Q:  subglacial discharge [m3/s], a non-negative volume flux
+        !     (q**alpha is NaN for q < 0)
+        ! area: submerged area of the front face [m2]
+        ! TF: thermal forcing [K]
+        ! The rate is returned in [m/yr].
+
+        implicit none
+
+        real(wp), intent(IN) :: h
+        real(wp), intent(IN) :: Q
+        real(wp), intent(IN) :: area
+        real(wp), intent(IN) :: TF
+        real(wp) :: m
+
+        ! Local variables
+        real(wp) :: q_now
+
+        real(wp), parameter :: a       = 3.0e-4_wp
+        real(wp), parameter :: b       = 0.15_wp
+        real(wp), parameter :: alpha   = 0.39_wp
+        real(wp), parameter :: beta    = 1.18_wp
+        real(wp), parameter :: days_yr = 365.25_wp
+
+        if (area .gt. 0.0_wp) then
+            q_now = 86400.0_wp*max(Q,0.0_wp)/area
+        else
+            q_now = 0.0_wp
+        end if
+
+        m = days_yr * (a*h*q_now**alpha + b) * max(TF,0.0_wp)**beta
+
+        return
+
+    end function calc_melt_rate_rignot16
 
     subroutine calc_bmb_gl_pmpt(bmb,bmb_grnd,bmb_shlf,H_grnd,gz_Hg0,gz_Hg1,nxi,boundaries)
         ! Calculate basal mass balance, with bmb at the grounding line
@@ -2018,7 +1902,6 @@ end if
         ! Local variables
         integer  :: i, j, i1, j1, nx, ny
         integer  :: im1, ip1, jm1, jp1 
-        real(wp) :: Hg_1, Hg_2, Hg_3, Hg_4, Hg_mid  
         real(wp) :: Hg_nb(9)
         real(wp) :: wt 
         integer  :: BC
@@ -2030,12 +1913,12 @@ end if
         if (gz_Hg0 .gt. 0.0) then 
             write(io_unit_err,*) "calc_bmb_gl_pmpt:: Error: lower limit on grounding zone must be <= 0.0."
             write(io_unit_err,*) "gz_Hg0 = ", gz_Hg0
-            stop 
+            error stop 1
         end if 
         if (gz_Hg1 .lt. 0.0) then 
             write(io_unit_err,*) "calc_bmb_gl_pmpt:: Error: upper limit on grounding zone must be >= 0.0."
             write(io_unit_err,*) "gz_Hg1 = ", gz_Hg1
-            stop 
+            error stop 1
         end if 
 
         nx = size(H_grnd,1)
@@ -2048,7 +1931,7 @@ end if
         allocate(Hg_int(nxi,nxi))
         allocate(bmb_int(nxi,nxi))
 
-        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_1,Hg_2,Hg_3,Hg_4,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
+        !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,Hg_nb,Hg_int,bmb_int,i1,j1,wt)
         do j = 1, ny 
         do i = 1, nx
 
@@ -2074,8 +1957,9 @@ end if
             else
                 ! Point contains the grounding zone
                 
-                ! Calculate subgrid values of H_grnd
-                call calc_subgrid_array(Hg_int,H_grnd,nxi,i,j,im1,ip1,jm1,jp1)
+                ! Calculate subgrid values of H_grnd (bilinear between cell
+                ! centres, as the grounded fraction of gl_sep = 3)
+                call calc_subgrid_array_quad(Hg_int,H_grnd,nxi,i,j,im1,ip1,jm1,jp1)
 
                 ! Calculate individual bmb values for each subgrid point
                 do j1 = 1, nxi
@@ -2110,525 +1994,6 @@ end if
         return
         
     end subroutine calc_bmb_gl_pmpt
-    
-!! f_grnd calculations from IMAU-ICE / CISM 
-
-! == Routines for determining the grounded fraction on all four grids
-  
-  subroutine determine_grounded_fractions(f_grnd,f_grnd_acx,f_grnd_acy,f_grnd_ab,H_grnd,boundaries)
-    ! Determine the grounded fraction of centered and staggered grid points
-    ! Uses the bilinear interpolation scheme (with analytical solutions) 
-    ! from CISM (Leguy et al., 2021), as adapted from IMAU-ICE v2.0 code (rev. 4776833b)
-    
-    implicit none
-    
-    real(wp), intent(OUT) :: f_grnd(:,:) 
-    real(wp), intent(OUT), optional :: f_grnd_acx(:,:) 
-    real(wp), intent(OUT), optional :: f_grnd_acy(:,:) 
-    real(wp), intent(OUT), optional :: f_grnd_ab(:,:) 
-    real(wp), intent(IN)  :: H_grnd(:,:) 
-    character(len=*), intent(IN) :: boundaries
-    
-    ! Local variables
-    integer :: i, j, nx, ny 
-    integer :: im1, ip1, jm1, jp1
-    integer :: BC
-
-    real(wp), allocatable :: f_grnd_NW(:,:)
-    real(wp), allocatable :: f_grnd_NE(:,:)
-    real(wp), allocatable :: f_grnd_SW(:,:)
-    real(wp), allocatable :: f_grnd_SE(:,:)
-    real(wp), allocatable :: f_flt(:,:) 
-
-    nx = size(f_grnd,1)
-    ny = size(f_grnd,2) 
-    
-    ! Set boundary condition code
-    BC = boundary_code(boundaries)
-
-    allocate(f_grnd_NW(nx,ny))
-    allocate(f_grnd_NE(nx,ny))
-    allocate(f_grnd_SW(nx,ny))
-    allocate(f_grnd_SE(nx,ny))
-    
-    allocate(f_flt(nx,ny))
-
-    ! Define aa-node variable f_flt as the flotation function
-    ! following Leguy et al. (2021), Eq. 6. 
-    ! Note: -H_grnd is not exactly the same, since it is in ice thickness,
-    ! whereas the L21 equation is in water equivalent thickness, and it includes
-    ! bedrock above sea level. But test this as it is first. 
-    f_flt = -H_grnd
-    
-    ! Calculate grounded fractions of all four quadrants of each a-grid cell
-    call determine_grounded_fractions_CISM_quads(f_grnd_NW,f_grnd_NE,f_grnd_SW,f_grnd_SE,f_flt,boundaries)
-    
-    ! Get grounded fractions on all four grids by averaging over the quadrants
-    !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1)
-    do j = 1, ny
-    do i = 1, nx 
-        
-        ! Get neighbor indices
-        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-      ! aa-nodes
-      f_grnd(i,j)     = 0.25_wp * (f_grnd_NW(i,j) + f_grnd_NE(i,j) + f_grnd_SW(i,j) + f_grnd_SE(i,j))
-      
-      if (present(f_grnd_acx)) then
-        ! acx-nodes
-        f_grnd_acx(i,j) = 0.25_wp * (f_grnd_NE(i,j) + f_grnd_SE(i,j) + f_grnd_NW(ip1,j) + f_grnd_SW(ip1,j))
-      end if 
-
-      if (present(f_grnd_acy)) then
-        ! acy-nodes
-        f_grnd_acy(i,j) = 0.25_wp * (f_grnd_NE(i,j) + f_grnd_NW(i,j) + f_grnd_SE(i,jp1) + f_grnd_SW(i,jp1))
-      end if 
-
-      if (present(f_grnd_ab)) then
-        ! ab-nodes
-        f_grnd_ab(i,j)  = 0.25_wp * (f_grnd_NE(i,j) + f_grnd_NW(ip1,j) + f_grnd_SE(i,jp1) + f_grnd_SW(ip1,jp1))
-      end if
-
-    end do
-    end do
-    !$omp end parallel do
-    
-    return 
-
-  end subroutine determine_grounded_fractions
-
-  subroutine determine_grounded_fractions_CISM_quads(f_grnd_NW,f_grnd_NE,f_grnd_SW,f_grnd_SE,f_flt,boundaries)
-    ! Calculate grounded fractions of all four quadrants of each a-grid cell
-    ! (using the approach from CISM, where grounded fractions are calculated
-    !  based on analytical solutions to the bilinear interpolation)
-    
-    implicit none
-    
-    real(wp), intent(OUT) :: f_grnd_NW(:,:)
-    real(wp), intent(OUT) :: f_grnd_NE(:,:)
-    real(wp), intent(OUT) :: f_grnd_SW(:,:)
-    real(wp), intent(OUT) :: f_grnd_SE(:,:)
-    real(wp), intent(IN)  :: f_flt(:,:) 
-    character(len=*), intent(IN) :: boundaries
-
-    ! Local variables:
-    integer  :: i, j, ii, jj, nx, ny
-    integer  :: im1, ip1, jm1, jp1  
-    real(wp) :: f_NW, f_N, f_NE, f_W, f_m, f_E, f_SW, f_S, f_SE
-    real(wp) :: fq_NW, fq_NE, fq_SW, fq_SE
-    integer  :: BC
-
-    nx = size(f_flt,1)
-    ny = size(f_flt,2)
-    
-    ! Set boundary condition code
-    BC = boundary_code(boundaries)
-
-    ! Calculate grounded fractions of all four quadrants of each a-grid cell
-    !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1, f_NW,f_N,f_NE,f_W,f_m,f_E,f_SW,f_S,f_SE, fq_NW,fq_NE,fq_SW,fq_SE)
-    do j = 1, ny
-    do i = 1, nx
-        
-        ! Get neighbor indices
-        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-      f_NW = 0.25_wp * (f_flt(im1,jp1) + f_flt(i,jp1)   + f_flt(im1,j)   + f_flt(i,j))
-      f_N  = 0.50_wp * (f_flt(i,jp1)   + f_flt(i,j))
-      f_NE = 0.25_wp * (f_flt(i,jp1)   + f_flt(ip1,jp1) + f_flt(i,j)     + f_flt(ip1,j))
-      f_W  = 0.50_wp * (f_flt(im1,j)   + f_flt(i,j))
-      f_m  = f_flt(i,j) 
-      f_E  = 0.50_wp * (f_flt(i,j)     + f_flt(ip1,j))
-      f_SW = 0.25_wp * (f_flt(im1,j)   + f_flt(i,j)     + f_flt(im1,jm1) + f_flt(i,jm1))
-      f_S  = 0.50_wp * (f_flt(i,j)     + f_flt(i,jm1))
-      f_SE = 0.25_wp * (f_flt(i,j)     + f_flt(ip1,j)   + f_flt(i,jm1)   + f_flt(ip1,jm1))
-
-      ! NW
-      fq_NW = f_NW
-      fq_NE = f_N
-      fq_SW = f_W
-      fq_SE = f_m
-      call calc_fraction_above_zero( fq_NW, fq_NE,  fq_SW,  fq_SE,  f_grnd_NW(i,j) )
-      
-      ! NE
-      fq_NW = f_N
-      fq_NE = f_NE
-      fq_SW = f_m
-      fq_SE = f_E
-      call calc_fraction_above_zero( fq_NW, fq_NE,  fq_SW,  fq_SE,  f_grnd_NE(i,j) )
-      
-      ! SW
-      fq_NW = f_W
-      fq_NE = f_m
-      fq_SW = f_SW
-      fq_SE = f_S
-      call calc_fraction_above_zero( fq_NW, fq_NE,  fq_SW,  fq_SE,  f_grnd_SW(i,j) )
-      
-      ! SE
-      fq_NW = f_m
-      fq_NE = f_E
-      fq_SW = f_S
-      fq_SE = f_SE
-      call calc_fraction_above_zero( fq_NW, fq_NE,  fq_SW,  fq_SE,  f_grnd_SE(i,j) )
-      
-    end do
-    end do
-    !$omp end parallel do
-
-    return 
-
-  end subroutine determine_grounded_fractions_CISM_quads
-
-  subroutine calc_fraction_above_zero( f_NW, f_NE, f_SW, f_SE, phi)
-    ! Given a square with function values at the four corners,
-    ! calculate the fraction phi of the square where the function is larger than zero.
-    
-    ! Note: calculations below require double precision!! 
-    
-    implicit none
-    
-    ! In/output variables:
-    real(wp), intent(IN)    :: f_NW, f_NE, f_SW, f_SE
-    real(wp), intent(OUT)   :: phi
-    
-    ! Local variables:
-    real(dp) :: f_NWp, f_NEp, f_SWp, f_SEp
-    real(dp) :: aa,bb,cc,dd,x,f1,f2
-    integer  :: scen
-
-    real(wp), parameter :: ftol = 1e-4_dp
-    
-    ! The analytical solutions sometime give problems when one or more of the corner
-    ! values is VERY close to zero; avoid this.
-    if (f_NW == 0.0_dp) then
-      f_NWp = ftol
-    else if (f_NW > 0.0_dp) then
-      f_NWp = MAX(  ftol, f_NW)
-    else if (f_NW < 0.0_dp) then
-      f_NWp = MIN( -ftol, f_NW)
-    else
-      f_NWp = f_NW
-    end if
-    if (f_NE == 0.0_dp) then
-      f_NEp = ftol
-    else if (f_NE > 0.0_dp) then
-      f_NEp = MAX(  ftol, f_NE)
-    else if (f_NE < 0.0_dp) then
-      f_NEp = MIN( -ftol, f_NE)
-    else
-      f_NEp = f_NE
-    end if
-    if (f_SW == 0.0_dp) then
-      f_SWp = ftol
-    else if (f_SW > 0.0_dp) then
-      f_SWp = MAX(  ftol, f_SW)
-    else if (f_SW < 0.0_dp) then
-      f_SWp = MIN( -ftol, f_SW)
-    else
-      f_SWp = f_SW
-    end if
-    if (f_SE == 0.0_dp) then
-      f_SEp = ftol
-    else if (f_SE > 0.0_dp) then
-      f_SEp = MAX(  ftol, f_SE)
-    else if (f_SE < 0.0_dp) then
-      f_SEp = MIN( -ftol, f_SE)
-    else
-      f_SEp = f_SE
-    end if
-    
-    if (f_NWp <= 0.0_dp .AND. f_NEp <= 0.0_dp .AND. f_SWp <= 0.0_dp .AND. f_SEp <= 0.0_dp) then
-      ! All four corners are grounded.
-      
-      phi = 1.0_wp
-      
-    else if (f_NWp >= 0.0_dp .AND. f_NEp >= 0.0_dp .AND. f_SWp >= 0.0_dp .AND. f_SEp >= 0.0_dp) then
-      ! All four corners are floating
-      
-      phi = 0.0_wp
-      
-    else
-      ! At least one corner is grounded and at least one is floating;
-      ! the grounding line must pass through this square!
-      
-      ! Only four "scenarios" exist (with rotational symmetries):
-      ! 1: SW grounded, rest floating
-      ! 2: SW floating, rest grounded
-      ! 3: south grounded, north floating
-      ! 4: SW & NE grounded, SE & NW floating
-      ! Rotate the four-corner world until it matches one of these scenarios.
-      call rotate_quad_until_match( f_NWp, f_NEp, f_SWp, f_SEp, scen)
-    
-      ! Calculate initial values of coefficients, and make correction
-      ! for when d=0 (to avoid problems)
-
-      aa  = f_SWp
-      bb  = f_SEp - f_SWp
-      cc  = f_NWp - f_SWp
-      dd  = f_NEp + f_SWp - f_NWp - f_SEp
-
-      ! Exception for when d=0
-      if (ABS(dd) < ftol) then
-        if (f_SWp > 0.0_dp) then
-          f_SWp = f_SWp + 0.1_dp
-        else
-          f_SWp = f_SWp - 0.1_dp
-        end if
-        aa  = f_SWp
-        bb  = f_SEp - f_SWp
-        cc  = f_NWp - f_SWp
-        dd  = f_NEp + f_SWp - f_NWp - f_SEp
-      end if
-        
-      if (scen == 1) then
-        ! 1: SW grounded, rest floating
-        
-        phi = ((bb*cc - aa*dd) * log(abs(1.0_dp - (aa*dd)/(bb*cc))) + aa*dd) / (dd**2)
-         
-      else if (scen == 2) then
-        ! 2: SW floating, rest grounded
-        ! Assign negative coefficients to calculate floating fraction,
-        ! then get complement to obtain grounded fraction. 
-
-        aa  = -(f_SWp)
-        bb  = -(f_SEp - f_SWp)
-        cc  = -(f_NWp - f_SWp)
-        dd  = -(f_NEp + f_SWp - f_NWp - f_SEp)
-
-        ! Exception for when d=0
-        if (ABS(dd) < 1e-4_dp) then
-          if (f_SWp > 0.0_dp) then
-            f_SWp = f_SWp + 0.1_dp
-          else
-            f_SWp = f_SWp - 0.1_dp
-          end if
-          aa  = -(f_SWp)
-          bb  = -(f_SEp - f_SWp)
-          cc  = -(f_NWp - f_SWp)
-          dd  = -(f_NEp + f_SWp - f_NWp - f_SEp)
-        end if
-        
-        phi = 1.0_dp - ((bb*cc - aa*dd) * log(abs(1.0_dp - (aa*dd)/(bb*cc))) + aa*dd) / (dd**2)
-        
-      else if (scen == 3) then
-        ! 3: south grounded, north floating
-        
-        ! Exception for when the GL runs parallel to the x-axis
-        if (abs( 1.0_dp - f_NWp/f_NEp) < 1e-6_dp .and. abs( 1.0_dp - f_SWp/f_SEp) < 1e-6_dp) then
-          
-          phi = f_SWp / (f_SWp - f_NWp)
-          
-        else
-            
-          x   = 0.0_dp
-          f1  = ((bb*cc - aa*dd) * log(abs(cc+dd*x)) - bb*dd*x) / (dd**2)
-          x   = 1.0_dp
-          f2  = ((bb*cc - aa*dd) * log(abs(cc+dd*x)) - bb*dd*x) / (dd**2)
-          phi = f2-f1
-                  
-        end if
-        
-      else if (scen == 4) then
-        ! 4: SW & NE grounded, SE & NW floating
-        ! (recalculate coefficients here explicitly for two cases)
-
-        ! SW corner
-        aa  = f_SWp
-        bb  = f_SEp - f_SWp
-        cc  = f_NWp - f_SWp
-        dd  = f_NEp + f_SWp - f_NWp - f_SEp
-        phi = ((bb*cc - aa*dd) * log(abs(1.0_dp - (aa*dd)/(bb*cc))) + aa*dd) / (dd**2)
-        
-        ! NE corner
-        call rotate_quad( f_NWp, f_NEp, f_SWp, f_SEp)
-        call rotate_quad( f_NWp, f_NEp, f_SWp, f_SEp)
-        aa  = f_SWp
-        bb  = f_SEp - f_SWp
-        cc  = f_NWp - f_SWp
-        dd  = f_NEp + f_SWp - f_NWp - f_SEp
-        phi = phi + ((bb*cc - aa*dd) * log(abs(1.0_dp - (aa*dd)/(bb*cc))) + aa*dd) / (dd**2)
-        
-      else
-        write(io_unit_err,*) 'determine_grounded_fractions_CISM_quads - calc_fraction_above_zero - ERROR: unknown scenario [', scen, ']!'
-        stop
-      end if
-      
-    end if
-    
-    if (phi < -0.01_wp .OR. phi > 1.01_wp .OR. phi /= phi) then
-      write(io_unit_err,*) 'calc_fraction_above_zero - ERROR: phi = ', phi
-      write(io_unit_err,*) 'scen = ', scen
-      write(io_unit_err,*) 'f = [', f_NWp, ',', f_NEp, ',', f_SWp, ',', f_SEp, ']'
-      write(io_unit_err,*) 'aa = ', aa, ', bb = ', bb, ', cc = ', cc, ', dd = ', dd, ', f1 = ', f1, ',f2 = ', f2
-      stop
-    end if
-    
-    phi = MAX( 0.0_wp, MIN( 1.0_wp, phi))
-    
-    return
-
-  end subroutine calc_fraction_above_zero
-
-  subroutine rotate_quad_until_match( f_NW, f_NE, f_SW, f_SE, scen)
-    ! Rotate the four corners until one of the four possible scenarios is found.
-    ! 1: SW grounded, rest floating
-    ! 2: SW floating, rest grounded
-    ! 3: south grounded, north floating
-    ! 4: SW & NE grounded, SE & NW floating
-    
-    implicit none
-    
-    ! In/output variables:
-    real(dp), intent(INOUT) :: f_NW, f_NE, f_SW, f_SE
-    integer,  intent(OUT)   :: scen
-    
-    ! Local variables:
-    logical :: found_match
-    integer :: nit
-    
-    found_match = .FALSE.
-    scen        = 0
-    nit         = 0
-    
-    do while (.not. found_match)
-      
-      nit = nit+1
-      
-      call rotate_quad( f_NW, f_NE, f_SW, f_SE)
-      
-      if     (f_SW < 0.0_wp .AND. f_SE > 0.0_wp .AND. f_NE > 0.0_wp .AND. f_NW > 0.0_wp) then
-        ! 1: SW grounded, rest floating
-        scen = 1
-        found_match = .TRUE.
-      else if (f_SW > 0.0_wp .AND. f_SE < 0.0_wp .AND. f_NE < 0.0_wp .AND. f_NW < 0.0_wp) then
-        ! 2: SW floating, rest grounded
-        scen = 2
-        found_match = .TRUE.
-      else if (f_SW < 0.0_wp .AND. f_SE < 0.0_wp .AND. f_NE > 0.0_wp .AND. f_NW > 0.0_wp) then
-        ! 3: south grounded, north floating
-        scen = 3
-        found_match = .TRUE.
-      else if (f_SW < 0.0_wp .AND. f_SE > 0.0_wp .AND. f_NE < 0.0_wp .AND. f_NW > 0.0_wp) then
-        ! 4: SW & NE grounded, SE & NW floating
-        scen = 4
-        found_match = .TRUE.
-      end if
-      
-      if (nit > 4) then
-        write(io_unit_err,*) 
-        write(io_unit_err,*) 'determine_grounded_fractions_CISM_quads - rotate_quad_until_match - ERROR: couldnt find matching scenario!'
-        write(io_unit_err,*) 'f_SW, f_SE, f_NE, f_NW: ', f_SW, f_SE, f_NE, f_NW
-        stop 
-      end if
-      
-    end do
-    
-    return 
-
-  end subroutine rotate_quad_until_match
-
-  subroutine rotate_quad( f_NW, f_NE, f_SW, f_SE)
-    ! Rotate the four corners anticlockwise by 90 degrees
-    
-    implicit none
-    
-    ! In/output variables:
-    real(dp), intent(INOUT) :: f_NW, f_NE, f_SW, f_SE
-    
-    ! Local variables:
-    real(dp) :: fvals(4)
-    
-    fvals = [f_NW,f_NE,f_SE,f_SW]
-    f_NW = fvals( 2)
-    f_NE = fvals( 3)
-    f_SE = fvals( 4)
-    f_SW = fvals( 1)
-    
-    return 
-
-  end subroutine rotate_quad
-
-
-    elemental function cdf(x,mu,sigma,inv) result(F)
-        ! Solve for cumulative probability below (cdf)
-        ! or above (cdf(inv=TRUE)) the value x
-        ! given a normal distribution N(mu,sigma)
-
-        ! See equation for F(x) and Q(x) in, e.g.:
-        ! https://en.wikipedia.org/wiki/Normal_distribution
-
-        implicit none
-
-        real(wp), intent(IN)  :: x
-        real(wp), intent(IN)  :: mu
-        real(wp), intent(IN)  :: sigma
-        logical,  intent(IN), optional :: inv
-        real(wp) :: F
-        
-        real(wp), parameter :: sqrt2 = sqrt(2.0_wp)
-
-        ! Calculate CDF at value x
-        F = 0.5_wp*( 1.0_wp + error_function((x-mu)/(sqrt2*sigma)) )
-
-        if (present(inv)) then 
-            if (inv) then 
-                ! Calculate inverse CDF at value x 
-                F = 1.0_wp - F 
-            end if 
-        end if 
-
-        return
-
-    end function cdf
-
-    elemental function error_function(X) result(ERR)
-        ! Purpose: Compute error function erf(x)
-        ! Input:   x   --- Argument of erf(x)
-        ! Output:  ERR --- erf(x)
-        
-        ! Note: also separately defined in thermodynamics.f90
-
-        implicit none 
-
-        real(wp), intent(IN)  :: X
-        real(wp) :: ERR
-        
-        ! Local variables:
-        real(wp)              :: EPS
-        real(wp)              :: X2
-        real(wp)              :: ER
-        real(wp)              :: R
-        real(wp)              :: C0
-        integer                 :: k
-        
-        EPS = 1.0e-15
-        X2  = X * X
-        if (abs(X) < 3.5) then
-            ER = 1.0
-            R  = 1.0
-            do k = 1, 50
-                R  = R * X2 / (real(k, wp) + 0.5)
-                ER = ER+R
-                if(abs(R) < abs(ER) * EPS) then
-                    C0  = 2.0 / sqrt(pi) * X * exp(-X2)
-                    ERR = C0 * ER
-                    EXIT
-                end if
-            end do
-        else
-            ER = 1.0
-            R  = 1.0
-            do k = 1, 12
-                R  = -R * (real(k, wp) - 0.5) / X2
-                ER = ER + R
-                C0  = EXP(-X2) / (abs(X) * sqrt(pi))
-                ERR = 1.0 - C0 * ER
-                if(X < 0.0) ERR = -ERR
-            end do
-        end if
-
-        return
-
-    end function error_function
 
 end module topography
 

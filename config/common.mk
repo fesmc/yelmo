@@ -7,8 +7,9 @@
 
 # Dependency paths (serial build by default).
 FESMUTILSROOT = fesm-utils
-INC_FESMUTILS = -I${FESMUTILSROOT}/include-serial
-LIB_FESMUTILS = -L${FESMUTILSROOT}/include-serial -lfesmutils
+FESMUTILSLIBDIR = ${FESMUTILSROOT}/include-serial
+INC_FESMUTILS = -I${FESMUTILSLIBDIR}
+LIB_FESMUTILS = -L${FESMUTILSLIBDIR} -lfesmutils
 
 LISROOT = fesm-utils/lis/lis-serial
 INC_LIS = -I${LISROOT}/include
@@ -54,8 +55,7 @@ LIB_PETSC = -L${PETSC_DIR}/lib -lpetsc
 # OpenMP variants and append the compiler's OpenMP flag (FFLAGS_OPENMP, set in
 # the compiler fragment).
 ifeq ($(openmp), 1)
-    INC_FESMUTILS = -I${FESMUTILSROOT}/include-omp
-    LIB_FESMUTILS = -L${FESMUTILSROOT}/include-omp -lfesmutils
+    FESMUTILSLIBDIR = ${FESMUTILSROOT}/include-omp
 
     LISROOT = fesm-utils/lis/lis-omp
     INC_LIS = -I${LISROOT}/include
@@ -66,6 +66,13 @@ ifeq ($(openmp), 1)
     LIB_FFTW = -L${FFTWROOT}/lib -lfftw3_omp -lfftw3 -lm
 
     FFLAGS += $(FFLAGS_OPENMP)
+endif
+
+# Position-independent code (make pic=1): needed to link objects into a shared
+# library on Linux, e.g. yelmo-c for the C API. Passed on to the in-tree deps;
+# fesm-utils (incl. LIS/FFTW) must be built with pic=1 too.
+ifeq ($(pic), 1)
+    FFLAGS += -fPIC
 endif
 
 # Linear solvers to include: LIS is always required, PETSc is optional.

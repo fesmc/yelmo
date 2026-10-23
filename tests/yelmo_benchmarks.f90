@@ -27,9 +27,15 @@ program yelmo_benchmarks
     character(len=56)  :: experiment
     logical    :: with_bumps, low_z_sl
     logical    :: symmetry_check
+    real(wp)   :: symmetry_tol
+    real(wp)   :: symmetry_avg_time
+    real(wp)   :: sym_wt
+    real(wp), allocatable :: H_sym(:,:)
     type(sym_metrics_class) :: sym_met
     logical    :: sym_pass
-    real(wp) :: time_init, time_end, dtt, dt2D_out, dt1D_out
+    real(dp) :: time_init, time_end
+    real(dp) :: dtt
+    real(wp) :: dt2D_out, dt1D_out
     real(wp) :: period, dt_test, alpha, omega, L, amp 
     real(wp) :: bumps_L, bumps_A 
     integer    :: n  
@@ -80,6 +86,10 @@ program yelmo_benchmarks
     ! Symmetry regression gate (default .FALSE.); enabled for symmetric benchmarks
     symmetry_check = .FALSE.
     call nml_read(path_par,"ctrl","symmetry_check", symmetry_check)  ! Run end-of-run symmetry check?
+    symmetry_tol = 1.0e-3_wp
+    if (symmetry_check) call nml_read(path_par,"ctrl","symmetry_tol", symmetry_tol)  ! [Linf/Hmax] Symmetry tolerance
+    symmetry_avg_time = 0.0_wp
+    if (symmetry_check) call nml_read(path_par,"ctrl","symmetry_avg_time", symmetry_avg_time)  ! [yr] Check mean H_ice over last symmetry_avg_time (0: final state)
     
     ! call nml_read(path_par,"ctrl","with_bumps",with_bumps)       ! Bedrock with sin bumps?
     ! call nml_read(path_par,"ctrl","bumps_L",bumps_L)             ! [km] Length scale of bumps
@@ -90,7 +100,7 @@ program yelmo_benchmarks
     ! === Initialize timestepping ===
     
     call tstep_init(ts,time_init,time_end,method="const",units="year", &
-                                            time_ref=1950.0_wp,const_rel=0.0_wp,const_cal=1950.0_wp)
+                                            time_ref=1950.0_dp,const_rel=0.0_dp,const_cal=1950.0_dp)
 
     ! Define the model domain based on the experiment we are running
     select case(trim(experiment))
@@ -243,7 +253,7 @@ end if
 
             ! Initialize BUELER-B 
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=750.0_wp,H0=3600.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -261,7 +271,7 @@ end if
 
             ! Initialize BUELER-B (but with HALFAR conditions)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=21.2132_wp,H0=707.1_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -279,7 +289,7 @@ end if
 
             ! Initialize BUELER-B (but with conditions between Bueler-B and HALFAR - not too big, not too small)
             call bueler_test_BC(buel%H_ice,buel%mbal,buel%u_b,yelmo1%grd%x,yelmo1%grd%y, &
-                        time=0.0_wp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
+                        time=0.0_dp,R0=100.0_wp,H0=800.0_wp,lambda=0.0_wp,n=3.0_wp,A=1e-16_wp, &
                         rho_ice=yelmo1%bnd%c%rho_ice,g=yelmo1%bnd%c%g)
 
             yelmo1%bnd%T_srf = 223.15 
@@ -324,7 +334,7 @@ end if
             ! Initialize eismint boundary values 
             call eismint_boundaries(yelmo1%bnd%T_srf,yelmo1%bnd%smb,yelmo1%bnd%Q_geo, &
                                     yelmo1%grd%x,yelmo1%grd%y,yelmo1%tpo%now%H_ice, &
-                                    experiment=experiment,time=0.0_wp,period=period,dT_test=dT_test)
+                                    experiment=experiment,time=0.0_dp,period=period,dT_test=dT_test)
 
 
     end select 
@@ -387,6 +397,12 @@ end if
     thrm_method_default = trim(yelmo1%thrm%par%method)
     rock_method_default = trim(yelmo1%thrm%par%rock_method)
 
+    if (symmetry_check) then
+        allocate(H_sym(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+        H_sym  = 0.0_wp
+        sym_wt = 0.0_wp
+    end if
+
     ! Advance timesteps
     do while (.not. ts%is_finished)
 
@@ -404,6 +420,14 @@ end if
         ! == Yelmo ice sheet ===================================================
         call yelmo_update(yelmo1,ts%time)
         
+        ! Accumulate H_ice for the symmetry check (final step only if symmetry_avg_time=0)
+        if (symmetry_check) then
+            if (ts%time .gt. ts%time_end - symmetry_avg_time - 0.5_wp*dtt) then
+                H_sym  = H_sym  + dtt*yelmo1%tpo%now%H_ice
+                sym_wt = sym_wt + dtt
+            end if
+        end if
+
         ! == Update boundaries 
         select case(trim(experiment))
 
@@ -515,15 +539,18 @@ end if
 
     ! == SYMMETRY REGRESSION CHECK ==========================================
     ! For symmetric benchmark configurations (e.g. EISMINT moving/expa/expf),
-    ! verify that the final ice thickness field preserved its symmetry.
+    ! verify that the ice thickness field preserved its symmetry: the final
+    ! state, or its mean over the last symmetry_avg_time years (for cases
+    ! with transient symmetry-breaking bursts, e.g. EXPF).
     ! A failure turns the run into a hard regression gate (nonzero exit).
     ! (Placed before the restart write, which can stop early on unsupported vars.)
     if (symmetry_check) then
-        call calc_symmetry_metrics(yelmo1%tpo%now%H_ice,1.0e-3_wp,sym_met,sym_pass)
-        call report_symmetry(trim(domain)//"-"//trim(experiment),sym_met,1.0e-3_wp,sym_pass)
+        H_sym = H_sym / sym_wt
+        call calc_symmetry_metrics(H_sym,symmetry_tol,sym_met,sym_pass)
+        call report_symmetry(trim(domain)//"-"//trim(experiment),sym_met,symmetry_tol,sym_pass)
         if (.not. sym_pass) then
             write(*,*) "yelmo_benchmarks:: symmetry regression check FAILED."
-            stop 1
+            error stop 1
         end if
     end if
 
@@ -547,7 +574,7 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp),          intent(IN) :: time
+        real(dp),          intent(IN) :: time
         type(bueler_test_type), intent(IN), optional :: buel 
 
         ! Local variables
@@ -641,9 +668,6 @@ contains
         call nc_write(filename,"Q_strn",ylmo%thrm%now%Q_strn/(ylmo%bnd%c%rho_ice*ylmo%thrm%now%cp),units="K yr-1",long_name="Strain heating", &
                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
 
-        call nc_write(filename,"dQsdT",ylmo%thrm%now%dQsdT,units="yr-1",long_name="Strain heating derivative w.r.t. temperature", &
-                      dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-
         call nc_write(filename,"Q_b",ylmo%thrm%now%Q_b,units="mW m-2",long_name="Basal frictional heating", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
         
@@ -679,8 +703,6 @@ contains
         if (.FALSE.) then
 
             call nc_write(filename,"de",ylmo%mat%now%strn%de,units="a^-1",long_name="Effective strain rate", &
-                      dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-            call nc_write(filename,"te",ylmo%mat%now%strs%te,units="Pa",long_name="Effective stress", &
                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
             call nc_write(filename,"visc_int",ylmo%mat%now%visc_int,units="Pa a m",long_name="Depth-integrated effective viscosity (SSA)", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
@@ -866,7 +888,7 @@ contains
         type(yelmo_class),      intent(IN) :: ylmo
         type(bueler_test_type), intent(IN) :: buel 
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
         
         ! Local variables
         integer    :: ncid, n, i, j, nx, ny  

@@ -3,11 +3,11 @@
 # Define user options
 
 domain=Greenland
-grid_name_src=GRL-64KM
+grid_name_src=GRL-32KM
 
 # Determine input grid file using options
 
-nc_src=../ice_data/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc 
+nc_src=../fesmdata/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc 
 
 if [ $grid_name_src = ERA5 ]
 then

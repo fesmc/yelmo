@@ -105,7 +105,7 @@ contains
     
     call yelmo_set_alias(alias)
 
-    call yelmo_init(ylmo, filename=trim(f_filename), grid_def=trim(f_grid_def), time=real(time, wp))
+    call yelmo_init(ylmo, filename=trim(f_filename), grid_def=trim(f_grid_def), time=time)
 
     nullify(ylmo)
 
@@ -126,7 +126,27 @@ contains
 
     call yelmo_set_alias(alias)
 
-    call yelmo_init_state(ylmo, time=real(time, wp), thrm_method=trim(f_thrm_method))
+    call yelmo_init_state(ylmo, time=time, thrm_method=trim(f_thrm_method))
+
+    nullify(ylmo)
+
+  end subroutine
+
+  ! Register a host callback for the effective pressure: called in every DIVA Picard iteration as
+  !   cb(tag, uxy_b, N_eff, nx, ny)   (uxy_b [m/yr] on aa-nodes in, N_eff [Pa] out)
+  ! so that a steady hydrology owned by the host (K24 in Julia) is solved together with the sliding
+  ! speed instead of lagging it by a step. Pass a null pointer to unregister. Needs the host to push
+  ! N externally (hyd.bkt_N_closure = -1) as for any externally driven N.
+  subroutine yelmo_set_neff_callback(cb, tag, alias) bind(C, name="yelmo_set_neff_callback")
+    use iso_c_binding
+    type(c_funptr), value, intent(in) :: cb
+    integer(c_int), value, intent(in) :: tag
+    character(c_char),     intent(in) :: alias(*)
+
+    call yelmo_set_alias(alias)
+
+    ylmo%dyn%neff_cb     = cb
+    ylmo%dyn%neff_cb_tag = tag
 
     nullify(ylmo)
 
@@ -139,7 +159,7 @@ contains
 
     call yelmo_set_alias(alias)
 
-    call yelmo_update(ylmo, real(time, wp))
+    call yelmo_update(ylmo, time)
 
     nullify(ylmo)
 
@@ -159,7 +179,7 @@ contains
     character(len=1028) :: f_filename
     f_filename = trim(c_to_f_string(filename))
     call yelmo_set_alias(alias)
-    call yelmo_restart_write(ylmo, trim(f_filename), real(time, wp))
+    call yelmo_restart_write(ylmo, trim(f_filename), time)
     nullify(ylmo)
   end subroutine yelmo_restart_write_wrapper
 
@@ -279,7 +299,6 @@ contains
       case("bnd_basins");        v2D = real(ylmo%bnd%basins,        c_double)
       case("bnd_basin_mask");    v2D = real(ylmo%bnd%basin_mask,    c_double)
       case("bnd_regions");       v2D = real(ylmo%bnd%regions,       c_double)
-      case("bnd_region_mask");   v2D = real(ylmo%bnd%region_mask,   c_double)
       case("bnd_H_ice_ref");     v2D = real(ylmo%bnd%H_ice_ref,     c_double)
       case("bnd_z_bed_ref");     v2D = real(ylmo%bnd%z_bed_ref,     c_double)
       case("bnd_calv_mask");     v2D = merge(1.0_c_double, 0.0_c_double, ylmo%bnd%calv_mask)
@@ -309,6 +328,7 @@ contains
       case("tpo_mb_net");        v2D = real(ylmo%tpo%now%mb_net,        c_double)
       case("tpo_mb_relax");      v2D = real(ylmo%tpo%now%mb_relax,      c_double)
       case("tpo_mb_resid");      v2D = real(ylmo%tpo%now%mb_resid,      c_double)
+      case("tpo_mb_border");     v2D = real(ylmo%tpo%now%mb_border,     c_double)
       case("tpo_mb_err");        v2D = real(ylmo%tpo%now%mb_err,        c_double)
       case("tpo_smb");           v2D = real(ylmo%tpo%now%smb,           c_double)
       case("tpo_bmb");           v2D = real(ylmo%tpo%now%bmb,           c_double)
@@ -326,12 +346,19 @@ contains
       case("tpo_cmb_grnd_y");    v2D = real(ylmo%tpo%now%cmb_grnd_y,    c_double)
       case("tpo_cr_acx");        v2D = real(ylmo%tpo%now%cr_acx,        c_double)
       case("tpo_cr_acy");        v2D = real(ylmo%tpo%now%cr_acy,        c_double)
+      case("tpo_calv_rate_flt"); v2D = real(ylmo%tpo%now%calv_rate_flt, c_double)
+      case("tpo_calv_rate_grnd");v2D = real(ylmo%tpo%now%calv_rate_grnd,c_double)
       case("tpo_lsf");           v2D = real(ylmo%tpo%now%lsf,           c_double)
       case("tpo_dlsfdt");        v2D = real(ylmo%tpo%now%dlsfdt,        c_double)
       case("tpo_z_srf");         v2D = real(ylmo%tpo%now%z_srf,         c_double)
       case("tpo_dzsdt");         v2D = real(ylmo%tpo%now%dzsdt,         c_double)
+      case("tpo_dzsdt_kin");     v2D = real(ylmo%tpo%now%dzsdt_kin,     c_double)
+      case("tpo_dzbdt_kin");     v2D = real(ylmo%tpo%now%dzbdt_kin,     c_double)
+      case("tpo_dHidt_vert");    v2D = real(ylmo%tpo%now%dHidt_vert,    c_double)
+      case("tpo_mask_kin");      v2D = real(ylmo%tpo%now%mask_kin,      c_double)
       case("tpo_eps_eff");       v2D = real(ylmo%tpo%now%eps_eff,       c_double)
       case("tpo_tau_eff");       v2D = real(ylmo%tpo%now%tau_eff,       c_double)
+      case("tpo_tau_vm");        v2D = real(ylmo%tpo%now%tau_vm,        c_double)
       case("tpo_z_base");        v2D = real(ylmo%tpo%now%z_base,        c_double)
       case("tpo_dzsdx");         v2D = real(ylmo%tpo%now%dzsdx,         c_double)
       case("tpo_dzsdy");         v2D = real(ylmo%tpo%now%dzsdy,         c_double)
@@ -339,12 +366,6 @@ contains
       case("tpo_dHidy");         v2D = real(ylmo%tpo%now%dHidy,         c_double)
       case("tpo_dzbdx");         v2D = real(ylmo%tpo%now%dzbdx,         c_double)
       case("tpo_dzbdy");         v2D = real(ylmo%tpo%now%dzbdy,         c_double)
-      case("tpo_dzsdx_aa");      v2D = real(ylmo%tpo%now%dzsdx_aa,      c_double)
-      case("tpo_dzsdy_aa");      v2D = real(ylmo%tpo%now%dzsdy_aa,      c_double)
-      case("tpo_dHidx_aa");      v2D = real(ylmo%tpo%now%dHidx_aa,      c_double)
-      case("tpo_dHidy_aa");      v2D = real(ylmo%tpo%now%dHidy_aa,      c_double)
-      case("tpo_dzbdx_aa");      v2D = real(ylmo%tpo%now%dzbdx_aa,      c_double)
-      case("tpo_dzbdy_aa");      v2D = real(ylmo%tpo%now%dzbdy_aa,      c_double)
       case("tpo_H_eff");         v2D = real(ylmo%tpo%now%H_eff,         c_double)
       case("tpo_H_grnd");        v2D = real(ylmo%tpo%now%H_grnd,        c_double)
       case("tpo_H_calv");        v2D = real(ylmo%tpo%now%H_calv,        c_double)
@@ -391,8 +412,6 @@ contains
       case("dyn_uy_i_bar");      v2D = real(ylmo%dyn%now%uy_i_bar,      c_double)
       case("dyn_uxy_i_bar");     v2D = real(ylmo%dyn%now%uxy_i_bar,     c_double)
       case("dyn_duxydt");        v2D = real(ylmo%dyn%now%duxydt,        c_double)
-      case("dyn_duxdz_bar");     v2D = real(ylmo%dyn%now%duxdz_bar,     c_double)
-      case("dyn_duydz_bar");     v2D = real(ylmo%dyn%now%duydz_bar,     c_double)
       case("dyn_taud_acx");      v2D = real(ylmo%dyn%now%taud_acx,      c_double)
       case("dyn_taud_acy");      v2D = real(ylmo%dyn%now%taud_acy,      c_double)
       case("dyn_taud");          v2D = real(ylmo%dyn%now%taud,          c_double)
@@ -411,6 +430,7 @@ contains
       case("dyn_cb_tgt");        v2D = real(ylmo%dyn%now%cb_tgt,        c_double)
       case("dyn_cb_ref");        v2D = real(ylmo%dyn%now%cb_ref,        c_double)
       case("dyn_c_bed");         v2D = real(ylmo%dyn%now%c_bed,         c_double)
+      case("dyn_f_slide");       v2D = real(ylmo%dyn%now%f_slide,       c_double)
       case("dyn_beta_acx");      v2D = real(ylmo%dyn%now%beta_acx,      c_double)
       case("dyn_beta_acy");      v2D = real(ylmo%dyn%now%beta_acy,      c_double)
       case("dyn_beta");          v2D = real(ylmo%dyn%now%beta,          c_double)
@@ -471,7 +491,18 @@ contains
       case("thrm_Q_ice_b");      v2D = real(ylmo%thrm%now%Q_ice_b,      c_double)
       case("thrm_T_prime_b");    v2D = real(ylmo%thrm%now%T_prime_b,    c_double)
       case("thrm_H_cts");        v2D = real(ylmo%thrm%now%H_cts,        c_double)
+      case("thrm_bmb_grnd_star"); v2D = real(ylmo%thrm%now%bmb_grnd_star, c_double)
+      case("thrm_bc_b");         v2D = real(ylmo%thrm%now%bc_b,         c_double)
+      case("thrm_bmb_clamp");    v2D = real(ylmo%thrm%now%bmb_clamp,    c_double)
+      case("thrm_melt_int");     v2D = real(ylmo%thrm%now%melt_int,     c_double)
       case("thrm_Q_rock");       v2D = real(ylmo%thrm%now%Q_rock,       c_double)
+
+      ! -----------------------------------------------------------------------
+      ! hyd%now — basal energy exchange fields
+      ! -----------------------------------------------------------------------
+      case("hyd_C_frz");         v2D = real(ylmo%hyd%now%C_frz,         c_double)
+      case("hyd_Q_diss");        v2D = real(ylmo%hyd%now%Q_diss,        c_double)
+      case("hyd_Q_sens");        v2D = real(ylmo%hyd%now%Q_sens,        c_double)
 
       case DEFAULT
         if (VERBOSE) then
@@ -518,7 +549,6 @@ contains
       case("dyn_uy_i");          v3D = real(ylmo%dyn%now%uy_i,          c_double)
       case("dyn_duxdz");         v3D = real(ylmo%dyn%now%duxdz,         c_double)
       case("dyn_duydz");         v3D = real(ylmo%dyn%now%duydz,         c_double)
-      case("dyn_de_eff");        v3D = real(ylmo%dyn%now%de_eff,        c_double)
       case("dyn_visc_eff");      v3D = real(ylmo%dyn%now%visc_eff,      c_double)
       ! strain_3D_class (dyn)
       case("dyn_strn_dxx");      v3D = real(ylmo%dyn%now%strn%dxx,      c_double)
@@ -558,13 +588,6 @@ contains
       case("mat_strn_de");       v3D = real(ylmo%mat%now%strn%de,       c_double)
       case("mat_strn_div");      v3D = real(ylmo%mat%now%strn%div,      c_double)
       case("mat_strn_f_shear");  v3D = real(ylmo%mat%now%strn%f_shear,  c_double)
-      ! stress_3D_class (mat)
-      case("mat_strs_txx");      v3D = real(ylmo%mat%now%strs%txx,      c_double)
-      case("mat_strs_tyy");      v3D = real(ylmo%mat%now%strs%tyy,      c_double)
-      case("mat_strs_txy");      v3D = real(ylmo%mat%now%strs%txy,      c_double)
-      case("mat_strs_txz");      v3D = real(ylmo%mat%now%strs%txz,      c_double)
-      case("mat_strs_tyz");      v3D = real(ylmo%mat%now%strs%tyz,      c_double)
-      case("mat_strs_te");       v3D = real(ylmo%mat%now%strs%te,       c_double)
 
       ! -----------------------------------------------------------------------
       ! ytherm%now — 3D thermodynamic fields
@@ -575,11 +598,9 @@ contains
       case("thrm_T_pmp");        v3D = real(ylmo%thrm%now%T_pmp,        c_double)
       case("thrm_T_prime");      v3D = real(ylmo%thrm%now%T_prime,      c_double)
       case("thrm_Q_strn");       v3D = real(ylmo%thrm%now%Q_strn,       c_double)
-      case("thrm_dQsdT");        v3D = real(ylmo%thrm%now%dQsdT,        c_double)
       case("thrm_cp");           v3D = real(ylmo%thrm%now%cp,           c_double)
       case("thrm_kt");           v3D = real(ylmo%thrm%now%kt,           c_double)
       case("thrm_advecxy");      v3D = real(ylmo%thrm%now%advecxy,      c_double)
-      case("thrm_enth_rock");    v3D = real(ylmo%thrm%now%enth_rock,    c_double)
       case("thrm_T_rock");       v3D = real(ylmo%thrm%now%T_rock,       c_double)
 
       case DEFAULT
@@ -627,7 +648,6 @@ contains
       case("bnd_basins");        ylmo%bnd%basins        = real(v2D, wp)
       case("bnd_basin_mask");    ylmo%bnd%basin_mask    = real(v2D, wp)
       case("bnd_regions");       ylmo%bnd%regions       = real(v2D, wp)
-      case("bnd_region_mask");   ylmo%bnd%region_mask   = real(v2D, wp)
       case("bnd_H_ice_ref");     ylmo%bnd%H_ice_ref     = real(v2D, wp)
       case("bnd_z_bed_ref");     ylmo%bnd%z_bed_ref     = real(v2D, wp)
       case("bnd_calv_mask");     ylmo%bnd%calv_mask     = (int(v2D) /= 0)
@@ -660,6 +680,9 @@ contains
       ! -----------------------------------------------------------------------
       case("hyd_N");             ylmo%hyd%now%N             = real(v2D, wp)
       case("hyd_W_til");         ylmo%hyd%now%W_til         = real(v2D, wp)
+      case("hyd_C_frz");         ylmo%hyd%now%C_frz         = real(v2D, wp)
+      case("hyd_Q_diss");        ylmo%hyd%now%Q_diss        = real(v2D, wp)
+      case("hyd_Q_sens");        ylmo%hyd%now%Q_sens        = real(v2D, wp)
 
       case DEFAULT
         write(*,*) "yelmo_set_var2D:: variable not found or not settable: "//trim(f_name)

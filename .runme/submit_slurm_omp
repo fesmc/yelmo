@@ -3,12 +3,15 @@
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=<OMP>
+#SBATCH --hint=nomultithread        # one thread per physical core (SMT siblings slow yelmo down)
 #SBATCH --no-requeue
 
 export OMP_PROC_BIND=true           # make sure our threads stick to cores
+export OMP_PLACES=cores
 export OMP_NUM_THREADS=<OMP>        # matches how many cpus-per-task we asked for
 export OMP_MAX_ACTIVE_LEVELS=1
 export OMP_STACKSIZE=512M
+export KMP_BLOCKTIME=0              # idle threads sleep instead of spinning (Intel OpenMP)
 export MKL_NUM_THREADS=<OMP>
 
 # OpenMP and srun, both need to know the number of CPUs per task
@@ -21,7 +24,6 @@ export SRUN_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK
 #export OMP_THREAD_LIMIT=256
 #export OMP_MAX_ACTIVE_LEVELS=1
 #export OMP_STACKSIZE=256M
-#export OMP_PLACES=cores
 #export OMP_DISPLAY_AFFINITY=TRUE
 
 ### DONE OMP Specific settings ###

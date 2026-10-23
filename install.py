@@ -57,6 +57,7 @@ class State:
     hpc: str
     account: str
     ice_data_path: str
+    fesmdata_path: str
     overwrite: bool = False
     repo_paths: dict = field(default_factory=dict)
     pending_configs: list = field(default_factory=list)
@@ -486,7 +487,7 @@ def install_fesm_utils(state):
 
 def install_yelmo(state):
     """yelmo itself: config + root-level link to fesm-utils. External data
-    link (ice_data) is handled separately by setup_data_links."""
+    links (ice_data, fesmdata) are handled separately by setup_data_links."""
     log_section(state, "yelmo (config + root links)")
     do_config(state, "yelmo", state.yelmo_root)
 
@@ -496,26 +497,34 @@ def install_yelmo(state):
         make_link(state, state.repo_paths["fesm-utils"], state.yelmo_root / "fesm-utils")
 
 
+# External data links under yelmo/: (link name, prompt, placeholder of the
+# source path in the summary). fesmdata is the products folder of FesmData
+# ($FESMDATA: <Domain>/<GRID>/<GRID>_<Dataset>-<Product>.nc).
+DATA_LINKS = [
+    ("ice_data", "Path to ice_data (v1 datasets)", "/path/to/ice_data"),
+    ("fesmdata", "Path to the FesmData products ($FESMDATA)", "/path/to/fesmdata"),
+]
+
+
 def setup_data_links(state):
-    """Prompt for ice_data path and create a symlink under yelmo/. May be
-    skipped (the summary will remind the user to wire it up later). Run after
-    the per-repo installs and before runme_config — this is a local-filesystem
-    path, separate from HPC settings."""
+    """Prompt for the external data paths (ice_data, fesmdata) and create
+    symlinks under yelmo/. Each may be skipped (the summary will remind the
+    user to wire it up later). Run after the per-repo installs and before
+    runme_config — these are local-filesystem paths, separate from HPC
+    settings."""
     log_section(state, "external data links")
-    state.ice_data_path = ask("Path to ice_data (Enter to skip and link later)",
-                              default="", allow_empty=True)
+    for name, prompt, _ in DATA_LINKS:
+        path = ask(f"{prompt} (Enter to skip and link later)", default="", allow_empty=True)
+        setattr(state, f"{name}_path", path)
 
-    if state.ice_data_path:
-        register_path_var(state, "ice_data_src",
-                          Path(state.ice_data_path).expanduser().resolve())
-
-    if state.ice_data_path:
-        p = Path(state.ice_data_path).expanduser().resolve()
-        if not p.exists():
-            print(f"  ! ice_data path {p} does not exist — creating link anyway")
-        make_link(state, p, state.yelmo_root / "ice_data", absolute=True)
-    else:
-        state.data_pending.append("ice_data")
+        if path:
+            p = Path(path).expanduser().resolve()
+            register_path_var(state, f"{name}_src", p)
+            if not p.exists():
+                print(f"  ! {name} path {p} does not exist — creating link anyway")
+            make_link(state, p, state.yelmo_root / name, absolute=True)
+        else:
+            state.data_pending.append(name)
 
 
 # ---------------------------------------------------------------- orchestration
@@ -569,13 +578,14 @@ def collect_initial_inputs(yelmo_root, download, do_config_steps,
         hpc=DEFAULT_HPC,
         account=DEFAULT_ACCOUNT,
         ice_data_path="",
+        fesmdata_path="",
         overwrite=overwrite,
     )
 
     # Register the bash variables that will appear at the top of .install.sh.
     # Order matters: later vars can be defined in terms of earlier ones. The
-    # ice_data_src var is registered later from inside setup_data_links, after
-    # the user has provided the path.
+    # The ice_data_src and fesmdata_src vars are registered later from inside
+    # setup_data_links, after the user has provided the paths.
     register_path_var(state, "yelmo_root", yelmo_root)
     if download != "no":
         register_path_var(state, "install_dir", install_dir)
@@ -692,8 +702,9 @@ def print_summary(state):
     print(f"       make benchmarks      # default build")
     if state.data_pending:
         print(f"  3. Set up data links — needed at runtime:")
+        placeholders = {name: src for name, _, src in DATA_LINKS}
         for label in state.data_pending:
-            print(f"       ln -s /path/to/{label} ./")
+            print(f"       ln -s {placeholders[label]} {label}")
         print(f"")
 
 

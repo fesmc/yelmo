@@ -1,11 +1,11 @@
 module ice_enthalpy 
     ! Module contains the ice temperature and basal mass balance (grounded) solution
 
-    use yelmo_defs, only : wp, pi  
+    use yelmo_defs, only : wp
     use solver_tridiagonal, only : solve_tridiag 
-    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, calc_advec_vertical_column, &
-                               convert_to_enthalpy, convert_from_enthalpy_column, cp_ref, cp_a, cp_b, &
-                               convert_to_enthalpy_ice, convert_from_enthalpy_ice, enth_int_from_temp
+    use thermodynamics, only : calc_bmb_grounded, calc_bmb_grounded_enth, cp_ref, &
+                               convert_to_enthalpy_ice, convert_from_enthalpy_ice, &
+                               enth_cold_from_temp, calc_cp_enth
 
     !use interp1D 
 
@@ -16,15 +16,13 @@ module ice_enthalpy
     public :: calc_temp_bedrock_column
     public :: calc_enth_column
     public :: calc_dzeta_terms
-    public :: calc_zeta_twolayers
-    public :: calc_zeta_combined
     public :: get_cts_index
 
 contains 
     
     subroutine calc_temp_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_rock,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                                dzeta_a,dzeta_b,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral,enth_cp0,gl_temp)
         ! Thermodynamics solver for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -35,7 +33,7 @@ contains
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
         real(wp), intent(INOUT) :: T_ice(:)       ! nz_aa [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:)       ! nz_aa [-] Ice column water content fraction
         real(wp), intent(INOUT) :: bmb_grnd       ! [m a-1] Basal mass balance (melting is negative)
@@ -58,7 +56,6 @@ contains
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: omega_max      ! [-] Maximum allowed water fraction inside ice, typically omega_max=0.02 
         real(wp), intent(IN)    :: T0             ! [K or degreesCelcius] Reference melting temperature  
         real(wp), intent(IN)    :: rho_ice 
         real(wp), intent(IN)    :: rho_w
@@ -66,11 +63,15 @@ contains
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy for the enth output field?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp of the enth output field (default cp_ref)
+        logical,  intent(IN), optional :: gl_temp         ! Grounded base next to the ocean: hold at T_pmp (ytherm.gl_temperate)
 
         ! Local variables
         logical :: use_int
+        real(wp) :: cp0
         integer  :: k, nz_aa, nz_ac
         real(wp) :: W_til_predicted
+        logical  :: is_gl_temp
         real(wp) :: dz, dz1, dz2, d2Tdz2 
         real(wp) :: T00, T01, T02, zeta_now  
         real(wp) :: T_excess
@@ -91,6 +92,8 @@ contains
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
         allocate(kappa_aa(nz_aa))
         allocate(Q_strn_now(nz_aa))
@@ -132,7 +135,17 @@ contains
             
             ! == Assign grounded basal boundary conditions ==
 
-            if (W_til_predicted .gt. 0.0_wp) then 
+            is_gl_temp = .FALSE.
+            if (present(gl_temp)) is_gl_temp = gl_temp
+
+            if (is_gl_temp) then
+                ! Next to the ocean (ytherm.gl_temperate): bed wetted by the ocean,
+                ! hold basal temperature at pressure melting point
+
+                val_base      = T_pmp(1)
+                is_basal_flux = .FALSE.
+
+            else if (W_til_predicted .gt. 0.0_wp) then 
                 ! Temperate at bed 
                 ! Hold basal temperature at pressure melting point
 
@@ -205,8 +218,8 @@ contains
         omega = 0.0 
 !             where (T_ice .ge. T_pmp) omega = omega_max 
 
-        ! Finally, get enthalpy too (A1 const cp_ref or A2 integral, per flag)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Finally, get enthalpy too (A1 constant cp0 or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Calculate heat flux at ice base as temperature gradient * conductivity [J a-1 m-2]
         if (H_ice .gt. 0.0_wp) then 
@@ -247,15 +260,15 @@ contains
         end if
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,enth_cold_from_temp(T_pmp,use_int,cp0),H_ice,zeta_aa)
 
         return 
 
     end subroutine calc_temp_column
 
-    subroutine calc_temp_bedrock_column(enth,temp,Q_rock,cp,kt,Q_ice_b,Q_geo,T_srf,H_rock, &
-                                                zeta_aa,zeta_ac,dzeta_a,dzeta_b,rho_rock,sec_year,dt)
-        ! Thermodynamics solver for a given column of ice 
+    subroutine calc_temp_bedrock_column(temp,Q_rock,rhoc,kt,Q_ice_b,Q_geo,T_srf,H_rock, &
+                                                zeta_aa,zeta_ac,dzeta_a,dzeta_b,sec_year,dt)
+        ! Thermodynamics solver for a given column of bedrock 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
         ! temperature is defined for cell centers, plus a value at the surface and the base
@@ -265,11 +278,10 @@ contains
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
-        real(wp), intent(INOUT) :: temp(:)        ! nz_aa [K] Ice column temperature
+        real(wp), intent(INOUT) :: temp(:)        ! nz_aa [K] Bedrock column temperature
         real(wp), intent(OUT)   :: Q_rock         ! [mW m-2] Bed surface heat flux (positive up)
-        real(wp), intent(IN)    :: cp             ! nz_aa [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)    :: kt             ! nz_aa [J a-1 m-1 K-1] Heat conductivity 
+        real(wp), intent(IN)    :: rhoc           ! [J m-3 K-1] Volumetric heat capacity
+        real(wp), intent(IN)    :: kt             ! [J a-1 m-1 K-1] Heat conductivity 
         real(wp), intent(IN)    :: Q_ice_b        ! [mW m-2] Ice basal heat flux (positive up)
         real(wp), intent(IN)    :: Q_geo          ! [mW m-2] Bedrock heat flux (positive up)
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
@@ -278,7 +290,6 @@ contains
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: rho_rock
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
 
@@ -314,7 +325,9 @@ contains
         
         allocate(kappa_aa(nz_aa))
 
-        kappa_aa = kt / (rho_rock*cp)
+        ! Thermal diffusivity: conduction needs only the conductivity and the
+        ! volumetric heat capacity, never a density and a specific heat separately.
+        kappa_aa = kt / rhoc
         
         ! Set unused terms to zero (via pointers to save allocations)
         allocate(zeros(nz_ac))
@@ -353,9 +366,6 @@ contains
         call calc_temp_column_internal(temp,kappa_aa,uz,advecxy,Q_strn,val_base,val_srf,H_rock, &
                                                 zeta_aa,zeta_ac,dzeta_a,dzeta_b,T_ref,dt, &
                                                 is_basal_flux,is_surf_flux)
-
-        ! Convert to enthalpy too 
-        call convert_to_enthalpy(enth,temp,omega=0.0_wp,T_pmp=0.0_wp,cp=cp,L=0.0_wp)
 
         ! Calculate heat flux at bedrock surface as temperature gradient * conductivity [J a-1 m-2]
 
@@ -539,9 +549,11 @@ end if
 
     end subroutine calc_temp_column_internal
 
-    subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,uz, &
+    subroutine calc_enth_column(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,kt,advecxy,uz, &
                                 Q_strn,Q_b,Q_lith,T_srf,T_shlf,H_ice,W_til,f_grnd,zeta_aa,zeta_ac, &
-                                dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral)
+                                dzeta_a,dzeta_b,cr,omega_max,T0,rho_ice,rho_w,L_ice,sec_year,dt,enth_integral, &
+                                enth_cp0,basal_bc_method,C_cap,Q_wat,cap_eps,bmb_star_out,bc_b_out,bmb_clamp_out, &
+                                melt_int_out,gl_temp)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
         ! Note: nz = number of vertical boundaries (including zeta=0.0 and zeta=1.0), 
@@ -552,20 +564,19 @@ end if
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column enthalpy
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
         real(wp), intent(INOUT) :: T_ice(:)       ! nz_aa [K] Ice column temperature
         real(wp), intent(INOUT) :: omega(:)       ! nz_aa [-] Ice column water content fraction
         real(wp), intent(INOUT) :: bmb_grnd       ! [m a-1] Basal mass balance (melting is negative)
         real(wp), intent(OUT)   :: Q_ice_b        ! [mW m-2] Ice basal heat flux (positive up)
         real(wp), intent(OUT)   :: H_cts          ! [m] cold-temperate transition surface (CTS) height
         real(wp), intent(IN)    :: T_pmp(:)       ! nz_aa [K] Pressure melting point temp.
-        real(wp), intent(IN)    :: cp(:)          ! nz_aa [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)    :: kt(:)          ! nz_aa [J a-1 m-1 K-1] Heat conductivity 
-        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [K a-1] Horizontal heat advection 
+        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
         real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J a-1 m-3] Internal strain heat production in ice
-        real(wp), intent(IN)    :: Q_b            ! [J a-1 m-2] Basal frictional heat production
-        real(wp), intent(IN)    :: Q_lith         ! [J a-1 m-2] Bedrock heat flux (positive up)
+        real(wp), intent(IN)    :: Q_b            ! [mW m-2] Basal frictional heat production
+        real(wp), intent(IN)    :: Q_lith         ! [mW m-2] Bedrock heat flux (positive up)
         real(wp), intent(IN)    :: T_srf          ! [K] Surface temperature 
         real(wp), intent(IN)    :: T_shlf         ! [K] Marine-shelf interface temperature
         real(wp), intent(IN)    :: H_ice          ! [m] Ice thickness 
@@ -584,25 +595,42 @@ end if
         real(wp), intent(IN)    :: sec_year  
         real(wp), intent(IN)    :: dt             ! [a] Time step
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy definition?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (default cp_ref)
+        character(len=*), intent(IN), optional :: basal_bc_method ! "wtil" (default) or "capacity"
+        real(wp), intent(IN), optional :: C_cap          ! [m/a ice equiv.] Freeze-on capacity (capacity rule)
+        real(wp), intent(IN), optional :: Q_wat          ! [mW m-2] Water-side basal heat, Q_diss + Q_sens (either rule)
+        real(wp), intent(OUT), optional :: melt_int_out  ! [m/a ice equiv.] Englacial water drained to the bed (included in bmb_grnd)
+        real(wp), intent(IN), optional :: cap_eps        ! [m/a ice equiv.] Capacity below which the bed counts as dry
+        real(wp), intent(OUT), optional :: bmb_star_out  ! [m/a] bmb of a base held at T_pmp (capacity rule; 0 otherwise)
+        real(wp), intent(OUT), optional :: bc_b_out      ! [--] basal BC used: 0 not grounded, 1 held at T_pmp, 2 flux
+        real(wp), intent(OUT), optional :: bmb_clamp_out ! [m/a] freeze-on removed by the capacity safety clamp
+        logical,  intent(IN),  optional :: gl_temp       ! Grounded base next to the ocean: hold at T_pmp (ytherm.gl_temperate)
 
         ! Local variables
         integer  :: k, nz_aa, nz_ac
         integer  :: k_cts
+        logical  :: is_gl_temp     ! base held temperate by the ocean (gl_temp)
         real(wp) :: W_til_predicted
+        logical  :: use_capacity
+        logical  :: cap_flux       ! capacity rule chose the flux (freeze-all) branch
+        real(wp) :: C_now, Q_wat_now, eps_now
+        real(wp) :: q_up_star, q_warm_star, net_enth_b, bmb_star, bmb_clamp
         real(wp) :: dz
         real(wp) :: omega_excess
         real(wp) :: melt_internal
         real(wp) :: val_base, val_srf
         real(wp) :: Q_b_now, Q_lith_now, Q_ice_b_now
         real(wp) :: enth_ref
+        real(wp) :: kc_b, c1, d1, c2, d2
         logical  :: is_basal_flux
         logical  :: is_float
         logical  :: use_int
+        real(wp) :: cp0
 
-        real(wp), allocatable :: kappa_aa(:)    ! aa-nodes
+        real(wp), allocatable :: kappa_cold(:)  ! aa-nodes: cold-ice diffusivity kt/(rho*cp)
         real(wp), allocatable :: Q_strn_now(:)  ! aa-nodes
         real(wp), allocatable :: enth_pmp(:)    ! aa-nodes
-        real(wp), allocatable :: cp_eff(:)      ! aa-nodes: reference cp (cp_ref or cp(T))
+        real(wp), allocatable :: cp_eff(:)      ! aa-nodes: heat capacity of the enthalpy definition (cp0 or cp(T))
 
         real(wp), parameter   :: T_min_lim = 200.00_wp   ! [K] Cold-side floor (matches calc_temp_column)
 
@@ -615,23 +643,20 @@ end if
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
-        allocate(kappa_aa(nz_aa))
+        allocate(kappa_cold(nz_aa))
         allocate(Q_strn_now(nz_aa))
         allocate(enth_pmp(nz_aa))
         allocate(cp_eff(nz_aa))
 
-        ! Reference cp and reference enthalpy consistent with the chosen
-        ! enthalpy definition: A1 uses the constant cp_ref; A2 (integral) uses
-        ! the local T-dependent cp(T)=cp_a+cp_b*T so the diffusion reproduces
-        ! true variable-cp conduction.
-        if (use_int) then
-            cp_eff   = cp_a + cp_b*T_ice
-            enth_ref = enth_int_from_temp(273.15_wp)
-        else
-            cp_eff   = cp_ref
-            enth_ref = 273.15_wp * cp_ref
-        end if
+        ! Heat capacity and reference enthalpy consistent with the chosen
+        ! enthalpy definition: A1 uses the constant cp0 (cp_ref, or const_cp);
+        ! A2 (integral) uses the local T-dependent cp(T)=cp_a+cp_b*T so the
+        ! diffusion reproduces true variable-cp conduction.
+        cp_eff   = calc_cp_enth(T_ice,use_int,cp0)
+        enth_ref = enth_cold_from_temp(273.15_wp,use_int,cp0)
 
         ! Get basal frictional and bedrock heat fluxes in proper units.
         ! Q_b and Q_lith arrive in [mW m-2]; convert to [J m-2 a-1], exactly as
@@ -640,41 +665,49 @@ end if
         Q_b_now    = Q_b    * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
         Q_lith_now = Q_lith * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
 
-        ! Get enthalpy of the pressure melting point (A1 cp_ref or A2 integral)
-        if (use_int) then
-            enth_pmp = enth_int_from_temp(T_pmp)
-        else
-            enth_pmp = T_pmp*cp_ref
-        end if
+        ! Get enthalpy of the pressure melting point (A1 cp0 or A2 integral)
+        enth_pmp = enth_cold_from_temp(T_pmp,use_int,cp0)
 
         ! Find height of CTS - highest temperate layer
         k_cts = get_cts_index(enth,enth_pmp)
 
-        ! Calculate diffusivity on cell centers (aa-nodes)
-        call calc_enth_diffusivity(kappa_aa,enth,enth_pmp,cp_eff,kt,cr,rho_ice)
+        ! Cold-ice diffusivity on cell centers (aa-nodes). The temperate
+        ! diffusivity is cr*kappa_cold; the solver applies each to its own part
+        ! of the enthalpy (sensible / latent, see calc_enth_column_internal).
+        kappa_cold = kt / (rho_ice*cp_eff)
 
         ! Floating ice: the base is held at the ocean freezing temperature T_shlf
-        ! (imposed as the Dirichlet val_base below), which is colder than the ice
-        ! pressure melting point. This is a cold freezing boundary, so force the
-        ! base-node diffusivity to the cold-ice value kt/(rho*cp) even if the column
-        ! is currently temperate there. Otherwise the temperate K0 (~0) would leave
-        ! the imposed cold base thermally disconnected from the ice above (ill-posed
-        ! Dirichlet). With cold-ice conduction the base can cool/refreeze the ice
-        ! above, forming a physical cold basal boundary layer; the enthalpy method
-        ! books the refreezing latent heat via the migrating CTS. See the k=2
-        ! kappa_a override in calc_enth_column_internal (basal_freezing branch).
+        ! (Dirichlet val_base below), a cold freezing boundary. The split face
+        ! flux conducts heat from the ice above to it with the cold-ice
+        ! diffusivity, so the shelf base can refreeze the ice above.
         is_float = (f_grnd .lt. 1.0_wp)
-        if (is_float) kappa_aa(1) = kt(1) / (rho_ice*cp_eff(1))
 
         ! Convert units of Q_strn [J a-1 m-3] => [J kg a-1]
         Q_strn_now = Q_strn/(rho_ice)
 
         ! === Surface boundary condition =====================
 
-        if (use_int) then
-            val_srf = enth_int_from_temp(min(T_srf,T0))
-        else
-            val_srf = min(T_srf,T0) * cp_ref
+        val_srf = enth_cold_from_temp(min(T_srf,T0),use_int,cp0)
+
+        ! === Capacity-rule inputs (basal_bc_method="capacity") ===
+        ! Set before the basal BC so that the grounded basal mass balance below
+        ! uses them in every cell with grounded ice, including partially grounded ones.
+        use_capacity = .FALSE.
+        if (present(basal_bc_method)) use_capacity = (trim(basal_bc_method) .eq. "capacity")
+        is_gl_temp   = .FALSE.
+        cap_flux  = .FALSE.
+        bmb_star  = 0.0_wp
+        bmb_clamp = 0.0_wp
+        C_now     = 0.0_wp
+        Q_wat_now = 0.0_wp
+        eps_now   = 0.0_wp
+        ! Water-side heat (Q_diss + Q_sens from hydrology): part of the interface
+        ! balance under either rule, zero when hydrology does not supply it.
+        if (present(Q_wat))   Q_wat_now = Q_wat * 1e-3_wp * sec_year   ! [mW m-2] => [J m-2 a-1]
+        if (use_capacity) then
+            if (present(C_cap))   C_now     = max(C_cap, 0.0_wp)
+            if (present(cap_eps)) eps_now   = cap_eps
+            if (C_now .le. eps_now) C_now = 0.0_wp                       ! dry bed
         end if
 
         ! === Basal boundary condition =====================
@@ -683,19 +716,66 @@ end if
             ! Floating or partially floating ice - hold the base at the marine
             ! interface temperature (pmp / T_shlf freezing point / weighted average).
             ! Convert that temperature to enthalpy with the SAME definition used for
-            ! val_srf, enth_ref and enth_pmp (A2 integral or A1 cp_ref); the previous
+            ! val_srf, enth_ref and enth_pmp (A2 integral or A1 cp0); the previous
             ! T*cp(1) form was on a different enthalpy scale, which was harmless while
             ! floating temperate columns always took the zero-gradient base branch but
             ! mis-scales the base once it is imposed as a Dirichlet (basal_freezing).
-            if (use_int) then
-                val_base = enth_int_from_temp(f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf)
-            else
-                val_base = (f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf) * cp_ref
-            end if
+            val_base = enth_cold_from_temp(f_grnd*T_pmp(1) + (1.0_wp-f_grnd)*T_shlf,use_int,cp0)
             is_basal_flux = .FALSE.
 
         else 
             ! Grounded ice 
+
+            is_gl_temp = .FALSE.
+            if (present(gl_temp)) is_gl_temp = gl_temp
+
+            if (is_gl_temp) then
+                ! == Next to the ocean (ytherm.gl_temperate) ==
+                ! The bed is wetted by the ocean: hold the base at the pressure
+                ! melting point. Freeze-on is not limited by the bed's water.
+                val_base = enth_pmp(1)
+                is_basal_flux = .FALSE.
+
+            else if (use_capacity) then
+                ! == Capacity rule ==
+                ! Compare the freezing the base would need to reach and stay at the pressure
+                ! melting point (bmb_star, the basal mass balance of a base held at
+                ! T_pmp, from the start-of-step profile; positive = freeze-on) with
+                ! the rate at which the water at the bed can be frozen (C_cap).
+
+                ! Heat the base would lose upward if held at T_pmp [J m-2 a-1]
+                dz = H_ice * (zeta_aa(2) - zeta_aa(1))
+                q_up_star = kt(1) * (T_pmp(1) - T_ice(2)) / dz
+
+                ! Heat to warm a base below T_pmp up to it within the step [J m-2 a-1].
+                ! The base node has no volume, so a base held at T_pmp would otherwise
+                ! jump there for free; the water must also supply this sensible heat,
+                ! taken over the same distance dz as q_up_star. Zero for a base at T_pmp,
+                ! small for the drift of T_pmp with ice thickness.
+                q_warm_star = rho_ice * max(enth_pmp(1) - enth(1), 0.0_wp) * dz / dt
+
+                ! Latent heat reduced by water already stored in the basal ice,
+                ! as in calc_bmb_grounded_enth
+                net_enth_b = max(enth(1) - enth_pmp(1), 0.0_wp)
+                bmb_star   = (q_up_star + q_warm_star - (Q_b_now + Q_lith_now + Q_wat_now)) &
+                                / (rho_ice*(L_ice - net_enth_b))             ! [m/a ice equiv.]
+
+                if (bmb_star .le. 0.0_wp .or. bmb_star .le. C_now) then
+                    ! The base would melt, or the water can supply the freezing:
+                    ! hold the base at the pressure melting point
+                    val_base = enth_pmp(1)
+                    is_basal_flux = .FALSE.
+                else
+                    ! Not enough water: freeze all of it (freeze-on = C_now) and let
+                    ! the base cool. The interface balance then fixes the upward
+                    ! conductive flux, q_up = G + Q_b + Q_wat + rho_ice*L*C.
+                    val_base = (Q_b_now + Q_lith_now + Q_wat_now + rho_ice*L_ice*C_now) / kt(1) * cp_eff(1)
+                    is_basal_flux = .TRUE.
+                    cap_flux      = .TRUE.
+                end if
+
+            else
+                ! == Legacy till-water rule ==
 
             ! Determine expected basal water thickness [m] for this timestep,
             ! using basal mass balance from previous time step (good guess)
@@ -712,7 +792,7 @@ end if
                 ! Frozen at bed, or about to become frozen 
 
                 ! backward Euler flux basal boundary condition
-                val_base = (Q_b_now + Q_lith_now) / kt(1) * cp_eff(1)
+                val_base = (Q_b_now + Q_lith_now + Q_wat_now) / kt(1) * cp_eff(1)
                 is_basal_flux = .TRUE.
                 
             else 
@@ -724,11 +804,24 @@ end if
                 
             end if   ! melting or frozen
 
+            end if   ! capacity or legacy rule
+
         end if  ! floating or grounded 
+
+        ! Record the basal BC used (diagnostic)
+        if (present(bc_b_out)) then
+            if (f_grnd .lt. 1.0_wp) then
+                bc_b_out = 0.0_wp
+            else if (is_basal_flux) then
+                bc_b_out = 2.0_wp
+            else
+                bc_b_out = 1.0_wp
+            end if
+        end if
 
         ! === Solver =============================
      
-        call calc_enth_column_internal(enth,kappa_aa,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
+        call calc_enth_column_internal(enth,kappa_cold,cr,enth_pmp,uz,advecxy,Q_strn_now,val_base,val_srf,H_ice, &
                                             zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,is_float)
 
 
@@ -743,8 +836,8 @@ end if
         ! This should come out of routine, but it helps ensure stability to check it here.
         if (.not. is_float .and. enth(2) .ge. enth_pmp(2)) enth(1) = enth(2)
         
-        ! Get temperature and water content (constant cp_ref definition)
-        call convert_from_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Get temperature and water content (same enthalpy definition)
+        call convert_from_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Clamp unphysical cold excursions to a floor, mirroring the
         ! T_min_lim guard in calc_temp_column. Without it the enth solver has
@@ -752,7 +845,7 @@ end if
         ! below), so a large horizontal-advection excursion at a thin margin
         ! drives enth arbitrarily negative and the column rings to NaN
         ! (the initmip-grl-16km 2D failure). enth is made consistent with the
-        ! clamped T_ice by the convert_to_enthalpy call at the end.
+        ! clamped T_ice by the convert_to_enthalpy_ice call below.
         where (T_ice(:) .lt. T_min_lim) T_ice(:) = T_min_lim
 
         ! Set internal melt to zero
@@ -777,7 +870,7 @@ end if
         if (omega(1) .gt. omega_max) omega(1) = omega_max 
 
         ! Finally, get enthalpy again too (to be consistent with new omega)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         ! Calculate the conductive heat flux into the ice base [J a-1 m-2], positive up.
         ! Two discretizations are available; the temperature-gradient form is the
@@ -789,7 +882,12 @@ end if
         if (H_ice .gt. 0.0_wp) then
             dz = H_ice * (zeta_aa(2)-zeta_aa(1))
             if (enth_Q_ice_b) then
-                Q_ice_b_now = -kappa_aa(1) * rho_ice * (enth(2) - enth(1)) / dz
+                ! Split face flux between the base and the first layer (as in the solver)
+                call calc_wtd_harmonic_mean(kc_b,kappa_cold(1),kappa_cold(2), &
+                                    zeta_ac(2)-zeta_aa(1),zeta_aa(2)-zeta_ac(2))
+                call calc_split_coeffs(c1,d1,enth(1).ge.enth_pmp(1),kc_b,cr*kc_b,enth_pmp(1)-enth_ref)
+                call calc_split_coeffs(c2,d2,enth(2).ge.enth_pmp(2),kc_b,cr*kc_b,enth_pmp(2)-enth_ref)
+                Q_ice_b_now = -rho_ice * ( (c2*(enth(2)-enth_ref)+d2) - (c1*(enth(1)-enth_ref)+d1) ) / dz
             else
                 Q_ice_b_now = -kt(1) * ( T_ice(2) - T_ice(1) ) / dz
             end if
@@ -802,24 +900,41 @@ end if
 
         ! Calculate the grounded basal mass balance (flux-based, enthalpy-corrected).
         ! Q_b_now/Q_lith_now/Q_ice_b_now are in [J a-1 m-2]; Q_ice_b_now is positive up.
+        ! The water-side heat Q_wat_now is part of the interface balance; with
+        ! the capacity rule, freeze-on is also limited by C_now.
         if (f_grnd .gt. 0.0_wp) then
-            call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
-                                            Q_ice_b_now,Q_b_now,Q_lith_now,rho_ice,L_ice)
+            if (cap_flux) then
+                ! Flux branch: all available water was frozen, by construction
+                bmb_grnd = C_now
+            else
+                call calc_bmb_grounded_enth(bmb_grnd,T_ice(1)-T_pmp(1),enth(1),enth_pmp(1), &
+                                            Q_ice_b_now,Q_b_now+Q_wat_now,Q_lith_now,rho_ice,L_ice)
+                ! Safety clamp: never freeze more water than the bed holds. Can
+                ! bind when the start-of-step bmb_grnd* underestimated the freezing.
+                if (use_capacity .and. .not. is_gl_temp .and. bmb_grnd .gt. C_now) then
+                    bmb_clamp = bmb_grnd - C_now
+                    bmb_grnd  = C_now
+                end if
+            end if
         else
             bmb_grnd = 0.0_wp
         end if
 
+        if (present(bmb_star_out))  bmb_star_out  = bmb_star
+        if (present(bmb_clamp_out)) bmb_clamp_out = bmb_clamp
+
         ! Include internal melting in bmb_grnd
         bmb_grnd = bmb_grnd - melt_internal
+        if (present(melt_int_out)) melt_int_out = melt_internal
 
         ! Finally, calculate the CTS height 
-        H_cts = calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta_aa,integral=use_int)
+        H_cts = calc_cts_height(enth,enth_pmp,H_ice,zeta_aa)
 
         return 
 
     end subroutine calc_enth_column
 
-    subroutine calc_enth_column_internal(enth,kappa,uz,advecxy,Q_strn,val_base,val_srf,thickness, &
+    subroutine calc_enth_column_internal(enth,kappa_cold,cr,enth_pmp,uz,advecxy,Q_strn,val_base,val_srf,thickness, &
                                             zeta_aa,zeta_ac,dzeta_a,dzeta_b,enth_ref,dt,k_cts,is_basal_flux,basal_freezing)
         ! Thermodynamics solver for a given column of ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -828,35 +943,70 @@ end if
         ! so nz_ac = nz_aa + 1 (ac-node k is the lower face of aa-node k)
 
         ! For notes on implicit form of advection terms, see eg http://farside.ph.utexas.edu/teaching/329/lectures/node90.html
+
+        ! Vertical diffusion: the flux at each face is split into a sensible and a
+        ! latent part,
+        !   F = Kc*d(E_s)/dz + K0*d(E_l)/dz,  E_s = min(E,E_pmp),  E_l = max(E-E_pmp,0),
+        ! with the cold-ice diffusivity Kc (harmonic mean of kappa_cold) and the
+        ! temperate one K0 = cr*Kc. Cold ice conducts its temperature, temperate ice
+        ! diffuses its water content, and across the cold-temperate transition
+        ! surface (CTS) cold ice conducts to the pressure melting point of the
+        ! temperate node, not to its total enthalpy. The flux is continuous in E, so
+        ! the CTS settles between nodes. Applying Kc to the full enthalpy jump across
+        ! the CTS instead conducts the latent heat of the temperate node into the
+        ! cold ice, which makes the CTS jump between nodes from step to step (Kleiner
+        ! et al., 2015, Exp B). The same split handles a melting base (Dirichlet at
+        ! pmp) and a floating freezing base (Dirichlet at T_shlf).
+        ! Each node is cold or temperate as at the start of the step (Dirichlet
+        ! nodes: as their imposed value), which keeps the system linear. A node
+        ! taken as temperate that ends below E_pmp froze during the step: as
+        ! temperate it has no sensible conduction of its own, so next to much
+        ! colder ice it would overshoot far below its neighbours (thin columns,
+        ! large Kc*dt/dz^2). Such nodes are set cold and the column is solved
+        ! again, until no node freezes. Nodes only change from temperate to cold,
+        ! so this ends; most columns need one solve.
         
         implicit none 
 
-        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg] Ice column temperature
-        real(wp), intent(IN)    :: kappa(:)       ! nz_aa [] Diffusivity
+        real(wp), intent(INOUT) :: enth(:)        ! nz_aa [J kg-1] Ice column enthalpy
+        real(wp), intent(IN)    :: kappa_cold(:)  ! nz_aa [m2 a-1] Cold-ice diffusivity kt/(rho*cp)
+        real(wp), intent(IN)    :: cr             ! [--] Conductivity ratio (temperate / cold diffusivity)
+        real(wp), intent(IN)    :: enth_pmp(:)    ! nz_aa [J kg-1] Enthalpy at the pressure melting point
         real(wp), intent(IN)    :: uz(:)          ! nz_ac [m a-1] Vertical velocity 
-        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg a-1] Horizontal heat advection 
-        real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J kg a-1] Internal strain heat production in ice
-        real(wp), intent(IN)    :: val_base       ! [J kg or flux] Basal boundary condition
-        real(wp), intent(IN)    :: val_srf        ! [J kg] Surface temperature 
+        real(wp), intent(IN)    :: advecxy(:)     ! nz_aa [J kg-1 a-1] Horizontal enthalpy advection 
+        real(wp), intent(IN)    :: Q_strn(:)      ! nz_aa [J kg-1 a-1] Internal strain heat production in ice
+        real(wp), intent(IN)    :: val_base       ! [J kg-1 or flux] Basal boundary condition
+        real(wp), intent(IN)    :: val_srf        ! [J kg-1] Surface enthalpy 
         real(wp), intent(IN)    :: thickness      ! [m] Ice thickness 
         real(wp), intent(IN)    :: zeta_aa(:)     ! nz_aa [--] Vertical sigma coordinates (zeta==height), layer centered aa-nodes
         real(wp), intent(IN)    :: zeta_ac(:)     ! nz_ac [--] Vertical height axis temperature (0:1), layer edges ac-nodes
         real(wp), intent(IN)    :: dzeta_a(:)     ! nz_aa [--] Solver discretization helper variable ak
         real(wp), intent(IN)    :: dzeta_b(:)     ! nz_aa [--] Solver discretization helper variable bk
-        real(wp), intent(IN)    :: enth_ref       ! [J kg] Reference temperature to scale calculation
+        real(wp), intent(IN)    :: enth_ref       ! [J kg-1] Reference enthalpy to scale calculation
         real(wp), intent(IN)    :: dt             ! [a] Time step
         integer,  intent(IN)    :: k_cts          ! Index of the CTS (highest point at pressure melting point)
         logical,  intent(IN)    :: is_basal_flux  ! Is basal condition flux condition (True) or Neumann (False)
-        logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf with cold-ice conduction
+        logical,  intent(IN)    :: basal_freezing ! Floating ice: base held Dirichlet at T_shlf
         ! Local variables
         integer  :: k, nz_aa
-        real(wp) :: fac, fac_a, fac_b, uz_aa, dz, dzeta
-        real(wp) :: h1, h2, afac_a, afac_b, afac_mid
-        real(wp) :: kappa_a, kappa_b, dz1, dz2
-        real(wp) :: kappa_mid, Pe, wt
-        real(wp) :: adv_lo_c, adv_hi_c, adv_mid_c
+        integer  :: n_solve
+        real(wp) :: fac_km1, fac_ka, fac_kb, fac_kp1, fac_d, uz_aa, dz
+        real(wp) :: kc_a, kc_b, dz1, dz2
+        real(wp) :: c_km1, d_km1, c_ka, d_ka, c_kb, d_kb, c_kp1, d_kp1
         real(wp) :: adv_lo_u, adv_hi_u, adv_mid_u
-        real(wp), allocatable :: subd(:)      ! nz_aa 
+        real(wp) :: e_lo, e_hi, dedz_1, dedz_2
+        logical  :: is_dirichlet_base
+        real(wp), allocatable :: z_aa(:)      ! nz_aa [m] height of aa-nodes
+        real(wp), allocatable :: xp(:)        ! nz_aa [J kg-1] enth_pmp - enth_ref
+        logical,  allocatable :: is_temp(:)   ! nz_aa node temperate (for the face fluxes)
+        logical,  allocatable :: froze(:)     ! nz_aa node taken as temperate ended below E_pmp
+        real(wp), allocatable :: kc_lo(:)     ! nz_aa cold-ice diffusivity, lower face of node k
+        real(wp), allocatable :: kc_hi(:)     ! nz_aa cold-ice diffusivity, upper face of node k
+        real(wp), allocatable :: subd_adv(:)  ! nz_aa advection part of the matrix and rhs
+        real(wp), allocatable :: diag_adv(:)  ! nz_aa
+        real(wp), allocatable :: supd_adv(:)  ! nz_aa
+        real(wp), allocatable :: rhs_adv(:)   ! nz_aa
+        real(wp), allocatable :: subd(:)      ! nz_aa
         real(wp), allocatable :: diag(:)      ! nz_aa  
         real(wp), allocatable :: supd(:)      ! nz_aa 
         real(wp), allocatable :: rhs(:)       ! nz_aa 
@@ -869,15 +1019,30 @@ end if
         allocate(supd(nz_aa))
         allocate(rhs(nz_aa))
         allocate(solution(nz_aa))
+        allocate(z_aa(nz_aa))
+        allocate(xp(nz_aa))
+        allocate(is_temp(nz_aa))
+        allocate(froze(nz_aa))
+        allocate(kc_lo(nz_aa))
+        allocate(kc_hi(nz_aa))
+        allocate(subd_adv(nz_aa))
+        allocate(diag_adv(nz_aa))
+        allocate(supd_adv(nz_aa))
+        allocate(rhs_adv(nz_aa))
+
+        z_aa = thickness*zeta_aa
+        xp   = enth_pmp - enth_ref
 
         ! == Ice base ==
 
-        if (is_basal_flux) then 
+        is_dirichlet_base = .FALSE.
+
+        if (is_basal_flux) then
             ! Impose basal flux (Neumann condition)
 
             ! Calculate dz for the bottom layer between the basal boundary
             ! (ac-node) and the centered (aa-node) temperature point above
-            ! Note: zeta_aa(1) == zeta_ac(1) == bottom boundary 
+            ! Note: zeta_aa(1) == zeta_ac(1) == bottom boundary
             dz = thickness * (zeta_aa(2) - zeta_aa(1))
 
             ! backward Euler flux basal boundary condition
@@ -885,7 +1050,7 @@ end if
             diag(1) =  1.0_wp
             supd(1) = -1.0_wp
             rhs(1)  = val_base * dz
-                
+
         else if (k_cts .ge. 2 .and. .not. basal_freezing) then
             ! Grounded temperate base: the layer above is also temperate (water likely
             ! present), so set K0 dE/dz = 0 by holding basal enthalpy equal to the layer
@@ -905,108 +1070,9 @@ end if
             supd(1) = 0.0_wp
             rhs(1)  = (val_base - enth_ref)
 
+            is_dirichlet_base = .TRUE.
+
         end if 
-
-        ! == Ice interior layers 2:nz_aa-1 ==
-
-        do k = 2, nz_aa-1
-
-            ! Get kappa for the lower and upper ac-nodes using harmonic mean from aa-nodes
-            
-            dz1 = zeta_ac(k)-zeta_aa(k-1)
-            dz2 = zeta_aa(k)-zeta_ac(k)
-            call calc_wtd_harmonic_mean(kappa_a,kappa(k-1),kappa(k),dz1,dz2)
-
-            dz1 = zeta_ac(k+1)-zeta_aa(k)
-            dz2 = zeta_aa(k+1)-zeta_ac(k+1)
-            call calc_wtd_harmonic_mean(kappa_b,kappa(k),kappa(k+1),dz1,dz2)
-
-            ! Special treatment of diffusivity at the cold-temperate transition
-            ! surface (CTS). The conductive enthalpy flux across the CTS is set by
-            ! the COLD-side (upper-node) diffusivity, not the small temperate K0
-            ! (Blatter & Greve 2015, Eq. 25; matches the icetemp reference, whose
-            ! comment notes the harmonic mean "doesn't work well for the CTS").
-            !
-            ! This keeps the temperate sub-block coupled to the cold layer above:
-            ! its strain heat drains upward by cold-ice conduction toward the CTS
-            ! (the meltwater is then removed by the omega cap). Choking the CTS
-            ! interface to ~2*K0 instead (harmonic mean, or the previous
-            ! kappa_a = kappa(k-1) override) isolates the block into a near-singular
-            ! Neumann island - zero-flux base plus near-zero-flux CTS top with an
-            ! internal source - which blows up in thin, weakly-advected polythermal
-            ! margin columns (the 2D EISMINT NaN).
-            !
-            ! A temperate base with cold ice directly above (k_cts == 1) is a
-            ! melting boundary, not a temperate layer: the base is held at the
-            ! pressure melting point (Dirichlet) and the overlying cold ice
-            ! conducts to it with cold-ice diffusivity (so the diagnosed basal melt
-            ! rate stays cr-independent, as in Kleiner Exp A).
-            if (k_cts .ge. 2 .and. k .eq. k_cts) then
-                ! Upper interface of the topmost temperate node = cold kappa
-                kappa_b = kappa(k+1)
-            else if (k_cts .ge. 2 .and. k .eq. k_cts+1) then
-                ! Lower interface of the first cold node = cold kappa (same CTS
-                ! interface as above; both rows agree, conserving the flux)
-                kappa_a = kappa(k)
-            else if (k_cts .eq. 1 .and. k .eq. 2) then
-                ! Melting base: cold ice conducts to the Dirichlet-pmp base
-                kappa_a = kappa(k)
-            end if
-
-            ! Floating freezing base (mirror of the melting-base case): the cold base,
-            ! held Dirichlet at T_shlf, conducts into the temperate ice above with
-            ! cold-ice diffusivity kappa(1) (set to kt/(rho*cp) by the caller) instead
-            ! of the near-zero harmonic mean with the temperate K0. This lets the ocean
-            ! cool/refreeze the shelf base and grow a physical cold basal boundary layer.
-            if (basal_freezing .and. k .eq. 2) kappa_a = kappa(1)
-            
-            ! Get diffusion factors
-            fac_a   = -kappa_a*dzeta_a(k)*dt/thickness**2
-            fac_b   = -kappa_b*dzeta_b(k)*dt/thickness**2
-
-
-            ! Get implicit vertical advection term, ac => aa nodes
-            uz_aa   = 0.5*(uz(k)+uz(k+1))
-
-            ! Vertical advection: blend the second-order centered scheme with a
-            ! first-order upwind scheme according to the local cell Peclet number,
-            ! following the hybrid scheme of Spalding (1972) used by Kleiner et al.
-            ! (2015) for the advection-dominated transport in the temperate ice
-            ! layer. wt = 0 (pure centered, second-order accurate) where diffusion
-            ! dominates (Pe <= 2); wt -> 1 (pure upwind, stable) as Pe -> inf, i.e.
-            ! in the low-diffusivity temperate limit where centered differences
-            ! oscillate. This preserves the centered solution wherever it is stable.
-            dz      = thickness * (zeta_aa(k+1)-zeta_aa(k-1))   ! centered (2-layer) span
-            dz1     = thickness * (zeta_aa(k)  -zeta_aa(k-1))   ! lower layer (upwind, uz>0)
-            dz2     = thickness * (zeta_aa(k+1)-zeta_aa(k))     ! upper layer (upwind, uz<0)
-
-            kappa_mid = 0.5_wp*(kappa_a+kappa_b)
-            Pe        = abs(uz_aa)*dz / max(kappa_mid,1e-12_wp)
-            wt        = max(0.0_wp, 1.0_wp - 2.0_wp/max(Pe,1e-12_wp))
-
-            ! Centered advection contributions (coeff of enth(k-1), enth(k+1), enth(k))
-            adv_lo_c  = -uz_aa*dt/dz
-            adv_hi_c  = +uz_aa*dt/dz
-            adv_mid_c =  0.0_wp
-
-            ! First-order upwind advection contributions (one-sided, sign of uz)
-            if (uz_aa .ge. 0.0_wp) then
-                adv_lo_u  = -uz_aa*dt/dz1
-                adv_hi_u  =  0.0_wp
-                adv_mid_u = +uz_aa*dt/dz1
-            else
-                adv_lo_u  =  0.0_wp
-                adv_hi_u  = +uz_aa*dt/dz2
-                adv_mid_u = -uz_aa*dt/dz2
-            end if
-
-            ! Assemble the tridiagonal row: diffusion + Peclet-blended advection
-            subd(k) = fac_a          + (1.0_wp-wt)*adv_lo_c  + wt*adv_lo_u
-            supd(k) = fac_b          + (1.0_wp-wt)*adv_hi_c  + wt*adv_hi_u
-            diag(k) = 1.0_wp - fac_a - fac_b + (1.0_wp-wt)*adv_mid_c + wt*adv_mid_u
-            rhs(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k)
-
-        end do
 
         ! == Ice surface ==
 
@@ -1015,191 +1081,279 @@ end if
         supd(nz_aa) = 0.0_wp
         rhs(nz_aa)  = (val_srf-enth_ref)
 
-        ! == Call solver ==
+        ! == Ice interior layers 2:nz_aa-1: terms independent of the phase ==
 
-        call solve_tridiag(subd,diag,supd,rhs,solution)
+        do k = 2, nz_aa-1
+
+            ! Cold-ice diffusivity on the lower and upper faces (ac-nodes), harmonic
+            ! mean from the aa-nodes; the temperate one is cr times this
+            
+            dz1 = zeta_ac(k)-zeta_aa(k-1)
+            dz2 = zeta_aa(k)-zeta_ac(k)
+            call calc_wtd_harmonic_mean(kc_lo(k),kappa_cold(k-1),kappa_cold(k),dz1,dz2)
+
+            dz1 = zeta_ac(k+1)-zeta_aa(k)
+            dz2 = zeta_aa(k+1)-zeta_ac(k+1)
+            call calc_wtd_harmonic_mean(kc_hi(k),kappa_cold(k),kappa_cold(k+1),dz1,dz2)
+
+            ! Get implicit vertical advection term, ac => aa nodes
+            uz_aa   = 0.5*(uz(k)+uz(k+1))
+
+            ! Vertical advection: second-order upwind with a minmod limiter, in
+            ! deferred-correction form. The matrix holds implicit first-order upwind
+            ! (dedz_1); the rhs adds the explicit difference between the limited
+            ! second-order upwind gradient (dedz_2) and dedz_1, both from the
+            ! start-of-step enthalpy. Where the profile is smooth this removes the
+            ! first-order numerical diffusion |uz|*dz/2; at extrema (e.g. the CTS)
+            ! the limiter falls back to first-order upwind, so the scheme stays
+            ! monotone. The numerical diffusion of first-order upwind (or of a
+            ! Peclet blend towards it) strengthened the thermomechanical feedback
+            ! enough to break the radial symmetry of EISMINT-2 EXPA/EXPF.
+            dz1     = thickness * (zeta_aa(k)  -zeta_aa(k-1))   ! lower layer (upwind, uz>0)
+            dz2     = thickness * (zeta_aa(k+1)-zeta_aa(k))     ! upper layer (upwind, uz<0)
+
+            ! First-order upwind advection contributions (one-sided, sign of uz)
+            if (uz_aa .ge. 0.0_wp) then
+                adv_lo_u  = -uz_aa*dt/dz1
+                adv_hi_u  =  0.0_wp
+                adv_mid_u = +uz_aa*dt/dz1
+                dedz_1    = (enth(k) - enth(k-1)) / dz1
+            else
+                adv_lo_u  =  0.0_wp
+                adv_hi_u  = +uz_aa*dt/dz2
+                adv_mid_u = -uz_aa*dt/dz2
+                dedz_1    = (enth(k+1) - enth(k)) / dz2
+            end if
+
+            ! Limited upwind face values at the lower and upper faces of layer k
+            e_lo   = face_value_minmod(enth,z_aa,k-1,k,  thickness*zeta_ac(k),  uz_aa)
+            e_hi   = face_value_minmod(enth,z_aa,k,  k+1,thickness*zeta_ac(k+1),uz_aa)
+            dedz_2 = (e_hi - e_lo) / (thickness*(zeta_ac(k+1)-zeta_ac(k)))
+
+            ! Implicit upwind advection, and the rhs without the diffusion terms
+            subd_adv(k) = adv_lo_u
+            supd_adv(k) = adv_hi_u
+            diag_adv(k) = adv_mid_u
+            rhs_adv(k)  = (enth(k)-enth_ref) - dt*advecxy(k) + dt*Q_strn(k) &
+                                             - dt*uz_aa*(dedz_2 - dedz_1)
+
+        end do
+
+        ! Phase of each node for the face fluxes: start-of-step enthalpy, except
+        ! the Dirichlet base and surface, which take their imposed values
+        is_temp = enth .ge. enth_pmp
+        if (is_dirichlet_base) is_temp(1) = val_base .ge. enth_pmp(1)
+        is_temp(nz_aa) = val_srf .ge. enth_pmp(nz_aa)
+
+        ! Solve, and again while nodes taken as temperate froze (at most nz_aa times)
+        do n_solve = 1, nz_aa
+
+            ! == Diffusion (split face flux) and assembly of rows 2:nz_aa-1 ==
+
+            do k = 2, nz_aa-1
+
+                kc_a = kc_lo(k)
+                kc_b = kc_hi(k)
+
+                ! Split-flux coefficients of the nodes on each face: the face flux is
+                ! (c_hi*x_hi + d_hi) - (c_lo*x_lo + d_lo), with x = enth - enth_ref
+                call calc_split_coeffs(c_km1,d_km1,is_temp(k-1),kc_a,cr*kc_a,xp(k-1))
+                call calc_split_coeffs(c_ka, d_ka, is_temp(k),  kc_a,cr*kc_a,xp(k))
+                call calc_split_coeffs(c_kb, d_kb, is_temp(k),  kc_b,cr*kc_b,xp(k))
+                call calc_split_coeffs(c_kp1,d_kp1,is_temp(k+1),kc_b,cr*kc_b,xp(k+1))
+
+                ! Get diffusion factors (products ordered as kappa*dzeta*dt/H^2, so
+                ! that a cold column reproduces the temperature solver bit for bit)
+                fac_km1 = c_km1*dzeta_a(k)*dt/thickness**2
+                fac_ka  = c_ka *dzeta_a(k)*dt/thickness**2
+                fac_kb  = c_kb *dzeta_b(k)*dt/thickness**2
+                fac_kp1 = c_kp1*dzeta_b(k)*dt/thickness**2
+                fac_d   = (d_kp1-d_kb)*dzeta_b(k)*dt/thickness**2 - (d_ka-d_km1)*dzeta_a(k)*dt/thickness**2
+
+                ! Assemble the tridiagonal row: diffusion + implicit upwind advection
+                subd(k) = -fac_km1 + subd_adv(k)
+                supd(k) = -fac_kp1 + supd_adv(k)
+                diag(k) = 1.0_wp + fac_ka + fac_kb + diag_adv(k)
+                rhs(k)  = rhs_adv(k) + fac_d
+
+            end do
+
+            ! == Call solver ==
+
+            call solve_tridiag(subd,diag,supd,rhs,solution)
+
+            ! Nodes taken as temperate that ended below E_pmp (not the Dirichlet ends)
+            froze = is_temp .and. (solution .lt. xp)
+            if (is_dirichlet_base) froze(1) = .FALSE.
+            froze(nz_aa) = .FALSE.
+
+            if (.not. any(froze)) exit
+
+            where (froze) is_temp = .FALSE.
+
+        end do
 
         ! Copy the solution into the temperature variable
 
         enth = solution + enth_ref 
 
-        return 
+        return
 
     end subroutine calc_enth_column_internal
 
-    ! ========== ENTHALPY ==========================================
-
-    subroutine calc_enth_diffusivity(kappa,enth,enth_pmp,cp_eff,kt,cr,rho_ice)
-        ! Calculate the enthalpy vertical diffusivity for use with the diffusion solver:
-        ! When water is present in the layer, set kappa=kappa_therm, else kappa=kappa_cold
-        ! Note: cp_eff is the reference heat capacity consistent with the enthalpy
-        ! definition -- constant cp_ref (A1) or the local cp(T)=cp_a+cp_b*T (A2) --
-        ! so kappa_cold = kt/(rho*cp_eff) reproduces true heat conduction kt*grad(T).
+    function face_value_minmod(var,z,ka,kb,z_face,u) result(var_face)
+        ! Upwind value of var at the face z_face between nodes ka < kb on the
+        ! nonuniform grid z, with a minmod-limited linear reconstruction from the
+        ! donor node (ka for u >= 0, kb for u < 0). The limiter compares the local
+        ! gradient across the face with the gradient upstream of the donor. A
+        ! column-end donor (base or surface) is a boundary value with no node
+        ! upstream of it: the face value is then interpolated linearly between
+        ! the two nodes (second order, like the limited faces of a smooth
+        ! profile), so a linear profile gives no deferred correction.
 
         implicit none
 
-        real(wp), intent(OUT) :: kappa(:)         ! [nz_aa]
-        real(wp), intent(IN)  :: enth(:)          ! [nz_aa]
-        real(wp), intent(IN)  :: enth_pmp(:)      ! [nz_aa]
-        real(wp), intent(IN)  :: cp_eff(:)        ! [nz_aa] reference cp (cp_ref or cp(T))
-        real(wp), intent(IN)  :: kt(:)
-        real(wp), intent(IN)  :: cr
-        real(wp), intent(IN)  :: rho_ice
+        real(wp), intent(IN) :: var(:)
+        real(wp), intent(IN) :: z(:)
+        integer,  intent(IN) :: ka, kb
+        real(wp), intent(IN) :: z_face
+        real(wp), intent(IN) :: u
+        real(wp) :: var_face
 
         ! Local variables
-        integer   :: k, nz
-        real(wp)  :: kappa_cold       ! Cold diffusivity
-        real(wp)  :: kappa_temp       ! Temperate diffusivity
+        integer  :: kd, ku
+        real(wp) :: grad_loc, grad_up, r, phi
 
-        nz = size(enth)
+        grad_loc = (var(kb) - var(ka)) / (z(kb) - z(ka))
 
-        kappa = 0.0
+        if (u .ge. 0.0_wp) then
+            kd = ka
+            ku = ka - 1
+        else
+            kd = kb
+            ku = kb + 1
+        end if
 
-        do k = 1, nz
+        if (ku .lt. 1 .or. ku .gt. size(var)) then
+            ! Column-end donor: linear interpolation between ka and kb
+            phi = 1.0_wp
+        else if (grad_loc .ne. 0.0_wp) then
+            grad_up = (var(kd) - var(ku)) / (z(kd) - z(ku))
+            r       = grad_up / grad_loc
+            phi     = max(0.0_wp, min(1.0_wp, r))
+        else
+            phi = 0.0_wp
+        end if
 
-            ! Determine kappa_cold and kappa_temp for this level
-            kappa_cold = kt(k) / (rho_ice*cp_eff(k))
-            kappa_temp = cr * kappa_cold 
+        var_face = var(kd) + phi*grad_loc*(z_face - z(kd))
 
-            if (enth(k) .ge. enth_pmp(k)) then
-                kappa(k) = kappa_temp 
-            else 
-                kappa(k) = kappa_cold 
-            end if 
+        return
 
-        end do
+    end function face_value_minmod
 
-        return 
+    ! ========== ENTHALPY ==========================================
 
-    end subroutine calc_enth_diffusivity
+    subroutine calc_split_coeffs(c,d,is_temp,kc,k0,xp)
+        ! Contribution of one node to a face flux of the split form
+        ! kc*E_s + k0*E_l, E_s = min(x,xp), E_l = max(x-xp,0), written as c*x + d
+        ! (x = enth - enth_ref, xp = enth_pmp - enth_ref). Continuous in x: both
+        ! branches give kc*xp at x = xp.
+
+        implicit none
+
+        real(wp), intent(OUT) :: c          ! coefficient of x
+        real(wp), intent(OUT) :: d          ! constant part
+        logical,  intent(IN)  :: is_temp    ! node is temperate
+        real(wp), intent(IN)  :: kc         ! cold-ice diffusivity on the face
+        real(wp), intent(IN)  :: k0         ! temperate diffusivity on the face
+        real(wp), intent(IN)  :: xp         ! pressure melting point, enth_pmp - enth_ref
+
+        if (is_temp) then
+            c = k0
+            d = (kc - k0)*xp
+        else
+            c = kc
+            d = 0.0_wp
+        end if
+
+        return
+
+    end subroutine calc_split_coeffs
     
-    function calc_cts_height(enth,T_ice,omega,T_pmp,H_ice,zeta,integral) result(H_cts)
+    function calc_cts_height(enth,enth_pmp,H_ice,zeta) result(H_cts)
         ! Calculate the height of the cold-temperate transition surface (m)
-        ! within the ice sheet. enth_pmp uses the same enthalpy definition as
-        ! the field: constant cp_ref (A1) or the integral form (A2).
+        ! above the base (top of the basal temperate layer; 0 for a cold base).
+        ! enth_pmp must use the same enthalpy definition as the field.
+        !
+        ! The CTS lies between the top temperate node k_cts and the cold node
+        ! above. Linear interpolation of E-E_pmp between them places it too
+        ! high, because at a melting CTS the cold side reaches E_pmp with zero
+        ! gradient (the cold node sits just below E_pmp). Extrapolating the water
+        ! content of the temperate nodes below to zero corrects this; the lower
+        ! of the two estimates is used, so a weak water-content gradient cannot
+        ! push the CTS above the linear estimate.
 
         implicit none
 
         real(wp), intent(IN) :: enth(:)
-        real(wp), intent(IN) :: T_ice(:)
-        real(wp), intent(IN) :: omega(:)
-        real(wp), intent(IN) :: T_pmp(:)
+        real(wp), intent(IN) :: enth_pmp(:)
         real(wp), intent(IN) :: H_ice
         real(wp), intent(IN) :: zeta(:)
-        logical,  intent(IN), optional :: integral
         real(wp) :: H_cts
-        logical  :: use_int
 
-        ! Local variables 
-        integer  :: k, k_cts, nz 
-        real(wp) :: f_lin, f_lin_0, dedz0, dedz1, zeta_cts 
-        real(wp), allocatable :: enth_pmp(:) 
+        ! Local variables
+        integer  :: k, nz
+        real(wp) :: zeta_cts, zeta_ext, de, slope
+        real(wp), allocatable :: enth_prime(:)
 
-        integer :: i, n_iter, n_prime
-        real(wp), allocatable :: zeta_prime(:) 
-        real(wp), allocatable :: enth_prime(:) 
-        
-        nz = size(enth,1) 
+        nz = size(enth,1)
 
-        allocate(enth_pmp(nz))
-        allocate(enth_prime(nz)) 
-
-        use_int = .false.
-        if (present(integral)) use_int = integral
-
-        ! Get enthalpy at the pressure melting point (no water content)
-        if (use_int) then
-            enth_pmp = enth_int_from_temp(T_pmp)
-        else
-            enth_pmp = T_pmp * cp_ref
-        end if
-
+        ! Enthalpy relative to the pressure melting point (no water content)
+        allocate(enth_prime(nz))
         enth_prime = enth - enth_pmp
 
-        ! Determine height of CTS as highest temperate layer
-        k_cts = get_cts_index(enth,enth_pmp)  
+        if (enth_prime(1) .lt. 0.0_wp) then
+            ! Cold base: no basal temperate layer
+            H_cts = 0.0_wp
+            return
+        end if
 
-        if (k_cts .eq. 0) then 
-            ! No temperate ice 
-            H_cts = 0.0_wp 
+        ! Top of the temperate layer above the base (as get_cts_index)
+        k = 1
+        do while (k .lt. nz)
+            if (enth_prime(k+1) .lt. 0.0_wp) exit
+            k = k + 1
+        end do
 
-        else if (k_cts .eq. nz) then 
+        if (k .eq. nz) then
             ! Whole column is temperate
             H_cts = H_ice
+            return
+        end if
 
-        else 
+        ! Linear interpolation of enth_prime between nodes k and k+1
+        de       = enth_prime(k) - enth_prime(k+1)        ! > 0
+        zeta_cts = zeta(k) + (enth_prime(k)/de)*(zeta(k+1)-zeta(k))
 
-            ! Assume H_cts lies at center of last temperate cell (aa-node)
-!             zeta_cts = zeta(k_cts)
+        ! Extrapolation of the temperate side (nodes k-1, k). Not from the base
+        ! node, which follows the layer above (zero-gradient basal condition).
+        if (k .ge. 3) then
+            slope = (enth_prime(k-1) - enth_prime(k)) / (zeta(k)-zeta(k-1))
+            if (slope .gt. 0.0_wp) then
+                zeta_ext = zeta(k) + enth_prime(k)/slope
+                zeta_cts = min(zeta_cts,zeta_ext)
+            end if
+        end if
 
-!             ! Assume H_cts lies on ac-node between temperate and cold layers 
-!             zeta_cts = 0.5_wp*(zeta(k_cts)+zeta(k_cts+1))
+        H_cts = H_ice*zeta_cts
 
-            ! Perform linear interpolation between enth(k_cts) and enth(k_cts+1) to find 
-            ! where enth==enth_pmp.
-            f_lin_0 = ( (enth(k_cts+1)-enth(k_cts)) - (enth_pmp(k_cts+1)-enth_pmp(k_cts)) )
-            if (f_lin_0 .ne. 0.0) then 
-                f_lin = (enth_pmp(k_cts)-enth(k_cts)) / f_lin_0
-                if (f_lin .lt. 1e-2) f_lin = 0.0 
-            else 
-                f_lin = 1.0
-            end if 
-
-            zeta_cts = zeta(k_cts) + f_lin*(zeta(k_cts+1)-zeta(k_cts))
-            
-!             ec = (zc-z0)/(z1-z0)*(e1-e0) + e0 
-!              0 = (zc-z0)/(z1-z0)*(e1-e0) + e0 
-!            -e0 = (zc-z0)/(z1-z0)*(e1-e0)
-!            -e0*(z1-z0)/(e1-e0) = zc-z0
-           
-!            zc = z0 - e0*(z1-z0)/(e1-e0)
-            
-!             if (abs(enth_prime(k_cts)-enth_prime(k_cts+1)) .lt. 1e-3) then 
-!                 zeta_cts = zeta(k_cts+1)
-!             else 
-!                 zeta_cts = zeta(k_cts) - enth_prime(k_cts)*(zeta(k_cts+1)-zeta(k_cts))/(enth_prime(k_cts+1)-enth_prime(k_cts))
-!             end if 
-
-!             ! Further iterate to improve estimate of H_cts 
-!             n_iter = 3
-!             do i = 1, n_iter 
-
-!             end do 
-            
-!             n_prime = 11 
-
-!             allocate(zeta_prime(n_prime))
-!             allocate(enth_prime(n_prime))
-            
-!             zeta_prime(1)       = zeta(k_cts-1)
-!             zeta_prime(n_prime) = zeta(k_cts+1)
-
-!             do i = 2, n_prime-1
-!                 zeta_prime(i) = ((i-2)/(n_prime-3))*(zeta(k_cts+1)-zeta(k_cts)) + zeta(k_cts)
-!             end do 
-
-!             enth_prime = interp_spline(zeta,enth-enth_pmp,zeta_prime)
-
-!             i = minloc(abs(enth_prime),1)
-!             zeta_cts = zeta_prime(i) 
-
-! !             i = maxloc(abs(enth_prime),1,mask=enth_prime .lt. 0.0_wp)
-! !             f_lin = (zeta_prime(i+1)-zeta_prime(i)) / (enth_prime(i+1)-enth_prime(i))
-! !             if (abs(f_lin) .lt. 1e-3) f_lin = 0.0_wp 
-! !             zeta_cts = (1.0_wp-f_lin)*zeta_prime(i) 
-    
-            H_cts    = H_ice*zeta_cts
-
-        end if 
-
-        return 
-
+        return
 
     end function calc_cts_height
 
     subroutine calc_dzeta_terms(dzeta_a,dzeta_b,zeta_aa,zeta_ac)
-        ! zeta_aa  = depth axis at layer centers (plus base and surface values)
-        ! zeta_ac  = depth axis (1: base, nz: surface), at layer boundaries
+        ! zeta_aa  = height axis at layer centers (plus base and surface values)
+        ! zeta_ac  = height axis (1: base, nz: surface), at layer boundaries
         ! Calculate ak, bk terms as defined in Hoffmann et al (2018)
         implicit none 
 
@@ -1257,142 +1411,6 @@ end if
 
     end subroutine calc_wtd_harmonic_mean
 
-    subroutine calc_zeta_twolayers(zeta_pt,zeta_pc,zeta_scale,zeta_exp)
-        ! Calculate the vertical layer-edge axis (vertical ac-nodes)
-        ! and the vertical cell-center axis (vertical aa-nodes),
-        ! including an extra zero-thickness aa-node at the base and surface
-
-        ! This is built in two-steps, first for the basal temperate layer
-        ! and second for the overlying cold layer. The height of the border
-        ! is the CTS height, which will be defined for each column. The temperate layer is populated with an 
-        ! evenly-spaced (linear) axis up to upper boundary, while the cold layer follows the 
-        ! parameter options zeta_scale and zeta_exp. 
-
-        implicit none 
-
-        real(wp),   intent(INOUT) :: zeta_pt(:)
-        real(wp),   intent(INOUT) :: zeta_pc(:) 
-        character(*), intent(IN)  :: zeta_scale 
-        real(wp),   intent(IN)    :: zeta_exp 
-
-        ! Local variables
-        integer :: k, nz_pt, nz_pc 
-
-        integer :: nz_ac 
-        real(wp), allocatable :: zeta_ac(:) 
-
-        nz_pt  = size(zeta_pt)
-        nz_pc  = size(zeta_pc) 
-
-        ! ===== Temperate layer ===================================
-
-        nz_ac = nz_pt - 1
-        allocate(zeta_ac(nz_ac))
-
-        ! Linear scale for cell boundaries
-        do k = 1, nz_ac
-            zeta_ac(k) = 0.0 + 1.0*(k-1)/real(nz_ac-1)
-        end do 
-
-        ! Get zeta_aa (between zeta_ac values, as well as at the base and surface)
-        zeta_pt(1) = 0.0 
-        do k = 2, nz_pt-1
-            zeta_pt(k) = 0.5 * (zeta_ac(k-1)+zeta_ac(k))
-        end do 
-        zeta_pt(nz_pt) = 1.0 
-
-        ! ===== Cold layer ========================================
-
-        nz_ac = nz_pc - 1
-        deallocate(zeta_ac)
-        allocate(zeta_ac(nz_ac))
-
-        ! Linear scale for cell boundaries
-        do k = 1, nz_ac
-            zeta_ac(k) = 0.0 + 1.0*(k-1)/real(nz_ac-1)
-        end do 
-
-        ! Scale zeta to produce different resolution through column if desired
-        ! zeta_scale = ["linear","exp","wave"]
-        select case(trim(zeta_scale))
-            
-            case("exp")
-                ! Increase resolution at the base 
-                zeta_ac = zeta_ac**(zeta_exp) 
-
-            case("tanh")
-                ! Increase resolution at base and surface 
-
-                zeta_ac = tanh(1.0*pi*(zeta_ac-0.5))
-                zeta_ac = zeta_ac - minval(zeta_ac)
-                zeta_ac = zeta_ac / maxval(zeta_ac)
-
-            case DEFAULT
-            ! Do nothing, scale should be linear as defined above
-        
-        end select  
-        
-        ! Get zeta_aa (between zeta_ac values, as well as at the base and surface)
-        zeta_pc(1) = 0.0 
-        do k = 2, nz_pc-1
-            zeta_pc(k) = 0.5 * (zeta_ac(k-1)+zeta_ac(k))
-        end do 
-        zeta_pc(nz_pc) = 1.0 
-
-        return 
-
-    end subroutine calc_zeta_twolayers
-    
-    subroutine calc_zeta_combined(zeta_aa,zeta_ac,zeta_pt,zeta_pc,H_cts,H_ice)
-        ! Take two-layer axis and combine into one axis based on relative CTS height
-        ! f_cts = H_cts / H_ice 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: zeta_aa(:) 
-        real(wp), intent(INOUT) :: zeta_ac(:) 
-        real(wp), intent(IN)    :: zeta_pt(:) 
-        real(wp), intent(IN)    :: zeta_pc(:) 
-        real(wp), intent(IN)    :: H_cts 
-        real(wp), intent(IN)    :: H_ice 
-
-        ! Local variables 
-        integer  :: k 
-        integer  :: nzt, nztc, nzc, nz_aa, nz_ac  
-        real(wp) :: f_cts
-
-        nz_aa = size(zeta_aa,1)
-        nz_ac = size(zeta_ac,1)  ! == nz_aa-1
-        nzt   = size(zeta_pt,1)
-        nzc   = size(zeta_pc,1) 
-
-        if (nzt+(nzc-1)  .ne. nz_aa) then 
-            write(*,*) "calc_zeta_combined:: Error: Two-layer axis length does not match combined axis length."
-            write(*,*) "nzt, nzc-1, nz_aa: ", nzt, nzc-1, nz_aa 
-            stop 
-        end if 
-
-        ! Get f_cts 
-        if (H_ice .gt. 0.0) then 
-            f_cts = max(H_cts / H_ice,0.01)
-        else 
-            f_cts = 0.01 
-        end if 
-
-        zeta_aa(1:nzt) = zeta_pt(1:nzt)*f_cts
-        zeta_aa(nzt+1:nzt+nzc) = f_cts + zeta_pc(2:nzc)*(1.0-f_cts)
-
-        ! Get zeta_ac again (boundaries between zeta_aa values, as well as at the base and surface)
-        zeta_ac(1) = 0.0_wp 
-        do k = 2, nz_ac-1
-            zeta_ac(k) = 0.5_wp * (zeta_aa(k)+zeta_aa(k+1))
-        end do 
-        zeta_ac(nz_ac) = 1.0_wp 
-
-        return 
-
-    end subroutine calc_zeta_combined
-
     function get_cts_index(enth,enth_pmp) result(k_cts)
 
         implicit none 
@@ -1418,30 +1436,6 @@ end if
         return 
 
     end function get_cts_index
-
-    function interp_linear_point(x0,x1,y0,y1,xout) result(yout)
-        ! Interpolates for the y value at the desired x value, 
-        ! given x and y values around the desired point.
-        ! Solution outside of range x0 < x < x1 bounded by y0 < y < y1 
-
-        implicit none
-
-        real(wp), intent(IN)  :: x0,x1,y0,y1, xout
-        real(wp) :: yout
-        real(wp) :: alph
-
-        if (xout .le. x0) then 
-            yout = y0 
-        else if (xout .ge. x1) then 
-            yout = y1 
-        else 
-            alph = (xout - x0) / (x1 - x0)
-            yout = y0 + alph*(y1 - y0)
-        end if 
-
-        return
-
-    end function interp_linear_point
 
 end module ice_enthalpy
 

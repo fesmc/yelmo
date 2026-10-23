@@ -8,6 +8,7 @@
       "equil",
       "threshold",
       "vm-m16",
+      "vm-m16-old",
       "exp1",
       "exp2",
       "exp3",
@@ -49,6 +50,7 @@
       "equil",
       "threshold",
       "vm-m16",
+      "vm-m16-old",
       "ismip7"
     ],
     "conditions": [
@@ -103,9 +105,7 @@
       "marine",
       "floating",
       "float",
-      "none",
-      "slab",
-      "slab-ext"
+      "none"
     ],
     "conditions": []
   },
@@ -115,6 +115,36 @@
     "allowed": [
       "residual",
       "energy"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ydyn",
+    "name": "ssa_vel_lim_method",
+    "allowed": [
+      "clip",
+      "drag"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "yelmo",
+    "name": "experiment",
+    "allowed": [
+      "None",
+      "EISMINT",
+      "MISMIP3D",
+      "MISMIP+",
+      "TROUGH-F17",
+      "SLAB",
+      "ISMIPHOM",
+      "slab",
+      "periodic",
+      "periodic-xy",
+      "periodic-x",
+      "periodic-y",
+      "infinite",
+      "MASK_ICE"
     ],
     "conditions": []
   },
@@ -146,7 +176,8 @@
     "allowed": [
       "linear",
       "exp",
-      "tanh"
+      "tanh",
+      "exp-inv"
     ],
     "conditions": []
   },
@@ -165,18 +196,31 @@
   },
   {
     "group": "ymat",
-    "name": "flow_law",
-    "allowed": [
-      "glen"
-    ],
-    "conditions": []
-  },
-  {
-    "group": "ymat",
     "name": "tracer_method",
     "allowed": [
       "expl",
       "impl"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "basal_bc_method",
+    "allowed": [
+      "capacity",
+      "wtil"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "cap_source",
+    "allowed": [
+      "auto",
+      "hyd",
+      "till",
+      "water",
+      "none"
     ],
     "conditions": []
   },
@@ -187,6 +231,15 @@
       "FE",
       "AB",
       "SAM"
+    ],
+    "conditions": []
+  },
+  {
+    "group": "ytherm",
+    "name": "enth_cp_method",
+    "allowed": [
+      "const",
+      "integral"
     ],
     "conditions": []
   },
@@ -215,10 +268,11 @@
   },
   {
     "group": "ytherm",
-    "name": "solver_advec",
+    "name": "strain_heating",
     "allowed": [
-      "expl",
-      "impl-upwind"
+      "full",
+      "sia",
+      "none"
     ],
     "conditions": []
   },
@@ -245,10 +299,11 @@
   },
   {
     "group": "ytopo",
-    "name": "f_ice_method",
+    "name": "front_subgrid",
     "allowed": [
-      "upstream",
-      "lsf"
+      "none",
+      "floating",
+      "marine"
     ],
     "conditions": []
   },

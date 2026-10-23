@@ -43,7 +43,7 @@ program yelmo_ismiphom
     
     ! Define the domain, grid and experiment from parameter file
     call nml_read(path_par,"ctrl","domain",       domain)        ! ISMIPHOM
-    call nml_read(path_par,"ctrl","experiment",   experiment)    ! "fixed", "moving", "mismip", "EXPA", "EXPB", "BUELER-A"
+    call nml_read(path_par,"ctrl","experiment",   experiment)    ! "EXPA", "EXPC", "EXPF1", "EXPF2"
     call nml_read(path_par,"ctrl","L",            L)             ! [km] Length scale
     call nml_read(path_par,"ctrl","nx",           nx)            ! Number of grid points in one direction
     call nml_read(path_par,"ctrl","f_extend",     f_extend)      ! Extend domain by half a period?
@@ -56,6 +56,13 @@ program yelmo_ismiphom
     dt1D_out = dtt  ! Set 1D output to frequency of main loop timestep 
 
 
+    ! Experiment F: the domain size is part of the protocol, L = 100*H0 = 100 km
+    ! (Pattyn et al., 2008, Sect. 3.6), centred on the Gaussian bump below
+    if (is_expf(experiment)) then 
+        L        = 100.0_prec 
+        f_extend = 0.0_prec 
+    end if 
+
     ! Define grid based on length scale and number of points in each direction (square domain)
     !dx = L / (nx-1)
     dx = 0.25 * (L/10.0)
@@ -64,6 +71,9 @@ program yelmo_ismiphom
     if (f_extend .gt. 0.0) then 
         x0 = -f_extend*L
         nx = L*(1.0+2.0*f_extend) / dx
+    else if (is_expf(experiment)) then 
+        x0 = -0.5_prec*L
+        nx = nint(L / dx)
     else 
         x0 = 0.0_prec
         nx = L / dx
@@ -85,7 +95,7 @@ program yelmo_ismiphom
 !     stop 
 
     ! Initialize data objects (without loading topography, which will be defined inline below)
-    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=time_init,load_topo=.FALSE.,domain=domain,grid_name=grid_name)
+    call yelmo_init(yelmo1,filename=path_par,grid_def="none",time=dble(time_init),load_topo=.FALSE.,domain=domain,grid_name=grid_name)
     
     ! === Define initial topography =====
 
@@ -111,26 +121,8 @@ program yelmo_ismiphom
             
             yelmo1%tpo%par%topo_fixed   = .TRUE. 
 
-            select case(trim(yelmo1%dyn%par%solver))
-
-                case("hybrid")
-                    ! For this experiment, no basal sliding is allowed, so disable
-                    ! ssa for hybrid solver (ie, set hybrid==SIA only)
-                
-                    yelmo1%dyn%par%use_ssa  = .FALSE. 
-            
-                case("ssa")
-
-                    write(*,*) "yelmo_ismiphom:: error: solver='ssa' cannot be used &
-                    &for Experiment A, since there is no sliding, velocity would be zero."
-                    stop 
-
-                case("diva","l1l2")
-                    ! Modify solver name to specify noslip version
-
-                    yelmo1%dyn%par%solver = trim(yelmo1%dyn%par%solver)//"-noslip"
-
-            end select 
+            ! No basal sliding in this experiment
+            call set_noslip(yelmo1,experiment)
 
             ! Not used in this experiment, but set it to a constant value anyway
             yelmo1%dyn%par%beta_method  = -1 
@@ -153,12 +145,43 @@ program yelmo_ismiphom
             yelmo1%dyn%par%beta_method  = -1
             yelmo1%dyn%now%beta         = 1000.0 + 1000.0 * sin(omega*yelmo1%grd%x) * sin(omega*yelmo1%grd%y)
 
-        case("EXPF") 
+        case("EXPF1","EXPF2") 
+            ! Prognostic experiment: a slab of mean thickness H0 = 1000 m on a 3 deg slope,
+            ! over a Gaussian bed bump, relaxes to steady state with zero smb
+            ! (Pattyn et al., 2008, Sect. 3.6, Table 2). Linear rheology (n=1) with
+            ! A = 2.140373e-7 Pa-1 a-1, so that the unperturbed surface velocity is 100 m/a.
+            ! EXPF1: no slip (slip ratio c=0); EXPF2: c=1, beta = 1/(c*A*H0).
 
-            ! to do... 
+            alpha = 3.0*pi/180.0_prec       ! [rad] 
+
+            yelmo1%tpo%par%slope_bg_x = -tan(alpha)
+            yelmo1%tpo%now%z_srf = 0.0
+            yelmo1%bnd%z_bed     = yelmo1%tpo%now%z_srf - 1000.0 &
+                    + 100.0*exp(-(yelmo1%grd%x**2 + yelmo1%grd%y**2)/10e3**2)
+
+            yelmo1%tpo%now%H_ice = yelmo1%tpo%now%z_srf - yelmo1%bnd%z_bed
             
-            ! Ensure that topo_fixed is set to False here (the model will evolve) 
+            ! The model will evolve 
             yelmo1%tpo%par%topo_fixed = .FALSE. 
+
+            ! Linear rheology with a constant rate factor
+            yelmo1%mat%par%n_glen    = 1.0 
+            yelmo1%mat%par%rf_method = 0 
+            yelmo1%mat%par%rf_const  = 2.140373e-7      ! [Pa-1 a-1]
+
+            ! The driving stress, rho*g*H0*tan(alpha) = 4.7e5 Pa, must not be capped
+            yelmo1%dyn%par%taud_lim  = 1e6              ! [Pa]
+
+            yelmo1%dyn%par%beta_method = -1
+
+            if (trim(experiment) .eq. "EXPF1") then 
+                call set_noslip(yelmo1,experiment)
+
+                ! Not used in this experiment, but set it to a constant value anyway
+                yelmo1%dyn%now%beta = 1000.0
+            else 
+                yelmo1%dyn%now%beta = 1.0 / (yelmo1%mat%par%rf_const*1000.0)
+            end if 
 
         case("EXPG")
             ! Goldberg timestepping analytical tests - TO DO 
@@ -180,7 +203,7 @@ program yelmo_ismiphom
 
             write(*,*) "ismiphom:: Error: experiment not recognized for topography definition."
             write(*,*) "experiment = ", trim(experiment)
-            stop 
+            error stop 1
 
     end select 
 
@@ -200,19 +223,19 @@ program yelmo_ismiphom
     call yelmo_print_bound(yelmo1%bnd)
 
     ! Initialize state variables (dyn,therm,mat)
-    call yelmo_init_state(yelmo1,time=time_init,thrm_method="robin")
+    call yelmo_init_state(yelmo1,time=dble(time_init),thrm_method="robin")
 
-    call yelmo_update_equil(yelmo1,time_init,time_tot=1.0,dt=1.0,topo_fixed=.TRUE.)
+    call yelmo_update_equil(yelmo1,dble(time_init),time_tot=1.0,dt=1.0,topo_fixed=.TRUE.)
     
     ! == Write initial state ==
      
     ! 2D file 
-    call yelmo_write_init(yelmo1,file2D,time_init=time_init,units="years")
+    call yelmo_write_init(yelmo1,file2D,time_init=dble(time_init),units="years")
     call write_step_2D(yelmo1,file2D,time=time_init)  
     
     ! 1D file 
-    call yelmo_write_reg_init(yelmo1,file1D,time_init=time_init,units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
-    call yelmo_write_reg_step(yelmo1,file1D,time=time_init) 
+    call yelmo_write_reg_init(yelmo1,file1D,time_init=dble(time_init),units="years",mask=(yelmo1%bnd%mask_ice /= MASK_ICE_NONE))
+    call yelmo_write_reg_step(yelmo1,file1D,time=dble(time_init)) 
 
     ! Advance timesteps
     do n = 1, ceiling((time_end-time_init)/dtt)
@@ -221,7 +244,7 @@ program yelmo_ismiphom
         time = time_init + n*dtt
         
         ! == Yelmo ice sheet ===================================================
-        call yelmo_update(yelmo1,time)
+        call yelmo_update(yelmo1,dble(time))
 
         ! == MODEL OUTPUT =======================================================
         ! int64: a default integer overflows for |time| > ~2.1e7 yr
@@ -230,7 +253,7 @@ program yelmo_ismiphom
         end if 
 
         if (mod(nint(time*100,int64),nint(dt1D_out*100,int64))==0) then 
-            call yelmo_write_reg_step(yelmo1,file1D,time=time) 
+            call yelmo_write_reg_step(yelmo1,file1D,time=dble(time)) 
         end if 
 
         if (mod(time,10.0)==0 .and. (.not. yelmo_log)) then
@@ -240,7 +263,7 @@ program yelmo_ismiphom
     end do 
 
     ! Write a restart file too
-    call yelmo_restart_write(yelmo1,file_restart,time=time)
+    call yelmo_restart_write(yelmo1,file_restart,time=dble(time))
 
     ! Write summary 
     write(*,*) "====== "//trim(domain)//"-"//trim(experiment)//" ======="
@@ -248,7 +271,7 @@ program yelmo_ismiphom
     write(*,*) "max(ux_s) = ", maxval(yelmo1%dyn%now%ux_s)
 
     ! Finalize program
-    call yelmo_end(yelmo1,time=time)
+    call yelmo_end(yelmo1,time=dble(time))
 
     ! Stop timing 
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
@@ -258,6 +281,52 @@ program yelmo_ismiphom
     
 contains
     
+    function is_expf(experiment) result(is_f)
+        ! Experiment F (EXPF1 or EXPF2)
+
+        implicit none 
+
+        character(len=*), intent(IN) :: experiment 
+        logical :: is_f 
+
+        is_f = (trim(experiment) .eq. "EXPF1" .or. trim(experiment) .eq. "EXPF2")
+
+        return 
+
+    end function is_expf
+
+    subroutine set_noslip(ylmo,experiment)
+        ! Set up the velocity solver for a frozen bed (no basal sliding)
+
+        implicit none 
+
+        type(yelmo_class), intent(INOUT) :: ylmo
+        character(len=*),  intent(IN)    :: experiment 
+
+        select case(trim(ylmo%dyn%par%solver))
+
+            case("hybrid")
+                ! Without sliding the hybrid solver is the SIA solver
+            
+                ylmo%dyn%par%solver = "sia"
+        
+            case("ssa")
+
+                write(*,*) "yelmo_ismiphom:: error: solver='ssa' cannot be used &
+                &for experiment "//trim(experiment)//", since there is no sliding, velocity would be zero."
+                error stop 1
+
+            case("diva")
+                ! Modify solver name to specify noslip version
+
+                ylmo%dyn%par%solver = trim(ylmo%dyn%par%solver)//"-noslip"
+
+        end select 
+
+        return 
+
+    end subroutine set_noslip
+
     subroutine write_step_2D(ylmo,filename,time)
 
         implicit none 

@@ -5,12 +5,14 @@ module yelmo_regions
     use yelmo_defs 
 
     use topography, only : calc_H_af 
+    use solver_advection, only : outflow_border_mask
 
     implicit none
     
     private
     public :: yelmo_regions_init
     public :: yelmo_regions_update
+    public :: yelmo_regions_write_init
     public :: yelmo_regions_write
     public :: yelmo_region_init
 
@@ -91,7 +93,7 @@ contains
         if (trim(reg%name) .eq. "UNDEFINED") then
             write(io_unit_err,*) "yelmo_region_init:: Error: this region has not yet been allocated and defined. &
             &First, it is necessary to call yelmo_regions_init(ylmo,n) with the desired number of subregions."
-            stop
+            error stop 1
         end if
         
         if (present(outfldr)) then
@@ -131,9 +133,6 @@ contains
 
         ! First calculate the global region
 
-        ! Update global region mask in case mask_ice is changing
-        ylmo%reg%mask = (ylmo%bnd%mask_ice /= MASK_ICE_NONE)
-
         call yelmo_calc_region(ylmo%reg,ylmo%grd,ylmo%tpo,ylmo%dyn,ylmo%thrm,ylmo%mat,ylmo%bnd,ylmo%hyd) 
 
         ! Next calculate each sub region
@@ -148,6 +147,35 @@ contains
 
     end subroutine yelmo_regions_update
 
+    subroutine yelmo_regions_write_init(ylmo,time,units)
+        ! Initialize the output files of all regions that should
+        ! be written, without writing a time step
+
+        implicit none 
+
+        type(yelmo_class), intent(IN) :: ylmo
+        real(dp),          intent(IN) :: time
+        character(len=*),  intent(IN) :: units 
+
+        ! Local variables
+        integer :: k 
+
+        if (ylmo%reg%write) then
+            call yelmo_write_reg_init(ylmo,ylmo%reg%fnm,time,units,ylmo%reg%mask)
+        end if 
+
+        if (ylmo%par%n_reg .gt. 0) then
+            do k = 1, ylmo%par%n_reg 
+                if (ylmo%regs(k)%write) then
+                    call yelmo_write_reg_init(ylmo,ylmo%regs(k)%fnm,time,units,ylmo%regs(k)%mask)
+                end if
+            end do
+        end if
+
+        return 
+
+    end subroutine yelmo_regions_write_init
+
     subroutine yelmo_regions_write(ylmo,time,init,units)
         ! Write all regions defined in the yelmo object
         ! that should be written
@@ -155,7 +183,7 @@ contains
         implicit none 
 
         type(yelmo_class), intent(INOUT) :: ylmo
-        real(wp),          intent(IN)    :: time
+        real(dp),          intent(IN)    :: time
         logical,           intent(IN), optional :: init
         character(len=*),  intent(IN), optional :: units 
 
@@ -171,18 +199,16 @@ contains
                 write(io_unit_err,*) "yelmo_regions_write:: Error: missing time units. If initializing &
                                 &the regional output files, the time units argument 'units' must &
                                 &also be specified."
-                stop
+                error stop 1
             end if
         else
             initialize_files = .FALSE.
         end if
 
+        if (initialize_files) call yelmo_regions_write_init(ylmo,time,units)
+
         ! First write the global region
         if (ylmo%reg%write) then
-
-            if (initialize_files) then
-                call yelmo_write_reg_init(ylmo,ylmo%reg%fnm,time,units,ylmo%reg%mask)
-            end if
 
             call yelmo_write_reg_step(ylmo,ylmo%reg%fnm,time,reg_now=ylmo%reg)
         end if 
@@ -193,10 +219,6 @@ contains
             do k = 1, ylmo%par%n_reg 
                 if (ylmo%regs(k)%write) then
 
-                    if (initialize_files) then
-                        call yelmo_write_reg_init(ylmo,ylmo%regs(k)%fnm,time,units,ylmo%regs(k)%mask)
-                    end if
-            
                     call yelmo_write_reg_step(ylmo,ylmo%regs(k)%fnm,time,reg_now=ylmo%regs(k))
                 end if
             end do
@@ -210,9 +232,13 @@ contains
         ! Calculate a set of regional variables (averages, totals)
         ! for a given domain defined by `mask` (or by reg%mask if absent).
         ! State variables (means, volumes, areas) are computed over the
-        ! ice-covered points of the region; rates and fluxes (dVidt, fwf, dmb,
-        ! cmb) are integrated over the whole region, so that points that became
-        ! ice free during the timestep still contribute their mass loss.
+        ! ice-covered points of the region; the means are per cell (not
+        ! area-weighted). Rates and fluxes are integrated over ice-covered and
+        ! ice-free points alike, so that points that became ice free during the
+        ! timestep still contribute their mass loss: dVidt and fwf over the
+        ! region, the mass-balance terms (smb, bmb, fmb, dmb, cmb, relaxation,
+        ! residual, clip) over the region without its outflow-border cells, and
+        ! mb_border_tot over those cells (see below).
         ! Areas and volumes use the true grid-cell area grd%area, which
         ! accounts for the map-projection scale factor.
 
@@ -237,6 +263,8 @@ contains
         real(wp) :: conv_km3a_Sv
 
         logical, allocatable :: mask_reg(:,:) 
+        logical, allocatable :: mask_obd(:,:)   ! outflow-border cells of the region
+        logical, allocatable :: mask_trm(:,:)   ! region without them (rates and fluxes)
         logical, allocatable :: mask_tot(:,:) 
         logical, allocatable :: mask_grnd(:,:) 
         logical, allocatable :: mask_flt(:,:) 
@@ -284,18 +312,44 @@ contains
         npts_grnd = real(count(mask_grnd),wp)
         npts_flt  = real(count(mask_flt),wp)
         
-        ! ===== Rates and fluxes (whole region) =====
+        ! ===== Rates and fluxes (all points of the region) =====
 
         reg%dVidt      = sum(tpo%now%dHidt*area,mask=mask_reg)*m3_km3        ! [km^3/yr]
         reg%fwf        = -reg%dVidt*conv_km3a_Sv                            ! [Sv]
 
+        ! The cells of outflow borders take the thickness of their inner
+        ! neighbours: their rates are not counted in the terms below but,
+        ! with their reset (mb_border), in mb_border_tot, the mass that leaves
+        ! the region through the domain border. Over the whole domain, where
+        ! the transport sums to zero, the budget closes as
+        !   1e9*dVidt = smb_tot + bmb_tot + fmb_tot + dmb + cmb
+        !             + mb_relax_tot + mb_resid_tot + mb_clip_tot + mb_border_tot
+        ! with dVidt in [km^3/yr] and the terms in [m^3/yr]. For a subregion,
+        ! the transport across its boundary adds to the right-hand side.
+        mask_obd = outflow_border_mask(nx,ny,tpo%par%boundaries) .and. mask_reg
+        mask_trm = mask_reg .and. .not. mask_obd
+
         ! Discharge
-        reg%dmb        = sum(tpo%now%dmb*area,mask=mask_reg)                ! [m^3/yr]
+        reg%dmb        = sum(tpo%now%dmb*area,mask=mask_trm)                ! [m^3/yr]
         
         ! Calving
-        reg%cmb        = sum(tpo%now%cmb*area,mask=mask_reg)                ! [m^3/yr]
-        reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_reg)            ! [m^3/yr]
-        reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_reg)           ! [m^3/yr]
+        reg%cmb        = sum(tpo%now%cmb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%cmb_flt    = sum(tpo%now%cmb_flt*area,mask=mask_trm)            ! [m^3/yr]
+        reg%cmb_grnd   = sum(tpo%now%cmb_grnd*area,mask=mask_trm)           ! [m^3/yr]
+
+        ! Applied surface, basal and frontal mass balance
+        reg%smb_tot    = sum(tpo%now%smb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%bmb_tot    = sum(tpo%now%bmb*area,mask=mask_trm)                ! [m^3/yr]
+        reg%fmb_tot    = sum(tpo%now%fmb*area,mask=mask_trm)                ! [m^3/yr]
+
+        ! Relaxation, boundary removal (mask, margin, isolated points) and clipping of negative thickness
+        reg%mb_relax_tot = sum(tpo%now%mb_relax*area,mask=mask_trm)         ! [m^3/yr]
+        reg%mb_resid_tot = sum(tpo%now%mb_resid*area,mask=mask_trm)         ! [m^3/yr]
+        reg%mb_clip_tot  = sum(tpo%now%mb_clip*area,mask=mask_trm)          ! [m^3/yr]
+
+        ! Outflow-border cells: all their rates (mb_net holds smb, bmb, fmb, dmb,
+        ! relaxation, mb_resid and mb_border) and their clip
+        reg%mb_border_tot = sum((tpo%now%mb_net+tpo%now%cmb+tpo%now%mb_clip)*area,mask=mask_obd)   ! [m^3/yr]
 
         ! ===== Total ice variables =====
 
@@ -445,7 +499,7 @@ contains
         type(yelmo_class), intent(IN) :: dom 
         character(len=*),  intent(IN) :: filename 
         character(len=*),  intent(IN) :: units
-        real(wp),          intent(IN) :: time_init
+        real(dp),          intent(IN) :: time_init
         logical,           intent(IN) :: mask(:,:) 
 
         ! Initialize netcdf file and dimensions
@@ -453,7 +507,7 @@ contains
         call nc_write_dim(filename,"xc",        x=dom%grd%G%x*1d-3,      units="kilometers")
         call nc_write_dim(filename,"yc",        x=dom%grd%G%y*1d-3,      units="kilometers")
         call nc_write_dim(filename,"zeta",      x=dom%par%zeta_aa,      units="1")
-        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
+        call nc_write_dim(filename,"time",      x=time_init,dx=1.0_dp,nx=1,units=trim(units),unlimited=.TRUE.)
         
         ! Static information
         call nc_write(filename,"mask", mask,  units="1",long_name="Region mask",dim1="xc",dim2="yc")
@@ -468,7 +522,7 @@ contains
         
         type(yelmo_class),    intent(IN) :: dom 
         character(len=*),     intent(IN) :: filename
-        real(wp),             intent(IN) :: time
+        real(dp),             intent(IN) :: time
         logical, intent(IN), optional    :: mask(:,:) 
         type(yregions_class), intent(IN), optional :: reg_now 
 
@@ -483,7 +537,7 @@ contains
                        &object must be provided, not both. Try again."
             write(*,*) "filename = ", trim(filename) 
             write(*,*) "time     = ", time 
-            stop 
+            error stop 1
         end if 
 
         if (present(mask)) then 
@@ -540,12 +594,27 @@ contains
 
         call nc_write(filename,"cmb",reg%cmb,units="m^3/yr",long_name="Calving mass balance rate", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"cmb_flt",reg%cmb_flt,units="m^3/yr",long_name="Potential calving mass balance rate (floating)", &
+        call nc_write(filename,"cmb_flt",reg%cmb_flt,units="m^3/yr",long_name="Calving mass balance rate (floating cells)", &
                       dim1="time",start=[n],ncid=ncid)
-        call nc_write(filename,"cmb_grnd",reg%cmb_grnd,units="m^3/yr",long_name="Potential calving mass balance rate (grounded)", &
+        call nc_write(filename,"cmb_grnd",reg%cmb_grnd,units="m^3/yr",long_name="Calving mass balance rate (grounded cells)", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"dmb",reg%dmb,units="m^3/yr",long_name="Discharge mass balance rate", &
+                      dim1="time",start=[n],ncid=ncid)
+
+        call nc_write(filename,"smb_tot",reg%smb_tot,units="m^3/yr",long_name="Total applied surface mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"bmb_tot",reg%bmb_tot,units="m^3/yr",long_name="Total applied basal mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"fmb_tot",reg%fmb_tot,units="m^3/yr",long_name="Total applied frontal mass balance", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_relax_tot",reg%mb_relax_tot,units="m^3/yr",long_name="Total relaxation mass balance (tau_relax)", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_resid_tot",reg%mb_resid_tot,units="m^3/yr",long_name="Total residual mass balance (boundary and mask removal)", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_clip_tot",reg%mb_clip_tot,units="m^3/yr",long_name="Total mass balance from clipping negative thickness", &
+                      dim1="time",start=[n],ncid=ncid)
+        call nc_write(filename,"mb_border_tot",reg%mb_border_tot,units="m^3/yr",long_name="Total mass balance of the outflow-border cells (outflow through the domain border)", &
                       dim1="time",start=[n],ncid=ncid)
 
         call nc_write(filename,"V_sl",reg%V_sl*1e-6,units="1e6 km^3",long_name="Ice volume above flotation", &

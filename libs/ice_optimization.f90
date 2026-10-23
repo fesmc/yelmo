@@ -1,6 +1,7 @@
 module ice_optimization
 
-    use yelmo_defs, only : sp, dp, wp, prec, io_unit_err, pi, missing_value, mv, tol_underflow
+    use yelmo_defs, only : sp, dp, wp, prec, io_unit_err, pi, missing_value, mv, tol_underflow, &
+                           ytopo_param_class
     use nml 
 
     use gaussian_filter 
@@ -8,12 +9,10 @@ module ice_optimization
     implicit none 
 
     type ice_opt_params
-        logical  :: opt_cf 
+        character(len=56) :: opt_cf     ! "none", "L21" (optimize_cb_ref)
         real(wp) :: cf_time_init
         real(wp) :: cf_time_end
         real(wp) :: cf_init
-        logical  :: use_yelmo_cf_min
-        real(wp) :: opt_cf_min
         real(wp) :: tau_c 
         real(wp) :: H0
         real(wp) :: sigma_err 
@@ -21,14 +20,7 @@ module ice_optimization
         character(len=56) :: fill_method 
         logical  :: basin_fill
 
-        real(wp) :: rel_tau 
-        real(wp) :: rel_tau1 
-        real(wp) :: rel_tau2
-        real(wp) :: rel_time1
-        real(wp) :: rel_time2
-        real(wp) :: rel_m
-
-        logical  :: opt_tf 
+        character(len=56) :: opt_tf     ! "none", "L21" (optimize_tf_corr_basin), "L21-points" (optimize_tf_corr)
         real(wp) :: tf_time_init
         real(wp) :: tf_time_end
         real(wp) :: H_grnd_lim
@@ -44,11 +36,26 @@ module ice_optimization
         
     end type 
 
+    type relax_params
+        ! Relaxation of the ice thickness towards a reference (ytopo.topo_rel),
+        ! with a timescale ramp, over the times elapsed since the start of the run.
+        integer  :: topo_rel        ! ytopo.topo_rel mode while active (e.g. 3: all points, 4: gl + grounding zone)
+        real(wp) :: tau1            ! [yr] relaxation timescale until time1
+        real(wp) :: tau2            ! [yr] relaxation timescale at time2
+        real(wp) :: time1           ! [yr] end of the tau1 period
+        real(wp) :: time2           ! [yr] end of the ramp; relaxation off afterwards
+        real(wp) :: m               ! [--] non-linear exponent of the ramp between time1 and time2
+    end type 
+
     private 
 
     public :: ice_opt_params
     public :: optimize_par_load 
     public :: optimize_set_transient_param
+
+    public :: relax_params
+    public :: relax_par_load
+    public :: relax_update
 
     public :: optimize_tf_corr
     public :: optimize_tf_corr_basin
@@ -82,20 +89,12 @@ contains
         call nml_read(path_par,group,"cf_time_init",opt%cf_time_init)
         call nml_read(path_par,group,"cf_time_end", opt%cf_time_end)
         call nml_read(path_par,group,"cf_init",     opt%cf_init)
-        call nml_read(path_par,group,"use_yelmo_cf_min",  opt%use_yelmo_cf_min)
-        call nml_read(path_par,group,"opt_cf_min",  opt%opt_cf_min)
         call nml_read(path_par,group,"tau_c",       opt%tau_c)
         call nml_read(path_par,group,"H0",          opt%H0)   
         call nml_read(path_par,group,"sigma_err",   opt%sigma_err)   
         call nml_read(path_par,group,"sigma_vel",   opt%sigma_vel)   
         call nml_read(path_par,group,"fill_method", opt%fill_method)
         call nml_read(path_par,group,"basin_fill",  opt%basin_fill)   
-        
-        call nml_read(path_par,group,"rel_tau1",    opt%rel_tau1)   
-        call nml_read(path_par,group,"rel_tau2",    opt%rel_tau2)  
-        call nml_read(path_par,group,"rel_time1",   opt%rel_time1)    
-        call nml_read(path_par,group,"rel_time2",   opt%rel_time2) 
-        call nml_read(path_par,group,"rel_m",       opt%rel_m)
 
         call nml_read(path_par,group,"opt_tf",      opt%opt_tf)
         call nml_read(path_par,group,"tf_time_init",opt%tf_time_init)
@@ -108,6 +107,26 @@ contains
         call nml_read(path_par,group,"tf_max",      opt%tf_max)
         call nml_read(path_par,group,"tf_basins",   opt%tf_basins)
         
+        select case(trim(opt%opt_cf))
+            case("none","L21")
+                ! Valid method
+            case DEFAULT
+                write(io_unit_err,*) "optimize_par_load:: Error: opt_cf not recognized."
+                write(io_unit_err,*) "opt_cf = ", trim(opt%opt_cf)
+                write(io_unit_err,*) "Allowed values: none, L21"
+                error stop 1
+        end select
+
+        select case(trim(opt%opt_tf))
+            case("none","L21","L21-points")
+                ! Valid method
+            case DEFAULT
+                write(io_unit_err,*) "optimize_par_load:: Error: opt_tf not recognized."
+                write(io_unit_err,*) "opt_tf = ", trim(opt%opt_tf)
+                write(io_unit_err,*) "Allowed values: none, L21, L21-points"
+                error stop 1
+        end select
+
         return
 
     end subroutine optimize_par_load
@@ -118,7 +137,7 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: p 
-        real(wp), intent(IN)  :: time 
+        real(dp), intent(IN)  :: time 
         real(wp), intent(IN)  :: time1 
         real(wp), intent(IN)  :: time2
         real(wp), intent(IN)  :: p1
@@ -138,6 +157,53 @@ contains
         return 
 
     end subroutine optimize_set_transient_param
+
+    subroutine relax_par_load(rlx,path_par,group)
+        ! Load the relaxation parameters (e.g. group "relax").
+
+        implicit none
+
+        type(relax_params), intent(INOUT) :: rlx 
+        character(len=*),   intent(IN)    :: path_par 
+        character(len=*),   intent(IN)    :: group 
+
+        call nml_read(path_par,group,"topo_rel", rlx%topo_rel)
+        call nml_read(path_par,group,"tau1",     rlx%tau1)
+        call nml_read(path_par,group,"tau2",     rlx%tau2)
+        call nml_read(path_par,group,"time1",    rlx%time1)
+        call nml_read(path_par,group,"time2",    rlx%time2)
+        call nml_read(path_par,group,"m",        rlx%m)
+
+        return
+
+    end subroutine relax_par_load
+
+    subroutine relax_update(rlx,tpo_par,time_elapsed,topo_rel0,topo_rel_tau0)
+        ! Set the relaxation of Yelmo's topography for the time elapsed since
+        ! the start of the run: while time_elapsed <= time2, mode rlx%topo_rel
+        ! with the timescale ramp tau1 -> tau2; afterwards, the par-file values
+        ! topo_rel0 / topo_rel_tau0.
+
+        implicit none
+
+        type(relax_params),      intent(IN)    :: rlx 
+        type(ytopo_param_class), intent(INOUT) :: tpo_par 
+        real(dp),                intent(IN)    :: time_elapsed 
+        integer,                 intent(IN)    :: topo_rel0 
+        real(wp),                intent(IN)    :: topo_rel_tau0 
+
+        if (time_elapsed .le. rlx%time2) then 
+            call optimize_set_transient_param(tpo_par%topo_rel_tau,time_elapsed,time1=rlx%time1, &
+                                              time2=rlx%time2,p1=rlx%tau1,p2=rlx%tau2,m=rlx%m)
+            tpo_par%topo_rel = rlx%topo_rel 
+        else 
+            tpo_par%topo_rel     = topo_rel0 
+            tpo_par%topo_rel_tau = topo_rel_tau0 
+        end if 
+
+        return
+
+    end subroutine relax_update
 
     subroutine optimize_tf_corr(tf_corr,H_ice,H_grnd,dHicedt,H_obs,H_grnd_obs,H_grnd_lim, &
                                 basins,basin_fill,tau_m,m_temp,tf_min,tf_max,dx,sigma,dt)
@@ -159,7 +225,7 @@ contains
         real(wp), intent(IN)    :: tf_max 
         real(wp), intent(IN)    :: dx 
         real(wp), intent(IN)    :: sigma
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
 
         ! Local variables
         integer  :: b, nb
@@ -225,10 +291,9 @@ contains
 
         if (basin_fill) then
                 ! Obtain the mean tf_corr value by basins and extrapolate to the basins
-                ! Determine unique basin numbers that are available
-                nb = MAXVAL(basins)
-                allocate(basin_list(nb))
-                basin_list = [(i, i=1,nb)]
+                ! Determine unique basin numbers that are available (0 = no basin)
+                call unique(basin_list,pack(basins,basins .gt. 0.0_wp))
+                nb = size(basin_list)
                 
                 do b = 1, nb
                         ! Get a mask of points of interest:
@@ -289,7 +354,7 @@ contains
         real(wp), intent(IN)    :: tf_min 
         real(wp), intent(IN)    :: tf_max 
         integer,  intent(IN)    :: tf_basins(:) 
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
 
         ! Local variables
         integer  :: i, j, nx, ny, n  
@@ -315,8 +380,8 @@ contains
 
         allocate(mask(nx,ny)) 
 
-        ! Determine unique basin numbers that are available
-        call unique(basin_list_ref,reshape(basins,[nx*ny]))
+        ! Determine unique basin numbers that are available (0 = no basin)
+        call unique(basin_list_ref,pack(basins,basins .gt. 0.0_wp))
 
         ! Check if we are optimizing all basins
         if (tf_basins(1) .lt. 0) then 
@@ -435,7 +500,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                    ! [yr]
         real(wp), intent(IN)    :: H0                       ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 
@@ -610,7 +675,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='analog' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -627,7 +692,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='nearest' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -657,7 +722,7 @@ contains
                 write(io_unit_err,*)
                 write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
                 write(io_unit_err,*) "fill_method = ", trim(fill_method)
-                stop 
+                error stop 1
 
         end select
         
@@ -694,7 +759,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                  ! [yr]
         real(wp), intent(IN)    :: H0                     ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 
@@ -849,7 +914,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='analog' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -866,7 +931,7 @@ contains
                 write(io_unit_err,*) "optimize_cb_ref:: Error: &
                 &fill_method='nearest' is not working right now!"
                 write(io_unit_err,*)
-                stop 
+                error stop 1
 
                 ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
                 ! of cf_min and cf_max, instead of just single values. 
@@ -896,7 +961,7 @@ contains
                 write(io_unit_err,*)
                 write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
                 write(io_unit_err,*) "fill_method = ", trim(fill_method)
-                stop 
+                error stop 1
 
         end select
 
@@ -933,7 +998,7 @@ contains
         real(wp), intent(IN)    :: sigma_vel
         real(wp), intent(IN)    :: tau_c                  ! [yr]
         real(wp), intent(IN)    :: H0                     ! [m]
-        real(wp), intent(IN)    :: dt 
+        real(dp), intent(IN)    :: dt 
         character(len=*), intent(IN) :: fill_method         ! How should missing values outside obs be filled?
         real(wp), intent(IN)    :: fill_dist                ! [km] Distance over which to smooth between nearest neighbor and minimum value
         real(wp), intent(IN), optional :: cb_tgt(:,:) 
@@ -1096,7 +1161,7 @@ contains
         write(io_unit_err,*) "optimize_cb_ref:: Error: &
         &fill_method='analog' is not working right now!"
         write(io_unit_err,*)
-        stop 
+        error stop 1
 
         ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
         ! of cf_min and cf_max, instead of just single values. 
@@ -1113,7 +1178,7 @@ contains
         write(io_unit_err,*) "optimize_cb_ref:: Error: &
         &fill_method='nearest' is not working right now!"
         write(io_unit_err,*)
-        stop 
+        error stop 1
 
         ! ajr: Need to adapt fill_cb_ref and fill_nearest for 2D fields
         ! of cf_min and cf_max, instead of just single values. 
@@ -1143,7 +1208,7 @@ contains
         write(io_unit_err,*)
         write(io_unit_err,*) "optimize_cb_ref:: Error: fill_method not recognized."
         write(io_unit_err,*) "fill_method = ", trim(fill_method)
-        stop 
+        error stop 1
 
         end select
 
@@ -1646,9 +1711,8 @@ contains
 
         real(wp), parameter :: tol = 1e-5_wp
         
-        n = 1
-        res(1) = x(1)
-        do i=2,size(x)
+        n = 0
+        do i=1,size(x)
             found = .FALSE.
             do j=1,n
                 if (abs(res(j)-x(i)) .le. tol) then 

@@ -58,7 +58,7 @@
     grid_name       = "MASK_ICE"
     grid_path       = "none"
     phys_const      = "Earth"
-    experiment      = "MASK_ICE"        ! Routes to boundaries="mask"
+    experiment      = "MASK_ICE"        ! "None"/"EISMINT": zeros borders; "MISMIP3D","MISMIP+"; "TROUGH-F17"; "SLAB","ISMIPHOM","slab","periodic","periodic-xy": periodic x,y; "periodic-x"; "periodic-y"; "infinite"; "MASK_ICE"
     nml_ytopo       = "ytopo"
     nml_ycalv       = "ycalv"
     nml_ydyn        = "ydyn"
@@ -79,7 +79,7 @@
     zeta_scale      = "exp"
     zeta_exp        = 2.0
     nz_aa           = 10
-    dt_method       = 2                 ! adaptive, predictor-corrector
+    dt_method       = 2                 ! 0: no internal timestep, 1: adaptive, cfl, 2: adaptive, pc
     dt_min          = 0.01
     cfl_max         = 0.1
     pc_method       = "AB-SAM"
@@ -89,17 +89,20 @@
     pc_n_redo       = 5
     pc_tol          = 50.0
     pc_eps          = 10.0
+    pc_cfl_max      = 0.5               ! Courant-number cap on the pc adaptive timestep (dt_method=2)
+    pc_rho_max      = 2.0               ! Maximum growth factor dt_new/dt per step of the pc adaptive timestep (dt_method=2)
+    pc_eta_H_min    = 10.0              ! [m] Thinner ice is not included in the pc error norm
+    pc_eta_u_min    = 0.0               ! [m/yr] Slower ice is not included in the pc error norm
+    pc_eta_trim     = 0.0               ! [--] Fraction of points with the largest errors left out of the pc error norm
 /
 
 &ytopo
     solver              = "impl-lis"
-    surf_gl_method      = 0
     grad_lim            = 0.5
     grad_lim_zb         = 0.5
-    dHdt_dyn_lim        = 100.0
-    margin2nd           = False
-    margin_flt_subgrid  = False
-    f_ice_method        = "upstream"
+    front_subgrid       = "marine"          ! Subgrid ice fronts: "none" (binary f_ice), "floating", "marine" (floating + marine-grounded)
+    front_H_eff_min     = 50.0              ! [m] Minimum effective thickness of front cells (front_subgrid)
+    front_dHdx          = 0.0               ! [m/m] Thickness gradient assumed at a full front (front_subgrid)
     use_bmb             = False
     topo_fixed          = False
     topo_rel            = 0
@@ -123,6 +126,7 @@
 
     fmb_method          = 0
     fmb_scale           = 1.0
+    fmb_lambda          = 1.0               ! fmb_method=3: scaling of the Rignot et al. (2016) frontal melt (ISMIP7 protocol)
 /
 
 &ycalv
@@ -135,6 +139,7 @@
 
     H_min_grnd          = 0.0
     H_min_flt           = 0.0
+    H_min_tau           = 10.0              ! [yr] Timescale for removing margin ice thinner than H_min_grnd/H_min_flt and isolated partial cells
     sd_min              = 100.0
     sd_max              = 500.0
     calv_grnd_max       = 0.0
@@ -145,7 +150,8 @@
     w2                  = 0.0
     kt_ref              = 0.0025
     kt_deep             = 0.1
-    tau_ice             = 250.0e3
+    tau_ice_flt         = 100.0e3
+    tau_ice_grnd        = 1.0e6
 
     Hc_ref_flt          = 200.0
     Hc_ref_grnd         = 200.0
@@ -172,14 +178,14 @@
     H_grnd_lim          = 500.0
     beta_min            = 0.0
     eps_0               = 1e-6
-    scale_T             = 1
-    T_frz               = -3.0
+    frz_scale           = False           ! Reduce sliding where the bed is below the pressure melting point: beta*f**(-q), f=frz_min+(1-frz_min)*exp(T_prime_b/frz_efold)
+    frz_efold           = 3.0             ! [K] e-folding temperature of the sliding speed (at fixed basal stress, any friction law)
+    frz_min             = 1e-3            ! [-] Minimum sliding-speed factor for frozen beds
     ssa_solver              = "energy"
     ssa_lis_opt_residual    = "-i bicgsafe -p jacobi -maxiter 100 -tol 1.0e-4 -initx_zeros false"
-    ssa_lis_opt_energy      = "-i cg -p jacobi -maxiter 200 -tol 1.0e-4 -initx_zeros false"
+    ssa_lis_opt_energy      = "-i cg -p jacobi -maxiter 200 -tol 1.0e-2 -initx_zeros false"
     ssa_lat_bc          = "all"
-    ssa_beta_max        = 1e20
-    ssa_vel_max         = 5000.0
+    ssa_vel_max         = 10000.0
     ssa_iter_max        = 20
     ssa_iter_rel        = 0.7
     ssa_iter_conv       = 1e-2
@@ -214,9 +220,9 @@
     W_til_bc         = 0.0 ! [m]
 
     ! ---- bucket (bkt_) ----
-    bkt_N_closure     = 3      ! 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL 4=TWO_VALUE
+    bkt_N_closure     = 3      ! -1=EXTERNAL 0=CONST 1=OVERBURDEN 2=MARINE 3=TILL
     bkt_till_rate     = 1.0e-3 ! [m/a]  was ytherm.till_rate
-    bkt_floating_mode = 1      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring)
+    bkt_floating_mode = 2      ! 0=ZERO 1=MARGIN_FILL (legacy saturate floating+margin ring) 2=SATURATED (saturate floating only)
 
     ! ---- closures (no prefix) ----
     const_N         = 1.0e7  ! [Pa] N_CLOSURE_CONST (legacy yneff.const)
@@ -230,33 +236,31 @@
 
     ! ---- k24 (k24_) ----
     k24_substrate_type               = 2
-    k24_flux_solver                  = 0
-    k24_manning_exponent             = 3.0
+    k24_flux_solver                  = 3
+    k24_glen_n                       = 3.0
     k24_latent_heat_water            = 3.335e5
-    k24_bed_thickness                = 0.1
-    k24_manning_coefficient_exponent = 1.25
-    k24_bed_friction_exponent        = 1.5
+    k24_bed_bump_height              = 0.1
+    k24_flux_W_exponent              = 1.25
+    k24_flux_grad_exponent           = 1.5
     k24_friction_factor              = 0.1
     k24_till_factor                  = 1.1
     k24_critical_discharge           = 1.0
-    k24_initial_cavity_height        = 0.1
-    k24_coupling_length              = 1.0e4
-    k24_long_coupling_water          = 5.0
+    k24_H0_efficient                 = 0.1
+    k24_conduit_spacing              = 1.0e4
+    k24_coupling_length_kamb86       = 10.0
     k24_min_pressure_fraction        = 0.02
-    k24_eta_w                        = 5.703855806525211e-11 ! eta_w [Pa s] = 1.8e-3 per year
+    k24_water_viscosity              = 5.703855806525211e-11 ! water_viscosity [Pa s] = 1.8e-3 per year
     k24_W_min                        = 1.0e-8
     k24_W_max                        = 0.015
 /
 
 &ymat
-    flow_law                = "glen"
     rf_method               = 1
     rf_const                = 1e-16
     rf_use_eismint2         = False
     rf_with_water           = False
     n_glen                  = 3.0
     visc_min                = 1e3
-    de_max                  = 2.0
     enh_method              = "shear3D"
     enh_shear               = 1.0
     enh_stream              = 1.0
@@ -271,8 +275,8 @@
     use_euler               = False         ! Run the in-tree Eulerian age tracer?
     use_tracer              = False         ! Run the Lagrangian particle backend (tracer)?
     use_elsa                = False         ! Run the Lagrangian layer backend (elsa)?
-    t_dep_source            = "euler"       ! "euler", "trc", "elsa"
-    time_end                = 0.0           ! [yr] set to simulation end time when use_elsa=True
+    t_dep_source            = "euler"       ! "euler", "trc", "elsa": authoritative deposition-time source
+    time_end                = 0.0           ! [yr] simulation end time for use_elsa (sizes elsa's layer stack; 0.0 = present day)
     calc_age                = False         ! Calculate the Eulerian age tracer field?
     time_iso                = 0.0
     tracer_method           = "expl"        ! "expl", "impl": Eulerian age solver
@@ -285,14 +289,13 @@
 
 &ytherm
     method          = "enth"
-    qb_method       = 2
+    qb_method       = 2                 ! 1: faces, 2: faces to quadrature nodes, 3: simple-stagger, 4: quadrature (1, 2: energy-consistent)
     dt_method       = "FE"
-    solver_advec    = "impl-upwind"
     advecxy_order   = 2
     advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)
     gamma           = 1.0
-    use_strain_sia  = False
+    strain_heating  = "full"
     use_const_cp    = True
     const_cp        = 2009.0
     use_const_kt    = True
@@ -300,7 +303,7 @@
     enth_cr         = 1e-3
     omega_max       = 0.01
     H_ice_thin      = 10.0              ! [m] Skip column solver below this thickness (linear profile imposed)
-    enth_cp_method  = "integral"
+    enth_cp_method  = "const"   
     ! Basal water bucket (till_rate, H_w_max) moved to &yhyd.
 
     rock_method     = "equil"
@@ -308,17 +311,18 @@
     zeta_scale_rock = "exp-inv"
     zeta_exp_rock   = 2.0
     H_rock          = 2000.0
-    cp_rock         = 1000.0
+    rhoc_rock       = 2.0e6             ! [J m-3 K-1] Volumetric heat capacity of bedrock (rho*cp)
     kt_rock         = 6.3e7
 /
 
 &yelmo_masks
-    basins_load     = False
-    basins_path     = "none"
-    basins_nms      = "basin" "basin_mask"
-    regions_load    = False
-    regions_path    = "none"
-    regions_nms     = "mask" "None"
+    regions_group    = "None"            ! group of the regions (FesmData, fesm-utils regions); "None" = no regions
+    basins           = "None"            ! basin ids of bnd%basins: "<set>" or "<set>.group" of the regions; "None" = none
+    mask_ice_dynamic = "all"             ! where ice is dynamic, else no ice (selection expression of the regions)
+    mask_ice_fixed   = "none"            ! where ice thickness is prescribed (over mask_ice_dynamic)
+    relax            = "none"            ! where ice relaxes to H_ice_ref (ytopo.topo_rel = -1)
+    relax_tau        = 0.0               ! [yr] relaxation timescale there
+    mask_rmse        = "all"             ! where the error metrics are computed
 /
 
 &yelmo_init_topo
@@ -348,5 +352,5 @@
     pd_vel_names      = "ux_srf" "uy_srf"
     pd_age_load       = False
     pd_age_path       = "none"
-    pd_age_names      = "age_iso" "depth_iso"
+    pd_age_names      = "age" "depth_iso"    
 /

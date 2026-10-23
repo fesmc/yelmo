@@ -1,8 +1,6 @@
 module thermodynamics 
-    ! This module contains some general thermodynamics subroutines
-    ! that could be used by many icetemp solver approaches.
-    ! Note: once icetemp is working well, this module could be 
-    ! remerged into icetemp as one module. 
+    ! This module contains general thermodynamics subroutines
+    ! used by the column solvers (ice_enthalpy) and by ytherm.
 
     use yelmo_defs, only : wp, dp, pi, TOL_UNDERFLOW, io_unit_err
 
@@ -24,7 +22,8 @@ module thermodynamics
     ! flux (~30 C too-cold base on initmip-grl). Standard enthalpy-method choice
     ! (Aschwanden et al. 2012; Blatter & Greve 2015). Future refinement (A2):
     ! the exact integral enthalpy E = int cp dT would match the T-dependent-cp
-    ! temperature solver to machine precision.
+    ! temperature solver to machine precision. With ytherm.use_const_cp, the
+    ! linear definition uses ytherm.const_cp in place of cp_ref.
     real(wp), parameter, public :: cp_ref = 2009.0_wp    ! [J kg-1 K-1]
 
     ! Temperature-dependent ice heat capacity cp(T) = cp_a + cp_b*T
@@ -46,12 +45,10 @@ module thermodynamics
 
     public :: calc_bmb_grounded
     public :: calc_bmb_grounded_enth
-    public :: calc_advec_vertical_column
     public :: calc_advec_horizontal_3D
     public :: calc_advec_horizontal_column
     public :: calc_strain_heating
     public :: calc_strain_heating_sia
-    public :: calc_strain_heating_temp_derivative
     public :: calc_specific_heat_capacity
     public :: calc_thermal_conductivity
     public :: calc_T_pmp
@@ -59,6 +56,7 @@ module thermodynamics
     public :: calc_T_base_shlf_approx
     public :: calc_T_freeze_sw
     public :: define_temp_linear_3D
+    public :: define_temp_prescribed_3D
     public :: define_temp_robin_3D
     public :: define_temp_linear_column
     public :: define_temp_robin_column
@@ -70,13 +68,16 @@ module thermodynamics
     public :: calc_basal_heating_nodes
     public :: calc_basal_heating_simplestagger
     public :: calc_basal_heating_faces
+    public :: calc_basal_heating_faces_nodes
 
     public :: convert_to_enthalpy
-    public :: convert_from_enthalpy_column
     public :: convert_to_enthalpy_ice
     public :: convert_from_enthalpy_ice
     public :: enth_int_from_temp
     public :: temp_from_enth_int
+    public :: enth_cold_from_temp
+    public :: temp_from_enth_cold
+    public :: calc_cp_enth
 
 contains
 
@@ -170,49 +171,7 @@ contains
 
     end subroutine calc_bmb_grounded_enth
 
-    subroutine calc_advec_vertical_column(advecz,Q,uz,H_ice,zeta_aa)
-        ! Calculate vertical advection term advecz, which enters
-        ! advection equation as
-        ! Q_new = Q - dt*advecz = Q - dt*u*dQ/dx
-        ! 1st order upwind scheme 
-
-        implicit none 
-
-        real(wp), intent(OUT)   :: advecz(:)      ! nz_aa: bottom, cell centers, top 
-        real(wp), intent(INOUT) :: Q(:)           ! nz_aa: bottom, cell centers, top 
-        real(wp), intent(IN)    :: uz(:)          ! nz_ac: cell boundaries
-        real(wp), intent(IN)    :: H_ice          ! Ice thickness 
-        real(wp), intent(IN)    :: zeta_aa(:)    ! nz_aa, cell centers
-        
-        ! Local variables
-        integer :: k, nz_aa   
-        real(wp) :: u_aa, dx  
-
-        nz_aa = size(zeta_aa,1)
-
-        advecz = 0.0 
-
-        ! Loop over internal cell centers and perform upwind advection 
-        do k = 2, nz_aa-1 
-            
-            u_aa = 0.5_wp*(uz(k-1)+uz(k))
-            
-            if (u_aa < 0.0) then 
-                ! Upwind negative
-                dx = H_ice*(zeta_aa(k+1)-zeta_aa(k))
-                advecz(k) = uz(k)*(Q(k+1)-Q(k))/dx   
-            else
-                ! Upwind positive
-                dx = H_ice*(zeta_aa(k)-zeta_aa(k-1))
-                advecz(k) = uz(k-1)*(Q(k)-Q(k-1))/dx
-            end if 
-        end do 
-
-        return 
-
-    end subroutine calc_advec_vertical_column
-
-    subroutine calc_advec_horizontal_column(advecxy,var_ice,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+    subroutine calc_advec_horizontal_column(advecxy,var_ice,ux,uy,dx,advecxy_order,i,j,BC)
         ! Horizontal advection u.grad(var), computed in conservative flux form with a
         ! van Leer MUSCL reconstruction and recast to the advective (non-conservative)
         ! form actually solved by the column equation:
@@ -230,14 +189,12 @@ contains
 
         real(wp), intent(OUT) :: advecxy(:)       ! nz_aa
         real(wp), intent(IN)  :: var_ice(:,:,:)   ! nx,ny,nz_aa  Enth, T, age, etc...
-        real(wp), intent(IN)  :: H_ice(:,:)       ! nx,ny
-        real(wp), intent(IN)  :: z_srf(:,:)       ! nx,ny
         real(wp), intent(IN)  :: ux(:,:,:)        ! nx,ny,nz_aa
         real(wp), intent(IN)  :: uy(:,:,:)        ! nx,ny,nz_aa
         real(wp), intent(IN)  :: dx
         integer,  intent(IN)  :: advecxy_order    ! 1=upwind, 2=flux-limited 2nd-order upwind
         integer,    intent(IN)  :: i, j
-        character(len=*), intent(IN) :: boundaries
+        integer,  intent(IN)  :: BC               ! Boundary condition code (boundary_code)
 
         ! Local variables
         integer  :: k, nx, ny, nz_aa
@@ -248,7 +205,6 @@ contains
         real(wp) :: uw, ue, us, un          ! face velocities: west/east/south/north
         real(wp) :: fw, fe, fs, fn          ! limited face values of var
         real(wp) :: fluxdiv, divu
-        integer  :: BC
 
         dx_inv = 1.0_wp / dx
 
@@ -257,9 +213,6 @@ contains
         nz_aa = size(var_ice,3)
 
         advecxy = 0.0_wp
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
 
         ! BC-aware neighbor indices, +-1 and +-2 in each direction. The +-2 indices
         ! are obtained by stepping once more from the +-1 neighbors, so periodic
@@ -337,9 +290,10 @@ contains
 
     end function muscl_face
 
-    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,z_srf,ux,uy,zeta_aa,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
+    subroutine calc_advec_horizontal_3D(advecxy,var,H_ice,ux,uy,dx,dt,advecxy_order,cfl_safe,nmax,boundaries)
         ! Explicit horizontal advection u.grad(var), returned as the source term consumed
-        ! by the implicit vertical enthalpy/temperature solve.
+        ! by the implicit vertical enthalpy/temperature solve (and by the Eulerian
+        ! tracer column solve, ice_tracer::calc_tracer_3D).
         !
         ! The explicit term is CFL-limited, and in fast shelf/stream flow the thermal
         ! Courant number over the thermodynamics timestep dt can exceed 1. To keep it
@@ -362,10 +316,8 @@ contains
         real(wp), intent(INOUT) :: advecxy(:,:,:)     ! nz_aa
         real(wp), intent(IN)    :: var(:,:,:)         ! nx,ny,nz_aa  Enth, T, age, etc...
         real(wp), intent(IN)    :: H_ice(:,:)         ! nx,ny
-        real(wp), intent(IN)    :: z_srf(:,:)         ! nx,ny
         real(wp), intent(IN)    :: ux(:,:,:)          ! nx,ny,nz_aa
         real(wp), intent(IN)    :: uy(:,:,:)          ! nx,ny,nz_aa
-        real(wp), intent(IN)    :: zeta_aa(:)         ! nz_aa
         real(wp), intent(IN)    :: dx
         real(wp), intent(IN)    :: dt                 ! [a] thermodynamics time step
         integer,  intent(IN)    :: advecxy_order      ! 1=upwind, 2=flux-limited 2nd-order upwind
@@ -377,6 +329,7 @@ contains
         integer :: i, j, m
         integer :: nx, ny, nz
         integer :: nsub
+        integer :: BC
         real(wp) :: cfl, dts
         real(wp), allocatable :: var_work(:,:,:)      ! working field advanced through the sub-steps
         real(wp), allocatable :: a_sub(:,:,:)         ! per-sub-step advection tendency
@@ -385,12 +338,15 @@ contains
         ny = size(advecxy,2)
         nz = size(advecxy,3)
 
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
         ! Determine number of sub-steps from the domain-max horizontal Courant number
         cfl  = calc_advecxy_cfl_number(ux,uy,H_ice,dx,dt,boundaries)
         nsub = max(1, ceiling(cfl/cfl_safe))
         if (nsub .gt. nmax) then
             write(io_unit_err,"(a,i0,a,g12.4,a,g12.4)") &
-                "calc_advec_horizontal_3D:: warning: thermal-advection sub-steps capped at nmax=",nmax, &
+                "calc_advec_horizontal_3D:: warning: horizontal-advection sub-steps capped at nmax=",nmax, &
                 "; cfl=",cfl,", dt=",dt
             nsub = nmax
         end if
@@ -402,11 +358,13 @@ contains
 
             ! Compute on all points with BC-aware neighbors, then overwrite
             ! the non-periodic border points according to the boundary treatment
+            !$omp parallel do collapse(2) private(i,j)
             do j = 1, ny
             do i = 1, nx
-                call calc_advec_horizontal_column(advecxy(i,j,:),var,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+                call calc_advec_horizontal_column(advecxy(i,j,:),var,ux,uy,dx,advecxy_order,i,j,BC)
             end do
             end do
+            !$omp end parallel do
 
             call set_boundaries_3D_aa(advecxy,boundaries)
 
@@ -424,11 +382,13 @@ contains
 
                 a_sub = 0.0_wp
 
+                !$omp parallel do collapse(2) private(i,j)
                 do j = 1, ny
                 do i = 1, nx
-                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,H_ice,z_srf,ux,uy,dx,advecxy_order,i,j,boundaries)
+                    call calc_advec_horizontal_column(a_sub(i,j,:),var_work,ux,uy,dx,advecxy_order,i,j,BC)
                 end do
                 end do
+                !$omp end parallel do
 
                 call set_boundaries_3D_aa(a_sub,boundaries)
 
@@ -519,7 +479,7 @@ contains
 
     end function calc_advecxy_cfl_number
 
-    subroutine calc_strain_heating(Q_strn,de,visc,cp,rho_ice,beta1,beta2)
+    subroutine calc_strain_heating(Q_strn,de,visc,beta1,beta2)
         ! Calculate the general 3D internal strain heating
         ! as sum(D_ij*tau_ij)  (strain*stress)
         ! where stress has been calculated as stress_ij = 2*visc*strain
@@ -549,8 +509,6 @@ contains
         real(wp), intent(INOUT) :: Q_strn(:,:,:)      ! nx,ny,nz_aa [J yr-1 m-3] Heat production
         real(wp), intent(IN)    :: de(:,:,:)          ! nx,ny,nz_aa [yr-1] Effective strain rate 
         real(wp), intent(IN)    :: visc(:,:,:)        ! nx,ny,nz_aa [Pa yr-1] Viscosity
-        real(wp), intent(IN)    :: cp(:,:,:)          ! nx,ny,nz_aa [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)    :: rho_ice            ! [kg m-3] Ice density 
         real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
         real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
         
@@ -656,109 +614,6 @@ contains
         return 
 
     end subroutine calc_strain_heating_sia
-
-    subroutine calc_strain_heating_temp_derivative(dQsdT,Q_strn,T,cp,H_ice,f_ice,zeta_aa,rho_ice,dx,dy,boundaries)
-
-        real(wp), intent(INOUT) :: dQsdT(:,:,:)         ! [yr-1] d(Q_strn)/d(T), aa-nodes
-        real(wp), intent(IN)    :: Q_strn(:,:,:)        ! [J yr-1 m-3] Strain heating, aa-nodes
-        real(wp), intent(IN)    :: T(:,:,:)             ! [K] Temperature, aa-nodes
-        real(wp), intent(IN)    :: cp(:,:,:)            ! nx,ny,nz_aa  [J/kg/K] Specific heat capacity
-        real(wp), intent(IN)    :: H_ice(:,:)
-        real(wp), intent(IN)    :: f_ice(:,:)           ! [--] Ice area fraction
-        real(wp), intent(IN)    :: zeta_aa(:)           ! [--] 
-        real(wp), intent(IN)    :: rho_ice              ! [kg m-3] Ice density 
-        real(wp), intent(IN)    :: dx                   ! [m] x-direction grid spacing
-        real(wp), intent(IN)    :: dy                   ! [m] y-direction grid spacing
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables
-        integer  :: i, j, k, nx, ny, nz, n 
-        integer  :: im1, ip1, jm1, jp1 
-        real(dp) :: dQsdT_x, dQsdT_y, dQsdT_z
-        integer  :: BC
-
-        real(dp), allocatable :: Qs(:,:,:)
-
-        real(wp), parameter :: eps = 1e-5
-
-        nx = size(Q_strn,1)
-        ny = size(Q_strn,2)
-        nz = size(Q_strn,3)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Get strain heating in units of K/yr
-        ! [J yr-1 m-3] / ([kg m-3]*[J/kg/K]) => [K/yr]
-
-        allocate(Qs(nx,ny,nz))
-        Qs = Q_strn/(rho_ice*cp)
-
-        dQsdT = 0.0
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            if (f_ice(i,j) .eq. 1.0) then 
-                ! Fully ice-covered point 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                do k = 1, nz
-
-                    ! Horizontal derivatives
-
-                    dQsdT_x = (Qs(ip1,j,k) - Qs(im1,j,k)) / (T(ip1,j,k) - T(im1,j,k) + eps)
-                    dQsdT_y = (Qs(i,jp1,k) - Qs(i,jm1,k)) / (T(i,jp1,k) - T(i,jm1,k) + eps)
-                    
-                    ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
-                    if (f_ice(im1,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                        dQsdT_x = (Qs(i,j,k) - Qs(im1,j,k)) / (T(i,j,k) - T(im1,j,k) + eps)
-                    else if (f_ice(im1,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then
-                        dQsdT_x = (Qs(ip1,j,k) - Qs(i,j,k)) / (T(ip1,j,k) - T(i,j,k) + eps)
-                    else if (f_ice(im1,j) .lt. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                        dQsdT_x = 0.0
-                    end if
-
-                    if (f_ice(i,jm1) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_y = (Qs(i,j,k) - Qs(i,jm1,k)) / (T(i,j,k) - T(i,jm1,k) + eps)
-                    else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
-                        dQsdT_y = (Qs(i,jp1,k) - Qs(i,j,k)) / (T(i,jp1,k) - T(i,j,k) + eps)
-                    else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_y = 0.0
-                    end if
-
-                    ! Vertical derivatives
-
-                    if (k .eq. 1) then
-                        dQsdT_z = (Qs(i,j,k+1) - Qs(i,j,k)) / (T(i,j,k+1) - T(i,j,k) + eps)
-                    else if (k .eq. nz) then
-                        dQsdT_z = (Qs(i,j,k) - Qs(i,j,k-1)) / (T(i,j,k) - T(i,j,k-1) + eps)
-                    else
-                        dQsdT_z = (Qs(i,j,k+1) - Qs(i,j,k-1)) / (T(i,j,k+1) - T(i,j,k-1) + eps)
-                    end if
-
-                    ! Get thet total magnitude of the gradient and save it in output array
-                    
-                    if (abs(dQsdT_x) .lt. TOL_UNDERFLOW) dQsdT_x = 0.0_dp
-                    if (abs(dQsdT_y) .lt. TOL_UNDERFLOW) dQsdT_y = 0.0_dp
-                    if (abs(dQsdT_z) .lt. TOL_UNDERFLOW) dQsdT_z = 0.0_dp
-
-                    dQsdT(i,j,k) = sqrt(dQsdT_x*dQsdT_x + dQsdT_y*dQsdT_y + dQsdT_z*dQsdT_z)
-
-                end do
-
-            end if
-
-        end do
-        end do
-
-        !write(*,*) "dQsdT: ", minval(dQsdT), maxval(dQsdT)
-
-        return
-
-    end subroutine calc_strain_heating_temp_derivative
 
     subroutine calc_basal_heating_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
         ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
@@ -919,15 +774,17 @@ contains
         !
         ! Friction enters the momentum balance at acx/acy nodes (taub = beta*u), so summed over
         ! the domain this is the work done by basal friction in the discrete momentum balance:
-        ! the heat released equals the energy the friction removes from the flow. qb_method = 1
-        ! and 2 instead multiply the magnitudes |u||taub| of separately interpolated vectors;
+        ! the heat released equals the energy the friction removes from the flow. qb_method = 3
+        ! and 4 instead multiply the magnitudes |u||taub| of separately interpolated vectors;
         ! since beta differs between acx and acy nodes, taub and u are not parallel there and
         ! the result is not the frictional work (GrIS 8 km / AIS 16 km ISMIP7 spin-ups: domain
         ! total -1.8% / +6.8%, and >10% different in about a third of the cells).
         ! The magnitude of each face product is taken so that faces where taub and ux_b have
         ! opposite signs (e.g. DIVA, where taub = beta_eff*ux_bar, at nearly stagnant faces)
-        ! still contribute positive heat, as in qb_method = 1 and 2.
-        ! As in qb_method = 2, Q_b is set to zero where the cell is not fully ice covered.
+        ! still contribute positive heat, as in qb_method = 3 and 4.
+        ! As in qb_method = 4, Q_b is set to zero where the cell is not fully ice covered; the
+        ! heat of a face next to such a cell goes to the fully covered cell (see
+        ! calc_basal_heating_face_products), so the domain total is the frictional work.
 
         real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
         real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
@@ -945,12 +802,19 @@ contains
         integer  :: im1, ip1, jm1, jp1
         integer  :: BC
         real(wp) :: Qb_aa
+        real(wp), allocatable :: Qx(:,:)
+        real(wp), allocatable :: Qy(:,:)
 
         nx = size(Q_b,1)
         ny = size(Q_b,2)
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
+
+        ! Face products, shared among the fully ice-covered cells [Pa m a-1] == [J a-1 m-2]
+        allocate(Qx(nx,ny))
+        allocate(Qy(nx,ny))
+        call calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,"faces",BC)
 
         do j = 1, ny
         do i = 1, nx
@@ -961,9 +825,8 @@ contains
                 ! Get neighbor indices
                 call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
-                ! Face products, averaged from the two faces in each direction [Pa m a-1] == [J a-1 m-2]
-                Qb_aa = 0.5_wp*( abs(taub_acx(im1,j)*ux_b(im1,j)) + abs(taub_acx(i,j)*ux_b(i,j)) ) &
-                      + 0.5_wp*( abs(taub_acy(i,jm1)*uy_b(i,jm1)) + abs(taub_acy(i,j)*uy_b(i,j)) )
+                ! Face products, averaged from the two faces in each direction [J a-1 m-2]
+                Qb_aa = 0.5_wp*( Qx(im1,j) + Qx(i,j) ) + 0.5_wp*( Qy(i,jm1) + Qy(i,j) )
 
                 ! Convert to [mW m-2]
                 Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
@@ -984,6 +847,205 @@ contains
         return
 
     end subroutine calc_basal_heating_faces
+
+    subroutine calc_basal_heating_faces_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
+        ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
+        ! Basal frictional heating formed on the C-grid faces as in qb_method = 1,
+        ! Qx = |taub_acx*ux_b| on acx nodes and Qy = |taub_acy*uy_b| on acy nodes,
+        ! then interpolated to the quadrature points of the cell like the staggered
+        ! fields of qb_method = 4, summed there and averaged to the aa-node:
+        !
+        !   Q_b(i,j) = sum_n wt_n*(Qx_n + Qy_n) / wt_tot
+        !
+        ! The quadrature mean equals the mean of the cell-corner values, so each face
+        ! gives 1/4 of its heat to each of the two cells it separates and 1/8 to each of
+        ! their neighbours across the face direction (a 1-2-1 smoothing of qb_method = 1).
+        ! Q_b is set to zero where the cell is not fully ice covered; the heat of a face
+        ! that would go to such a cell goes to the fully covered cells of its stencil
+        ! instead (see calc_basal_heating_face_products), so the domain total is the work
+        ! done by basal friction in the discrete momentum balance, as for qb_method = 1.
+
+        real(wp), intent(INOUT) :: Q_b(:,:)           ! [mW m-2] Basal heat production (friction), aa-nodes
+        real(wp), intent(IN)    :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)    :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)    :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)    :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)    :: f_ice(:,:)         ! [--] Ice area fraction
+        real(wp), intent(IN)    :: beta1              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: beta2              ! Timestepping weighting parameter
+        real(wp), intent(IN)    :: sec_year
+        character(len=*), intent(IN) :: boundaries
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        integer  :: BC
+        real(wp) :: Qxn(4)
+        real(wp) :: Qyn(4)
+        real(wp) :: Qb_aa
+        real(wp), allocatable :: Qx(:,:)
+        real(wp), allocatable :: Qy(:,:)
+
+        type(gq2D_class) :: gq2D
+        real(wp) :: dx_tmp, dy_tmp
+
+        ! Initialize gaussian quadrature calculations
+        call gq2D_init(gq2D)
+        dx_tmp = 1.0
+        dy_tmp = 1.0
+
+        nx = size(Q_b,1)
+        ny = size(Q_b,2)
+
+        ! Set boundary condition code
+        BC = boundary_code(boundaries)
+
+        ! Face products, shared among the fully ice-covered cells [Pa m a-1] == [J a-1 m-2]
+        allocate(Qx(nx,ny))
+        allocate(Qy(nx,ny))
+        call calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,"nodes",BC)
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+                ! Fully ice-covered point
+
+                ! Get neighbor indices
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                ! Face products at the quadrature points
+                call gq2D_to_nodes_acx(gq2D,Qxn,Qx,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+                call gq2D_to_nodes_acy(gq2D,Qyn,Qy,dx_tmp,dy_tmp,i,j,im1,ip1,jm1,jp1)
+
+                ! Sum at the quadrature points and average to the aa-node [J a-1 m-2]
+                Qb_aa = sum((Qxn+Qyn)*gq2D%wt)/gq2D%wt_tot
+
+                ! Convert to [mW m-2]
+                Qb_aa = Qb_aa * 1e3 / sec_year          ! [J a-1 m-2] => [mW m-2]
+
+                ! Get weighted average of Q_b with timestepping factors
+                Q_b(i,j) = beta1*Qb_aa + beta2*Q_b(i,j)
+
+            else
+                ! Not fully ice-covered point
+
+                Q_b(i,j) = 0.0
+
+            end if
+
+        end do
+        end do
+
+        return
+
+    end subroutine calc_basal_heating_faces_nodes
+
+    subroutine calc_basal_heating_face_products(Qx,Qy,ux_b,uy_b,taub_acx,taub_acy,f_ice,stencil,BC)
+        ! Face products of basal friction work, Qx = |taub_acx*ux_b| (acx) and
+        ! Qy = |taub_acy*uy_b| (acy) [Pa m a-1] == [J a-1 m-2], for qb_method = 1
+        ! (stencil = "faces") and 2 (stencil = "nodes").
+        !
+        ! Each method gives every face's heat to the cells of its stencil with weights
+        ! that sum to one (1: 1/2 to each of the two cells the face separates; 2: 1/4 to
+        ! each of these and 1/8 to each of their neighbours across the face direction,
+        ! from the quadrature mean = mean of the four cell-corner values, each corner the
+        ! mean of two faces). Cells that are not fully ice covered get Q_b = 0, so their
+        ! share would be lost. Instead each face value is divided by the summed weight of
+        ! the fully covered cells of its stencil, which then receive all of its heat.
+        ! The weights are summed by scattering from each fully covered cell with the same
+        ! neighbour indices the methods gather with (so also at domain borders). Faces
+        ! without a fully covered cell in their stencil give no heat. Away from cells that
+        ! are not fully covered the sum is exactly one and the face value is unchanged.
+
+        implicit none
+
+        real(wp), intent(OUT) :: Qx(:,:)            ! [J a-1 m-2] Face product (acx)
+        real(wp), intent(OUT) :: Qy(:,:)            ! [J a-1 m-2] Face product (acy)
+        real(wp), intent(IN)  :: ux_b(:,:)          ! Basal velocity, x-component (acx)
+        real(wp), intent(IN)  :: uy_b(:,:)          ! Basal velocity, y-compenent (acy)
+        real(wp), intent(IN)  :: taub_acx(:,:)      ! Basal friction (acx)
+        real(wp), intent(IN)  :: taub_acy(:,:)      ! Basal friction (acy)
+        real(wp), intent(IN)  :: f_ice(:,:)         ! [--] Ice area fraction
+        character(len=*), intent(IN) :: stencil     ! "faces" (qb_method = 1) or "nodes" (qb_method = 2)
+        integer,  intent(IN)  :: BC                 ! Boundary condition code
+
+        ! Local variables
+        integer  :: i, j, nx, ny
+        integer  :: im1, ip1, jm1, jp1
+        real(wp), allocatable :: wx(:,:)
+        real(wp), allocatable :: wy(:,:)
+
+        nx = size(Qx,1)
+        ny = size(Qx,2)
+
+        allocate(wx(nx,ny))
+        allocate(wy(nx,ny))
+
+        ! Summed weight of the fully ice-covered cells that receive each face's heat
+        wx = 0.0_wp
+        wy = 0.0_wp
+
+        do j = 1, ny
+        do i = 1, nx
+
+            if (f_ice(i,j) .eq. 1.0) then
+
+                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+
+                select case(trim(stencil))
+
+                    case("faces")
+
+                        wx(im1,j) = wx(im1,j) + 0.5_wp
+                        wx(i,j)   = wx(i,j)   + 0.5_wp
+                        wy(i,jm1) = wy(i,jm1) + 0.5_wp
+                        wy(i,j)   = wy(i,j)   + 0.5_wp
+
+                    case("nodes")
+
+                        wx(im1,jm1) = wx(im1,jm1) + 0.125_wp
+                        wx(im1,j)   = wx(im1,j)   + 0.25_wp
+                        wx(im1,jp1) = wx(im1,jp1) + 0.125_wp
+                        wx(i,jm1)   = wx(i,jm1)   + 0.125_wp
+                        wx(i,j)     = wx(i,j)     + 0.25_wp
+                        wx(i,jp1)   = wx(i,jp1)   + 0.125_wp
+
+                        wy(im1,jm1) = wy(im1,jm1) + 0.125_wp
+                        wy(i,jm1)   = wy(i,jm1)   + 0.25_wp
+                        wy(ip1,jm1) = wy(ip1,jm1) + 0.125_wp
+                        wy(im1,j)   = wy(im1,j)   + 0.125_wp
+                        wy(i,j)     = wy(i,j)     + 0.25_wp
+                        wy(ip1,j)   = wy(ip1,j)   + 0.125_wp
+
+                    case DEFAULT
+
+                        write(io_unit_err,*) "calc_basal_heating_face_products:: Error: stencil not recognized: "//trim(stencil)
+                        error stop 1
+
+                end select
+
+            end if
+
+        end do
+        end do
+
+        ! Face products, shared among the fully ice-covered cells
+        where (wx .gt. 0.0_wp)
+            Qx = abs(taub_acx*ux_b) / wx
+        elsewhere
+            Qx = 0.0_wp
+        end where
+
+        where (wy .gt. 0.0_wp)
+            Qy = abs(taub_acy*uy_b) / wy
+        elsewhere
+            Qy = 0.0_wp
+        end where
+
+        return
+
+    end subroutine calc_basal_heating_face_products
 
     elemental function calc_specific_heat_capacity(T_ice) result(cp)
 
@@ -1018,6 +1080,56 @@ contains
         T_ice = (-cp_a + sqrt(cp_a*cp_a + 2.0_wp*cp_b*enth)) / cp_b    ! [K]
         return
     end function temp_from_enth_int
+
+    ! The cold-ice enthalpy definition, shared by every enthalpy <-> temperature
+    ! conversion so that they stay consistent:
+    !   integral=.FALSE. (A1): E_c = cp0*T          (constant cp0: cp_ref or ytherm.const_cp)
+    !   integral=.TRUE.  (A2): E_c = int_0^T cp dT  (cp(T) = cp_a + cp_b*T; cp0 unused)
+
+    elemental function enth_cold_from_temp(T_ice,integral,cp0) result(enth)
+        ! Cold-ice enthalpy E_c(T)
+        implicit none
+        real(wp), intent(IN) :: T_ice
+        logical,  intent(IN) :: integral
+        real(wp), intent(IN) :: cp0
+        real(wp) :: enth
+        if (integral) then
+            enth = enth_int_from_temp(T_ice)
+        else
+            enth = cp0*T_ice
+        end if
+        return
+    end function enth_cold_from_temp
+
+    elemental function temp_from_enth_cold(enth,integral,cp0) result(T_ice)
+        ! Inverse of enth_cold_from_temp
+        implicit none
+        real(wp), intent(IN) :: enth
+        logical,  intent(IN) :: integral
+        real(wp), intent(IN) :: cp0
+        real(wp) :: T_ice
+        if (integral) then
+            T_ice = temp_from_enth_int(enth)
+        else
+            T_ice = enth/cp0
+        end if
+        return
+    end function temp_from_enth_cold
+
+    elemental function calc_cp_enth(T_ice,integral,cp0) result(cp)
+        ! Heat capacity dE_c/dT of the enthalpy definition
+        implicit none
+        real(wp), intent(IN) :: T_ice
+        logical,  intent(IN) :: integral
+        real(wp), intent(IN) :: cp0
+        real(wp) :: cp
+        if (integral) then
+            cp = calc_specific_heat_capacity(T_ice)
+        else
+            cp = cp0
+        end if
+        return
+    end function calc_cp_enth
 
     elemental function calc_thermal_conductivity(T_ice,sec_year) result(ct)
 
@@ -1187,15 +1299,14 @@ contains
 
     end function calc_T_freeze_sw
     
-    subroutine define_temp_linear_3D(enth,T_ice,omega,cp,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral)
+    subroutine define_temp_linear_3D(enth,T_ice,omega,H_ice,T_srf,zeta_aa,T0,rho_ice,L_ice,T_pmp_beta,g,enth_integral,enth_cp0)
         ! Define a linear vertical temperature profile
 
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)          ! [J m-3] Enthalpy
+        real(wp), intent(OUT) :: enth(:,:,:)          ! [J kg-1] Enthalpy
         real(wp), intent(OUT) :: T_ice(:,:,:)         ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)         ! [--] Water content
-        real(wp), intent(IN)  :: cp(:,:,:)            ! Heat capacity
         real(wp), intent(IN)  :: H_ice(:,:)
         real(wp), intent(IN)  :: T_srf(:,:)
         real(wp), intent(IN)  :: zeta_aa(:)
@@ -1205,15 +1316,19 @@ contains
         real(wp), intent(IN)  :: T_pmp_beta
         real(wp), intent(IN)  :: g
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (default cp_ref)
 
         ! Local variables
         integer :: i, j, k, nx, ny, nz_aa
         real(wp) :: T_base
         real(wp), allocatable :: T_pmp(:,:,:)
         logical  :: use_int
+        real(wp) :: cp0
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
         nx    = size(T_ice,1)
         ny    = size(T_ice,2)
@@ -1246,12 +1361,45 @@ contains
         ! Assume zero water content 
         omega = 0.0_wp 
 
-        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Calculate enthalpy too (A1 constant cp0 or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         return
 
     end subroutine define_temp_linear_3D
+
+    subroutine define_temp_prescribed_3D(enth,T_ice,omega,T_pmp,L_ice,enth_integral,enth_cp0)
+        ! Complete a temperature field that has been prescribed externally
+        ! (yelmo_init_state with thrm_method="prescribed"): cap T_ice at the
+        ! pressure melting point, set the water content to zero and compute
+        ! the consistent enthalpy.
+
+        implicit none
+
+        real(wp), intent(OUT)   :: enth(:,:,:)          ! [J kg-1] Enthalpy
+        real(wp), intent(INOUT) :: T_ice(:,:,:)         ! [K] Temperature
+        real(wp), intent(OUT)   :: omega(:,:,:)         ! [--] Water content
+        real(wp), intent(IN)    :: T_pmp(:,:,:)         ! [K] Pressure melting point
+        real(wp), intent(IN)    :: L_ice
+        logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (default cp_ref)
+
+        logical :: use_int
+        real(wp) :: cp0
+
+        use_int = .false.
+        if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
+
+        T_ice = min(T_ice,T_pmp)
+        omega = 0.0_wp
+
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
+
+        return
+
+    end subroutine define_temp_prescribed_3D
 
     function define_temp_linear_column(T_srf,T_base,T0,zeta_aa) result(T_ice)
 
@@ -1279,23 +1427,25 @@ contains
 
     end function define_temp_linear_column
 
-    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,ct,Q_rock,T_srf,H_ice,W_til,smb,bmb, &
-                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral)
+    subroutine define_temp_robin_3D(enth,T_ice,omega,T_pmp,cp,kt,Q_rock,T_srf,H_ice,smb,bmb, &
+                                                                    f_grnd,zeta_aa,rho_ice,L_ice,sec_year,cold,enth_integral,enth_cp0)
         ! Robin solution for thermodynamics for a given column of ice
         ! Note zeta=height, k=1 base, k=nz surface
+        ! The analytical solution assumes constant material properties, so
+        ! cp and kt are scalars (e.g. ytherm const_cp, const_kt), independent
+        ! of the current (possibly uninitialised) ice temperature.
 
         implicit none
 
-        real(wp), intent(OUT) :: enth(:,:,:)      ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth(:,:,:)      ! [J kg-1] Enthalpy 
         real(wp), intent(OUT) :: T_ice(:,:,:)     ! [K] Temperature
         real(wp), intent(OUT) :: omega(:,:,:)     ! [--] Water content
         real(wp), intent(IN)  :: T_pmp(:,:,:)     ! [K] Pressure melting point temp.
-        real(wp), intent(IN)  :: cp(:,:,:)        ! [J kg-1 K-1] Specific heat capacity
-        real(wp), intent(IN)  :: ct(:,:,:)        ! [J a-1 m-1 K-1] Heat conductivity 
+        real(wp), intent(IN)  :: cp               ! [J kg-1 K-1] Specific heat capacity (constant)
+        real(wp), intent(IN)  :: kt               ! [J a-1 m-1 K-1] Heat conductivity (constant)
         real(wp), intent(IN)  :: Q_rock(:,:)      ! [mW m-2] Bedrock surface heat flux 
         real(wp), intent(IN)  :: T_srf(:,:)       ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_ice(:,:)       ! [m] Ice thickness 
-        real(wp), intent(IN)  :: W_til(:,:)       ! [m] Basal till water thickness (from hyd; unused but kept for signature stability)
         real(wp), intent(IN)  :: smb(:,:)         ! [m a-1] Surface mass balance (melting is negative)
         real(wp), intent(IN)  :: bmb(:,:)         ! [m a-1] Basal mass balance (melting is negative)
         real(wp), intent(IN)  :: f_grnd(:,:)      ! [--] Floating point or grounded?
@@ -1305,11 +1455,13 @@ contains
         real(wp), intent(IN)  :: sec_year
         logical,    intent(IN)  :: cold             ! False: robin as normal, True: ensure cold base
         logical,  intent(IN), optional :: enth_integral   ! use integral (A2) enthalpy?
+        real(wp), intent(IN), optional :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (default cp_ref)
 
         ! Local variable
         integer :: i, j, k, nx, ny, nz_aa
         logical :: is_float
         logical :: use_int
+        real(wp) :: cp0
         
         real(wp), allocatable :: T1(:) 
 
@@ -1319,6 +1471,8 @@ contains
 
         use_int = .false.
         if (present(enth_integral)) use_int = enth_integral
+        cp0 = cp_ref
+        if (present(enth_cp0)) cp0 = enth_cp0
 
         allocate(T1(nz_aa))
 
@@ -1327,7 +1481,7 @@ contains
 
             is_float = (f_grnd(i,j) .eq. 0.0)
 
-            T_ice(i,j,:) = define_temp_robin_column(zeta_aa,T_pmp(i,j,:),ct(i,j,:),cp(i,j,:),rho_ice,H_ice(i,j), &
+            T_ice(i,j,:) = define_temp_robin_column(zeta_aa,T_pmp(i,j,:),kt,cp,rho_ice,H_ice(i,j), &
                                                   T_srf(i,j),smb(i,j)+bmb(i,j),Q_rock(i,j),is_float,sec_year)
 
             if (cold) then 
@@ -1349,8 +1503,8 @@ contains
         ! Assume zero water content
         omega = 0.0_wp
 
-        ! Calculate enthalpy too (A1 const cp_ref or A2 integral, per flag)
-        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int)
+        ! Calculate enthalpy too (A1 constant cp0 or A2 integral, per flag)
+        call convert_to_enthalpy_ice(enth,T_ice,omega,T_pmp,L_ice,use_int,cp0)
 
         return
 
@@ -1369,8 +1523,8 @@ contains
 
         real(wp), intent(IN) :: zeta_aa(:) 
         real(wp), intent(IN) :: T_pmp(:)
-        real(wp), intent(IN) :: kt(:) 
-        real(wp), intent(IN) :: cp(:) 
+        real(wp), intent(IN) :: kt              ! [J a-1 m-1 K-1] Heat conductivity (constant)
+        real(wp), intent(IN) :: cp              ! [J kg-1 K-1] Specific heat capacity (constant)
         real(wp), intent(IN) :: rho_ice 
         real(wp), intent(IN) :: H_ice 
         real(wp), intent(IN) :: T_srf 
@@ -1396,7 +1550,10 @@ contains
         Q_rock_now = Q_rock *1e-3*sec_year    ! [mW m-2] => [J a-1 m-2]
 
         ! Calculate temperature gradient at base 
-        dTdz_b = -Q_rock_now/kt(1) 
+        dTdz_b = -Q_rock_now/kt 
+
+        ! Thermal diffusivity
+        kappa = kt/(cp*rho_ice)
 
         if (.not. is_float .and. H_ice .gt. H_ice_min .and. mb_net .gt. 0.0) then 
             ! Impose Robin solution 
@@ -1406,7 +1563,6 @@ contains
 
             do k = 1, nz_aa 
                 z     = zeta_aa(k)*H_ice              ! Ice thickness up to this layer from base 
-                kappa = kt(k)/(cp(k)*rho_ice)       ! Thermal diffusivity 
                 ll    = sqrt(2*kappa*H_ice/mb_now)  ! Thermal_length_scale
 
                 ! Calculate ice temperature for this layer 
@@ -1448,22 +1604,22 @@ contains
 
     end function define_temp_robin_column
 
-    subroutine define_temp_bedrock_3D(enth_rock,T_rock,Q_rock,cp_rock,kt_rock,Q_geo, &
-                                                T_bed,H_rock,zeta_aa,rho_rock,sec_year)
-        ! Define 3D bedrock enth/temp field 
+    subroutine define_temp_bedrock_3D(T_rock,Q_rock,kt_rock,Q_geo, &
+                                                T_bed,H_rock,zeta_aa,sec_year)
+        ! Define the 3D bedrock temperature field in equilibrium with the bed
+        ! surface temperature and the deep geothermal heat flux. A steady-state
+        ! conduction profile depends on the conductivity alone -- no heat
+        ! capacity and no density enter here.
 
         implicit none 
 
-        real(wp), intent(OUT) :: enth_rock(:,:,:)     ! [J m-3] 3D enthalpy field
         real(wp), intent(OUT) :: T_rock(:,:,:)        ! [K] 3D temperature field
         real(wp), intent(OUT) :: Q_rock(:,:)          ! [mW m-2] Bed surface heat flux 
-        real(wp), intent(IN)  :: cp_rock              ! [J kg-1 K-1] Specific heat capacity
         real(wp), intent(IN)  :: kt_rock              ! [J a-1 m-1 K-1] Heat conductivity 
         real(wp), intent(IN)  :: Q_geo(:,:)           ! [mW m-2] Geothermal heat flux 
         real(wp), intent(IN)  :: T_bed(:,:)           ! [K] Surface temperature 
         real(wp), intent(IN)  :: H_rock               ! [m] Column thickness 
         real(wp), intent(IN)  :: zeta_aa(:)           ! [--] Vertical zeta coordinates (zeta==height), aa-nodes
-        real(wp), intent(IN)  :: rho_rock 
         real(wp), intent(IN)  :: sec_year 
 
         ! Local variable
@@ -1477,7 +1633,7 @@ contains
         do i = 1, nx 
 
             ! Calculate temperature profile 
-            call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,rho_rock,H_rock, &
+            call define_temp_bedrock_column(T_rock(i,j,:),kt_rock,H_rock, &
                                                     T_bed(i,j),Q_geo(i,j),zeta_aa,sec_year)
 
             ! Calculate heat flux through bed surface from lithosphere [mW m-2]
@@ -1486,14 +1642,11 @@ contains
         end do 
         end do 
 
-        ! Get enthalpy too 
-        call convert_to_enthalpy(enth_rock,T_rock,0.0_wp,0.0_wp,cp_rock,0.0_wp)
-          
         return 
 
     end subroutine define_temp_bedrock_3D
 
-    subroutine define_temp_bedrock_column(T_rock,kt_rock,rho_rock,H_rock,T_bed,Q_geo,zeta_aa,sec_year)
+    subroutine define_temp_bedrock_column(T_rock,kt_rock,H_rock,T_bed,Q_geo,zeta_aa,sec_year)
         ! This function will impose a temperature profile in a column 
         ! of bedrock assuming equilibrium with the bed surface temperature (T_bed)
         ! and the geothermal heat flux deep in the bedrock (Q_geo) 
@@ -1502,7 +1655,6 @@ contains
 
         real(wp), intent(OUT) :: T_rock(:) 
         real(wp), intent(IN)  :: kt_rock 
-        real(wp), intent(IN)  :: rho_rock 
         real(wp), intent(IN)  :: H_rock
         real(wp), intent(IN)  :: T_bed 
         real(wp), intent(IN)  :: Q_geo 
@@ -1622,7 +1774,7 @@ contains
 
         implicit none 
 
-        real(wp), intent(OUT) :: enth             ! [J m-3] Enthalpy 
+        real(wp), intent(OUT) :: enth             ! [J kg-1] Enthalpy 
         real(wp), intent(IN)  :: temp             ! [K] Temperature 
         real(wp), intent(IN)  :: omega            ! [-] Water content (fraction)
         real(wp), intent(IN)  :: T_pmp            ! [K] Pressure melting point
@@ -1635,93 +1787,25 @@ contains
 
     end subroutine convert_to_enthalpy
 
-    subroutine convert_from_enthalpy_column(enth,temp,omega,T_pmp,cp,L)
-        ! Given enthalpy, calculate temperature and water content. 
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: enth(:)            ! [J m-3] Enthalpy, nz_aa nodes
-        real(wp), intent(OUT)   :: temp(:)            ! [K] Temperature, nz_aa nodes  
-        real(wp), intent(OUT)   :: omega(:)           ! [-] Water content (fraction), nz_aa nodes 
-        real(wp), intent(IN)    :: T_pmp(:)           ! [K] Pressure melting point, nz_aa nodes 
-        real(wp), intent(IN)    :: cp(:)              ! [J kg-1 K-1] Heat capacity,nz_aa nodes 
-        real(wp), intent(IN)    :: L                  ! [J kg-1] Latent heat of fusion
-        
-        ! Local variables
-        integer    :: k, nz_aa  
-        real(wp), allocatable :: enth_pmp(:)  
-
-        nz_aa = size(enth,1)
-
-        allocate(enth_pmp(nz_aa))
-
-        ! Find pressure melting point enthalpy
-        enth_pmp = T_pmp * cp 
-
-        ! Column interior and basal layer
-        ! Note: although the k=1 is a boundary value with no thickness,
-        ! allow it to retain omega to maintain consistency with grid points above.
-        do k = 1, nz_aa-1
-
-            if (enth(k) .gt. enth_pmp(k)) then
-                ! Temperate ice 
-                
-                temp(k)  = T_pmp(k)
-                omega(k) = (enth(k) - enth_pmp(k)) / L 
-             else
-                ! Cold ice 
-
-                temp(k)  = enth(k) / cp(k) 
-                omega(k) = 0.0_wp
-
-             end if
-
-        end do 
-
-        ! Surface layer 
-        if (enth(nz_aa) .ge. enth_pmp(nz_aa)) then 
-            ! Temperate surface, reset omega to zero and enth to pmp value 
-            
-            enth(nz_aa)  = enth_pmp(nz_aa)
-            temp(nz_aa)  = enth(nz_aa) / cp(nz_aa)
-            omega(nz_aa) = 0.0_wp 
-        
-        else 
-            ! Cold surface, calculate T, and reset omega to zero 
-            
-            temp(nz_aa)  = enth(nz_aa) / cp(nz_aa)
-            omega(nz_aa) = 0.0_wp 
-        
-        end if 
-        
-        return 
-
-    end subroutine convert_from_enthalpy_column
-
-    elemental subroutine convert_to_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
-        ! Ice enthalpy from (temp,omega). Selects the enthalpy definition:
-        !   integral=.FALSE. (A1): cold enth = cp_ref*temp   (constant cp)
-        !   integral=.TRUE.  (A2): cold enth = int_0^T cp dT  (T-dependent cp)
+    elemental subroutine convert_to_enthalpy_ice(enth,temp,omega,T_pmp,L,integral,cp0)
+        ! Ice enthalpy from (temp,omega), with the cold-ice enthalpy definition
+        ! of enth_cold_from_temp (A1: cp0*temp; A2: int_0^T cp dT).
         ! Temperate ice (omega>0, temp=T_pmp): enth = enth_pmp + omega*L.
         implicit none
         real(wp), intent(OUT) :: enth
         real(wp), intent(IN)  :: temp, omega, T_pmp, L
         logical,  intent(IN)  :: integral
+        real(wp), intent(IN)  :: cp0
         real(wp) :: e_cold, e_pmp
-        if (integral) then
-            e_cold = enth_int_from_temp(temp)
-            e_pmp  = enth_int_from_temp(T_pmp)
-        else
-            e_cold = cp_ref*temp
-            e_pmp  = cp_ref*T_pmp
-        end if
+        e_cold = enth_cold_from_temp(temp,integral,cp0)
+        e_pmp  = enth_cold_from_temp(T_pmp,integral,cp0)
         enth = (1.0_wp-omega)*e_cold + omega*(e_pmp + L)
         return
     end subroutine convert_to_enthalpy_ice
 
-    subroutine convert_from_enthalpy_ice(enth,temp,omega,T_pmp,L,integral)
-        ! Inverse of convert_to_enthalpy_ice for a column (mirrors
-        ! convert_from_enthalpy_column, with the A1/A2 enthalpy definition).
+    subroutine convert_from_enthalpy_ice(enth,temp,omega,T_pmp,L,integral,cp0)
+        ! Inverse of convert_to_enthalpy_ice for a column, with the A1/A2
+        ! enthalpy definition.
         implicit none
         real(wp), intent(INOUT) :: enth(:)
         real(wp), intent(OUT)   :: temp(:)
@@ -1729,6 +1813,7 @@ contains
         real(wp), intent(IN)    :: T_pmp(:)
         real(wp), intent(IN)    :: L
         logical,  intent(IN)    :: integral
+        real(wp), intent(IN)    :: cp0
         integer  :: k, nz_aa
         real(wp) :: e_pmp
 
@@ -1736,22 +1821,22 @@ contains
 
         ! Column interior and basal layer
         do k = 1, nz_aa-1
-            if (integral) then; e_pmp = enth_int_from_temp(T_pmp(k)); else; e_pmp = cp_ref*T_pmp(k); end if
+            e_pmp = enth_cold_from_temp(T_pmp(k),integral,cp0)
             if (enth(k) .gt. e_pmp) then
                 ! Temperate ice
                 temp(k)  = T_pmp(k)
                 omega(k) = (enth(k) - e_pmp) / L
             else
                 ! Cold ice
-                if (integral) then; temp(k) = temp_from_enth_int(enth(k)); else; temp(k) = enth(k)/cp_ref; end if
+                temp(k)  = temp_from_enth_cold(enth(k),integral,cp0)
                 omega(k) = 0.0_wp
             end if
         end do
 
         ! Surface layer: clamp any temperate surface back to the pmp enthalpy
-        if (integral) then; e_pmp = enth_int_from_temp(T_pmp(nz_aa)); else; e_pmp = cp_ref*T_pmp(nz_aa); end if
+        e_pmp = enth_cold_from_temp(T_pmp(nz_aa),integral,cp0)
         if (enth(nz_aa) .ge. e_pmp) enth(nz_aa) = e_pmp
-        if (integral) then; temp(nz_aa) = temp_from_enth_int(enth(nz_aa)); else; temp(nz_aa) = enth(nz_aa)/cp_ref; end if
+        temp(nz_aa)  = temp_from_enth_cold(enth(nz_aa),integral,cp0)
         omega(nz_aa) = 0.0_wp
 
         return

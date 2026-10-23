@@ -11,13 +11,16 @@ program yelmo_test
 
     use yelmo
     use basal_dragging 
+    use topography, only : calc_z_srf_max
+    use zremap
+    use regions, only : regions_class, regions_init_nml, regions_select
     
     use ice_optimization 
     
     implicit none 
 
     type(tstep_class)   :: ts
-    type(timeout_class) :: t1D, t2D, t2Dsm
+    type(timeout_class) :: t1D, t2D, t2Dsm, trst
 
     type(yelmo_class)   :: yelmo1 
     
@@ -25,52 +28,56 @@ program yelmo_test
     character(len=256) :: file_restart 
     
     logical,  allocatable :: mask_noice(:,:)  
+    logical,  allocatable :: mask_rcm(:,:)      ! RCM ice (f_ice >= f_ice_min in pd_smb_path, in ctrl.region_rcm)
+    type(regions_class)   :: reg_rcm            ! Regions of yelmo_masks.regions_group (for ctrl.region_rcm)
+    character(len=256)    :: regions_group
+    real(wp), allocatable :: z_rcm(:,:)         ! [m] RCM surface elevation (z_srf in pd_smb_path)
+    real(wp), allocatable :: f_ice_rcm(:,:)     ! [1] RCM ice fraction (f_ice in pd_smb_path)
+    real(wp), allocatable :: z_srf0(:,:)        ! [m] Initial surface elevation
+    type(zremap_class)    :: zr_smb, zr_tsrf    ! Elevation remapping of smb and T_srf
 
     type ctrl_params
         character(len=56) :: run_step
-        character(len=56) :: tstep_method
-        real(wp) :: tstep_const
-        real(wp) :: time_init
-        real(wp) :: time_end
-        real(wp) :: time_equil      ! Only for spinup
-        real(wp) :: dtt
+        real(dp) :: dtt
+        character(len=56) :: restart_mode   ! "state" or "continue"
 
         logical  :: with_ice_sheet 
         character(len=56) :: equil_method
+        character(len=56) :: init_temp      ! Initial temperature profile: "robin" or "robin-cold"
         
         character(len=512) :: set_nm
           
         logical :: load_cb_ref 
         character(len=256) :: file_cb_ref 
 
-        logical :: load_bmelt
-        character(len=256) :: file_bmelt 
+        character(len=56) :: smb_method     ! smb and T_srf: "zremap", "fixed" or "out_const"
+        real(wp) :: smb_out                 ! [m i.e./a] "out_const": smb outside the RCM ice
+        real(wp) :: f_ice_min               ! [1] RCM ice fraction of an RCM ice point
+        character(len=1000) :: region_rcm   ! Where the RCM ice is used (selection expression on the regions)
 
-        character(len=512) :: init_topo_path
-        character(len=512) :: pd_topo_path
-        character(len=512) :: pd_tsrf_path
-        character(len=512) :: pd_smb_path
-        character(len=512) :: pd_vel_path
-        logical :: pd_tsrf_monthly
-        logical :: pd_smb_monthly
+        logical :: load_bmelt
+        character(len=256) :: file_bmelt
+        character(len=56)  :: name_bmelt
+
+        logical :: load_ghf
+        character(len=256) :: file_ghf
+        character(len=56)  :: name_ghf
 
         real(wp) :: bmb_shlf_const
         real(wp) :: dT_ann
         real(wp) :: z_sl 
+
+        logical  :: nc_lossless             ! Write all output lossless (ignore the variable-table prec)
     end type 
 
     type(ctrl_params)    :: ctl
     type(ice_opt_params) :: opt
-
-    real(wp) :: dtt_now
+    type(relax_params)   :: rlx             ! relaxation ([relax]), equil_method "relax" or "opt"
+    integer              :: topo_rel0       ! par-file ytopo.topo_rel, restored after the relaxation
+    real(wp)             :: topo_rel_tau0   ! par-file ytopo.topo_rel_tau
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime
 
-    ! Code for testing restarts
-    logical, parameter  :: test_restart = .FALSE. 
-    real(wp), parameter :: time_r       = 50.0_wp 
-    type(yelmo_class)   :: yelmo_r
-    character(len=256)  :: file1D_r, file2D_r, file_restart_r
     
     ! Start timing 
     call yelmo_cpu_time(cpu_start_time)
@@ -78,50 +85,51 @@ program yelmo_test
     ! Determine the parameter file from the command line 
     call yelmo_load_command_line_args(path_par)
 
-    ! Timing and other parameters 
-    call nml_read(path_par,"ctrl","tstep_method",   ctl%tstep_method)       ! Calendar choice ("const" or "rel")
-    call nml_read(path_par,"ctrl","tstep_const",    ctl%tstep_const)        ! Assumed time bp for const method
-    call nml_read(path_par,"ctrl","time_init",      ctl%time_init)          ! [yr] Starting time
-    call nml_read(path_par,"ctrl","time_end",       ctl%time_end)           ! [yr] Ending time
-    call nml_read(path_par,"ctrl","time_equil",     ctl%time_equil)         ! [yr] Years to equilibrate first
-    call nml_read(path_par,"ctrl","dtt",            ctl%dtt)                ! [yr] Main loop time step 
+    ! === Initialize timestepping ===
+    ! ctrl: tstep_method, tstep_const, time_init, time_end, dtt [yr] (main loop time step)
+    call tstep_init(ts,path_par,"ctrl",ctl%dtt)
+
+    ! Other parameters 
+    call nml_read(path_par,"ctrl","restart_mode",   ctl%restart_mode)       ! "state": spun-up state, "continue": continuation (time_init = restart time)
     call nml_read(path_par,"ctrl","with_ice_sheet", ctl%with_ice_sheet)     ! Include an active ice sheet 
     call nml_read(path_par,"ctrl","equil_method",   ctl%equil_method)       ! What method should be used for spin-up?
+    call nml_read(path_par,"ctrl","init_temp",      ctl%init_temp)          ! Initial temperature profile ("robin", "robin-cold")
+    call nml_read(path_par,"ctrl","nc_lossless",    ctl%nc_lossless)        ! Write all output lossless (ignore the variable-table prec)
     call nml_read(path_par,"ctrl","set_nm",         ctl%set_nm)             ! Namelist group holding relevant setup (topo and climate information)
     
     call nml_read(path_par,"ctrl","load_cb_ref",    ctl%load_cb_ref)        ! Load cb_ref from file? Otherwise define from till_cf_ref + inline tuning
-    call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref)        ! Filename holding cb_ref to load 
+    call nml_read(path_par,"ctrl","file_cb_ref",    ctl%file_cb_ref,init=.TRUE.)  ! Filename holding cb_ref to load ("" = none)
 
-    call nml_read(path_par,"ctrl","load_bmelt",     ctl%load_bmelt)         ! Load bmelt from file?
-    call nml_read(path_par,"ctrl","file_bmelt",     ctl%file_bmelt)         ! Filename holding bmelt field to load 
-        
-    ! Load climate (eg, set_pd or set_lgm)
-    call nml_read(path_par,ctl%set_nm,  "init_topo_path",  ctl%init_topo_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_topo_path",    ctl%pd_topo_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_tsrf_path",    ctl%pd_tsrf_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_smb_path",     ctl%pd_smb_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_vel_path",     ctl%pd_vel_path)
-    call nml_read(path_par,ctl%set_nm,  "pd_tsrf_monthly", ctl%pd_tsrf_monthly)   ! Is the set's tsrf file monthly?
-    call nml_read(path_par,ctl%set_nm,  "pd_smb_monthly",  ctl%pd_smb_monthly)    ! Is the set's smb file monthly?
+    call nml_read(path_par,"ctrl","smb_method",     ctl%smb_method)         ! smb and T_srf: "zremap", "fixed" or "out_const"
+    if (trim(ctl%smb_method) .ne. "fixed") then
+        call nml_read(path_par,"ctrl","f_ice_min",  ctl%f_ice_min)          ! [1] RCM ice fraction of an RCM ice point
+        call nml_read(path_par,"ctrl","region_rcm", ctl%region_rcm)         ! Where the RCM ice is used (selection expression on the regions)
+    end if
+    if (trim(ctl%smb_method) .eq. "out_const") &
+        call nml_read(path_par,"ctrl","smb_out",    ctl%smb_out)            ! [m i.e./a] smb outside the RCM ice
 
-    ! Parse ctl filenames as needed
-    call nml_set_param(path_par, "yelmo_init_topo", "init_topo_path", ctl%init_topo_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_topo_path", ctl%pd_topo_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_tsrf_path", ctl%pd_tsrf_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_smb_path",  ctl%pd_smb_path)
-    call nml_set_param(path_par, "yelmo_data", "pd_vel_path",  ctl%pd_vel_path)
-    ! Propagate the set's monthly flags so the file's time resolution follows the set (unquoted: logical)
-    call nml_set_param(path_par, "yelmo_data", "pd_tsrf_monthly", merge("True ","False",ctl%pd_tsrf_monthly), quoted=.FALSE.)
-    call nml_set_param(path_par, "yelmo_data", "pd_smb_monthly",  merge("True ","False",ctl%pd_smb_monthly),  quoted=.FALSE.)
-    
-    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [yr] Constant imposed bmb_shlf value
-    call nml_read(path_par,ctl%set_nm,  "dT_ann",          ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
+
+    ! Load climate (eg, set_ant_pd or set_ant_lgm); the data files are set in
+    ! yelmo_init_topo and yelmo_data of the domain's parameter file
+    call nml_read(path_par,ctl%set_nm,  "bmb_shlf_const",  ctl%bmb_shlf_const)            ! [m/a] Constant imposed bmb_shlf value
+    call nml_read(path_par,ctl%set_nm,  "load_bmelt",      ctl%load_bmelt)                ! Load bmelt from file (else bmb_shlf_const)?
+    if (ctl%load_bmelt) then
+        call nml_read(path_par,ctl%set_nm,  "file_bmelt",  ctl%file_bmelt)                ! Filename holding bmelt field to load
+        call nml_read(path_par,ctl%set_nm,  "name_bmelt",  ctl%name_bmelt)                ! Name of the bmelt variable [m/a], positive for melting
+    end if
+    call nml_read(path_par,ctl%set_nm,  "load_ghf",        ctl%load_ghf)                  ! Load geothermal heat flux from file (else 50 mW/m2)?
+    if (ctl%load_ghf) then
+        call nml_read(path_par,ctl%set_nm,  "file_ghf",    ctl%file_ghf)                  ! Filename holding the geothermal heat flux field
+        call nml_read(path_par,ctl%set_nm,  "name_ghf",    ctl%name_ghf)                  ! Name of the geothermal heat flux variable [mW/m2]
+    end if
+    call nml_read(path_par,ctl%set_nm,  "dT_ann",         ctl%dT_ann)                    ! [K] Temperature anomaly (atm)
     call nml_read(path_par,ctl%set_nm,  "z_sl",            ctl%z_sl)                      ! [m] Sea level relative to present-day
 
-    ! Get output times
-    call timeout_init(t1D,  path_par,"t1D",  "small",  ctl%time_init,ctl%time_end)
-    call timeout_init(t2Dsm,path_par,"t2Dsm","medium", ctl%time_init,ctl%time_end)
-    call timeout_init(t2D,  path_par,"t2D",  "heavy",  ctl%time_init,ctl%time_end)
+    ! Get output and restart times (a restart is always written at time_end)
+    call timeout_init(t1D,  path_par,"t1D",  "small",  ts%time_init,ts%time_end)
+    call timeout_init(t2Dsm,path_par,"t2Dsm","medium", ts%time_init,ts%time_end)
+    call timeout_init(t2D,  path_par,"t2D",  "heavy",  ts%time_init,ts%time_end)
+    call timeout_init(trst, path_par,"trst", "restart",ts%time_init,ts%time_end)
     
     if (trim(ctl%equil_method) .eq. "opt") then 
         ! Load optimization parameters 
@@ -133,30 +141,37 @@ program yelmo_test
 
     end if 
 
+    ! Relaxation of the topography (spin-up methods "relax" and "opt")
+    if (trim(ctl%equil_method) .eq. "relax" .or. trim(ctl%equil_method) .eq. "opt") then 
+        call relax_par_load(rlx,path_par,"relax")
+    end if 
+
     ! Define input and output locations
     t2Dsm%filename = "yelmo_sm.nc"
     t2D%filename   = "yelmo.nc"
     file_restart   = "yelmo_restart.nc"
 
-    ! === Initialize timestepping ===
-    
-    call tstep_init(ts,ctl%time_init,ctl%time_end,method=ctl%tstep_method,units="year", &
-                                            time_ref=1950.0_wp,const_rel=ctl%tstep_const)
-
     write(*,*)
     write(*,*) "timestepping:   ",  trim(ts%method)
-    if (trim(ts%method) .eq. "const") then 
-        write(*,*) "time_equil: ",    ctl%time_equil
-    end if 
 
     write(*,*) "time    = ", ts%time 
     write(*,*) "time_bp = ", ts%time_rel 
     write(*,*) 
     
+    ! Output precision (ncio switch for all later nc_write calls)
+    call nc_set_lossless(ctl%nc_lossless)
+
     ! === Initialize ice sheet model =====
 
     ! Initialize data objects and load initial topography
     call yelmo_init(yelmo1,filename=path_par,grid_def="file",time=ts%time)
+
+    ! Par-file relaxation settings, restored once a spin-up relaxation ends
+    topo_rel0     = yelmo1%tpo%par%topo_rel
+    topo_rel_tau0 = yelmo1%tpo%par%topo_rel_tau
+
+    ! Restart mode: a continuation must start at the restart file's time
+    call check_restart_mode(ctl%restart_mode,yelmo1%par%use_restart,yelmo1%par%restart,ts%time_init)
 
     ! Ensure optimization fields are allocated
     allocate(opt%cf_min(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
@@ -169,18 +184,20 @@ program yelmo_test
 
     yelmo1%bnd%z_sl     = ctl%z_sl          ! [m]
     yelmo1%bnd%H_sed    = 0.0               ! [m]
-    yelmo1%bnd%Q_geo    = 50.0              ! [mW/m2]
-    
-    ! Impose present-day surface mass balance and present-day temperature field plus any anomaly
-    yelmo1%bnd%smb      = yelmo1%dta%pd%smb                 ! [m.i.e./a]
-    yelmo1%bnd%T_srf    = yelmo1%dta%pd%T_srf + ctl%dT_ann  ! [K]
-    
+
+    if (ctl%load_ghf) then
+        call yelmo_parse_path(ctl%file_ghf,yelmo1%par%domain,yelmo1%par%grid_name)
+        call nc_read(ctl%file_ghf,ctl%name_ghf,yelmo1%bnd%Q_geo)     ! [mW/m2]
+    else
+        yelmo1%bnd%Q_geo = 50.0_wp                              ! [mW/m2]
+    end if
+
     if (ctl%load_bmelt) then
 
         ! Parse filenames with grid information
         call yelmo_parse_path(ctl%file_bmelt,yelmo1%par%domain,yelmo1%par%grid_name)
  
-        call nc_read(ctl%file_bmelt,"bm_ac_reese",yelmo1%bnd%bmb_shlf)
+        call nc_read(ctl%file_bmelt,ctl%name_bmelt,yelmo1%bnd%bmb_shlf)
         yelmo1%bnd%bmb_shlf = -yelmo1%bnd%bmb_shlf      ! Negative because bmb = -bmelt 
     else 
         yelmo1%bnd%bmb_shlf = ctl%bmb_shlf_const        ! [m.i.e./a]
@@ -190,8 +207,6 @@ program yelmo_test
 
     if (ctl%dT_ann .lt. 0.0) yelmo1%bnd%T_shlf   = yelmo1%bnd%c%T0 + ctl%dT_ann*0.25_wp      ! [K] Oceanic temp anomaly
     
-    call yelmo_print_bound(yelmo1%bnd)
-
     ! Define no-ice mask from present-day data
     allocate(mask_noice(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
     mask_noice = .FALSE. 
@@ -200,38 +215,72 @@ program yelmo_test
         where(yelmo1%dta%pd%H_ice .le. 0.0) mask_noice = .TRUE. 
     end if 
 
-    ! Special treatment for Greenland
-    if (trim(yelmo1%par%domain) .eq. "Greenland") then 
-        
-        ! Present-day
-        if (ctl%dT_ann .ge. 0.0) then 
-            ! Impose additional negative mass balance to no ice points of 2 [m.i.e./a] melting
-            where(mask_noice) yelmo1%bnd%smb = yelmo1%dta%pd%smb - 2.0 
-        end if 
-
-    end if 
-
     ! Special treatment for Antarctica
     if (trim(yelmo1%par%domain) .eq. "Antarctica") then 
         
-        ! Present-day
-        if (ctl%dT_ann .ge. 0.0) then 
+        ! Present-day: melt ice beyond the present-day extent (mass-balance
+        ! calving path only; with the level set, calving sets the fronts)
+        if (ctl%dT_ann .ge. 0.0 .and. .not. yelmo1%tpo%par%use_lsf) then 
             where(mask_noice) yelmo1%bnd%bmb_shlf = -2.0                ! [m/a]        
         end if 
 
-        ! LGM
-        if (ctl%dT_ann .lt. 0.0) then 
-            where(yelmo1%bnd%smb .le. 0.1) yelmo1%bnd%smb = 0.1         ! [m/a]
-        end if 
-
-        ! Present-day and LGM 
-        where(yelmo1%bnd%regions .eq. 2.0) yelmo1%bnd%smb = -1.0        ! [m/a]
-
     end if 
 
+    ! Surface mass balance and surface temperature (ctrl.smb_method) from the
+    ! present-day (RCM) fields. "zremap" and "out_const" also use the RCM ice
+    ! (f_ice >= f_ice_min) of pd_smb_path, within ctrl.region_rcm (an expression
+    ! on the regions of yelmo_masks.regions_group); "zremap" builds the profiles once
+    ! from the present-day fields at the RCM surface elevation (z_srf of pd_smb_path).
+    allocate(mask_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    mask_rcm = .TRUE. 
+
+    select case(trim(ctl%smb_method))
+
+        case("fixed")
+            ! Nothing to prepare
+
+        case("out_const","zremap")
+
+            allocate(f_ice_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+            call nc_read(yelmo1%dta%par%pd_smb_path,"f_ice",f_ice_rcm,missing_value=mv)
+            call nml_read(path_par,yelmo1%par%nml_masks,"regions_group",regions_group)
+            call regions_init_nml(reg_rcm,path_par,regions_group,domain=yelmo1%par%domain, &
+                                  grid_name=yelmo1%par%grid_name,grid=yelmo1%grd)
+            mask_rcm = f_ice_rcm .ge. ctl%f_ice_min .and. regions_select(reg_rcm,ctl%region_rcm)
+
+            if (trim(ctl%smb_method) .eq. "zremap") then
+
+                allocate(z_rcm(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+                call nc_read(yelmo1%dta%par%pd_smb_path,"z_srf",z_rcm,missing_value=mv)
+
+                ! Parameters in the units of the fields: smb [m i.e./a], T_srf [K]
+                call zremap_init(zr_smb, path_par,"zremap_smb", yelmo1%grd%G%nx,yelmo1%grd%G%ny,real(yelmo1%grd%G%dx,wp))
+                call zremap_init(zr_tsrf,path_par,"zremap_tsrf",yelmo1%grd%G%nx,yelmo1%grd%G%ny,real(yelmo1%grd%G%dx,wp))
+
+                call zremap_update(zr_smb, yelmo1%dta%pd%smb,  z_rcm,mask_rcm)
+                call zremap_update(zr_tsrf,yelmo1%dta%pd%T_srf,z_rcm,mask_rcm)
+
+            end if
+
+        case DEFAULT
+            write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.smb_method must be 'zremap', 'fixed' or 'out_const'; got ", &
+                                 trim(ctl%smb_method)
+            error stop 1
+
+    end select
+
+    ! Initial surface elevation (tpo%now%z_srf is only diagnosed in yelmo_init_state)
+    allocate(z_srf0(yelmo1%grd%G%nx,yelmo1%grd%G%ny))
+    call calc_z_srf_max(z_srf0,yelmo1%tpo%now%H_ice,1.0_wp,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl, &
+                        yelmo1%bnd%c%rho_ice,yelmo1%bnd%c%rho_sw)
+
+    call set_srf_forcing(yelmo1%bnd,yelmo1%dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice,z_srf0,yelmo1%par%domain)
+
+    call yelmo_print_bound(yelmo1%bnd)
+
     ! Initialize state variables (dyn,therm,mat)
-    ! (initialize temps with robin method with a cold base)
-    call yelmo_init_state(yelmo1,time=ts%time,thrm_method="robin-cold")
+    ! (initial temperature from the robin solution, optionally with a cold base)
+    call yelmo_init_state(yelmo1,time=ts%time,thrm_method=ctl%init_temp)
 
     ! ===== basal friction optimization ======
     if (trim(ctl%equil_method) .eq. "opt") then 
@@ -249,6 +298,11 @@ program yelmo_test
         ! Load or define cb_ref 
 
         if (ctl%load_cb_ref) then 
+
+            if (trim(ctl%file_cb_ref) .eq. "" .or. trim(ctl%file_cb_ref) .eq. "none") then
+                write(io_unit_err,*) "yelmo_initmip:: Error: load_cb_ref=True requires ctrl.file_cb_ref."
+                error stop 1
+            end if
 
             ! Parse filename with grid information
             call yelmo_parse_path(ctl%file_cb_ref,yelmo1%par%domain,yelmo1%par%grid_name)
@@ -312,7 +366,7 @@ program yelmo_test
 
     ! Initialize output files
 
-    call yelmo_regions_write(yelmo1,ts%time,init=.TRUE.,units="years")
+    call yelmo_regions_write_init(yelmo1,ts%time,units="years")
 
     if (t2Dsm%active) then
         call yelmo_write_init(yelmo1,t2Dsm%filename,time_init=ts%time,units="years")
@@ -329,111 +383,15 @@ program yelmo_test
     ! end if 
 
     ! ==== Begin main time loop =====
+    ! Output and restarts are written at the top of the loop for the current
+    ! time (time_init on the first pass, time_end on the last), then the time
+    ! is advanced and the model updated.
 
-    dtt_now = ctl%dtt
     call tstep_print_header(ts)
 
-    do while (.not. ts%is_finished)
-
-        ! == Update timestep ===
-
-        call tstep_update(ts,dtt_now)
-        call tstep_print(ts)
-        
-!         ! Update temperature and smb as needed in time (ISMIP6)
-!         if (ts%time .ge. -10e6 .and. ts%time .lt. -10e3) then 
-!             ! Glacial period, impose cold climate 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf - 10.0 
-
-!         else if (ts%time .ge. -10e3 .and. ts%time .lt. -6e3) then
-!             ! Holocene optimum 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf + 1.0 
-
-!         else  ! time .ge. -6e3
-!             ! Entering Holocene, impose present-day temperatures 
-!             yelmo1%bnd%T_srf = yelmo1%dta%pd%T_srf
-!         end if 
-        
-        ! Spin-up procedure - only relevant for time_elapsed <= time_equil
-        select case(trim(ctl%equil_method))
-            
-            case("opt")
-                ! ===== basal friction optimization ==================
-
-                if (ts%time_elapsed .le. opt%rel_time2) then 
-                    ! Apply relaxation to the model 
-
-                    ! Update model relaxation time scale and error scaling (in [m])
-                    call optimize_set_transient_param(opt%rel_tau,ts%time_elapsed,time1=opt%rel_time1,time2=opt%rel_time2, &
-                                                    p1=opt%rel_tau1,p2=opt%rel_tau2,m=opt%rel_m)
-                    
-                    ! Set model tau, and set yelmo relaxation switch (4: gl line and grounding zone relaxing; 0: no relaxation)
-                    yelmo1%tpo%par%topo_rel_tau = opt%rel_tau 
-                    yelmo1%tpo%par%topo_rel     = 4
-                
-                else 
-                    ! Turn-off relaxation now
-
-                    yelmo1%tpo%par%topo_rel = 0 
-
-                end if 
-
-                ! === Optimization update step =========
-
-                if (opt%opt_cf .and. &
-                        (ts%time_elapsed .ge. opt%cf_time_init .and. ts%time_elapsed .le. opt%cf_time_end) ) then
-                    ! Perform cf_ref optimization
-                
-                    ! Update cb_ref based on error metric(s) 
-                    call optimize_cb_ref(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
-                                                    yelmo1%tpo%now%dHidt,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
-                                                    yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd, &
-                                                    opt%cf_min,opt%cf_max,yelmo1%tpo%par%dx,opt%sigma_err,opt%sigma_vel,opt%tau_c,opt%H0, &
-                                                    dt=ctl%dtt,fill_method=opt%fill_method,fill_dist=opt%sigma_err,cb_tgt=yelmo1%dyn%now%cb_tgt)
-                    
-                end if
-
-                if (opt%opt_tf .and. &
-                        (ts%time_elapsed .ge. opt%tf_time_init .and. ts%time_elapsed .le. opt%tf_time_end) ) then
-                    ! Perform tf_corr optimization
-
-                    write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not yet defined."
-                    write(io_unit_err,*) "Best solution for now: set opt_tf=False."
-                    stop
-
-                end if 
-
-            case("relax")
-                ! ===== relaxation spinup ==================
-
-                ! Turn on relaxation for now, to let thermodynamics equilibrate
-                ! without changing the topography too much. Important when 
-                ! effective pressure = f(thermodynamics).
-
-                yelmo1%tpo%par%topo_rel     = 2
-                yelmo1%tpo%par%topo_rel_tau = 50.0 
-                write(*,*) "timelog, tau = ", yelmo1%tpo%par%topo_rel_tau
-                
-                if ( ts%time_elapsed .ge. ctl%time_equil) then
-                    ! Finally, ensure all relaxation is disabled and continue as normal.
-
-                        yelmo1%tpo%par%topo_rel     = 0
-                        write(*,*) "timelog, relaxation off..."
-                    
-                end if 
-        end select 
-
-        ! == UPDATE YELMO =======================================================
-
-
-        if (ctl%with_ice_sheet) call yelmo_update(yelmo1,ts%time)
-
+    do
 
         ! == MODEL OUTPUT =======================================================
-
-        ! if (mod(nint(ts%time*100),nint(ctl%dt1D_out*100))==0) then 
-        !     call yelmo_write_reg_step(yelmo1,t1D%filename,time=ts%time) 
-        ! end if 
 
         if (timeout_check(t1D,ts%time)) then 
             call yelmo_regions_write(yelmo1,ts%time)
@@ -446,18 +404,80 @@ program yelmo_test
         if (timeout_check(t2D,ts%time)) then
             call write_step_2D(yelmo1,t2D%filename,time=ts%time)
         end if
+
+        if (timeout_check(trst,ts%time) .or. ts%is_finished) then
+            call yelmo_restart_write(yelmo1,file_restart,ts%time)
+        end if
+
+        if (ts%is_finished) exit
+
+        ! == Update timestep ===
+
+        call tstep_update(ts,ctl%dtt)
+        call tstep_print(ts)
         
+        ! Spin-up procedure: relaxation ([relax], until relax.time2), plus the
+        ! optimization for equil_method = "opt"
+        select case(trim(ctl%equil_method))
+            
+            case("opt")
+                ! ===== basal friction optimization ==================
+
+                call relax_update(rlx,yelmo1%tpo%par,ts%time_elapsed,topo_rel0,topo_rel_tau0)
+
+                ! === Optimization update step =========
+
+                if (trim(opt%opt_cf) .eq. "L21" .and. &
+                        (ts%time_elapsed .ge. opt%cf_time_init .and. ts%time_elapsed .le. opt%cf_time_end) ) then
+                    ! Perform cf_ref optimization
+                
+                    ! Update cb_ref based on error metric(s) 
+                    call optimize_cb_ref(yelmo1%dyn%now%cb_ref,yelmo1%tpo%now%H_ice, &
+                                                    yelmo1%tpo%now%dHidt,yelmo1%bnd%z_bed,yelmo1%bnd%z_sl,yelmo1%dyn%now%ux_s,yelmo1%dyn%now%uy_s, &
+                                                    yelmo1%dta%pd%H_ice,yelmo1%dta%pd%uxy_s,yelmo1%dta%pd%H_grnd, &
+                                                    opt%cf_min,opt%cf_max,yelmo1%tpo%par%dx,opt%sigma_err,opt%sigma_vel,opt%tau_c,opt%H0, &
+                                                    dt=ctl%dtt,fill_method=opt%fill_method,fill_dist=opt%sigma_err,cb_tgt=yelmo1%dyn%now%cb_tgt)
+                    
+                end if
+
+                if (trim(opt%opt_tf) .ne. "none") then
+                    ! No ocean model here (bmb_shlf is prescribed), so there is no tf_corr to optimize
+
+                    write(io_unit_err,*) "yelmo_initmip:: Error: thermal forcing optimization not available."
+                    write(io_unit_err,*) "Set opt_tf = 'none'."
+                    error stop 1
+
+                end if 
+
+            case("relax")
+                ! ===== relaxation spinup ==================
+
+                ! Relaxation only, to let thermodynamics equilibrate without
+                ! changing the topography too much. Important when effective
+                ! pressure = f(thermodynamics).
+
+                call relax_update(rlx,yelmo1%tpo%par,ts%time_elapsed,topo_rel0,topo_rel_tau0)
+
+        end select 
+
+        ! == UPDATE BOUNDARY CONDITIONS =========================================
+
+        ! smb and T_srf remapped to the current surface elevation
+        if (trim(ctl%smb_method) .eq. "zremap") then
+            call set_srf_forcing(yelmo1%bnd,yelmo1%dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice, &
+                                 yelmo1%tpo%now%z_srf,yelmo1%par%domain)
+        end if
+
+        ! == UPDATE YELMO =======================================================
+
+        if (ctl%with_ice_sheet) call yelmo_update(yelmo1,ts%time)
+
         if (mod(ts%time,10.0)==0 .and. (.not. yelmo_log)) then
             write(*,"(a,f14.4)") "yelmo:: time = ", ts%time
         end if 
         
     end do 
     ! == Finished time loop == 
-
-    ! Write a final restart file 
-    if (.not. test_restart) then 
-        call yelmo_restart_write(yelmo1,file_restart,ts%time)
-    end if 
 
     ! Finalize program
     call yelmo_end(yelmo1,time=ts%time)
@@ -466,88 +486,126 @@ program yelmo_test
     call yelmo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
 
     write(*,"(a,f12.3,a)") "Time  = ",cpu_dtime/60.0 ," min"
-    write(*,"(a,f12.1,a)") "Speed = ",(1e-3*(ctl%time_end-ctl%time_init))/(cpu_dtime/3600.0), " kiloyears / hr"
+    write(*,"(a,f12.1,a)") "Speed = ",(1e-3*(ts%time_end-ts%time_init))/(cpu_dtime/3600.0), " kiloyears / hr"
 
 contains
 
-    subroutine test_restart_step()
+    subroutine check_restart_mode(restart_mode,use_restart,restart,time_init)
+        ! "state": the restart file provides a (spun-up) state and the run starts at
+        ! time_init, whatever time the file holds. "continue": the run continues the
+        ! simulation of the restart file, so time_init must equal the file's time.
 
         implicit none
 
-        ! ajr: This was in the time loop. The idea is to write a restart file, then
-        ! load it and run yelmo, and see if the results match. Storing it here, to have
-        ! code out of the way. But ideally we can write this inside of routine like this
-        ! to avoid polluting the time loop. 
+        character(len=*), intent(IN) :: restart_mode
+        logical,          intent(IN) :: use_restart
+        character(len=*), intent(IN) :: restart
+        real(dp),         intent(IN) :: time_init
 
-        ! if (test_restart) then 
+        ! Local variables
+        integer  :: nt
+        real(dp), allocatable :: time_rst(:)
 
-        !     if (ts%time .eq. time_r+dtt_now) then 
+        select case(trim(restart_mode))
 
-        !         file1D_r       = "yelmo_ts_r.nc"
-        !         file2D_r       = "yelmo_r.nc"
-        !         file_restart_r = "yelmo_restart_r.nc"
+            case("state")
+                ! Nothing to check
 
-        !         ctl%dt2D_out = dtt_now
-        !         ctl%dt1D_out = dtt_now
+            case("continue")
 
-        !         ! Initialize data objects and load initial topography
-        !         call yelmo_init(yelmo_r,filename=path_par,grid_def="file",time=time_r)
+                if (.not. use_restart) then
+                    write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires a restart file (yelmo.restart)."
+                    error stop 1
+                end if
 
-        !         yelmo_r%par%restart     = "yelmo_restart.nc"
-        !         yelmo_r%par%use_restart = .TRUE. 
-        !         yelmo_r%bnd = yelmo1%bnd
+                nt = nc_size(restart,"time")
+                allocate(time_rst(nt))
+                call nc_read(restart,"time",time_rst)
 
-        !         ! Initialize state variables (dyn,therm,mat)
-        !         ! (initialize temps with robin method with a cold base)
-        !         call yelmo_init_topo(yelmo_r,"ytopo",path_par,time_r)
-        !         call yelmo_init_state(yelmo_r,time=time_r,thrm_method="robin-cold")
+                if (abs(time_rst(nt)-time_init) .gt. 1e-3_dp) then
+                    write(io_unit_err,*) "yelmo_initmip:: Error: restart_mode='continue' requires ctrl.time_init &
+                                         &to equal the time of the restart file."
+                    write(io_unit_err,*) "time_init, restart time = ", time_init, time_rst(nt)
+                    write(io_unit_err,*) "restart = ", trim(restart)
+                    error stop 1
+                end if
 
-        !         ! Write restart file to compare with expected 
-        !         call yelmo_restart_write(yelmo_r,file_restart_r,time_r)
+            case DEFAULT
+                write(io_unit_err,*) "yelmo_initmip:: Error: ctrl.restart_mode must be 'state' or 'continue'; got ", &
+                                     trim(restart_mode)
+                error stop 1
 
-        !         ! 2D file 
-        !         call yelmo_write_init(yelmo_r,file2D_r,time_init=time_r,units="years")  
-                
-        !         ! 1D file 
-        !         call yelmo_write_reg_init(yelmo_r,file1D_r,time_init=time_r,units="years",mask=(yelmo_r%bnd%mask_ice /= MASK_ICE_NONE))
-                
-        !         call write_step_2D(yelmo_r,file2D_r,time=time_r)
-        !         call yelmo_write_reg_step(yelmo_r,file1D_r,time=time_r)  
-        !     end if 
-
-        !     if (ts%time .gt. time_r) then
-        !         ! Update restarted model
-        !         call yelmo_update(yelmo_r,ts%time)
-        !     end if 
-
-        ! end if 
-
-        ! -------
-        ! Note: code below comes after updating yelmo...
-
-        ! if (test_restart) then 
-
-        !     if (ts%time .eq. time_r) then
-        !         ! Write restart file to load from
-        !         call yelmo_restart_write(yelmo1,file_restart,ts%time)
-        !     end if 
-
-        !     if (ts%time .gt. time_r) then
-        !         ! Write restarted output files 
-        !         if (mod(nint(ts%time*100),nint(ctl%dt2D_out*100))==0) then
-        !             call write_step_2D(yelmo_r,file2D_r,time=ts%time)
-        !         end if 
-
-        !         if (mod(nint(ts%time*100),nint(ctl%dt1D_out*100))==0) then 
-        !             call yelmo_write_reg_step(yelmo_r,file1D_r,time=ts%time)  
-        !         end if
-        !     end if 
-
-        ! end if 
+        end select
 
         return
 
-    end subroutine test_restart_step
+    end subroutine check_restart_mode
+
+    subroutine set_srf_forcing(bnd,dta,ctl,zr_smb,zr_tsrf,mask_rcm,mask_noice,z_srf,domain)
+        ! Surface mass balance and surface temperature from the present-day (RCM)
+        ! fields dta%pd%smb [m i.e./a] and dta%pd%T_srf [K], for ctl%smb_method:
+        !   "fixed":     the fields as loaded; Greenland: 2 m/a less smb where
+        !                there is no present-day ice (mask_noice)
+        !   "out_const": the fields as loaded; smb = ctl%smb_out outside the RCM ice
+        !   "zremap":    the fields remapped to the surface elevation z_srf
+        ! T_srf is shifted by dT_ann. Antarctica: minimum smb at the LGM and
+        ! negative smb where no ice is allowed.
+
+        implicit none
+
+        type(ybound_class), intent(INOUT) :: bnd
+        type(ydata_class),  intent(IN)    :: dta
+        type(ctrl_params),  intent(IN)    :: ctl
+        type(zremap_class), intent(IN)    :: zr_smb
+        type(zremap_class), intent(IN)    :: zr_tsrf
+        logical,            intent(IN)    :: mask_rcm(:,:)      ! RCM ice
+        logical,            intent(IN)    :: mask_noice(:,:)    ! No present-day ice
+        real(wp),           intent(IN)    :: z_srf(:,:)         ! [m] Surface elevation
+        character(len=*),   intent(IN)    :: domain
+
+        select case(trim(ctl%smb_method))
+
+            case("fixed")
+
+                bnd%smb   = dta%pd%smb
+                bnd%T_srf = dta%pd%T_srf
+
+                if (trim(domain) .eq. "Greenland") then
+                    ! Impose additional negative mass balance to no ice points of 2 [m.i.e./a] melting
+                    where(mask_noice) bnd%smb = dta%pd%smb - 2.0
+                end if
+
+            case("out_const")
+
+                bnd%smb   = dta%pd%smb
+                bnd%T_srf = dta%pd%T_srf
+
+                where(.not. mask_rcm) bnd%smb = ctl%smb_out
+
+            case("zremap")
+
+                call zremap_map(zr_smb, bnd%smb,  z_srf)
+                call zremap_map(zr_tsrf,bnd%T_srf,z_srf)
+
+        end select
+
+        bnd%T_srf = bnd%T_srf + ctl%dT_ann
+
+        if (trim(domain) .eq. "Antarctica") then
+
+            ! LGM
+            if (ctl%dT_ann .lt. 0.0) then
+                where(bnd%smb .le. 0.1) bnd%smb = 0.1           ! [m/a]
+            end if
+
+            ! Present-day and LGM: negative smb where no ice is allowed (the open ocean)
+            where(bnd%mask_ice .eq. MASK_ICE_NONE) bnd%smb = -1.0      ! [m/a]
+
+        end if
+
+        return
+
+    end subroutine set_srf_forcing
 
     subroutine write_step_2D(ylmo,filename,time)
 
@@ -555,11 +613,11 @@ contains
         
         type(yelmo_class), intent(IN) :: ylmo
         character(len=*),  intent(IN) :: filename
-        real(wp), intent(IN) :: time
+        real(dp), intent(IN) :: time
 
         ! Local variables
         integer  :: ncid, n
-        real(wp) :: time_prev 
+        real(dp) :: time_prev 
 
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.TRUE.)
@@ -589,6 +647,7 @@ contains
         call yelmo_write_var(filename,"smb",ylmo,n,ncid)
         call yelmo_write_var(filename,"bmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"cmb",ylmo,n,ncid)
+        call yelmo_write_var(filename,"tau_vm",ylmo,n,ncid)
         call yelmo_write_var(filename,"fmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"dmb",ylmo,n,ncid)
         call yelmo_write_var(filename,"H_grnd",ylmo,n,ncid)
@@ -611,6 +670,7 @@ contains
         call yelmo_write_var(filename,"uxy_s",ylmo,n,ncid)
         call yelmo_write_var(filename,"uz",ylmo,n,ncid)
         call yelmo_write_var(filename,"uz_star",ylmo,n,ncid)
+        call yelmo_write_var(filename,"uz_srf_err",ylmo,n,ncid)
         
         ! == yelmo_material ==
         call yelmo_write_var(filename,"enh_bar",ylmo,n,ncid)
@@ -623,6 +683,10 @@ contains
         call yelmo_write_var(filename,"Q_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"Q_ice_b",ylmo,n,ncid)
         call yelmo_write_var(filename,"bmb_grnd",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bmb_grnd_star",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bc_b",ylmo,n,ncid)
+        call yelmo_write_var(filename,"bmb_clamp",ylmo,n,ncid)
+        call yelmo_write_var(filename,"melt_int",ylmo,n,ncid)
         ! Note: basal water moved to hyd; output as "hyd_W_til" below.
         call yelmo_write_var(filename,"T_rock",ylmo,n,ncid)
 
@@ -637,6 +701,8 @@ contains
         call yelmo_write_var(filename,"hyd_q_y",ylmo,n,ncid)
         call yelmo_write_var(filename,"hyd_N",ylmo,n,ncid)
         call yelmo_write_var(filename,"hyd_kappa",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_C_frz",ylmo,n,ncid)
+        call yelmo_write_var(filename,"hyd_Q_diss",ylmo,n,ncid)
         
         !call yelmo_write_var(filename,"Q_strn",ylmo,n,ncid)
         call nc_write(filename,"Q_strn",ylmo%thrm%now%Q_strn/(ylmo%bnd%c%rho_ice*ylmo%thrm%now%cp),units="K a-1",long_name="Strain heating", &
@@ -783,95 +849,6 @@ end if
         return 
 
     end subroutine scale_cf_gaussian
-
-    subroutine nml_set_param(filename, nml_group, par_name, value, quoted)
-        implicit none
-        character(len=*), intent(in) :: filename, nml_group, par_name, value
-        logical, intent(in), optional :: quoted   ! Wrap value in single quotes? Default .TRUE. (character params); pass .FALSE. for logicals/numbers
-
-        integer, parameter :: MAX_LINES = 50000
-        integer, parameter :: LINE_LEN  = 1024
-
-        character(len=LINE_LEN) :: lines(MAX_LINES)
-        character(len=LINE_LEN) :: trimmed
-        integer :: unit, io, n_lines, i, ieq
-        logical :: in_group, found, quote_val
-
-        quote_val = .TRUE.
-        if (present(quoted)) quote_val = quoted
-
-        open(newunit=unit, file=trim(filename), status='old', action='read', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot open file'
-
-        n_lines = 0
-        do
-            read(unit, '(A)', iostat=io) lines(n_lines + 1)
-            if (io /= 0) exit
-            n_lines = n_lines + 1
-        end do
-        close(unit)
-
-        in_group = .false.
-        found    = .false.
-
-        do i = 1, n_lines
-            trimmed = adjustl(lines(i))
-
-            if (.not. in_group) then
-                if (trimmed(1:1) == '&' .and. str_eq_ci(trim(trimmed(2:)), nml_group)) &
-                    in_group = .true.
-            else
-                if (trimmed(1:1) == '/') exit
-                ieq = index(trimmed, '=')
-                if (ieq > 1 .and. str_eq_ci(trim(trimmed(1:ieq-1)), par_name)) then
-                    if (quote_val) then
-                        lines(i) = " " // trim(par_name) // " = '" // trim(value) // "'"
-                    else
-                        lines(i) = " " // trim(par_name) // " = " // trim(value)
-                    end if
-                    found = .true.
-                    exit
-                end if
-            end if
-        end do
-
-        if (.not. found) then
-            write(*,'(4a)') 'nml_set_param WARNING: "', trim(par_name), &
-                '" not found in group "', trim(nml_group)//'"'
-            return
-        end if
-
-        open(newunit=unit, file=trim(filename), status='replace', action='write', iostat=io)
-        if (io /= 0) stop 'nml_set_param ERROR: cannot write file'
-        do i = 1, n_lines
-            write(unit, '(A)') trim(lines(i))
-        end do
-        close(unit)
-
-    end subroutine nml_set_param
-
-    pure function str_eq_ci(a, b) result(eq)
-        implicit none
-        character(len=*), intent(in) :: a, b
-        logical :: eq
-        integer :: j, n
-        n  = len_trim(a)
-        eq = (n == len_trim(b))
-        if (.not. eq) return
-        do j = 1, n
-            eq = (lower_char(a(j:j)) == lower_char(b(j:j)))
-            if (.not. eq) return
-        end do
-    end function str_eq_ci
-
-    pure function lower_char(c) result(lc)
-        implicit none
-        character, intent(in) :: c
-        character             :: lc
-        integer               :: ic
-        ic = iachar(c)
-        lc = merge(achar(ic+32), c, ic >= iachar('A') .and. ic <= iachar('Z'))
-    end function lower_char
 
 end program yelmo_test
 
