@@ -329,7 +329,7 @@ contains
                     lgs%b_value(nr) = 0.0_wp
                     lgs%x_value(nr) = ux(i,j)
 
-                else ! bcs(3) == "no-slip"
+                else ! bcs(1) == "no-slip"
 
                     k = k+1
                     lgs%a_value(k)  = 1.0   ! diagonal element only
@@ -651,7 +651,7 @@ contains
                     lgs%b_value(nr) = 0.0_wp
                     lgs%x_value(nr) = uy(i,j)
 
-                else ! bcs(2) == "no-slip"
+                else ! bcs(3) == "no-slip"
 
                     k = k+1
                     lgs%a_value(k)  = 1.0_wp        ! diagonal element only
@@ -680,7 +680,7 @@ contains
                     lgs%b_value(nr) = 0.0_wp
                     lgs%x_value(nr) = uy(i,j)
 
-                else ! bcs(2) == "no-slip"
+                else ! bcs(1) == "no-slip"
 
                     k = k+1
                     lgs%a_value(k)  = 1.0_wp        ! diagonal element only

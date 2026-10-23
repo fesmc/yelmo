@@ -80,8 +80,9 @@
     gl_sep              = 1                 ! 1: binary f_grnd, linear f_grnd_acx/acy; 3: grounded area of H_grnd bilinear between cell centres (Leguy et al., 2021)
     gz_nx               = 15                ! [-] Subgrid points per side (gz_nx*gz_nx) of the grounding-zone melt, bmb_gl_method = "pmpt"
 
+    dist_grz            = 200.0             ! [km] Radius to consider part of "grounding-line zone" (grz), defines mask_grz
+
     ! bmb_gl_method = pmpt
-    dist_grz            = 200.0             ! [km] Radius to consider part of "grounding-line zone" (grz)
     gz_Hg0              = 0.0               ! Grounding zone, limit of penetration of bmb_grnd 
     gz_Hg1              = 0.0               ! Grounding zone, limit of penetration of bmb_shlf 
     

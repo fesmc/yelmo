@@ -570,7 +570,7 @@ contains
         ! 3: x, left--border 
         ! 4: y, lower-border 
         
-        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
+        ! Define border conditions (only choices are: zero, infinite, outflow, periodic)
         select case(trim(boundaries)) 
 
             case("MISMIP3D","TROUGH")

@@ -868,7 +868,7 @@ contains
         par%boundaries = "zeros" 
         
         ! Set use_bmb to decide whether bmb should enter into the calculation of vertical velocity from continuity
-        ! By default, this is true, but it will automatically be set to match ydyn%par%use_bmb 
+        ! By default, this is true; yelmo_init then sets it to match ytopo%par%use_bmb
         par%use_bmb = .TRUE. 
 
         ! Define current time as unrealistic value

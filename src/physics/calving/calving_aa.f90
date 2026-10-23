@@ -226,8 +226,7 @@ contains
                 end if 
 
 
-                ! ajr: this code needs testing in realistic setting - not activated yet!
-
+                ! Embayed front: halve the calving rate
                 if (embayed) then 
 
                     mb_calv(i,j) = 0.5_wp * mb_calv(i,j)
@@ -482,6 +481,7 @@ contains
                 ! Floating ice point, calculate calving rate at the margin 
 
                 ! How many calving-fronts for this cell?
+                ! (wt only selects front cells, the rate is not weighted by it)
                 wt = 0.0 
                 if (f_grnd(im1,j) .eq. 0.0 .and. f_ice(im1,j).eq.0.0) wt = wt + 1.0_wp
                 if (f_grnd(ip1,j) .eq. 0.0 .and. f_ice(ip1,j).eq.0.0) wt = wt + 1.0_wp
@@ -601,8 +601,8 @@ contains
                     ! Get effective ice thickness
                     call calc_H_eff(H_eff,H_ice(i,j),f_ice(i,j))
 
-                    ! Convert to horizontal volume change, weighted
-                    ! by number of exposed faces.
+                    ! Convert to vertical height change spread over the cell, for
+                    ! one front face (wt only selects front cells, it is not a weight)
                     calv_now = (H_eff*calv_ref) / sqrt(dx*dy)
 
                     ! write(*,*) "calv", tau_eff, calv_ref,  &

@@ -1124,7 +1124,7 @@ contains
 
         ! Note: use parameter taud_lim to limit maximum allowed driving stress magnitude applied in the model.
         ! Should be an extreme value. eg, if dzdx = taud_lim / (rho*g*H), 
-        ! then for taud_lim=5e5 and H=3000m, dzdx = 2e5 / (910*9.81*3000) = 0.02, 
+        ! then for taud_lim=5e5 and H=3000m, dzdx = 5e5 / (910*9.81*3000) = 0.02, 
         ! which is a rather steep slope for a shallow-ice model.
 
         implicit none 

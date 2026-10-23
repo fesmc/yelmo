@@ -1,6 +1,6 @@
 module topography 
 
-    use yelmo_defs, only : wp, dp, io_unit_err, pi, TOL, is_equal, &
+    use yelmo_defs, only : wp, dp, io_unit_err, TOL, is_equal, &
                            MASK_FRNT_ICE_FREE, MASK_FRNT_ICE_FREE_LAND, MASK_FRNT_NONE, MASK_FRNT_FLOAT, &
                            MASK_FRNT_MARINE, MASK_FRNT_GRND
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, get_periodic_directions
@@ -1359,14 +1359,9 @@ contains
 
                 else
 
-                    ! Calculate inverse cdf at z = ice_base, ie,
-                    ! probability to have points at or higher than z,
-                    ! which would be grounded. 
-
-                    !f_grnd(i,j) = cdf(x,mu,sigma,inv=.TRUE.)
-
-                    ! Alternatively, use approximation given by
-                    ! Pollard and DeConto (2012), Eq. 13:
+                    ! Probability to have points at or higher than z = ice_base,
+                    ! which would be grounded (inverse cdf), approximated
+                    ! following Pollard and DeConto (2012), Eq. 13:
 
                     f_grnd(i,j) = 0.5_wp*max(0.0_wp,(1.0_wp-(x-mu)/sigma))
 
@@ -1438,63 +1433,49 @@ contains
 
     end subroutine remove_englacial_lakes
 
-    subroutine calc_distance_to_ice_margin(dist_mrgn,f_ice,dx,boundaries,calc_distances)
-        ! Calculate distance to the ice margin
+    subroutine calc_distance_to_ice_margin(dist_mrgn,f_ice,boundaries)
+        ! Locate the ice margin (0 at the margin, +dist_max ice covered,
+        ! -dist_max ice free); see calc_distance_to_grounding_line.
         
         ! Note: this subroutine is a wrapper that calls the
-        ! grounding-line distance routine, since the algorithm
+        ! grounding-line routine, since the algorithm
         ! works the same way. Simply substitute f_ice for f_grnd. 
 
         implicit none 
 
-        real(wp), intent(OUT) :: dist_mrgn(:,:) ! [km] Distance to grounding line
+        real(wp), intent(OUT) :: dist_mrgn(:,:) ! [km] 0 at the margin, +/-dist_max elsewhere
         real(wp), intent(IN)  :: f_ice(:,:)     ! [1]  Fraction of grid-cell ice coverage 
-        real(wp), intent(IN)  :: dx             ! [m]  Grid resolution (assume dy=dx)
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN)  :: calc_distances
 
-        call calc_distance_to_grounding_line(dist_mrgn,f_ice,dx,boundaries,calc_distances)
+        call calc_distance_to_grounding_line(dist_mrgn,f_ice,boundaries)
 
         return 
 
     end subroutine calc_distance_to_ice_margin
     
-    subroutine calc_distance_to_grounding_line(dist_gl,f_grnd,dx,boundaries,calc_distances)
-        ! Calculate distance to the grounding line 
+    subroutine calc_distance_to_grounding_line(dist_gl,f_grnd,boundaries)
+        ! Locate the grounding line: 0 at the grounding line, +dist_max
+        ! grounded, -dist_max floating. The distances themselves are computed
+        ! from this mask by the caller (yelmo_topography).
         
         implicit none 
 
-        real(wp), intent(OUT) :: dist_gl(:,:)   ! [km] Distance to grounding line
+        real(wp), intent(OUT) :: dist_gl(:,:)   ! [km] 0 at the grounding line, +/-dist_max elsewhere
         real(wp), intent(IN)  :: f_grnd(:,:)    ! [1]  Grounded grid-cell fraction 
-        real(wp), intent(IN)  :: dx             ! [m]  Grid resolution (assume dy=dx)
         character(len=*), intent(IN) :: boundaries
-        logical,  intent(IN)  :: calc_distances
 
         ! Local variables 
-        integer  :: i, j, nx, ny, q
+        integer  :: i, j, nx, ny
         integer  :: im1, ip1, jm1, jp1
-        real(wp) :: dist_direct_min 
-        real(wp) :: dist_corners_min
-        real(wp) :: dx_km 
-        real(wp) :: dists(8) 
         integer  :: BC
 
         real(wp), parameter :: dist_max = 1e10          ! [km]
-        real(wp), parameter :: sqrt_2   = sqrt(2.0_wp) 
-        integer,  parameter :: iter_max = 1000
-
-        real(wp), allocatable :: dist_gl_ref(:,:) 
 
         nx = size(dist_gl,1)
         ny = size(dist_gl,2)
 
         ! Set boundary condition code
         BC = boundary_code(boundaries)
-
-        allocate(dist_gl_ref(nx,ny)) 
-
-        ! Units
-        dx_km = dx*1e-3 
 
         ! 0: Assign a big distance to all points to start  ======================
 
@@ -1521,74 +1502,6 @@ contains
         end do 
         end do 
         !$omp end parallel do
-
-        ! 2. Next, determine distances to grounding line ======================
-        
-        if (calc_distances) then
-
-            do q = 1, iter_max  
-                ! Iterate distance of one neighbor at a time until grid is filled in
-
-                dist_gl_ref = dist_gl
-
-                !$omp parallel do collapse(2) private(i,j,im1,ip1,jm1,jp1,dists,dist_direct_min,dist_corners_min)
-                do j = 1, ny 
-                do i = 1, nx
-
-                    if ( is_equal(dist_gl(i,j),dist_max) ) then 
-                        ! Distance needs to be determined for this point 
-
-                        ! Get neighbor indices
-                        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                        ! Get distances to direct and corner neighbors
-                        dists = [dist_gl_ref(im1,j),dist_gl_ref(ip1,j), &       ! Direct neighbors
-                                dist_gl_ref(i,jm1),dist_gl_ref(i,jp1), &       ! Direct neighbors
-                                dist_gl_ref(im1,jp1),dist_gl_ref(ip1,jp1), &   ! Corner neighbors
-                                dist_gl_ref(im1,jm1),dist_gl_ref(ip1,jm1)]     ! Corner neighbors
-
-                        if (count(dists .lt. dist_max) .ge. 2) then 
-                            ! Some neighbors have been calculated already 
-                            ! Note: check for at least 2 neighbors already
-                            ! calculated to reduce errors in points with 
-                            ! neighbors on both sides with similar distances. This 
-                            ! Waiting for even more neighbors would reduce errors
-                            ! further but greatly increases iterations. 
-
-                            ! Determine minimum distance to grounding line for 
-                            ! direct and diagonal neighbors, separately.
-                            dist_direct_min  = minval(dists(1:4))
-                            dist_corners_min = minval(dists(5:8))
-
-                            if (dist_direct_min .le. dist_corners_min) then 
-                                ! Assume nearest path to grounding line is along
-                                ! direct neighbor path - add dx to dist for this point 
-
-                                dist_gl(i,j) = dist_direct_min + dx_km 
-
-                            else
-                                ! Assume nearest path to grounding line is via 
-                                ! a diagonal neighbor - add sqrt(2) to dist for this point
-
-                                dist_gl(i,j) = dist_corners_min + sqrt_2*dx_km
-
-                            end if 
-
-                        end if 
-                    end if
-
-                end do 
-                end do
-                !$omp end parallel do
-                
-                if (count(dist_gl .eq. dist_max) .eq. 0) then 
-                    ! No more points to check 
-                    exit 
-                end if 
-
-            end do
-
-        end if 
 
         ! Set all floating-point distances to negative values 
         where (f_grnd .eq. 0.0_wp) 
@@ -2081,88 +1994,6 @@ contains
         return
         
     end subroutine calc_bmb_gl_pmpt
-    
-    elemental function cdf(x,mu,sigma,inv) result(F)
-        ! Solve for cumulative probability below (cdf)
-        ! or above (cdf(inv=TRUE)) the value x
-        ! given a normal distribution N(mu,sigma)
-
-        ! See equation for F(x) and Q(x) in, e.g.:
-        ! https://en.wikipedia.org/wiki/Normal_distribution
-
-        implicit none
-
-        real(wp), intent(IN)  :: x
-        real(wp), intent(IN)  :: mu
-        real(wp), intent(IN)  :: sigma
-        logical,  intent(IN), optional :: inv
-        real(wp) :: F
-        
-        real(wp), parameter :: sqrt2 = sqrt(2.0_wp)
-
-        ! Calculate CDF at value x
-        F = 0.5_wp*( 1.0_wp + error_function((x-mu)/(sqrt2*sigma)) )
-
-        if (present(inv)) then 
-            if (inv) then 
-                ! Calculate inverse CDF at value x 
-                F = 1.0_wp - F 
-            end if 
-        end if 
-
-        return
-
-    end function cdf
-
-    elemental function error_function(X) result(ERR)
-        ! Purpose: Compute error function erf(x)
-        ! Input:   x   --- Argument of erf(x)
-        ! Output:  ERR --- erf(x)
-        
-        ! Note: also separately defined in thermodynamics.f90
-
-        implicit none 
-
-        real(wp), intent(IN)  :: X
-        real(wp) :: ERR
-        
-        ! Local variables:
-        real(wp)              :: EPS
-        real(wp)              :: X2
-        real(wp)              :: ER
-        real(wp)              :: R
-        real(wp)              :: C0
-        integer                 :: k
-        
-        EPS = 1.0e-15
-        X2  = X * X
-        if (abs(X) < 3.5) then
-            ER = 1.0
-            R  = 1.0
-            do k = 1, 50
-                R  = R * X2 / (real(k, wp) + 0.5)
-                ER = ER+R
-                if(abs(R) < abs(ER) * EPS) then
-                    C0  = 2.0 / sqrt(pi) * X * exp(-X2)
-                    ERR = C0 * ER
-                    EXIT
-                end if
-            end do
-        else
-            ER = 1.0
-            R  = 1.0
-            do k = 1, 12
-                R  = -R * (real(k, wp) - 0.5) / X2
-                ER = ER + R
-                C0  = EXP(-X2) / (abs(X) * sqrt(pi))
-                ERR = 1.0 - C0 * ER
-                if(X < 0.0) ERR = -ERR
-            end do
-        end if
-
-        return
-
-    end function error_function
 
 end module topography
 

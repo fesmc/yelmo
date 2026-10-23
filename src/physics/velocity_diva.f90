@@ -712,9 +712,9 @@ contains
     subroutine calc_visc_eff_3D_aa(visc_eff,ux,uy,duxdz,duydz,ATT,H_ice,f_ice,zeta_aa,dx,dy,n_glen,eps_0,boundaries)
         ! Calculate 3D effective viscosity following L19, Eq. 2
         ! Use of eps_0 ensures non-zero positive viscosity value everywhere 
-        ! Note: viscosity is first calculated on ab-nodes, then 
-        ! unstaggered back to aa-nodes. This ensures more stability for 
-        ! visc_eff (less likely to blow up for low strain rates). 
+        ! Note: strain rates and viscosity are calculated directly on
+        ! aa-nodes (minimal stencil, see calc_visc_eff_3D_nodes for the
+        ! quadrature version).
 
         implicit none 
         
@@ -806,7 +806,7 @@ contains
                     ! Get rate factor on central node
                     ATT_aa = ATT(i,j,k)
 
-                    ! Calculate effective viscosity on ab-nodes
+                    ! Calculate effective viscosity on aa-nodes
                     visc_eff(i,j,k) = 0.5_wp*(eps_sq_aa)**(p1) * ATT_aa**(p2)
 
                 end do

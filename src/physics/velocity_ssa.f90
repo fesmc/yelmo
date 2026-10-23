@@ -571,7 +571,7 @@ contains
                     ! Get rate factor on central node
                     ATT_aa = ATT(i,j,k)
 
-                    ! Calculate effective viscosity on ab-nodes
+                    ! Calculate effective viscosity on aa-nodes
                     visc_eff(i,j,k) = 0.5_wp*(eps_sq_aa)**(p1) * ATT_aa**(p2)
 
                 end do 
