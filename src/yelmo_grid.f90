@@ -7,7 +7,7 @@ module yelmo_grid
     ! explicit axes or another grid_class, all delegating the heavy lifting to
     ! coords grid_init.
 
-    use yelmo_defs, only : sp, dp, wp, pi
+    use yelmo_defs, only : sp, dp, wp, pi, io_unit_err
     use yelmo_tools, only : get_region_indices
 
     use coords, only : grid_class, grid_init
@@ -74,8 +74,11 @@ contains
         end do
 
         ! Scale zeta to produce different resolution through column if desired
-        ! zeta_scale = ["linear","exp","wave"]
+        ! zeta_scale = ["linear","exp","tanh","exp-inv"]
         select case(trim(zeta_scale))
+
+            case("linear")
+                ! Keep the linear scale defined above
 
             case("exp")
                 ! Increase resolution at the base
@@ -102,7 +105,10 @@ contains
                 zeta_aa = zeta_aa / maxval(zeta_aa)
 
             case DEFAULT
-            ! Do nothing, scale should be linear as defined above
+
+                write(io_unit_err,*) "calc_zeta:: Error: zeta_scale not recognized: ", trim(zeta_scale)
+                write(io_unit_err,*) "zeta_scale must be one of: linear, exp, tanh, exp-inv."
+                error stop 1
 
         end select
 
@@ -364,7 +370,7 @@ contains
                        planet=trim(grid0%cs%planet%name),lon180=grid0%cs%is_lon180, &
                        x=grid0%G%x*grid0%cs%xy_conv,y=grid0%G%y*grid0%cs%xy_conv, &
                        lambda=grid0%cs%proj%lambda,phi=grid0%cs%proj%phi,alpha=grid0%cs%proj%alpha, &
-                       x_e=grid0%cs%proj%x_e,y_n=grid0%cs%proj%y_n)
+                       x_e=grid0%cs%proj%x_e,y_n=grid0%cs%proj%y_n,k0=grid0%cs%proj%k0)
 
         return
 

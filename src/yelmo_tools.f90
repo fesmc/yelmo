@@ -27,7 +27,6 @@ module yelmo_tools
     private 
     public :: is_finite
     public :: get_region_indices
-    public :: get_neighbor_indices
     public :: get_neighbor_indices_bc_codes
     public :: get_periodic_directions
     public :: calc_magnitude 
@@ -37,7 +36,6 @@ module yelmo_tools
     public :: calc_gradient_acy
     public :: calc_gradient_column_ac
 
-    public :: mean_mask
     public :: minmax
 
     public :: set_boundaries_2D_aa
@@ -47,17 +45,13 @@ module yelmo_tools
     public :: fill_borders_3D 
     
     public :: smooth_gauss_2D
-    public :: smooth_gauss_3D
-    public :: gauss_values
 
     public :: adjust_topography_gradients 
 
     ! Integration functions
-    public :: test_integration
     public :: integrate_trapezoid1D_pt
     public :: integrate_trapezoid1D_1D
     public :: calc_vertical_integrated_2D
-    public :: calc_vertical_integrated_3D
     
     ! Boundary constants (for converting string definitions to integers for faster computations)
     public :: boundary_code
@@ -120,28 +114,6 @@ contains
 
     end subroutine get_region_indices
 
-    subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
-        ! String-based wrapper of get_neighbor_indices_bc_codes, so that
-        ! both interfaces share one definition of each boundary treatment.
-
-        implicit none
-
-        integer, intent(OUT) :: im1 
-        integer, intent(OUT) :: ip1 
-        integer, intent(OUT) :: jm1 
-        integer, intent(OUT) :: jp1 
-        integer, intent(IN)  :: i 
-        integer, intent(IN)  :: j
-        integer, intent(IN)  :: nx 
-        integer, intent(IN)  :: ny
-        
-        character(len=*), intent(IN) :: boundaries
-
-        call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,boundary_code(boundaries))
-
-        return
-
-    end subroutine get_neighbor_indices
 
     subroutine get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
@@ -598,26 +570,6 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundarie
 
     end subroutine calc_gradient_column_ac
     
-    function mean_mask(var,mask) result(ave)
-
-        implicit none 
-
-        real(wp), intent(IN) :: var(:,:) 
-        logical,    intent(IN) :: mask(:,:) 
-        real(wp) :: ave 
-        integer :: n 
-
-        n = count(mask)
-        
-        if (n .gt. 0) then 
-            ave = sum(var,mask=mask) / real(n,wp)
-        else 
-            ave = 0.0 
-        end if 
-
-        return 
-
-    end function mean_mask
     
     elemental subroutine minmax(var,var_lim)
 
@@ -846,30 +798,6 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundarie
 
     end subroutine fill_borders_3D
 
-    subroutine smooth_gauss_3D(var,dx,f_sigma,mask_apply,mask_use)
-
-        ! Smooth out strain heating to avoid noise 
-
-        implicit none
-
-        real(wp),   intent(INOUT) :: var(:,:,:)      ! nx,ny,nz_aa: 3D variable
-        real(wp),   intent(IN)    :: dx 
-        real(wp),   intent(IN)    :: f_sigma  
-        logical,    intent(IN), optional :: mask_apply(:,:) 
-        logical,    intent(IN), optional :: mask_use(:,:) 
-
-        ! Local variables
-        integer    :: k, nz_aa  
-
-        nz_aa = size(var,3)
-
-        do k = 1, nz_aa 
-             call smooth_gauss_2D(var(:,:,k),dx,f_sigma,mask_apply,mask_use)
-        end do 
-
-        return 
-
-    end subroutine smooth_gauss_3D
     
     subroutine smooth_gauss_2D(var,dx,f_sigma,mask_apply,mask_use)
         ! Smooth out a field to avoid noise 
@@ -1132,33 +1060,6 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundarie
 
     ! === Generic integration functions ============
 
-    function calc_vertical_integrated_3D(var,zeta) result(var_int)
-        ! Vertically integrate a field 3D field (nx,ny,nz)
-        ! layer by layer (in the z-direction), return a 3D array
-
-        implicit none
-
-        real(wp), intent(IN) :: var(:,:,:)
-        real(wp), intent(IN) :: zeta(:)
-        real(wp) :: var_int(size(var,1),size(var,2),size(var,3))
-
-        ! Local variables 
-        integer :: i, j, nx, ny
-
-        nx = size(var,1)
-        ny = size(var,2)
-
-        !$omp parallel do collapse(2) private(i,j)
-        do j = 1, ny
-        do i = 1, nx
-            var_int(i,j,:) = integrate_trapezoid1D_1D(var(i,j,:),zeta)
-        end do
-        end do
-        !$omp end parallel do
-
-        return
-
-    end function calc_vertical_integrated_3D
 
     function calc_vertical_integrated_2D(var,zeta) result(var_int)
         ! Vertically integrate a field 3D field (nx,ny,nz) 
@@ -1253,233 +1154,4 @@ subroutine calc_gradient_acy(dvardy,var,f_ice,dy,grad_lim,zero_outside,boundarie
 
     end function integrate_trapezoid1D_1D
 
-    subroutine simpne(x,y,result)
-        !*****************************************************************************80
-        !
-        !! SIMPNE approximates the integral of unevenly spaced data.
-        !
-        !  Discussion:
-        !
-        !    The routine repeatedly interpolates a 3-point Lagrangian polynomial 
-        !    to the data and integrates that exactly.
-        !
-        !  Modified:
-        !
-        !    10 February 2006
-        !
-        !  Reference:
-        !
-        !    Philip Davis, Philip Rabinowitz,
-        !    Methods of Numerical Integration,
-        !    Second Edition,
-        !    Dover, 2007,
-        !    ISBN: 0486453391,
-        !    LC: QA299.3.D28.
-        !
-        !  Parameters:
-        !
-        !    Input, integer ( kind = 4 ) NTAB, number of data points.  
-        !    NTAB must be at least 3.
-        !
-        !    Input, real ( kind = 8 ) X(NTAB), contains the X values of the data,
-        !    in order.
-        !
-        !    Input, real ( kind = 8 ) Y(NTAB), contains the Y values of the data.
-        !
-        !    Output, real ( kind = 8 ) RESULT.
-        !    RESULT is the approximate value of the integral.
-        
-        implicit none
-
-        real(wp) :: x(:)
-        real(wp) :: y(:)
-        real(wp) :: result
-
-        integer :: ntab
-
-        real(wp) :: del(3)
-        real(wp) :: e
-        real(wp) :: f
-        real(wp) :: feints
-        real(wp) :: g(3)
-        integer    :: i
-        integer    :: n
-        real(wp) :: pi(3)
-        real(wp) :: sum1
-
-        real(wp) :: x1
-        real(wp) :: x2
-        real(wp) :: x3
-
-        ntab = size(x,1) 
-
-        result = 0.0D+00
-
-        if ( ntab <= 2 ) then
-            write ( *, '(a)' ) ' '
-            write ( *, '(a)' ) 'SIMPNE - Fatal error!'
-            write ( *, '(a)' ) '  NTAB <= 2.'
-            error stop 1
-        end if
-     
-        n = 1
-     
-        do
-     
-            x1 = x(n)
-            x2 = x(n+1)
-            x3 = x(n+2)
-            e = x3 * x3- x1 * x1
-            f = x3 * x3 * x3 - x1 * x1 * x1
-            feints = x3 - x1
-
-            del(1) = x3 - x2
-            del(2) = x1 - x3
-            del(3) = x2 - x1
-
-            g(1) = x2 + x3
-            g(2) = x1 + x3
-            g(3) = x1 + x2
-
-            pi(1) = x2 * x3
-            pi(2) = x1 * x3
-            pi(3) = x1 * x2
-     
-            sum1 = 0.0D+00
-            do i = 1, 3
-                sum1 = sum1 + y(n-1+i) * del(i) &
-                    * ( f / 3.0D+00 - g(i) * 0.5D+00 * e + pi(i) * feints )
-            end do
-            result = result - sum1 / ( del(1) * del(2) * del(3) )
-     
-            n = n + 2
-
-            if ( ntab <= n + 1 ) then
-            exit
-            end if
-
-        end do
-     
-        if ( mod ( ntab, 2 ) /= 0 ) then
-            return
-        end if
-
-        n = ntab - 2
-        x3 = x(ntab)
-        x2 = x(ntab-1)
-        x1 = x(ntab-2)
-        e = x3 * x3 - x2 * x2
-        f = x3 * x3 * x3 - x2 * x2 * x2
-        feints = x3 - x2
-
-        del(1) = x3 - x2
-        del(2) = x1 - x3
-        del(3) = x2 - x1
-
-        g(1) = x2 + x3
-        g(2) = x1 + x3
-        g(3) = x1 + x2
-
-        pi(1) = x2 * x3
-        pi(2) = x1 * x3
-        pi(3) = x1 * x2
-     
-        sum1 = 0.0D+00
-        do i = 1, 3
-            sum1 = sum1 + y(n-1+i) * del(i) * &
-                ( f / 3.0D+00 - g(i) * 0.5D+00 * e + pi(i) * feints )
-        end do
-     
-        result = result - sum1 / ( del(1) * del(2) * del(3) )
-     
-        return
-
-    end subroutine simpne 
-
-    subroutine test_integration()
-
-        implicit none 
-
-        ! Local variables
-        integer :: i, j, n, k, t 
-        integer :: nn(11) 
-        real(wp), allocatable :: zeta0(:) 
-        real(wp), allocatable :: zeta(:)
-        real(wp), allocatable :: var0(:) 
-        real(wp), allocatable :: var(:) 
-        real(wp), allocatable :: var_ints(:)
-        real(wp) :: var_int 
-        real(wp) :: var_int_00
-
-        write(*,*) "=== test_integration ======"
-        
-        nn = [11,21,31,41,51,61,71,81,91,101,1001]
-
-        do k = 1, size(nn)
-
-            n = nn(k)
-
-            allocate(zeta0(n))
-            allocate(zeta(n))
-            allocate(var0(n))
-            allocate(var(n))
-            allocate(var_ints(n))
-
-            do i = 1, n 
-                zeta0(i) = real(i-1)/real(n-1)
-!                 var0(i) = real(i-1)
-                var0(i)  = (n-1)-real(i-1)
-            end do 
-
-            ! Linear zeta 
-            zeta = zeta0
-            var = var0 
-
-            ! Non-linear zeta 
-            zeta = zeta0*zeta0 
-            do i = 1, n 
-                do j = 1, n 
-                    if (zeta0(j) .ge. zeta(i)) exit 
-                end do 
-
-                if (zeta0(j) .eq. zeta(i)) then 
-                    var(i) = var0(j) 
-                else 
-                    var(i) = var0(j-1) + (var0(j)-var0(j-1))*(zeta(i)-zeta0(j-1))/(zeta0(j)-zeta0(j-1))
-                end if 
-            end do 
-
-!             do i = 1, n 
-!                 write(*,*) zeta0(i), var0(i), zeta(i), var(i) 
-!             end do 
-!             stop 
-            
-            ! Analytical average value 
-!             var_int_00 = real(n-1)/2.0
-
-            do t = 1, 10000
-                
-                ! Test trapezoid1D solver 
-                var_int  = integrate_trapezoid1D_pt(var,zeta)
-
-                ! Determine "analytical" value from simpson approximation solver 
-                call simpne(zeta,var,var_int_00)
-            end do 
-
-            ! Test trapezoid 1D_1D solver, check last value for full average over column
-!             var_ints = integrate_trapezoid1D_1D(var,zeta)
-!             var_int  = var_ints(n) 
-
-            write(*,*) "mean (0:",n ,") = ", var_int_00, var_int, var_int-var_int_00, 100.0*(var_int-var_int_00)/var_int_00 
-
-            deallocate(zeta0,var0,zeta,var,var_ints)
-
-        end do 
-
-        stop 
-
-        return 
-
-    end subroutine test_integration
-    
 end module yelmo_tools

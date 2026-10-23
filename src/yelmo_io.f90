@@ -12,7 +12,7 @@ module yelmo_io
     use variable_io
     use interp2D
     use coords, only : grid_class
-    use mapping,     only : map_class, map_read
+    use mapping,     only : map_class
     use ncio_interp, only : nc_read_interp
     use yelmo_remapping, only : yelmo_load_map
 
@@ -111,129 +111,84 @@ contains
         integer,           intent(IN), optional :: jrange(2)
         
         ! Local variables
-        integer :: q
         logical :: found 
-        type(yelmo_io_tables) :: io
-        
-        ! Store yelmo io tables locally for easier access
-        io = ylmo%io 
+        type(var_io_type) :: v
 
-        ! Loop over each list of variables until the variable of interest is found
+        ! Search the io tables (loaded in yelmo_init) one after the other
+        ! until the variable of interest is found
 
         found = .FALSE. 
 
         ! == ytopo variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%tpo,"input/yelmo-variables-ytopo.md")
-            call find_var_io_in_table(io%v,varname,io%tpo)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytopo(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%tpo)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytopo(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ydyn variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%dyn,"input/yelmo-variables-ydyn.md")
-            call find_var_io_in_table(io%v,varname,io%dyn)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ydyn(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%dyn)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ydyn(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ymat variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%mat,"input/yelmo-variables-ymat.md")
-            call find_var_io_in_table(io%v,varname,io%mat)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ymat(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%mat)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ymat(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ytrc variables ===
         if (.not. found) then
-
-            call find_var_io_in_table(io%v,varname,io%trc)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytrc(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%trc)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytrc(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ytherm variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%thrm,"input/yelmo-variables-ytherm.md")
-            call find_var_io_in_table(io%v,varname,io%thrm)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytherm(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%thrm)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytherm(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == yhyd variables ===
         if (.not. found) then
-
-            call find_var_io_in_table(io%v,varname,io%hyd)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_yhyd(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%hyd)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_yhyd(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ybound variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%bnd,"input/yelmo-variables-ybound.md")
-            call find_var_io_in_table(io%v,varname,io%bnd)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ybound(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%bnd)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ybound(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ydata variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%dta,"input/yelmo-variables-ydata.md")
-            call find_var_io_in_table(io%v,varname,io%dta)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ydata(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%dta)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ydata(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
         
         ! Error if still not found
@@ -361,26 +316,12 @@ contains
         integer :: i1, i2, j1, j2
         logical  :: initialize_file
 
-        type(yelmo_io_tables) :: io
-
-        ! Store yelmo io in local object for easier access
-        io = dom%io 
-
         initialize_file = .TRUE. 
         if (present(init)) initialize_file = init
 
         ! Get indices for current domain of interest
         call get_region_indices(i1,i2,j1,j2,dom%grd%G%nx,dom%grd%G%ny,irange,jrange)
         
-        ! Load variable io tables
-        ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-        ! call load_var_io_table(io%tpo,"input/yelmo-variables-ytopo.md")
-        ! call load_var_io_table(io%dyn,"input/yelmo-variables-ydyn.md")
-        ! call load_var_io_table(io%mat,"input/yelmo-variables-ymat.md")
-        ! call load_var_io_table(io%thrm,"input/yelmo-variables-ytherm.md")
-        ! call load_var_io_table(io%bnd,"input/yelmo-variables-ybound.md")
-        ! call load_var_io_table(io%dta,"input/yelmo-variables-ydata.md")
-
         ! == Initialize netcdf file ==============================================
 
         if (initialize_file) then
@@ -406,7 +347,7 @@ contains
         end if 
 
         ! == Predictor-corrector (pc) variables ===
-        ! (read back by yelmo_restart_read)
+        ! (diagnostics of the last step, e.g. for yelmo_killed.nc; not read back)
 
         call nc_write(filename,"pc_tau",       dom%time%pc_tau(i1:i2,j1:j2),        units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_masked",dom%time%pc_tau_masked(i1:i2,j1:j2), units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
@@ -426,44 +367,47 @@ contains
         call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
         call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
+        ! K24 routing done (hyd_k24_abs_g, hyd_k24_phi0 are in the yhyd table)
+        call nc_write(filename,"hyd_k24_routed", dom%hyd%now%k24_routed, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+
         ! Reference time of the Eulerian tracer (t_dep_euler = t_ref_euler + t_dep_euler_rel)
         call nc_write(filename,"t_ref_euler",    dom%trc%par%t_ref_euler, units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
         ! == Table variables (lossless, ignoring the table prec, for exact restarts) ===
 
         ! == ytopo variables ===
-        do q = 1, size(io%tpo)
-            call yelmo_write_var_io_ytopo(filename,io%tpo(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%tpo)
+            call yelmo_write_var_io_ytopo(filename,dom%io%tpo(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ydyn variables ===
-        do q = 1, size(io%dyn)
-            call yelmo_write_var_io_ydyn(filename,io%dyn(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%dyn)
+            call yelmo_write_var_io_ydyn(filename,dom%io%dyn(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ymat variables ===
-        do q = 1, size(io%mat)
-            call yelmo_write_var_io_ymat(filename,io%mat(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%mat)
+            call yelmo_write_var_io_ymat(filename,dom%io%mat(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ytrc variables ===
-        do q = 1, size(io%trc)
-            call yelmo_write_var_io_ytrc(filename,io%trc(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%trc)
+            call yelmo_write_var_io_ytrc(filename,dom%io%trc(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ytherm variables ===
-        do q = 1, size(io%thrm)
-            call yelmo_write_var_io_ytherm(filename,io%thrm(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%thrm)
+            call yelmo_write_var_io_ytherm(filename,dom%io%thrm(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == yhyd variables ===
-        do q = 1, size(io%hyd)
-            call yelmo_write_var_io_yhyd(filename,io%hyd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%hyd)
+            call yelmo_write_var_io_yhyd(filename,dom%io%hyd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ybound variables ===
-        do q = 1, size(io%bnd)
-            call yelmo_write_var_io_ybound(filename,io%bnd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%bnd)
+            call yelmo_write_var_io_ybound(filename,dom%io%bnd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ydata variables ===
@@ -485,63 +429,6 @@ contains
         return 
 
     end subroutine yelmo_restart_write
-
-    subroutine yelmo_read_interp_2D(var2D,filename,vname,domain,grid_name)  
-        ! Load a variable from a file.
-        ! Interpolate to current grid as needed. 
-        
-        implicit none 
-
-        real(wp), intent(OUT) :: var2D(:,:)  
-        character(len=*),  intent(IN)    :: filename 
-        character(len=*),  intent(IN)    :: vname
-        character(len=*),  intent(IN)    :: domain 
-        character(len=*),  intent(IN)    :: grid_name  
-        
-        ! Local variables
-        integer :: nx, ny, n 
-        character(len=56) :: file_domain 
-        character(len=56) :: file_grid_name 
-        type(map_class) :: mp 
-
-        nx = size(var2D,1)
-        ny = size(var2D,2) 
-
-        ! Load restart file grid attributes 
-        if (nc_exists_attr(filename,"domain")) then 
-            call nc_read_attr(filename,"domain",    file_domain)
-        else 
-            file_domain = trim(domain)
-        end if 
-
-        if (nc_exists_attr(filename,"grid_name")) then 
-            call nc_read_attr(filename,"grid_name", file_grid_name)
-        else 
-            file_grid_name = trim(grid_name)
-        end if 
-
-        ! Determine which slice to get (last one)
-        n = nc_size(filename,"time")
-
-        if (trim(file_grid_name) .eq. trim(grid_name) ) then 
-            ! File's grid and yelmo grid are the same
-
-            ! Load the data without interpolation (by not specifying mp argument)
-            call nc_read(filename,vname,var2D,start=[1,1,n],count=[nx,ny,1])
-
-        else 
-            ! File's grid is different than Yelmo grid 
-
-            ! Load the scrip map from file (should already have been generated via cdo externally)
-            call map_read(mp,file_grid_name,grid_name,"maps","con")
-
-            call nc_read_interp(filename,vname,var2D,start=[1,1,n],count=[nx,ny,1],map=mp) 
-            
-        end if 
-
-        return 
-
-    end subroutine yelmo_read_interp_2D
 
     subroutine yelmo_restart_read_topo_bnd(tpo,bnd,tme,restart_interpolated,grd,domain,grid_name,filename,time)  
         ! Load yelmo variables from restart file: [tpo] 
@@ -709,13 +596,11 @@ contains
         n = 1 
 
         ! == time variables ===
-        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart)
+        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart;
+        ! pc_tau, pc_tau_masked and pc_tau_max are written as diagnostics only: the first
+        ! step computes them anew)
         call nc_read(filename,"pc_dt",       tme%pc_dt, start=[1,n],count=[3,1],ncid=ncid)
         call nc_read(filename,"pc_eta",      tme%pc_eta,start=[1,n],count=[3,1],ncid=ncid)
-        
-        call nc_read_interp(filename,"pc_tau",       tme%pc_tau,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"pc_tau_masked",tme%pc_tau_masked,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        call nc_read_interp(filename,"pc_tau_max",   tme%pc_tau_max,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
         
         ! == ytopo variables ===
         call nc_read_interp(filename,"H_ice",       tpo%now%H_ice,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
@@ -881,11 +766,9 @@ contains
         ! Open the file for writing
         call nc_open(filename,ncid,writable=.FALSE.)
         
-        ! == ytopo variables ===
+        ! (mask_bed, which depends on the thermodynamic state, is recomputed from
+        ! it by the next calc_ytopo_diagnostic)
 
-        ! Reload mask_bed since it contains thermodynamic information too
-        call nc_read_interp(filename,"mask_bed",      dom%tpo%now%mask_bed,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
-        
         ! == ydyn variables ===
 
         call nc_read_interp(filename,"ux",            dom%dyn%now%ux,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
@@ -1029,12 +912,6 @@ contains
         call nc_read_interp(filename,"strs2D_tau_eig_1",dom%mat%now%strs2D%tau_eig_1,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"strs2D_tau_eig_2",dom%mat%now%strs2D%tau_eig_2,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         
-        call nc_read_interp(filename,"strs_txx", dom%mat%now%strs%txx,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_tyy", dom%mat%now%strs%tyy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_txy", dom%mat%now%strs%txy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_txz", dom%mat%now%strs%txz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_tyz", dom%mat%now%strs%tyz,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
-        call nc_read_interp(filename,"strs_te",  dom%mat%now%strs%te,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
 
         ! == ytherm variables ===
 
@@ -1095,6 +972,22 @@ contains
         end if
         if (nc_exists_var(filename,"hyd_Q_sens")) then
             call nc_read_interp(filename,"hyd_Q_sens", dom%hyd%now%Q_sens, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        ! K24 warm-start state (added later): the face dissipation of the Picard
+        ! loop, and the routing of the last update used by hydro_N_from_ub
+        ! (k24_routed, k24_abs_g, k24_phi0). Older restarts will not have them;
+        ! keep the cold seed (diss_face = 0, k24_routed = .FALSE.), as for a cold start.
+        if (nc_exists_var(filename,"hyd_diss_face")) then
+            call nc_read_interp(filename,"hyd_diss_face", dom%hyd%now%diss_face, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_abs_g")) then
+            call nc_read_interp(filename,"hyd_k24_abs_g", dom%hyd%now%k24_abs_g, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_phi0")) then
+            call nc_read_interp(filename,"hyd_k24_phi0",  dom%hyd%now%k24_phi0,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_routed")) then
+            call nc_read(filename,"hyd_k24_routed", dom%hyd%now%k24_routed, start=[n],count=[1],ncid=ncid)
         end if
 
         ! Mark fasthydrology as initialized from the restart (state was
@@ -1599,18 +1492,6 @@ contains
                 call var_io_write(filename,vw,ylmo%mat%now%strs2D%tau_eig_1(i1:i2,j1:j2),n,ncid)
             case("strs2D_tau_eig_2")
                 call var_io_write(filename,vw,ylmo%mat%now%strs2D%tau_eig_2(i1:i2,j1:j2),n,ncid)
-            case("strs_txx") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txx(i1:i2,j1:j2,:),n,ncid)
-            case("strs_tyy") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%tyy(i1:i2,j1:j2,:),n,ncid)
-            case("strs_txy") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txy(i1:i2,j1:j2,:),n,ncid)
-            case("strs_txz") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%txz(i1:i2,j1:j2,:),n,ncid)
-            case("strs_tyz") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%tyz(i1:i2,j1:j2,:),n,ncid)
-            case("strs_te") ! 3D
-                call var_io_write(filename,vw,ylmo%mat%now%strs%te(i1:i2,j1:j2,:),n,ncid)
             
             case DEFAULT 
 
@@ -1835,6 +1716,12 @@ contains
                 call var_io_write(filename,vw,ylmo%hyd%now%Q_diss(i1:i2,j1:j2),n,ncid)
             case("hyd_Q_sens")
                 call var_io_write(filename,vw,ylmo%hyd%now%Q_sens(i1:i2,j1:j2),n,ncid)
+            case("hyd_diss_face")
+                call var_io_write(filename,vw,ylmo%hyd%now%diss_face(i1:i2,j1:j2),n,ncid)
+            case("hyd_k24_abs_g")
+                call var_io_write(filename,vw,ylmo%hyd%now%k24_abs_g(i1:i2,j1:j2),n,ncid)
+            case("hyd_k24_phi0")
+                call var_io_write(filename,vw,ylmo%hyd%now%k24_phi0(i1:i2,j1:j2),n,ncid)
 
             case DEFAULT
 

@@ -234,7 +234,6 @@ contains
         ! Initially set all points to True 
         mask = .TRUE. 
     
-if (.TRUE.) then 
         do j = 1, ny 
         do i = 1, nx
 
@@ -294,8 +293,6 @@ if (.TRUE.) then
             end if
         end do 
         end do  
-
-end if 
 
         return 
 
@@ -753,10 +750,7 @@ end if
         
         ! Local variables 
         real(wp) :: dt_adv_min 
-        real(wp) :: x 
         logical    :: is_unstable
-        real(wp), parameter :: dtmax_cfl   = 20.0_wp 
-        real(wp), parameter :: exp_cfl     =  2.0_wp 
         real(wp), parameter :: rate_lim    = 1.0_wp   ! Reduction in timestep for instability 
         real(wp), parameter :: rate_scalar = 0.05_wp  ! Reduction in timestep for instability 
 
@@ -773,14 +767,6 @@ end if
         ! will remain stable. 
 
         dt = dt_adv_min 
-
-        ! Apply additional reduction in timestep as it gets smaller
-        if (.FALSE.) then 
-            dt = max(dtmin,dt)          ! dt >= dtmin
-            dt = min(dtmax_cfl,dt)      ! dt <= dtmax_cfl
-            x = ((dt-dtmin)/(dtmax_cfl-dtmin))**exp_cfl
-            dt = dtmin + (dtmax-dtmin)*x
-        end if 
 
         ! Check if additional timestep reduction is necessary,
         ! due to checkerboard patterning related to mass conservation.
@@ -1116,16 +1102,17 @@ end if
 
     end subroutine yelmo_timestep_write
 
-    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps)
+    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps,outfldr)
 
         type(ytime_class), intent(INOUT) :: ytime
         integer,    intent(IN) :: nx, ny
         real(wp), intent(IN) :: dt_min, pc_eps
+        character(len=*), intent(IN) :: outfldr     ! Output folder of the timestep log
 
         ! Allocate ytime object
         call ytime_alloc(ytime,nx,ny)
 
-        ytime%log_timestep_file = "timesteps.nc" 
+        ytime%log_timestep_file = trim(outfldr)//"timesteps.nc" 
         
         ! Initialize information about previous timesteps to minimum
         ! timestep value and high error (to keep low timesteps initially)

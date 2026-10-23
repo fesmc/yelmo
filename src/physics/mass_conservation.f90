@@ -30,23 +30,14 @@ module mass_conservation
     
 contains 
     
-    subroutine check_mass_conservation(H_ice,f_ice,f_grnd,dHidt,mb_net,cmb,dHidt_dyn,smb,bmb,fmb,dmb, &
-                                                                mb_resid,mb_clip,dx,sec_year,time,dt,units,label)
+    subroutine check_mass_conservation(dHidt,mb_net,cmb,dHidt_dyn,mb_clip,dx,sec_year,time,dt,units,label)
 
         implicit none
 
-        real(wp), intent(IN) :: H_ice(:,:)
-        real(wp), intent(IN) :: f_ice(:,:)
-        real(wp), intent(IN) :: f_grnd(:,:)
         real(wp), intent(IN) :: dHidt(:,:)
         real(wp), intent(IN) :: mb_net(:,:)
         real(wp), intent(IN) :: cmb(:,:)
         real(wp), intent(IN) :: dHidt_dyn(:,:)
-        real(wp), intent(IN) :: smb(:,:)
-        real(wp), intent(IN) :: bmb(:,:)
-        real(wp), intent(IN) :: fmb(:,:)
-        real(wp), intent(IN) :: dmb(:,:)
-        real(wp), intent(IN) :: mb_resid(:,:)
         real(wp), intent(IN) :: mb_clip(:,:)            ! Clip of negative H after transport
         real(wp), intent(IN) :: dx 
         real(wp), intent(IN) :: sec_year
@@ -56,7 +47,6 @@ contains
         character(len=*), intent(IN) :: label 
 
         ! Local variables
-        integer  :: npts
         ! Totals are accumulated in double precision, so that the check
         ! does not add summation round-off of its own
         real(dp) :: tot_dHidt

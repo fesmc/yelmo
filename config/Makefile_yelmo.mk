@@ -63,12 +63,8 @@ $(objdir)/ice_enthalpy.o : $(srcdir)/physics/ice_enthalpy.f90 $(objdir)/yelmo_de
 
 $(objdir)/mass_conservation.o : $(srcdir)/physics/mass_conservation.f90 $(objdir)/yelmo_defs.o \
 								$(objdir)/solver_advection.o $(objdir)/solver_advection_sico.o \
-								$(objdir)/solver_advection_new.o \
 								$(objdir)/topography.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
-
-$(objdir)/runge_kutta.o: $(srcdir)/physics/runge_kutta.f90 $(objdir)/yelmo_defs.o $(objdir)/mass_conservation.o
-	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/solver_ssa_ac.o: $(srcdir)/physics/solver_ssa_ac.f90 $(objdir)/yelmo_defs.o \
 							$(objdir)/yelmo_tools.o $(objdir)/solver_linear.o
@@ -93,10 +89,6 @@ $(objdir)/solver_advection.o: $(srcdir)/physics/solver_advection.f90 $(objdir)/y
 $(objdir)/solver_advection_sico.o : $(srcdir)/physics/solver_advection_sico.F90 $(objdir)/yelmo_defs.o \
 										$(objdir)/solver_linear.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_LINEAR) -c -o $@ $<
-
-$(objdir)/solver_advection_new.o: $(srcdir)/physics/solver_advection_new.f90 $(objdir)/yelmo_defs.o \
-								$(objdir)/yelmo_tools.o
-	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/topography.o: $(srcdir)/physics/topography.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tools.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
@@ -136,9 +128,6 @@ $(objdir)/yelmo_defs.o: $(srcdir)/yelmo_defs.f90 \
 $(objdir)/yelmo_grid.o: $(srcdir)/yelmo_grid.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
-$(objdir)/yelmo_regridding.o : $(srcdir)/yelmo_regridding.f90 $(objdir)/yelmo_defs.o
-	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
-
 $(objdir)/yelmo_symmetry.o: $(srcdir)/yelmo_symmetry.f90 $(objdir)/yelmo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -153,7 +142,6 @@ $(objdir)/yelmo_topography.o: $(srcdir)/yelmo_topography.f90 $(objdir)/yelmo_def
 							  $(objdir)/yelmo_grid.o $(objdir)/yelmo_tools.o  \
  							  $(objdir)/mass_conservation.o $(objdir)/calving_ac.o $(objdir)/calving_aa.o $(objdir)/lsf_module.o \
 							  $(objdir)/discharge.o \
- 							  $(objdir)/runge_kutta.o \
  							  $(objdir)/topography.o $(objdir)/velocity_general.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
@@ -195,9 +183,6 @@ $(objdir)/yelmo_remapping.o: $(srcdir)/yelmo_remapping.f90 $(objdir)/yelmo_defs.
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_io.o: $(srcdir)/yelmo_io.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tracers.o $(objdir)/yelmo_remapping.o
-	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
-
-$(objdir)/control.o: control.f90
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/yelmo_ice.o: $(srcdir)/yelmo_ice.f90 $(objdir)/yelmo_defs.o  \
@@ -252,14 +237,12 @@ yelmo_physics =  	   $(objdir)/basal_dragging.o \
 					   $(objdir)/ice_tracer.o \
 					   $(objdir)/ice_enthalpy.o \
 					   $(objdir)/mass_conservation.o \
-					   $(objdir)/runge_kutta.o \
 					   $(objdir)/solver_ssa_ac.o \
 					   $(objdir)/solver_ssa_ac_energy.o \
 					   $(objdir)/solver_linear.o \
 					   $(objdir)/solver_tridiagonal.o \
 					   $(objdir)/solver_advection.o \
 					   $(objdir)/solver_advection_sico.o \
-					   $(objdir)/solver_advection_new.o \
 					   $(objdir)/topography.o \
 					   $(objdir)/velocity_general.o \
 					   $(objdir)/velocity_sia.o \
@@ -268,7 +251,6 @@ yelmo_physics =  	   $(objdir)/basal_dragging.o \
 
 yelmo_base =		   $(objdir)/yelmo_defs.o \
 					   $(objdir)/yelmo_grid.o \
-					   $(objdir)/yelmo_regridding.o \
 					   $(objdir)/yelmo_symmetry.o \
 	                   $(objdir)/yelmo_tools.o \
 			 		   $(objdir)/yelmo_timesteps.o \
@@ -290,12 +272,4 @@ yelmo_tests = 		   $(objdir)/ice_benchmarks.o \
 					   $(objdir)/calving_benchmarks.o \
 					   $(objdir)/mismip3D.o \
 					   $(objdir)/bench_forcing.o
-
-# Extras for testing 
-yelmo_thermo =         $(objdir)/yelmo_defs.o \
-					   $(objdir)/yelmo_grid.o \
-	                   $(objdir)/yelmo_tools.o \
-	                   $(objdir)/interp1D.o \
-			 		   $(objdir)/thermodynamics.o \
-					   $(objdir)/ice_enthalpy.o
 

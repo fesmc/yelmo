@@ -36,7 +36,7 @@
     log_timestep    = False 
     log_mb_check    = False             ! Print global mass-budget check (residual) every timestep
     disable_kill    = False             ! Disable automatic kill if unstable
-    zeta_scale      = "exp"             ! "linear", "exp", "tanh"
+    zeta_scale      = "exp"             ! "linear", "exp", "tanh", "exp-inv"
     zeta_exp        = 2.0  
     nz_aa           = 10                ! Vertical resolution in ice
     dt_method       = 2                 ! 0: no internal timestep, 1: adaptive, cfl, 2: adaptive, pc

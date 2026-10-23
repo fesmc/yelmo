@@ -53,12 +53,17 @@ contains
 
         dta%pd%err_H_ice   = tpo%now%H_ice - dta%pd%H_ice 
         dta%pd%err_z_srf   = tpo%now%z_srf - dta%pd%z_srf 
+        dta%pd%err_z_bed   = bnd%z_bed     - dta%pd%z_bed 
         where (dta%pd%smb .ne. mv)
             dta%pd%err_smb = bnd%smb - dta%pd%smb
         elsewhere
             dta%pd%err_smb = mv
         end where
-        dta%pd%err_uxy_s   = dyn%now%uxy_s - dta%pd%uxy_s 
+        where (dta%pd%uxy_s .ne. mv)
+            dta%pd%err_uxy_s = dyn%now%uxy_s - dta%pd%uxy_s
+        elsewhere
+            dta%pd%err_uxy_s = mv
+        end where
         
         ! Isochronal layer error 
         dta%pd%err_depth_iso = mv
@@ -127,7 +132,7 @@ contains
         ! == rmse[Surface velocity] ===================
         tmp = dta%pd%err_uxy_s
 
-        mask = tmp .ne. 0.0 .and. mask_region 
+        mask = tmp .ne. 0.0 .and. tmp .ne. mv .and. mask_region 
          
         if (count(mask) .gt. 0) then
             dta%pd%rmse_uxy = sqrt(sum(tmp**2,mask=mask)/count(mask))
@@ -143,7 +148,7 @@ contains
         tmp1 = dyn%now%uxy_s 
         where(dyn%now%uxy_s .gt. 0.0) tmp1 = log(tmp1)
         
-        mask = (tmp .ne. 0.0 .or. tmp1 .ne. 0.0) .and. mask_region 
+        mask = (tmp .ne. 0.0 .or. tmp1 .ne. 0.0) .and. dta%pd%uxy_s .ne. mv .and. mask_region 
         
         if (count(mask) .gt. 0) then 
             dta%pd%rmse_loguxy = sqrt(sum((tmp1-tmp)**2,mask=mask)/count(mask))
@@ -156,7 +161,7 @@ contains
         ! == rmse[isochronal layer depth] ============
 
         do q1 = 1, dta%par%pd_age_n_iso
-            mask = dta%pd%err_depth_iso(:,:,q1) .ne. mv
+            mask = dta%pd%err_depth_iso(:,:,q1) .ne. mv .and. mask_region
             if (count(mask) .gt. 0) then 
                 dta%pd%rmse_iso(q1) = sqrt( sum(dta%pd%err_depth_iso(:,:,q1)**2,mask=mask) / count(mask) )
             else 
@@ -202,6 +207,10 @@ contains
         allocate(z_bed_sd(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2)))
         allocate(tmp(size(dta%pd%H_ice,1),size(dta%pd%H_ice,2),12))
 
+        ! No bedrock roughness unless loaded below
+        z_bed_sd   = 0.0_wp
+        z_bed_f_sd = 0.0_wp
+
         ! Present-day topography supplied by the driver counts as loaded
         if (present(topo_pd)) dta%par%pd_topo_load = .TRUE.
 
@@ -217,7 +226,6 @@ contains
                 dta%pd%z_srf = topo_pd%z_srf
             
                 has_sd = allocated(topo_pd%z_bed_sd)
-                z_bed_sd = 0.0_wp
                 if (has_sd) z_bed_sd = topo_pd%z_bed_sd
 
             else
@@ -237,7 +245,6 @@ contains
                           trim(nms(3)) .ne. "none" .and. &
                           trim(nms(3)) .ne. "None")
 
-                z_bed_sd = 0.0_wp
                 if (has_sd) call nc_read(filename,nms(3),z_bed_sd, missing_value=mv)
 
                 call nc_read(filename,nms(4), dta%pd%z_srf, missing_value=mv)
@@ -264,11 +271,6 @@ contains
                 ! Apply scaling to adjust z_bed depending on standard deviation
                 ! Use scaling suppied as input argument
                 dta%pd%z_bed = dta%pd%z_bed + z_bed_f_sd*z_bed_sd 
-
-            else 
-                ! No scaling loaded or applied
-
-                z_bed_f_sd = 0.0_wp
 
             end if 
             
@@ -345,8 +347,11 @@ contains
 
             call nc_read(filename,nms(1), dta%pd%ux_s, missing_value=mv)
             call nc_read(filename,nms(2), dta%pd%uy_s, missing_value=mv)
-            where (dta%pd%ux_s .ne. mv .and. dta%pd%uy_s .ne. mv) &
+            where (dta%pd%ux_s .ne. mv .and. dta%pd%uy_s .ne. mv)
                 dta%pd%uxy_s = sqrt(dta%pd%ux_s**2 + dta%pd%uy_s**2)
+            elsewhere
+                dta%pd%uxy_s = mv
+            end where
 
         end if 
 
@@ -527,7 +532,7 @@ contains
         character(len=*), parameter :: def_data = "yelmo_data"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group,defaults_group=def_data)
 
