@@ -1625,7 +1625,7 @@ end if
         character(len=*), parameter :: def_ycalv = "ycalv"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         ! Reject typos in the user file under either group
         call nml_validate(filename,def_file,group_ytopo,defaults_group=def_ytopo)
