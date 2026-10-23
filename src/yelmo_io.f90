@@ -426,6 +426,9 @@ contains
         call nc_write(filename,"bnd_time_n",     dom%bnd%time_n,     units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
         call nc_write(filename,"bnd_rates_init", dom%bnd%rates_init, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
+        ! K24 routing done (hyd_k24_abs_g, hyd_k24_phi0 are in the yhyd table)
+        call nc_write(filename,"hyd_k24_routed", dom%hyd%now%k24_routed, units="1", dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
+
         ! Reference time of the Eulerian tracer (t_dep_euler = t_ref_euler + t_dep_euler_rel)
         call nc_write(filename,"t_ref_euler",    dom%trc%par%t_ref_euler, units="yr",dim1="time",ncid=ncid,start=[n],count=[1],grid_mapping="")
 
@@ -1095,6 +1098,22 @@ contains
         end if
         if (nc_exists_var(filename,"hyd_Q_sens")) then
             call nc_read_interp(filename,"hyd_Q_sens", dom%hyd%now%Q_sens, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        ! K24 warm-start state (added later): the face dissipation of the Picard
+        ! loop, and the routing of the last update used by hydro_N_from_ub
+        ! (k24_routed, k24_abs_g, k24_phi0). Older restarts will not have them;
+        ! keep the cold seed (diss_face = 0, k24_routed = .FALSE.), as for a cold start.
+        if (nc_exists_var(filename,"hyd_diss_face")) then
+            call nc_read_interp(filename,"hyd_diss_face", dom%hyd%now%diss_face, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_abs_g")) then
+            call nc_read_interp(filename,"hyd_k24_abs_g", dom%hyd%now%k24_abs_g, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_phi0")) then
+            call nc_read_interp(filename,"hyd_k24_phi0",  dom%hyd%now%k24_phi0,  ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+        end if
+        if (nc_exists_var(filename,"hyd_k24_routed")) then
+            call nc_read(filename,"hyd_k24_routed", dom%hyd%now%k24_routed, start=[n],count=[1],ncid=ncid)
         end if
 
         ! Mark fasthydrology as initialized from the restart (state was
@@ -1835,6 +1854,12 @@ contains
                 call var_io_write(filename,vw,ylmo%hyd%now%Q_diss(i1:i2,j1:j2),n,ncid)
             case("hyd_Q_sens")
                 call var_io_write(filename,vw,ylmo%hyd%now%Q_sens(i1:i2,j1:j2),n,ncid)
+            case("hyd_diss_face")
+                call var_io_write(filename,vw,ylmo%hyd%now%diss_face(i1:i2,j1:j2),n,ncid)
+            case("hyd_k24_abs_g")
+                call var_io_write(filename,vw,ylmo%hyd%now%k24_abs_g(i1:i2,j1:j2),n,ncid)
+            case("hyd_k24_phi0")
+                call var_io_write(filename,vw,ylmo%hyd%now%k24_phi0(i1:i2,j1:j2),n,ncid)
 
             case DEFAULT
 

@@ -1529,8 +1529,8 @@ contains
         ! Initialize variables
 
         ! Seed fasthydrology's state from current topo / boundary fields.
-        ! Done unconditionally (commit 2 does not wire hyd into the
-        ! restart yet — it always cold-starts from init_method).
+        ! Done unconditionally: on a restart, yelmo_restart_init then
+        ! overwrites the seed with the hydrology state of the restart file.
         call yhyd_init_state(dom%hyd,dom%bnd,dom%tpo,time)
 
         if (dom%par%use_restart) then
