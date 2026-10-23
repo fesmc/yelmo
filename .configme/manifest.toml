@@ -3,8 +3,8 @@
 # dependency tags.
 package = "yelmo"
 deps = [
-    "fesm-utils:v1.4",
-    "FastHydrology:v0.4",
-    "elsa:v3.1.0",
-    "tracer:v0.2",
+    "fesm-utils:stable",
+    "FastHydrology:stable",
+    "elsa:stable",
+    "tracer:stable",
 ]
