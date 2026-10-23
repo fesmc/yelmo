@@ -2,7 +2,6 @@
 module yelmo_dynamics
 
     use nml 
-    use ncio 
 
     use yelmo_defs
     use yelmo_tools, only : calc_magnitude_from_staggered, calc_vertical_integrated_2D, &
@@ -63,9 +62,6 @@ contains
         real(wp), allocatable :: uxy_prev(:,:) 
         real(wp), allocatable :: dzsdx_c(:,:), dzsdy_c(:,:)
         real(wp), allocatable :: dzbdx_c(:,:), dzbdy_c(:,:)
-
-        logical, parameter :: write_ssa_diagnostics = .FALSE.
-
 
         nx    = dyn%par%nx 
         ny    = dyn%par%ny 
@@ -354,14 +350,6 @@ contains
         model_time1 = dyn%par%time 
         call yelmo_calc_speed(dyn%par%speed,model_time0,model_time1,cpu_time0,cpu_time1)
 
-        if (write_ssa_diagnostics) then 
-            ! Write diagnostic output every timestep
-            ! This could also be called internal to each Picard iteration,
-            ! but this lets us see a snapshot after each full dynamics solve.
-            call yelmo_write_init_ssa("ssa.nc",dyn%par%nx,dyn%par%ny,real(time,wp))
-            call write_step_2D_ssa(tpo,dyn,"ssa.nc",real(time,wp))
-        end if 
-
         return
 
     contains
@@ -579,9 +567,6 @@ contains
 
         type(diva_param_class) :: diva_par 
 
-        ! For vertical velocity calculation 
-        real(wp), allocatable :: bmb(:,:)
-
         ! Determine whether basal sliding is allowed 
         if (trim(dyn%par%solver) .eq. "diva-noslip") then 
             no_slip = .TRUE. 
@@ -593,8 +578,6 @@ contains
         ny    = dyn%par%ny 
         nz_aa = dyn%par%nz_aa 
         nz_ac = dyn%par%nz_ac 
-        
-        allocate(bmb(nx,ny))
         
         ! ===== Calculate 3D horizontal velocity solution via DIVA algorithm ===================
 
@@ -1246,156 +1229,5 @@ contains
         return 
 
     end subroutine ydyn_dealloc
-    
-    subroutine yelmo_write_init_ssa(filename,nx,ny,time_init)
 
-        implicit none 
-
-        character(len=*),  intent(IN) :: filename 
-        integer,           intent(IN) :: nx 
-        integer,           intent(IN) :: ny
-        real(wp),        intent(IN) :: time_init
-
-        ! Initialize netcdf file and dimensions
-        call nc_create(filename)
-        call nc_write_dim(filename,"xc",     x=0.0_wp,dx=1.0_wp,nx=nx,units="gridpoints")
-        call nc_write_dim(filename,"yc",     x=0.0_wp,dx=1.0_wp,nx=ny,units="gridpoints")
-        call nc_write_dim(filename,"time",   x=time_init,dx=1.0_wp,nx=1,units="iter",unlimited=.TRUE.)
-
-        return
-
-    end subroutine yelmo_write_init_ssa
-
-    subroutine write_step_2D_ssa(tpo,dyn,filename,time)
-
-        implicit none 
-        
-        type(ytopo_class), intent(IN) :: tpo 
-        type(ydyn_class),  intent(IN) :: dyn 
-        character(len=*),  intent(IN) :: filename 
-        real(wp), intent(IN) :: time
-
-        ! Local variables
-        integer    :: ncid, n, i, j, nx, ny  
-        real(wp) :: time_prev 
-
-        nx = tpo%par%nx 
-        ny = tpo%par%ny 
-
-        ! Open the file for writing
-        call nc_open(filename,ncid,writable=.TRUE.)
-
-        ! Determine current writing time step 
-        n = nc_size(filename,"time",ncid)
-        call nc_read(filename,"time",time_prev,start=[n],count=[1],ncid=ncid) 
-        if (abs(time-time_prev).gt.1e-5) n = n+1 
-
-        ! Update the time step
-        call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
-
-        ! == yelmo_topography ==
-        call nc_write(filename,"H_ice",tpo%now%H_ice,units="m",long_name="Ice thickness", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"z_srf",tpo%now%z_srf,units="m",long_name="Surface elevation", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"mask_bed",tpo%now%mask_bed,units="",long_name="Bed mask", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"dzsdt",tpo%now%dzsdt,units="m/a",long_name="Surface elevation change", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"dHidt",tpo%now%dHidt,units="m/a",long_name="Ice thickness change", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"H_grnd",tpo%now%H_grnd,units="m",long_name="Ice thickness overburden", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"f_grnd",tpo%now%f_grnd,units="1",long_name="Grounded fraction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_grnd_acx",tpo%now%f_grnd_acx,units="1",long_name="Grounded fraction (acx)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_grnd_acy",tpo%now%f_grnd_acy,units="1",long_name="Grounded fraction (acy)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_ice",tpo%now%f_ice,units="1",long_name="Ice-covered fraction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-
-        call nc_write(filename,"cmb",tpo%now%cmb,units="m/a",long_name="Calving mass balance rate", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-
-        ! == yelmo_dynamics ==
-
-        call nc_write(filename,"ssa_mask_acx",dyn%now%ssa_mask_acx,units="1",long_name="SSA mask (acx)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"ssa_mask_acy",dyn%now%ssa_mask_acy,units="1",long_name="SSA mask (acy)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-
-        call nc_write(filename,"c_bed",dyn%now%c_bed,units="Pa",long_name="Dragging coefficient", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"f_slide",dyn%now%f_slide,units="1",long_name="Frozen-bed sliding-speed factor", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"N_eff",dyn%now%N_eff,units="Pa",long_name="Effective pressure", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"beta",dyn%now%beta,units="Pa a m^-1",long_name="Dragging coefficient", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"beta_acx",dyn%now%beta_acx,units="Pa a m^-1",long_name="Dragging coefficient (acx)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"beta_acy",dyn%now%beta_acy,units="Pa a m^-1",long_name="Dragging coefficient (acy)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"dyn_visc_eff_int",dyn%now%visc_eff_int,units="Pa a",long_name="Vertically integrated effective viscosity", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-
-        call nc_write(filename,"taud_acx",dyn%now%taud_acx,units="Pa",long_name="Driving stress, x-direction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"taud_acy",dyn%now%taud_acy,units="Pa",long_name="Driving stress, y-direction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-!         call nc_write(filename,"ux_i_bar",dyn%now%ux_i_bar,units="m/a",long_name="Internal shear velocity (x)", &
-!                        dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-!         call nc_write(filename,"uy_i_bar",dyn%now%uy_i_bar,units="m/a",long_name="Internal shear velocity (y)", &
-!                        dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-!         call nc_write(filename,"uxy_i_bar",dyn%now%uxy_i_bar,units="m/a",long_name="Internal shear velocity magnitude", &
-!                        dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"taul_int_acx",dyn%now%taul_int_acx,units="Pa m",long_name="Vertically integrated lateral boundary stress, x-direction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"taul_int_acy",dyn%now%taul_int_acy,units="Pa m",long_name="Vertically integrated lateral boundary stress, y-direction", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"ux_bar",dyn%now%ux_bar,units="m/a",long_name="Depth-averaged velocity (x)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"uy_bar",dyn%now%uy_bar,units="m/a",long_name="Depth-averaged velocity (y)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"uxy_bar",dyn%now%uxy_bar,units="m/a",long_name="Depth-averaged velocity magnitude", &
-                     dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"ux_bar_diff",dyn%now%ux_bar-dyn%now%ux_bar_prev,units="m/a",long_name="Depth-averaged velocity difference (x)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"uy_bar_diff",dyn%now%uy_bar-dyn%now%uy_bar_prev,units="m/a",long_name="Depth-averaged velocity difference (y)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        call nc_write(filename,"ssa_err_acx",dyn%now%ssa_err_acx,units="1",long_name="SSA L1 error metric (x)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        call nc_write(filename,"ssa_err_acy",dyn%now%ssa_err_acy,units="1",long_name="SSA L1 error metric (y)", &
-                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-!         call nc_write(filename,"ux",dyn%now%ux,units="m/a",long_name="Horizontal velocity (x)", &
-!                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-!         call nc_write(filename,"uy",dyn%now%uy,units="m/a",long_name="Horizontal velocity (y)", &
-!                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-!         call nc_write(filename,"uxy",dyn%now%uxy,units="m/a",long_name="Horizontal velocity magnitude", &
-!                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-!         call nc_write(filename,"uz",dyn%now%uz,units="m/a",long_name="Vertical velocity", &
-!                       dim1="xc",dim2="yc",dim3="zeta",dim4="time",start=[1,1,1,n],ncid=ncid)
-
-!         call nc_write(filename,"f_vbvs",dyn%now%f_vbvs,units="1",long_name="Basal to surface velocity fraction", &
-!                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-!         call nc_write(filename,"f_shear_bar",mat%now%f_shear_bar,units="1",long_name="Vertically averaged shearing fraction", &
-!                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],ncid=ncid)
-        
-        ! Close the netcdf file
-        call nc_close(ncid)
-
-        return 
-
-    end subroutine write_step_2D_ssa
-    
 end module yelmo_dynamics

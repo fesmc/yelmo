@@ -2,7 +2,7 @@ module velocity_ssa
     ! This module solves for the ice sheet's horizontal velocity field (ux,uy)
     ! using the shallow-shelf approximation (SSA). 
 
-    use yelmo_defs ,only  : sp, dp, wp, tol_underflow, pi
+    use yelmo_defs ,only  : sp, dp, wp, tol_underflow
     use yelmo_tools, only : boundary_code, get_neighbor_indices_bc_codes, & 
                     integrate_trapezoid1D_1D, minmax
 
@@ -12,7 +12,6 @@ module velocity_ssa
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
     use solver_linear
     use velocity_general, only : set_inactive_margins, calc_visc_eff_int, &
-                        picard_calc_error, picard_calc_error_angle, &
                         picard_relax_vel, picard_relax_visc, &
                         picard_calc_convergence_l1rel_matrix, picard_calc_convergence_l2
 
@@ -120,14 +119,6 @@ contains
         real(wp), allocatable :: lim_r_acx(:,:)       ! [Pa] Linearised speed-limit drag, offset
         real(wp), allocatable :: lim_r_acy(:,:)
         
-        integer,  allocatable :: ssa_mask_acx_ref(:,:)
-        integer,  allocatable :: ssa_mask_acy_ref(:,:)
-
-        real(wp), allocatable :: corr_nm1(:) 
-        real(wp), allocatable :: corr_nm2(:) 
-        
-        real(wp) :: corr_theta
-        real(wp) :: corr_rel 
         real(wp) :: L2_norm 
         real(wp) :: ssa_resid 
 
@@ -158,23 +149,10 @@ contains
         lim_r_acy = 0.0_wp
         beta_ssa_acx = beta_acx     ! (set in each iteration below)
         beta_ssa_acy = beta_acy
-        
-        allocate(ssa_mask_acx_ref(nx,ny))
-        allocate(ssa_mask_acy_ref(nx,ny))
-
-        allocate(corr_nm1(2*nx*ny))
-        allocate(corr_nm2(2*nx*ny))
-
-        ! Store original ssa mask before iterations
-        ssa_mask_acx_ref = ssa_mask_acx
-        ssa_mask_acy_ref = ssa_mask_acy
             
         ! Initially set error very high 
         ssa_err_acx = 1.0_wp 
         ssa_err_acy = 1.0_wp 
-        
-        corr_nm1 = 0.0_wp 
-        corr_nm2 = 0.0_wp 
 
         ! Ensure dynamically inactive cells have no velocity at 
         ! outer margins before starting iterations
@@ -288,10 +266,6 @@ contains
             ! =========================================================================================
             ! Step 2: Call the SSA solver to obtain new estimate of ux_b/uy_b
 
-
-if (.TRUE.) then 
-! ajr: set to False to impose fixed velocity solution (stream-s06 testing)!!
-            
             ! Populate ssa matrices Ax=b
             select case(trim(par%ssa_solver))
                 case("energy")
@@ -327,37 +301,8 @@ if (.TRUE.) then
             ! lateral-bc front rows have no drag term.
             call ssa_vel_clip(ux_b,uy_b,par%ssa_vel_max)
 
-end if 
-
-
-! ajr: note that for MISMIP3D experiments to converge well,
-! a value of par%ssa_iter_conv <= 1e-3 is needed if also
-! using the adaptive relaxation scheme with corr_theta below.
-! If using a constant relaxation of par%ssa_iter_rel=0.7,
-! then par%ssa_iter_conv = 1e-2 is sufficient for proper performance.
-! For Antarctica, the adaptive method can give some strange
-! convergence issues. It has been disabled for now (2022-02-09).
-if (.FALSE.) then
-            ! Calculate errors 
-            corr_nm2 = corr_nm1 
-            call picard_calc_error(corr_nm1,ux_b,uy_b,ux_b_nm1,uy_b_nm1)
-
-            ! Calculate error angle 
-            call picard_calc_error_angle(corr_theta,corr_nm1,corr_nm2) 
-
-            if (corr_theta .le. pi/8.0_wp) then 
-                corr_rel = 2.5_wp 
-            else if (corr_theta .lt. 19.0_wp*pi/20.0_wp) then 
-                corr_rel = 1.0_wp 
-            else 
-                corr_rel = 0.5_wp 
-            end if 
-else
-            corr_rel = par%ssa_iter_rel
-end if
-
             ! Apply relaxation to keep things stable
-            call picard_relax_vel(ux_b,uy_b,ux_b_nm1,uy_b_nm1,rel=corr_rel)
+            call picard_relax_vel(ux_b,uy_b,ux_b_nm1,uy_b_nm1,rel=par%ssa_iter_rel)
             
             ! Check for convergence
             call picard_calc_convergence_l2(is_converged,ssa_resid,ux_b,uy_b,ux_b_nm1,uy_b_nm1, &

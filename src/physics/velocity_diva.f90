@@ -10,7 +10,6 @@ module velocity_diva
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
     use solver_linear
     use velocity_general, only : set_inactive_margins, calc_visc_eff_int, &
-                        picard_calc_error, picard_calc_error_angle,  &
                         picard_relax_vel, picard_relax_visc, &
                         picard_calc_convergence_l1rel_matrix, picard_calc_convergence_l2 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -424,14 +423,6 @@ contains
             uy_i(:,:,k) = uy(:,:,k) - uy_b 
         end do
         !$omp end parallel do
-    
-if (.FALSE.) then
-        if (par%visc_method .eq. 0) then 
-            ! Diagnose viscosity for visc_method=0 (not used prognostically)
-            call calc_visc_eff_3D_nodes(visc_eff,ux_bar,uy_bar,duxdz,duydz,ATT,H_ice,f_ice,zeta_aa, &
-                                                            dx,dy,n_glen,par%eps_0,par%boundaries)
-        end if 
-end if
 
         return 
 

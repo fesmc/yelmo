@@ -31,8 +31,6 @@ module velocity_general
     public :: calc_vel_ratio
     public :: calc_visc_eff_int
 
-    public :: picard_calc_error 
-    public :: picard_calc_error_angle 
     public :: picard_calc_convergence_l1rel_matrix
     public :: picard_calc_convergence_l2
     public :: picard_relax_vel
@@ -105,8 +103,6 @@ contains
         real(wp) :: dzbdyn(4)
         real(wp) :: dzsdxn(4)
         real(wp) :: dzsdyn(4)
-        real(wp) :: dudxn(4) 
-        real(wp) :: dvdyn(4) 
         real(wp) :: uxn_up(4) 
         real(wp) :: uxn_dn(4) 
         real(wp) :: uxn(4) 
@@ -122,30 +118,22 @@ contains
         real(wp) :: dzsdt_now
         real(wp) :: dzbdt_now 
         
-        logical, allocatable :: is_ice(:,:)
-        
-
         logical, allocatable :: act_acx(:,:), act_acy(:,:)
 
         type(gq2D_class) :: gq2D, gq2D_global
         type(gq3D_class) :: gq3D, gq3D_global
-        real(wp) :: dz0, dz1
         integer  :: km1, kp1
-        logical, parameter :: use_gq3D = .TRUE.
 
         integer  :: BC
 
         ! Initialize gaussian quadrature calculations
         call gq2D_init(gq2D_global)
-        if (use_gq3D) call gq3D_init(gq3D_global)
+        call gq3D_init(gq3D_global)
 
         nx    = size(ux,1)
         ny    = size(ux,2)
         nz_aa = size(zeta_aa,1)
         nz_ac = size(zeta_ac,1) 
-        
-        allocate(is_ice(nx,ny))
-        is_ice = (f_ice .eq. 1.0)
         
         ! Initialize vertical velocity to zero 
         uz = 0.0 
@@ -171,7 +159,7 @@ contains
         !$omp& private(i,j,im1,ip1,jm1,jp1,gq2D,gq3D) &
         !$omp& private(dzsdt_now,dzbdt_now,H_now,H_inv,dzbdxn,dzbdx_aa,dzbdyn,dzbdy_aa) &
         !$omp& private(dzsdxn,dzsdx_aa,dzsdyn,dzsdy_aa,uxn,ux_aa,uyn,uy_aa,uz_grid,k,kmid) &
-        !$omp& private(dudxn,dudx_aa,dvdyn,dvdy_aa,km1,kp1,dz0,dudxn8,dvdyn8) &
+        !$omp& private(dudx_aa,dvdy_aa,km1,kp1,dudxn8,dvdyn8) &
         !$omp& private(kup,kdn,uxn_up,uxn_dn,uyn_up,uyn_dn,zeta_now,c_x,c_y,c_t,c_z) &
         !$omp& shared(gq2D_global,gq3D_global)
         gq2D = gq2D_global
@@ -240,39 +228,20 @@ contains
                     ! Note: center of cell below this one is zeta_aa(k-1)
                     kmid = k-1
 
-                    ! Get dudz/dvdz values at vertical aa-nodes, in order
+                    ! Get dudx/dvdy values at vertical aa-nodes (3D quadrature), in order
                     ! to vertically integrate each cell up to ac-node border.
-
-if (.not. use_gq3D) then
-    ! 2D QUADRATURE
-
-                    call gq2D_to_nodes_acx(gq2d,dudxn,jvel%dxx(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acx)
-                    dudx_aa = sum(dudxn*gq2d%wt)/gq2d%wt_tot
-
-                    call gq2D_to_nodes_acy(gq2d,dvdyn,jvel%dyy(:,:,kmid),dx,dy,i,j,im1,ip1,jm1,jp1,act=act_acy)
-                    dvdy_aa = sum(dvdyn*gq2d%wt)/gq2d%wt_tot
-
-else 
-    ! 3D QUADRATURE
+                    ! (The dz arguments, 0 here, are not used by the gq3D mapping.)
 
                     km1 = kmid-1
                     kp1 = kmid+1
                     if (kmid .eq. 1)  km1 = 1
                     if (kmid .eq. nz_aa) kp1 = nz_aa
 
-                    if (kmid .gt. 1) then
-                        dz0 = H_ice(i,j)*(zeta_aa(kmid) - zeta_aa(km1))
-                    else
-                        dz0 = H_ice(i,j)*(zeta_aa(2) - zeta_aa(1))
-                    end if
-
-                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
+                    call gq3D_to_nodes_acx(gq3D,dudxn8,jvel%dxx,dx,dy,0.0_wp,0.0_wp,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acx)
                     dudx_aa = sum(dudxn8*gq3D%wt)/gq3D%wt_tot
 
-                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,dz0,dz1,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
+                    call gq3D_to_nodes_acy(gq3D,dvdyn8,jvel%dyy,dx,dy,0.0_wp,0.0_wp,i,j,kmid,im1,ip1,jm1,jp1,km1,kp1,act=act_acy)
                     dvdy_aa = sum(dvdyn8*gq3D%wt)/gq3D%wt_tot
-
-end if 
 
                     ! Calculate vertical velocity of this layer
                     ! (Greve and Blatter, 2009, Eq. 5.95)
@@ -1177,22 +1146,12 @@ end if
         integer    :: im1, ip1, jm1, jp1 
         real(wp) :: dy, rhog 
         real(wp) :: H_mid
-        real(wp) :: taud_mean 
-        real(wp) :: taud_eps
-
-        real(wp) :: taud_eps_lim = 0.4
-
-        real(wp), allocatable :: taud_acx_0(:,:)
-        real(wp), allocatable :: taud_acy_0(:,:)
 
         integer  :: BC
 
         nx = size(H_ice,1)
         ny = size(H_ice,2) 
 
-        allocate(taud_acx_0(nx,ny))
-        allocate(taud_acy_0(nx,ny))
-        
         ! Define shortcut parameter 
         rhog = rho_ice * g 
 
@@ -1240,52 +1199,6 @@ end if
         end do
         end do 
         !$omp end parallel do
-
-        ! SPECIAL CASES: edge cases for stability...
-
-if (.FALSE.) then
-        taud_acx_0 = taud_acx 
-        taud_acy_0 = taud_acy 
-
-        do j = 1, ny 
-        do i = 1, nx 
-
-            ! Get neighbor indices
-            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-            ! === x-direction ===
-
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(ip1,j) .eq. 1.0_wp) then 
-
-                taud_mean = 0.5*(taud_acx_0(im1,j)+taud_acx_0(ip1,j))
-                taud_eps  = (taud_acx_0(i,j) - taud_mean) / taud_lim
-
-                if (abs(taud_acx_0(i,j)) .eq. taud_lim .and. abs(taud_eps) .gt. taud_eps_lim) then 
-                    ! Set driving stress equal to weighted average of neighbors
-                    taud_acx(i,j) = 0.20*taud_acx_0(i,j) + 0.40*taud_acx_0(im1,j)+ 0.40*taud_acx_0(ip1,j)
-                end if 
-
-            end if
-
-            ! === y-direction ===
-
-            if (f_ice(i,j) .eq. 1.0_wp .and. f_ice(i,jp1) .eq. 1.0_wp) then 
-
-                taud_mean = 0.5*(taud_acy_0(i,jm1)+taud_acy_0(i,jp1))
-                taud_eps  = (taud_acy_0(i,j) - taud_mean) / taud_lim
-
-                if (abs(taud_acy_0(i,j)) .eq. taud_lim .and. abs(taud_eps) .gt. taud_eps_lim) then 
-                    ! Set driving stress equal to weighted average of neighbors
-                    taud_acy(i,j) = 0.20*taud_acy_0(i,j) + 0.40*taud_acy_0(i,jm1)+ 0.40*taud_acy_0(i,jp1)
-                end if 
-
-            end if
-            
-        end do
-        end do 
-
-end if 
-
 
         return 
 
@@ -1990,75 +1903,6 @@ end if
         return 
 
     end function calc_vel_ratio
-
-    subroutine picard_calc_error(corr,ux,uy,ux_prev,uy_prev)
-        ! Calculate the current error, ie, the 'correction vector'
-        ! as defined by De Smedt et al. (2010):
-        ! corr = U_now - U_prev.
-
-        implicit none
-
-        real(wp), intent(OUT) :: corr(:) 
-        real(wp), intent(IN)  :: ux(:,:) 
-        real(wp), intent(IN)  :: uy(:,:) 
-        real(wp), intent(IN)  :: ux_prev(:,:)
-        real(wp), intent(IN)  :: uy_prev(:,:) 
-        
-        ! Local variables 
-        integer :: i, j, nx, ny, k  
-
-        nx = size(ux,1)
-        ny = size(ux,2) 
-
-        ! Consistency check 
-        if (size(corr,1) .ne. 2*nx*ny) then 
-            write(*,*) "calc_convergence_angle:: Error: corr(N) must have N=2*nx*ny."
-            error stop 1
-        end if 
-
-        k = 0
-
-        do j = 1, ny 
-        do i = 1, nx  
-
-            k = k+1 
-            corr(k) = ux(i,j) - ux_prev(i,j) 
-
-            k = k+1 
-            corr(k) = uy(i,j) - uy_prev(i,j) 
-
-        end do 
-        end do 
-
-        return
-
-    end subroutine picard_calc_error
-
-    subroutine picard_calc_error_angle(theta,corr_nm1,corr_nm2)
-        ! Calculate the current error, ie, the 'correction vector'
-        ! as defined by De Smedt et al. (2010):
-        ! corr = U_now - U_prev.
-
-        implicit none
-
-        real(wp), intent(OUT) :: theta
-        real(wp), intent(IN)  :: corr_nm1(:) 
-        real(wp), intent(IN)  :: corr_nm2(:) 
-        
-        
-        ! Local variables   
-        real(dp) :: val 
-
-        real(dp), parameter :: tol = 1e-5 
-
-        val = sum(corr_nm1*corr_nm2) / &
-                (sqrt(sum(corr_nm1**2))*sqrt(sum(corr_nm2**2))+tol)
-
-        theta = acos(val) 
-
-        return
-
-    end subroutine picard_calc_error_angle
 
     subroutine picard_calc_convergence_l1rel_matrix(err_x,err_y,ux,uy,ux_prev,uy_prev)
 
