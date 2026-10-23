@@ -497,9 +497,8 @@ contains
                 call tracer_read(trc%trc,trim(ytrc_restart_filename(restart,"tracer")),time)
             end if
 
-            ! Initialize deposition/stats cadence trackers from the tracer namelist
+            ! Initialize the deposition cadence tracker
             trc%par%time_dep_next   = time
-            trc%par%time_stats_next = time
         end if
 
         return

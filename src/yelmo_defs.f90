@@ -452,7 +452,6 @@ module yelmo_defs
         real(wp)   :: beta_q                ! Friction law exponent
         real(wp)   :: beta_u0               ! [m/a] Friction law velocity threshold 
         integer    :: beta_gl_scale         ! Beta grounding-line scaling method (beta => 0 at gl?)
-        integer    :: beta_gl_sep           ! Beta grounding-line sub-element (subgrid) parameterization
         integer    :: beta_gl_stag          ! Beta grounding-line staggering method 
         real(wp)   :: beta_gl_f             ! Fraction of beta at gl 
         integer    :: taud_gl_method        ! Driving stress grounding line treatment 
@@ -498,7 +497,6 @@ module yelmo_defs
 
         ! Internal parameters 
         character(len=256) :: boundaries 
-        logical    :: use_ssa                   ! Should ssa be used? 
         logical    :: use_bmb                   ! Set to match `use_bmb` in ytopo_param_class 
         integer    :: nx, ny, nz_aa, nz_ac 
         real(wp)   :: dx, dy
@@ -649,7 +647,6 @@ module yelmo_defs
     
     type ymat_param_class
         
-        character(len=56)       :: flow_law
         integer                 :: rf_method 
         real(wp)                :: rf_const
         logical                 :: rf_use_eismint2
@@ -741,10 +738,9 @@ module yelmo_defs
         character(len=512) :: elsa_nml, elsa_group
         character(len=512) :: tracer_nml
 
-        ! Lagrangian-tracer deposition/stats cadence trackers (next trigger time).
-        ! Cadence values (dt_dep, dt_write_stats) live in the tracer namelist.
+        ! Lagrangian-tracer deposition cadence tracker (next trigger time).
+        ! The cadence (dt_dep) lives in the tracer namelist.
         real(dp)   :: time_dep_next
-        real(dp)   :: time_stats_next
 
         ! Internal parameters
         real(dp)   :: time
@@ -796,7 +792,6 @@ module yelmo_defs
         character(len=256)  :: method
         integer             :: qb_method
         character(len=256)  :: dt_method
-        character(len=256)  :: solver_advec
         integer             :: advecxy_order   ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
         real(wp)            :: advecxy_cfl     ! Target Courant number per horizontal-advection sub-step (CFL_safe)
         integer             :: advecxy_nmax    ! Max horizontal-advection sub-steps (safety cap)

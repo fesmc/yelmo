@@ -306,9 +306,9 @@ contains
         select case(trim(ylmo%dyn%par%solver))
 
             case("hybrid")
-                ! Disable ssa for the hybrid solver (ie, set hybrid==SIA only)
+                ! Without sliding the hybrid solver is the SIA solver
             
-                ylmo%dyn%par%use_ssa  = .FALSE. 
+                ylmo%dyn%par%solver = "sia"
         
             case("ssa")
 

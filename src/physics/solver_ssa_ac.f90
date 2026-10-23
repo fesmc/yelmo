@@ -849,7 +849,7 @@ contains
 
 
     subroutine set_ssa_masks(ssa_mask_acx,ssa_mask_acy,mask_frnt,f_ice, &
-                                        f_grnd,use_ssa,lateral_bc,boundaries)
+                                        f_grnd,lateral_bc,boundaries)
         ! Define where ssa calculations should be performed
         ! Note: could be binary, but perhaps also distinguish 
         ! grounding line/zone to use this mask for later gl flux corrections
@@ -867,7 +867,6 @@ contains
         integer,  intent(IN)  :: mask_frnt(:,:)
         real(wp), intent(IN)  :: f_ice(:,:)
         real(wp), intent(IN)  :: f_grnd(:,:)
-        logical,  intent(IN)  :: use_ssa       ! SSA is actually active now? 
         character(len=*), intent(IN) :: lateral_bc 
         character(len=*), intent(IN) :: boundaries 
 
@@ -883,74 +882,61 @@ contains
         ! Set boundary condition code
         BC = boundary_code(boundaries)
 
-        select case(trim(lateral_bc))
-            case("none","floating","float","marine","all")
-                ! ok
-            case DEFAULT
-                write(io_unit_err,*) "set_ssa_masks:: error: ssa_lat_bc parameter value not recognized."
-                write(io_unit_err,*) "ydyn.ssa_lat_bc = ", lateral_bc
-                error stop 1
-        end select
-
         ! Initially no active ssa points, all velocities set to zero
         ssa_mask_acx = 0
         ssa_mask_acy = 0
         
-        if (use_ssa) then 
+        ! Define ssa solver masks
 
-            ! Step 2: define ssa solver masks
+        do j = 1, ny
+        do i = 1, nx
 
-            do j = 1, ny
-            do i = 1, nx
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
+            ! Get neighbor indices
+            call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
 
 
-                ! == x-direction ===
+            ! == x-direction ===
 
-                if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(ip1,j) .eq. 1.0_wp) then
+            if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(ip1,j) .eq. 1.0_wp) then
                 
-                    ! Current ac-node is border of an ice covered cell in x-direction
+                ! Current ac-node is border of an ice covered cell in x-direction
                     
-                    if (f_grnd(i,j) .gt. 0.0_wp .or. f_grnd(ip1,j) .gt. 0.0_wp) then 
-                        ! Grounded ice or grounding line (ie, shelfy-stream)
-                        ssa_mask_acx(i,j) = 1
-                    else 
-                        ! Shelf ice 
-                        ssa_mask_acx(i,j) = 2
-                    end if 
+                if (f_grnd(i,j) .gt. 0.0_wp .or. f_grnd(ip1,j) .gt. 0.0_wp) then 
+                    ! Grounded ice or grounding line (ie, shelfy-stream)
+                    ssa_mask_acx(i,j) = 1
+                else 
+                    ! Shelf ice 
+                    ssa_mask_acx(i,j) = 2
+                end if 
 
-                end if
+            end if
                 
-                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
-                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(ip1,j),lateral_bc)
-                if (mask_lat .ge. 0) ssa_mask_acx(i,j) = mask_lat
+            ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
+            mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(ip1,j),lateral_bc)
+            if (mask_lat .ge. 0) ssa_mask_acx(i,j) = mask_lat
 
-                ! == y-direction ===
+            ! == y-direction ===
 
-                if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(i,jp1) .eq. 1.0_wp) then
+            if (f_ice(i,j) .eq. 1.0_wp .or. f_ice(i,jp1) .eq. 1.0_wp) then
                 
-                    ! Current ac-node is border of an ice covered cell in x-direction
+                ! Current ac-node is border of an ice covered cell in x-direction
                     
-                    if (f_grnd(i,j) .gt. 0.0 .or. f_grnd(i,jp1) .gt. 0.0) then 
-                        ! Grounded ice or grounding line (ie, shelfy-stream)
-                        ssa_mask_acy(i,j) = 1
-                    else 
-                        ! Shelf ice 
-                        ssa_mask_acy(i,j) = 2
-                    end if 
+                if (f_grnd(i,j) .gt. 0.0 .or. f_grnd(i,jp1) .gt. 0.0) then 
+                    ! Grounded ice or grounding line (ie, shelfy-stream)
+                    ssa_mask_acy(i,j) = 1
+                else 
+                    ! Shelf ice 
+                    ssa_mask_acy(i,j) = 2
+                end if 
 
-                end if
+            end if
 
-                ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
-                mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(i,jp1),lateral_bc)
-                if (mask_lat .ge. 0) ssa_mask_acy(i,j) = mask_lat
+            ! Overwrite above if this face is an ice front (lateral bc, inner ssa, or wall)
+            mask_lat = front_face_mask(mask_frnt(i,j),mask_frnt(i,jp1),lateral_bc)
+            if (mask_lat .ge. 0) ssa_mask_acy(i,j) = mask_lat
 
-            end do 
-            end do
-
-        end if 
+        end do 
+        end do
 
         return
         

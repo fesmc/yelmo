@@ -474,11 +474,10 @@ contains
 
         ! Define grid points with ssa active
         call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%f_ice_dyn, &
-                    tpo%now%f_grnd,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+                    tpo%now%f_grnd,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
-        if (use_ssa .and. dyn%par%use_ssa .and. &
-                maxval(dyn%now%ssa_mask_acx+dyn%now%ssa_mask_acy) .gt. 0) then 
+        if (use_ssa .and. maxval(dyn%now%ssa_mask_acx+dyn%now%ssa_mask_acy) .gt. 0) then 
             ! Calculate SSA as normal 
 
             ! Set diva parameters from Yelmo settings
@@ -602,7 +601,7 @@ contains
 
         ! Define grid points with ssa active
         call set_ssa_masks(dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,tpo%now%mask_frnt,tpo%now%f_ice_dyn, &
-                    tpo%now%f_grnd,use_ssa=.TRUE.,lateral_bc=dyn%par%ssa_lat_bc, &
+                    tpo%now%f_grnd,lateral_bc=dyn%par%ssa_lat_bc, &
                     boundaries=dyn%par%boundaries)
 
         ! ajr: add these two statements for testing 2D flow (no flow in y-direction)
@@ -800,9 +799,6 @@ contains
         call nml_read(filename,group_ydyn,"ssa_lis_opt_residual",par%ssa_lis_opt_residual,init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lis_opt_energy", par%ssa_lis_opt_energy, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_lat_bc",         par%ssa_lat_bc,         init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
-
-        ! Apply default for ssa_solver if not set in namelist
-        if (trim(par%ssa_solver) .eq. "") par%ssa_solver = "energy"
         call nml_read(filename,group_ydyn,"ssa_vel_lim_method", par%ssa_vel_lim_method, init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_max",        par%ssa_vel_max,        init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
         call nml_read(filename,group_ydyn,"ssa_vel_lim_tau",    par%ssa_vel_lim_tau,    init=init_pars,defaults_file=def_file,defaults_group=def_ydyn)
@@ -891,9 +887,6 @@ contains
         ! Set use_bmb to decide whether bmb should enter into the calculation of vertical velocity from continuity
         ! By default, this is true, but it will automatically be set to match ydyn%par%use_bmb 
         par%use_bmb = .TRUE. 
-
-        ! By default use ssa too, unless otherwise desired (can be set externally)
-        par%use_ssa  = .TRUE. 
 
         ! Define current time as unrealistic value
         par%time = 1000000000   ! [a] 1 billion years in the future

@@ -247,7 +247,6 @@
 /
 
 &ymat
-    flow_law                = "glen"        ! Only "glen" is possible right now
     rf_method               = 1             ! -1: set externally; 0: rf_const everywhere; 1: standard function 
     rf_const                = 3.1536e-18    ! 1e-25 [Pa^-3 s^-1] ==> 3.1536e-18 [Pa^-3 a^-1]
     rf_use_eismint2         = False         ! Only applied for rf_method=1
@@ -286,7 +285,6 @@
     method          = "enth"            ! "enth","temp","robin","robin-cold","linear","fixed"
     qb_method       = 2                 ! 1: faces, 2: faces to quadrature nodes, 3: simple-stagger, 4: quadrature (1, 2: energy-consistent)
     dt_method       = "FE"              ! "FE", "AB", "SAM"
-    solver_advec    = "impl-upwind"     ! "expl", "impl-upwind"
     advecxy_order   = 2                 ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
     advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)

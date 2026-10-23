@@ -202,7 +202,7 @@ contains
                                 tpo%now%H_ice_dyn,tpo%now%f_ice,tpo%now%z_srf,hyd%now%W_til,tpo%now%H_grnd, &
                                 tpo%now%f_grnd,thrm%par%z%zeta_aa,thrm%par%z%zeta_ac,thrm%par%z%dzeta_a,thrm%par%z%dzeta_b, &
                                 thrm%par%enth_cr,thrm%par%omega_max,thrm%par%H_ice_thin,bnd%c%rho_ice,bnd%c%rho_sw,bnd%c%rho_w,bnd%c%L_ice,bnd%c%T0, &
-                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%solver_advec,thrm%par%enth_integral,thrm%par%enth_cp0, &
+                                bnd%c%sec_year,dt,thrm%par%method,thrm%par%enth_integral,thrm%par%enth_cp0, &
                                 thrm%par%boundaries,C_cap,Q_wat,thrm%par%basal_bc_method,thrm%par%cap_eps, &
                                 thrm%now%bmb_grnd_star,thrm%now%bc_b,thrm%now%bmb_clamp,thrm%now%melt_int, &
                                 thrm%par%gl_temperate)
@@ -317,7 +317,7 @@ contains
 
     subroutine calc_ytherm_enthalpy_3D(enth,T_ice,omega,bmb_grnd,Q_ice_b,H_cts,T_pmp,cp,kt,advecxy,ux,uy,uz,Q_strn,Q_b,Q_rock, &
                                         T_srf,H_ice_dyn,f_ice,z_srf,W_til,H_grnd,f_grnd,zeta_aa,zeta_ac,dzeta_a,dzeta_b, &
-                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,solver_advec,enth_integral,enth_cp0, &
+                                        cr,omega_max,H_ice_thin,rho_ice,rho_sw,rho_w,L_ice,T0,sec_year,dt,solver,enth_integral,enth_cp0, &
                                         boundaries,C_cap,Q_wat,basal_bc_method,cap_eps,bmb_grnd_star,bc_b,bmb_clamp,melt_int, &
                                         gl_temperate)
         ! This wrapper subroutine breaks the thermodynamics problem into individual columns,
@@ -371,7 +371,6 @@ contains
         real(wp), intent(IN)    :: sec_year 
         real(wp), intent(IN)    :: dt             ! [a] Time step 
         character(len=*), intent(IN) :: solver      ! "enth" or "temp"
-        character(len=*), intent(IN) :: solver_advec    ! "expl" or "impl-upwind"
         logical,          intent(IN) :: enth_integral   ! use integral (A2) enthalpy definition?
         real(wp),         intent(IN) :: enth_cp0        ! [J kg-1 K-1] A1 constant cp (cp_ref or const_cp)
         character(len=*), intent(IN) :: boundaries      ! Boundary treatment
@@ -761,7 +760,6 @@ end if
         call nml_read(filename,group,"method",         par%method,           init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"qb_method",      par%qb_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"dt_method",      par%dt_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
-        call nml_read(filename,group,"solver_advec",   par%solver_advec,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"advecxy_order",   par%advecxy_order,    init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"advecxy_cfl",     par%advecxy_cfl,      init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
         call nml_read(filename,group,"advecxy_nmax",    par%advecxy_nmax,     init=init_pars,defaults_file=def_file,defaults_group=def_ytherm)
@@ -829,7 +827,6 @@ end if
         ! Validate parameter values
         call yelmo_check_enum(group,"method",          par%method,          "enth|temp|robin|robin-cold|linear|fixed")
         call yelmo_check_enum(group,"dt_method",       par%dt_method,       "FE|AB|SAM")
-        call yelmo_check_enum(group,"solver_advec",    par%solver_advec,    "expl|impl-upwind")
         call yelmo_check_enum(group,"rock_method",     par%rock_method,     "equil|active|fixed")
         call yelmo_check_enum(group,"zeta_scale_rock", par%zeta_scale_rock, "linear|exp-inv")
         call yelmo_check_enum(group,"strain_heating",  par%strain_heating,  "full|sia|none")
