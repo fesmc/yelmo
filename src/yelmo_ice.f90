@@ -1765,7 +1765,7 @@ contains
         end if
 
         ! Enum-string validation
-        call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh")
+        call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh|exp-inv")
         call yelmo_check_enum(group,"pc_method",     par%pc_method,     "FE-SBE|AB-SAM|HEUN")
         call yelmo_check_enum(group,"pc_controller", par%pc_controller, "PI42|H312b|H312PID|H321PID|PID1")
         ! experiment: the values handled in yelmo_init (boundary treatment); "None" gives "zeros"
