@@ -752,8 +752,11 @@ contains
         now%mask_ice    = MASK_ICE_DYNAMIC   ! By default, ice is solved everywhere
         now%tau_relax   = -1.0_wp   ! By default, no relaxation anywhere
 
+        ! No restart relaxation by default (dzbdt_corr = 0); a restart with
+        ! z_bed from the input file sets restart_relax_init to the restart time.
         now%z_bed_corr  = 0.0_wp
         now%dzbdt_corr  = 0.0_wp
+        now%restart_relax_init = 0.0_dp
 
         now%z_bed_n     = 0.0_wp
         now%z_sl_n      = 0.0_wp
