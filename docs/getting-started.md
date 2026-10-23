@@ -260,7 +260,6 @@ initmip    = libyelmo/bin/yelmo_initmip.x
 trough     = libyelmo/bin/yelmo_trough.x
 ismiphom   = libyelmo/bin/yelmo_ismiphom.x
 mask_ice   = libyelmo/bin/yelmo_mask_ice.x
-regridding = libyelmo/bin/yelmo_test_regridding.x
 ```
 
 The arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and

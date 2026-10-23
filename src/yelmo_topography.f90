@@ -1397,7 +1397,7 @@ contains
                                                 bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! === Grounding-zone and ice-margin distances (signed, in km) ===========
-        ! Strategy: use calc_distance_to_*(calc_distances=.FALSE.) only to locate
+        ! Strategy: use calc_distance_to_* only to locate
         ! the grounding line / ice margin (0 at location, signed sentinel
         ! elsewhere: negative floating/ice-free, positive grounded/ice-covered),
         ! then compute the actual signed distance field with an (optionally
@@ -1425,8 +1425,7 @@ contains
         ! --- Grounding-line distance ---
 
         ! Locate grounding line: 0 at GL, -sentinel floating, +sentinel grounded
-        call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%dx, &
-                                                    tpo%par%boundaries,calc_distances=.FALSE.)
+        call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%boundaries)
 
         ! Build source mask for chamfer: -1 floating (inside), 0 at GL, +1 grounded (outside)
         mask_src = 0
@@ -1443,8 +1442,7 @@ contains
         ! --- Ice-margin distance ---
 
         ! Locate ice margin: 0 at margin, -sentinel ice-free, +sentinel ice-covered
-        call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dx, &
-                                                    tpo%par%boundaries,calc_distances=.FALSE.)
+        call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%boundaries)
 
         ! Build source mask: -1 ice-free (inside), 0 at margin, +1 ice-covered (outside)
         mask_src = 0

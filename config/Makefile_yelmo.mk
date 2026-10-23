@@ -54,7 +54,7 @@ $(objdir)/thermodynamics.o : $(srcdir)/physics/thermodynamics.f90 $(objdir)/yelm
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) -c -o $@ $<
 
 $(objdir)/ice_tracer.o : $(srcdir)/physics/ice_tracer.f90 $(objdir)/yelmo_defs.o $(objdir)/yelmo_tools.o \
-						$(objdir)/solver_tridiagonal.o $(objdir)/thermodynamics.o
+						$(objdir)/solver_tridiagonal.o $(objdir)/thermodynamics.o $(objdir)/ice_enthalpy.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/ice_enthalpy.o : $(srcdir)/physics/ice_enthalpy.f90 $(objdir)/yelmo_defs.o \

@@ -240,7 +240,6 @@ initmip    = libyelmo/bin/yelmo_initmip.x
 trough     = libyelmo/bin/yelmo_trough.x
 ismiphom   = libyelmo/bin/yelmo_ismiphom.x
 mask_ice   = libyelmo/bin/yelmo_mask_ice.x
-regridding = libyelmo/bin/yelmo_test_regridding.x
 ```
 The last two mandatory arguments `-o OUTDIR` and `-n PAR_PATH` are the output/run directory and the parameter file to be used for this simulation, respectively. In the case of the above simulation, the output directory is defined as `output/test`, where all model parameters (loaded from the file `par/yelmo_EISMINT_moving.nml`) and model output can be found.
 
