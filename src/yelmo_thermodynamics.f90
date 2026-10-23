@@ -40,8 +40,6 @@ contains
         real(wp), allocatable :: Q_wat(:,:)      ! [mW m-2] water-side basal heat (Q_diss + Q_sens)
         character(len=56)     :: cap_source      ! thrm%par%cap_source with "auto" resolved
 
-        logical, parameter :: calculate_Q_strn_derivative = .FALSE.
-
         nx = thrm%par%nx
         ny = thrm%par%ny
 
@@ -128,14 +126,6 @@ contains
 
         end select
         
-        ! Diagnose rate of change of strain heating w.r.t. temperature (dQsdT)
-        if (calculate_Q_strn_derivative) then
-            call calc_strain_heating_temp_derivative(thrm%now%dQsdT,thrm%now%Q_strn,thrm%now%T_ice,thrm%now%cp,tpo%now%H_ice_dyn,tpo%now%f_ice, &
-                                                        thrm%par%z%zeta_aa,bnd%c%rho_ice,thrm%par%dx,thrm%par%dy,thrm%par%boundaries)
-        else
-            thrm%now%dQsdT = 0.0
-        end if
-
         ! Ensure that Q_rock is defined. At initialization, 
         ! it may have a value of zero. In this case, set equal 
         ! to Q_geo to be consistent with equilibrium bedrock conditions. 
@@ -938,7 +928,6 @@ end if
         allocate(now%bmb_grnd(nx,ny))
         allocate(now%f_pmp(nx,ny))
         allocate(now%Q_strn(nx,ny,nz_aa))
-        allocate(now%dQsdT(nx,ny,nz_aa))
         allocate(now%Q_b(nx,ny))
         allocate(now%Q_ice_b(nx,ny))
         allocate(now%cp(nx,ny,nz_aa))
@@ -962,7 +951,6 @@ end if
         now%bmb_grnd    = 0.0 
         now%f_pmp       = 0.0 
         now%Q_strn      = 0.0 
-        now%dQsdT       = 0.0 
         now%Q_b         = 0.0 
         now%Q_ice_b     = 0.0 
         now%cp          = 0.0 
@@ -997,7 +985,6 @@ end if
         if (allocated(now%bmb_grnd))    deallocate(now%bmb_grnd)
         if (allocated(now%f_pmp))       deallocate(now%f_pmp)
         if (allocated(now%Q_strn))      deallocate(now%Q_strn)
-        if (allocated(now%dQsdT))       deallocate(now%dQsdT)
         if (allocated(now%Q_b))         deallocate(now%Q_b)
         if (allocated(now%Q_ice_b))     deallocate(now%Q_ice_b)
         if (allocated(now%cp))          deallocate(now%cp)

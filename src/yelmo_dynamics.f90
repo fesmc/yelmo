@@ -648,7 +648,7 @@ contains
         call calc_velocity_diva(dyn%now%ux,dyn%now%uy,dyn%now%ux_bar,dyn%now%uy_bar, &
                                 dyn%now%ux_b,dyn%now%uy_b,dyn%now%ux_i,dyn%now%uy_i, &
                                 dyn%now%taub_acx,dyn%now%taub_acy,dyn%now%beta,dyn%now%beta_acx, &
-                                dyn%now%beta_acy,dyn%now%beta_eff,dyn%now%de_eff,dyn%now%visc_eff, &
+                                dyn%now%beta_acy,dyn%now%beta_eff,dyn%now%visc_eff, &
                                 dyn%now%visc_eff_int,    &
                                 dyn%now%duxdz,dyn%now%duydz,dyn%now%ssa_mask_acx,dyn%now%ssa_mask_acy,      &
                                 dyn%now%ssa_err_acx,dyn%now%ssa_err_acy,dyn%par%ssa_iter_now,dyn%par%ssa_lin_iter,dyn%par%ssa_lin_fail,dyn%par%ssa_lim_n,dyn%now%c_bed, &
@@ -954,8 +954,6 @@ contains
 
         allocate(now%duxdz(nx,ny,nz_aa)) 
         allocate(now%duydz(nx,ny,nz_aa))
-        allocate(now%duxdz_bar(nx,ny)) 
-        allocate(now%duydz_bar(nx,ny))
 
         allocate(now%taud_acx(nx,ny)) 
         allocate(now%taud_acy(nx,ny)) 
@@ -975,7 +973,6 @@ contains
         allocate(now%qq_acy(nx,ny)) 
         allocate(now%qq(nx,ny)) 
 
-        allocate(now%de_eff(nx,ny,nz_aa))  
         allocate(now%visc_eff(nx,ny,nz_aa))  
         allocate(now%visc_eff_int(nx,ny))
 
@@ -1064,8 +1061,6 @@ contains
 
         now%duxdz             = 0.0 
         now%duydz             = 0.0
-        now%duxdz_bar         = 0.0 
-        now%duydz_bar         = 0.0
 
         now%taud_acx          = 0.0 
         now%taud_acy          = 0.0 
@@ -1085,7 +1080,6 @@ contains
         now%qq_acy            = 0.0 
         now%qq                = 0.0 
         
-        now%de_eff            = 0.0 
         now%visc_eff          = 1e3  
         now%visc_eff_int      = 1e3  
             
@@ -1185,8 +1179,6 @@ contains
         
         if (allocated(now%duxdz))           deallocate(now%duxdz) 
         if (allocated(now%duydz))           deallocate(now%duydz)
-        if (allocated(now%duxdz_bar))       deallocate(now%duxdz_bar) 
-        if (allocated(now%duydz_bar))       deallocate(now%duydz_bar)
 
         if (allocated(now%taud_acx))        deallocate(now%taud_acx) 
         if (allocated(now%taud_acy))        deallocate(now%taud_acy) 
@@ -1206,7 +1198,6 @@ contains
         if (allocated(now%qq_acy))          deallocate(now%qq_acy) 
         if (allocated(now%qq))              deallocate(now%qq) 
         
-        if (allocated(now%de_eff))          deallocate(now%de_eff) 
         if (allocated(now%visc_eff))        deallocate(now%visc_eff) 
         if (allocated(now%visc_eff_int))    deallocate(now%visc_eff_int) 
         

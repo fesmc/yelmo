@@ -58,7 +58,7 @@ module velocity_diva
 contains
     
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
-                                  beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
+                                  beta,beta_acx,beta_acy,beta_eff,visc_eff,visc_eff_int,duxdz,duydz, &
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
@@ -85,7 +85,6 @@ contains
         real(wp), intent(INOUT) :: beta_acx(:,:)      ! [Pa a/m]
         real(wp), intent(INOUT) :: beta_acy(:,:)      ! [Pa a/m]
         real(wp), intent(INOUT) :: beta_eff(:,:)      ! [Pa a/m]
-        real(wp), intent(INOUT) :: de_eff(:,:,:)      ! [1/a]
         real(wp), intent(INOUT) :: visc_eff(:,:,:)    ! [Pa a]
         real(wp), intent(INOUT) :: visc_eff_int(:,:)  ! [Pa a m]
         real(wp), intent(INOUT) :: duxdz(:,:,:)       ! [1/a]

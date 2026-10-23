@@ -51,7 +51,6 @@ module thermodynamics
     public :: calc_advec_horizontal_column
     public :: calc_strain_heating
     public :: calc_strain_heating_sia
-    public :: calc_strain_heating_temp_derivative
     public :: calc_specific_heat_capacity
     public :: calc_thermal_conductivity
     public :: calc_T_pmp
@@ -620,109 +619,6 @@ contains
         return 
 
     end subroutine calc_strain_heating_sia
-
-    subroutine calc_strain_heating_temp_derivative(dQsdT,Q_strn,T,cp,H_ice,f_ice,zeta_aa,rho_ice,dx,dy,boundaries)
-
-        real(wp), intent(INOUT) :: dQsdT(:,:,:)         ! [yr-1] d(Q_strn)/d(T), aa-nodes
-        real(wp), intent(IN)    :: Q_strn(:,:,:)        ! [J yr-1 m-3] Strain heating, aa-nodes
-        real(wp), intent(IN)    :: T(:,:,:)             ! [K] Temperature, aa-nodes
-        real(wp), intent(IN)    :: cp(:,:,:)            ! nx,ny,nz_aa  [J/kg/K] Specific heat capacity
-        real(wp), intent(IN)    :: H_ice(:,:)
-        real(wp), intent(IN)    :: f_ice(:,:)           ! [--] Ice area fraction
-        real(wp), intent(IN)    :: zeta_aa(:)           ! [--] 
-        real(wp), intent(IN)    :: rho_ice              ! [kg m-3] Ice density 
-        real(wp), intent(IN)    :: dx                   ! [m] x-direction grid spacing
-        real(wp), intent(IN)    :: dy                   ! [m] y-direction grid spacing
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables
-        integer  :: i, j, k, nx, ny, nz, n 
-        integer  :: im1, ip1, jm1, jp1 
-        real(dp) :: dQsdT_x, dQsdT_y, dQsdT_z
-        integer  :: BC
-
-        real(dp), allocatable :: Qs(:,:,:)
-
-        real(wp), parameter :: eps = 1e-5
-
-        nx = size(Q_strn,1)
-        ny = size(Q_strn,2)
-        nz = size(Q_strn,3)
-
-        ! Set boundary condition code
-        BC = boundary_code(boundaries)
-
-        ! Get strain heating in units of K/yr
-        ! [J yr-1 m-3] / ([kg m-3]*[J/kg/K]) => [K/yr]
-
-        allocate(Qs(nx,ny,nz))
-        Qs = Q_strn/(rho_ice*cp)
-
-        dQsdT = 0.0
-
-        do j = 1, ny 
-        do i = 1, nx
-
-            if (f_ice(i,j) .eq. 1.0) then 
-                ! Fully ice-covered point 
-
-                ! Get neighbor indices
-                call get_neighbor_indices_bc_codes(im1,ip1,jm1,jp1,i,j,nx,ny,BC)
-
-                do k = 1, nz
-
-                    ! Horizontal derivatives
-
-                    dQsdT_x = (Qs(ip1,j,k) - Qs(im1,j,k)) / (T(ip1,j,k) - T(im1,j,k) + eps)
-                    dQsdT_y = (Qs(i,jp1,k) - Qs(i,jm1,k)) / (T(i,jp1,k) - T(i,jm1,k) + eps)
-                    
-                    ! Treat special cases of ice-margin points (take upstream/downstream derivatives instead)
-                    if (f_ice(im1,j) .eq. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                        dQsdT_x = (Qs(i,j,k) - Qs(im1,j,k)) / (T(i,j,k) - T(im1,j,k) + eps)
-                    else if (f_ice(im1,j) .lt. 1.0 .and. f_ice(ip1,j) .eq. 1.0) then
-                        dQsdT_x = (Qs(ip1,j,k) - Qs(i,j,k)) / (T(ip1,j,k) - T(i,j,k) + eps)
-                    else if (f_ice(im1,j) .lt. 1.0 .and. f_ice(ip1,j) .lt. 1.0) then
-                        dQsdT_x = 0.0
-                    end if
-
-                    if (f_ice(i,jm1) .eq. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_y = (Qs(i,j,k) - Qs(i,jm1,k)) / (T(i,j,k) - T(i,jm1,k) + eps)
-                    else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .eq. 1.0) then
-                        dQsdT_y = (Qs(i,jp1,k) - Qs(i,j,k)) / (T(i,jp1,k) - T(i,j,k) + eps)
-                    else if (f_ice(i,jm1) .lt. 1.0 .and. f_ice(i,jp1) .lt. 1.0) then
-                        dQsdT_y = 0.0
-                    end if
-
-                    ! Vertical derivatives
-
-                    if (k .eq. 1) then
-                        dQsdT_z = (Qs(i,j,k+1) - Qs(i,j,k)) / (T(i,j,k+1) - T(i,j,k) + eps)
-                    else if (k .eq. nz) then
-                        dQsdT_z = (Qs(i,j,k) - Qs(i,j,k-1)) / (T(i,j,k) - T(i,j,k-1) + eps)
-                    else
-                        dQsdT_z = (Qs(i,j,k+1) - Qs(i,j,k-1)) / (T(i,j,k+1) - T(i,j,k-1) + eps)
-                    end if
-
-                    ! Get thet total magnitude of the gradient and save it in output array
-                    
-                    if (abs(dQsdT_x) .lt. TOL_UNDERFLOW) dQsdT_x = 0.0_dp
-                    if (abs(dQsdT_y) .lt. TOL_UNDERFLOW) dQsdT_y = 0.0_dp
-                    if (abs(dQsdT_z) .lt. TOL_UNDERFLOW) dQsdT_z = 0.0_dp
-
-                    dQsdT(i,j,k) = sqrt(dQsdT_x*dQsdT_x + dQsdT_y*dQsdT_y + dQsdT_z*dQsdT_z)
-
-                end do
-
-            end if
-
-        end do
-        end do
-
-        !write(*,*) "dQsdT: ", minval(dQsdT), maxval(dQsdT)
-
-        return
-
-    end subroutine calc_strain_heating_temp_derivative
 
     subroutine calc_basal_heating_nodes(Q_b,ux_b,uy_b,taub_acx,taub_acy,f_ice,beta1,beta2,sec_year,boundaries)
         ! Qb [J a-1 m-2] == [m a-1] * [J m-3]
