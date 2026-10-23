@@ -277,7 +277,7 @@ contains
         character(len=*), parameter :: def_ymat = "ymat"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group,defaults_group=def_ymat)
 

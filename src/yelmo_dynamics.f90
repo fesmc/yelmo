@@ -755,7 +755,7 @@ contains
         character(len=*), parameter :: def_ytill = "ytill"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group_ydyn, defaults_group=def_ydyn)
         call nml_validate(filename,def_file,group_ytill,defaults_group=def_ytill)
