@@ -17,7 +17,6 @@ module yelmo_topography
     use velocity_general, only : set_inactive_margins
     use solver_advection, only : outflow_border_mask
 
-    use runge_kutta 
     use distances
 
     implicit none
@@ -42,7 +41,7 @@ module yelmo_topography
     
 contains
     
-    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,dta,time,topo_fixed,pc_step,use_H_pred,filter_vel)
+    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,time,topo_fixed,pc_step,use_H_pred,filter_vel)
 
         implicit none 
 
@@ -51,7 +50,6 @@ contains
         type(ymat_class),   intent(IN)    :: mat
         type(ytherm_class), intent(IN)    :: thrm  
         type(ybound_class), intent(IN)    :: bnd
-        type(ydata_class),  intent(IN)    :: dta 
         real(dp),           intent(IN)    :: time
         logical,            intent(IN)    :: topo_fixed  
         character(len=*),   intent(IN)    :: pc_step 
@@ -62,15 +60,12 @@ contains
         integer  :: i, j, nx, ny
         real(wp) :: dt  
         real(wp), allocatable :: dHidt_now(:,:) 
-        real(wp), allocatable :: H_prev(:,:)
         real(wp), allocatable :: ux_adv(:,:)            ! Transport velocity (calc_transport_velocity)
         real(wp), allocatable :: uy_adv(:,:)
         logical,  allocatable :: mask_cf(:,:), mask_elig(:,:), mask_ocn(:,:)
         logical,  allocatable :: mask_obd(:,:)     ! outflow-border cells
         integer  :: lin_iter, lin_status                ! Linear solver iterations and status of the advection
         logical  :: filt
-
-        logical, parameter :: use_rk4 = .FALSE. 
 
         real(8)  :: cpu_time0, cpu_time1
 
@@ -81,7 +76,6 @@ contains
         ny = size(tpo%now%H_ice,2)
 
         allocate(dHidt_now(nx,ny))
-        allocate(H_prev(nx,ny))
         allocate(ux_adv(nx,ny))
         allocate(uy_adv(nx,ny))
         allocate(mask_cf(nx,ny),mask_elig(nx,ny),mask_ocn(nx,ny))
@@ -94,11 +88,6 @@ contains
             tpo%par%time = time 
         end if 
         
-        ! Initialize rk4 object if necessary 
-        if (.not. allocated(tpo%rk4%tau)) then 
-            call rk4_2D_init(tpo%rk4,nx,ny,dt_min=1e-3_wp)
-        end if 
-
         ! Get time step
         dt = time - tpo%par%time 
 
@@ -106,10 +95,15 @@ contains
         ! then pred/corr are not refreshed and yelmo_update measures no pc error)
         tpo%par%advanced = (.not. topo_fixed .and. dt .gt. 0.0)
 
-        ! Step 0: Get some diagnostic quantities for mass balance calculation --------
-
-        ! Get ice thickness entering routine
-        H_prev = tpo%now%H_ice 
+        if (trim(pc_step) .eq. "predictor") then
+            ! Start of a step: the applied rates and the advection solver counters
+            ! are zero unless set by the stages of this step. A rate that does not
+            ! apply (mb_relax without relaxation; all of them when the ice is not
+            ! advanced) is then zero instead of kept from an earlier step or a restart.
+            call ytopo_zero_applied_rates(tpo%now)
+            tpo%par%adv_lin_iter = 0
+            tpo%par%adv_lin_fail = 0
+        end if
 
         ! Step 1: Go through predictor-corrector-advance steps
 
@@ -135,18 +129,11 @@ contains
 
                     call calc_transport_velocity(ux_adv,uy_adv,tpo,dyn,bnd,filt)
 
-if (use_rk4) then
-                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                bnd%mask_ice,bnd%H_ice_ref,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
-
-else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                  bnd%mask_ice,bnd%H_ice_ref,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                  lin_iter=lin_iter,lin_status=lin_status)
-                    tpo%par%adv_lin_iter = lin_iter
-                    tpo%par%adv_lin_fail = merge(1,0,lin_status .ne. LGS_SUCCESS)
-                 
-end if
+                    tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
+                    tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
 
                     ! Store raw advective rate at current state (f_n) for the
                     ! corrector and for shifting at advance
@@ -181,17 +168,11 @@ end if
 
                     call calc_transport_velocity(ux_adv,uy_adv,tpo,dyn,bnd,filt)
 
-if (use_rk4) then
-                    call rk4_2D_step(tpo%rk4,tpo%now%H_ice,tpo%now%f_ice,dHidt_now,ux_adv,uy_adv, &
-                                                bnd%mask_ice,bnd%H_ice_ref,tpo%par%dx,dt,tpo%par%solver,tpo%par%boundaries)
-else
                     call calc_G_advec_simple(dHidt_now,tpo%now%H_ice,tpo%now%f_ice,ux_adv,uy_adv, &
                                                 bnd%mask_ice,bnd%H_ice_ref,tpo%par%solver,tpo%par%boundaries,tpo%par%dx,dt, &
                                                 lin_iter=lin_iter,lin_status=lin_status)
                     tpo%par%adv_lin_iter = tpo%par%adv_lin_iter + lin_iter
                     tpo%par%adv_lin_fail = tpo%par%adv_lin_fail + merge(1,0,lin_status .ne. LGS_SUCCESS)
-                 
-end if
 
                     ! Calculate rate of change using weighted advective rates of change 
                     ! depending on timestepping method chosen 
@@ -292,10 +273,10 @@ end if
                     ! Calculate and apply calving
                     if (tpo%par%use_lsf) then
                         ! Level-set function as calving
-                        call calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,real(time,wp))
+                        call calc_ytopo_calving_lsf(tpo,dyn,mat,bnd,dt,real(time,wp))
                     else
                         ! Mass balance calving
-                        call calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
+                        call calc_ytopo_calving(tpo,dyn,mat,bnd,dt)
                     end if
 
                     ! Applied calving (all removal at the front) split by the state
@@ -357,11 +338,6 @@ end if
 
                         ! Get ice-fraction mask for ice thickness  
                         call update_ice_fraction(tpo,bnd)
-
-                    else
-                        ! No relaxation: reset the rate (else the last one, e.g.
-                        ! from a restart, is kept and reported)
-                        tpo%now%mb_relax = 0.0_wp
 
                     end if
 
@@ -565,14 +541,14 @@ end if
                     tpo%par%advanced,tpo%now%f_grnd,tpo%now%f_ice,tpo%now%H_ice,tpo%now%H_ice_dyn,tpo%now%H_ice_n, &
                     tpo%now%H_ice_dyn_n,bnd%dz_bed_dt,bnd%dz_sl_dt,bnd%c%rho_ice,bnd%c%rho_sw)
 
-        ! When the ice is not advanced this step -- initialization (pc_step="none")
-        ! or any topo_fixed step -- the mass-balance block above is skipped, so the
-        ! applied-mb diagnostics (smb/bmb/fmb) would otherwise stay zero. Diagnose
-        ! them from the current boundary forcing so the held/initial state carries a
-        ! meaningful mass balance in the output. dt=0 => calc_G_mbal returns the
-        ! forcing masked to the current ice, nothing is applied and H_ice is left
-        ! untouched. mb_net stays zero (nothing applied) and bmb_grnd may still be
-        ! zero at initialization (thermodynamics not yet computed); both expected.
+        ! When the ice is not advanced this step (topo_fixed or dt = 0) the applied
+        ! rates are zero (set at the predictor, above) and the mass-balance block is
+        ! skipped. Diagnose smb, bmb, fmb and dmb from the current forcing, so that
+        ! the held state carries a meaningful mass balance in the output; nothing
+        ! is applied (mb_net and the other applied rates stay zero). The
+        ! initialization sync (pc_step="none") also diagnoses them, but keeps the
+        ! other rates as they are (zero at a cold start, the restart's rates on a
+        ! restart, as for a straight run at that time).
         if (.not. tpo%par%advanced) then
             call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
         end if
@@ -598,18 +574,49 @@ end if
 
     end subroutine calc_ytopo_pc
 
+    subroutine ytopo_zero_applied_rates(now)
+        ! Zero the rates applied to the ice thickness in a step (the fields
+        ! averaged by calc_ytopo_rates, plus dHidt_vert). Called at the start of
+        ! each step (predictor); the stages then set those that apply.
+
+        implicit none
+
+        type(ytopo_state_class), intent(INOUT) :: now
+
+        now%dHidt      = 0.0_wp
+        now%dHidt_dyn  = 0.0_wp
+        now%dHidt_vert = 0.0_wp
+        now%dzsdt      = 0.0_wp
+        now%dlsfdt     = 0.0_wp
+        now%mb_net     = 0.0_wp
+        now%mb_relax   = 0.0_wp
+        now%mb_resid   = 0.0_wp
+        now%mb_border  = 0.0_wp
+        now%mb_clip    = 0.0_wp
+        now%mb_err     = 0.0_wp
+        now%smb        = 0.0_wp
+        now%bmb        = 0.0_wp
+        now%fmb        = 0.0_wp
+        now%dmb        = 0.0_wp
+        now%cmb        = 0.0_wp
+        now%cmb_flt    = 0.0_wp
+        now%cmb_grnd   = 0.0_wp
+
+        return
+
+    end subroutine ytopo_zero_applied_rates
+
     subroutine calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
-        ! Diagnose the applied mass-balance fields (smb, combined bmb, fmb) from the
+        ! Diagnose the mass-balance fields (smb, combined bmb, fmb, dmb) from the
         ! current boundary forcing and geometry WITHOUT advancing the ice. Used by
         ! calc_ytopo_pc when the ice is not evolved this step (initialization via
-        ! pc_step="none", or any topo_fixed step): the main mass-balance block there
-        ! is gated on (.not. topo_fixed .and. dt>0), so without this the output
-        ! smb/bmb/fmb would remain zero at the initial time. The calls mirror the
-        ! diagnostic half of that block (calc_G_mbal etc.) but omit apply_tendency,
-        ! and use dt=0 so calc_G_mbal returns the forcing masked to the current ice
-        ! (no melt-limiting, H_ice untouched). mb_net is deliberately left unchanged
-        ! (nothing is applied); bmb_grnd may still be zero at init (thermodynamics
-        ! not yet computed), which only zeroes the grounded part of the combined bmb.
+        ! pc_step="none", or any topo_fixed or dt = 0 step). The calls mirror the
+        ! diagnostic half of the mass-balance block (calc_G_mbal etc.) but omit
+        ! apply_tendency, and use dt=0 so calc_G_mbal returns the forcing masked to
+        ! the current ice (no melt-limiting, H_ice untouched). mb_net is left
+        ! unchanged (nothing is applied); bmb_grnd may still be zero at init
+        ! (thermodynamics not yet computed), which only zeroes the grounded part
+        ! of the combined bmb.
 
         implicit none
 
@@ -646,18 +653,23 @@ end if
             tpo%now%fmb = 0.0
         end if
 
+        ! === dmb ===
+        call calc_mb_discharge(tpo%now%dmb_ref,tpo%now%H_ice,tpo%now%z_srf,bnd%z_bed_sd,tpo%now%dist_grline, &
+                    tpo%now%dist_margin,tpo%par%dmb_method,tpo%par%dx,tpo%par%dmb_alpha_max, &
+                    tpo%par%dmb_tau,tpo%par%dmb_sigma_ref,tpo%par%dmb_m_d,tpo%par%dmb_m_r)
+        call calc_G_mbal(tpo%now%dmb,tpo%now%H_ice,tpo%now%f_grnd,tpo%now%dmb_ref,dt)
+
         return
 
     end subroutine calc_ytopo_mb_diagnostic
 
-    subroutine calc_ytopo_calving(tpo,dyn,mat,thrm,bnd,dt)
+    subroutine calc_ytopo_calving(tpo,dyn,mat,bnd,dt)
 
         implicit none 
 
         type(ytopo_class),  intent(INOUT) :: tpo
         type(ydyn_class),   intent(IN)    :: dyn
         type(ymat_class),   intent(IN)    :: mat
-        type(ytherm_class), intent(IN)    :: thrm  
         type(ybound_class), intent(IN)    :: bnd 
         real(wp),           intent(IN)    :: dt
 
@@ -906,7 +918,6 @@ end if
                 call calc_calving_rate_kill(mbal_now,tpo%now%H_ice,mask_kill,tau=0.0_wp,dt=dt)
                 call apply_tendency(tpo%now%H_ice,mbal_now,dt,"calv_kill",adjust_mb=.TRUE.)
 
-                tpo%now%cmb_flt = tpo%now%cmb_flt + mbal_now
                 tpo%now%cmb     = tpo%now%cmb     + mbal_now
 
                 call update_ice_fraction(tpo,bnd)
@@ -917,7 +928,7 @@ end if
 
     end subroutine calc_ytopo_calving
 
-    subroutine calc_ytopo_calving_lsf(tpo,dyn,mat,thrm,bnd,dt,H_prev,time_now)
+    subroutine calc_ytopo_calving_lsf(tpo,dyn,mat,bnd,dt,time_now)
         ! Calving computed as a flux. LSF mask is updated with velocity - calving front velocity.
         ! Ice in cells whose centre is in the ocean domain (LSF > 0) is deleted with a melt
         ! equal to the ice thickness. With a subgrid front, cells eligible for it follow the
@@ -928,10 +939,8 @@ end if
         type(ytopo_class),  intent(INOUT) :: tpo
         type(ydyn_class),   intent(IN)    :: dyn
         type(ymat_class),   intent(IN)    :: mat
-        type(ytherm_class), intent(IN)    :: thrm
         type(ybound_class), intent(IN)    :: bnd
         real(wp),           intent(IN)    :: dt
-        real(wp),           intent(IN)    :: H_prev(:,:)
         real(wp), optional, intent(IN)    :: time_now
     
         ! Local variables
@@ -1388,7 +1397,7 @@ end if
                                                 bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%c%rho_ice,bnd%c%rho_sw)
 
         ! === Grounding-zone and ice-margin distances (signed, in km) ===========
-        ! Strategy: use calc_distance_to_*(calc_distances=.FALSE.) only to locate
+        ! Strategy: use calc_distance_to_* only to locate
         ! the grounding line / ice margin (0 at location, signed sentinel
         ! elsewhere: negative floating/ice-free, positive grounded/ice-covered),
         ! then compute the actual signed distance field with an (optionally
@@ -1416,8 +1425,7 @@ end if
         ! --- Grounding-line distance ---
 
         ! Locate grounding line: 0 at GL, -sentinel floating, +sentinel grounded
-        call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%dx, &
-                                                    tpo%par%boundaries,calc_distances=.FALSE.)
+        call calc_distance_to_grounding_line(tpo%now%dist_grline,tpo%now%f_grnd,tpo%par%boundaries)
 
         ! Build source mask for chamfer: -1 floating (inside), 0 at GL, +1 grounded (outside)
         mask_src = 0
@@ -1434,8 +1442,7 @@ end if
         ! --- Ice-margin distance ---
 
         ! Locate ice margin: 0 at margin, -sentinel ice-free, +sentinel ice-covered
-        call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%dx, &
-                                                    tpo%par%boundaries,calc_distances=.FALSE.)
+        call calc_distance_to_ice_margin(tpo%now%dist_margin,tpo%now%f_ice,tpo%par%boundaries)
 
         ! Build source mask: -1 ice-free (inside), 0 at margin, +1 ice-covered (outside)
         mask_src = 0
@@ -1593,10 +1600,8 @@ end if
         if (check_mb) then 
             ! Perform mass balance check to make sure that mass is conserved
 
-            call check_mass_conservation(tpo%now%H_ice,tpo%now%f_ice,tpo%now%f_grnd,tpo%now%dHidt, &
-                        tpo%now%mb_net,tpo%now%cmb,tpo%now%dHidt_dyn,tpo%now%smb,tpo%now%bmb, &
-                        tpo%now%fmb,tpo%now%dmb,tpo%now%mb_resid,tpo%now%mb_clip,tpo%par%dx,bnd%c%sec_year,time,dt, &
-                        units="km^3/yr",label=step)
+            call check_mass_conservation(tpo%now%dHidt,tpo%now%mb_net,tpo%now%cmb,tpo%now%dHidt_dyn, &
+                        tpo%now%mb_clip,tpo%par%dx,bnd%c%sec_year,time,dt,units="km^3/yr",label=step)
                         
         end if 
 
@@ -1625,7 +1630,7 @@ end if
         character(len=*), parameter :: def_ycalv = "ycalv"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         ! Reject typos in the user file under either group
         call nml_validate(filename,def_file,group_ytopo,defaults_group=def_ytopo)
@@ -1885,12 +1890,6 @@ end if
         allocate(now%dzbdx(nx,ny))
         allocate(now%dzbdy(nx,ny))
 
-        allocate(now%dzsdx_aa(nx,ny))
-        allocate(now%dzsdy_aa(nx,ny))
-        allocate(now%dHidx_aa(nx,ny))
-        allocate(now%dHidy_aa(nx,ny))
-        allocate(now%dzbdx_aa(nx,ny))
-        allocate(now%dzbdy_aa(nx,ny))
 
         allocate(now%H_eff(nx,ny))
         allocate(now%H_grnd(nx,ny))
@@ -1990,12 +1989,6 @@ end if
         now%dzbdx       = 0.0 
         now%dzbdy       = 0.0
 
-        now%dzsdx_aa    = 0.0 
-        now%dzsdy_aa    = 0.0 
-        now%dHidx_aa    = 0.0 
-        now%dHidy_aa    = 0.0
-        now%dzbdx_aa    = 0.0 
-        now%dzbdy_aa    = 0.0
 
         now%H_eff       = 0.0 
         now%H_grnd      = 0.0  
@@ -2110,12 +2103,6 @@ end if
         if (allocated(now%dzbdx))       deallocate(now%dzbdx)
         if (allocated(now%dzbdy))       deallocate(now%dzbdy)
         
-        if (allocated(now%dzsdx_aa))       deallocate(now%dzsdx_aa)
-        if (allocated(now%dzsdy_aa))       deallocate(now%dzsdy_aa)
-        if (allocated(now%dHidx_aa))       deallocate(now%dHidx_aa)
-        if (allocated(now%dHidy_aa))       deallocate(now%dHidy_aa)
-        if (allocated(now%dzbdx_aa))       deallocate(now%dzbdx_aa)
-        if (allocated(now%dzbdy_aa))       deallocate(now%dzbdy_aa)
         
         if (allocated(now%H_eff))       deallocate(now%H_eff)
         if (allocated(now%H_grnd))      deallocate(now%H_grnd)

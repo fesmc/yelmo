@@ -10,7 +10,6 @@ module velocity_diva
     use solver_ssa_ac_energy, only : linear_solver_matrix_ssa_ac_csr_2D_energy
     use solver_linear
     use velocity_general, only : set_inactive_margins, calc_visc_eff_int, &
-                        picard_calc_error, picard_calc_error_angle,  &
                         picard_relax_vel, picard_relax_visc, &
                         picard_calc_convergence_l1rel_matrix, picard_calc_convergence_l2 
     use gaussian_quadrature, only : gq2D_class, gq2D_init, gq2D_to_nodes_aa, &
@@ -58,7 +57,7 @@ module velocity_diva
 contains
     
     subroutine calc_velocity_diva(ux,uy,ux_bar,uy_bar,ux_b,uy_b,ux_i,uy_i,taub_acx,taub_acy, &
-                                  beta,beta_acx,beta_acy,beta_eff,de_eff,visc_eff,visc_eff_int,duxdz,duydz, &
+                                  beta,beta_acx,beta_acy,beta_eff,visc_eff,visc_eff_int,duxdz,duydz, &
                                   ssa_mask_acx,ssa_mask_acy,ssa_err_acx,ssa_err_acy,ssa_iter_now,ssa_lin_iter,ssa_lin_fail,ssa_lim_n, &
                                   c_bed,f_slide,taud_acx,taud_acy,taul_int_acx,taul_int_acy, &
                                   H_ice,f_ice,H_grnd,f_grnd, &
@@ -85,7 +84,6 @@ contains
         real(wp), intent(INOUT) :: beta_acx(:,:)      ! [Pa a/m]
         real(wp), intent(INOUT) :: beta_acy(:,:)      ! [Pa a/m]
         real(wp), intent(INOUT) :: beta_eff(:,:)      ! [Pa a/m]
-        real(wp), intent(INOUT) :: de_eff(:,:,:)      ! [1/a]
         real(wp), intent(INOUT) :: visc_eff(:,:,:)    ! [Pa a]
         real(wp), intent(INOUT) :: visc_eff_int(:,:)  ! [Pa a m]
         real(wp), intent(INOUT) :: duxdz(:,:,:)       ! [1/a]
@@ -425,14 +423,6 @@ contains
             uy_i(:,:,k) = uy(:,:,k) - uy_b 
         end do
         !$omp end parallel do
-    
-if (.FALSE.) then
-        if (par%visc_method .eq. 0) then 
-            ! Diagnose viscosity for visc_method=0 (not used prognostically)
-            call calc_visc_eff_3D_nodes(visc_eff,ux_bar,uy_bar,duxdz,duydz,ATT,H_ice,f_ice,zeta_aa, &
-                                                            dx,dy,n_glen,par%eps_0,par%boundaries)
-        end if 
-end if
 
         return 
 
@@ -722,9 +712,9 @@ end if
     subroutine calc_visc_eff_3D_aa(visc_eff,ux,uy,duxdz,duydz,ATT,H_ice,f_ice,zeta_aa,dx,dy,n_glen,eps_0,boundaries)
         ! Calculate 3D effective viscosity following L19, Eq. 2
         ! Use of eps_0 ensures non-zero positive viscosity value everywhere 
-        ! Note: viscosity is first calculated on ab-nodes, then 
-        ! unstaggered back to aa-nodes. This ensures more stability for 
-        ! visc_eff (less likely to blow up for low strain rates). 
+        ! Note: strain rates and viscosity are calculated directly on
+        ! aa-nodes (minimal stencil, see calc_visc_eff_3D_nodes for the
+        ! quadrature version).
 
         implicit none 
         
@@ -816,7 +806,7 @@ end if
                     ! Get rate factor on central node
                     ATT_aa = ATT(i,j,k)
 
-                    ! Calculate effective viscosity on ab-nodes
+                    ! Calculate effective viscosity on aa-nodes
                     visc_eff(i,j,k) = 0.5_wp*(eps_sq_aa)**(p1) * ATT_aa**(p2)
 
                 end do

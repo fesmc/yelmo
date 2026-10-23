@@ -255,7 +255,6 @@
 /
 
 &ymat
-    flow_law                = "glen"
     rf_method               = 1
     rf_const                = 1e-16
     rf_use_eismint2         = False
@@ -292,7 +291,6 @@
     method          = "enth"
     qb_method       = 2                 ! 1: faces, 2: faces to quadrature nodes, 3: simple-stagger, 4: quadrature (1, 2: energy-consistent)
     dt_method       = "FE"
-    solver_advec    = "impl-upwind"
     advecxy_order   = 2
     advecxy_cfl     = 0.5               ! [--] Target Courant number per horizontal-advection sub-step (CFL_safe)
     advecxy_nmax    = 10                ! [--] Max horizontal-advection sub-steps (safety cap; warns if hit)

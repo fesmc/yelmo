@@ -4,7 +4,7 @@ module yelmo_material
     use nml 
 
     use yelmo_defs
-    use yelmo_tools, only : calc_vertical_integrated_2D, calc_vertical_integrated_3D
+    use yelmo_tools, only : calc_vertical_integrated_2D
     
     use deformation
     use ice_tracer  
@@ -146,7 +146,7 @@ contains
 
                     call calc_tracer_3D(mat%now%enh_bnd,X_srf,dyn%now%ux,dyn%now%uy,dyn%now%uz_star,tpo%now%H_ice, &
                                         tpo%now%bmb,mat%par%zeta_aa,mat%par%zeta_ac,mat%par%tracer_method, &
-                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,real(time,wp),thrm%par%advecxy_order, &
+                                        mat%par%tracer_impl_kappa,dt,thrm%par%dx,thrm%par%advecxy_order, &
                                         thrm%par%advecxy_cfl,thrm%par%advecxy_nmax,thrm%par%boundaries,mask=mask_tracers)
 
                 end if 
@@ -277,12 +277,11 @@ contains
         character(len=*), parameter :: def_ymat = "ymat"
 
         init_pars = .FALSE.
-        if (present(init)) init_pars = .TRUE.
+        if (present(init)) init_pars = init
 
         call nml_validate(filename,def_file,group,defaults_group=def_ymat)
 
         ! Store local parameter values in output object
-        call nml_read(filename,group,"flow_law",               par%flow_law,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_method",              par%rf_method,              init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_const",               par%rf_const,               init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
         call nml_read(filename,group,"rf_use_eismint2",        par%rf_use_eismint2,        init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
@@ -300,7 +299,6 @@ contains
         call nml_read(filename,group,"tracer_impl_kappa",      par%tracer_impl_kappa,      init=init_pars,defaults_file=def_file,defaults_group=def_ymat)
 
         ! Validate parameter values
-        call yelmo_check_enum(group,"flow_law",      par%flow_law,      "glen")
         call yelmo_check_enum(group,"enh_method",    par%enh_method,    "simple|simple-tracer|shear2D|shear2D-tracer|shear3D|shear3D-tracer")
         call yelmo_check_enum(group,"tracer_method", par%tracer_method, "expl|impl")
 
@@ -371,12 +369,6 @@ contains
         allocate(now%strn2D%eps_eig_1(nx,ny))
         allocate(now%strn2D%eps_eig_2(nx,ny))
         
-        allocate(now%strs%txx(nx,ny,nz_aa))
-        allocate(now%strs%tyy(nx,ny,nz_aa))
-        allocate(now%strs%txy(nx,ny,nz_aa))
-        allocate(now%strs%txz(nx,ny,nz_aa))
-        allocate(now%strs%tyz(nx,ny,nz_aa))
-        allocate(now%strs%te(nx,ny,nz_aa))
         
         allocate(now%strs2D%txx(nx,ny))
         allocate(now%strs2D%tyy(nx,ny))
@@ -419,12 +411,6 @@ contains
         now%strn2D%eps_eig_1 = 0.0
         now%strn2D%eps_eig_2 = 0.0 
         
-        now%strs%txx     = 0.0 
-        now%strs%tyy     = 0.0 
-        now%strs%txy     = 0.0 
-        now%strs%txz     = 0.0
-        now%strs%tyz     = 0.0
-        now%strs%te      = 0.0
         
         now%strs2D%txx   = 0.0 
         now%strs2D%tyy   = 0.0 
@@ -476,12 +462,6 @@ contains
         if (allocated(now%strn2D%eps_eig_1)) deallocate(now%strn2D%eps_eig_1)
         if (allocated(now%strn2D%eps_eig_2)) deallocate(now%strn2D%eps_eig_2)
         
-        if (allocated(now%strs%txx))        deallocate(now%strs%txx)
-        if (allocated(now%strs%tyy))        deallocate(now%strs%tyy)
-        if (allocated(now%strs%txy))        deallocate(now%strs%txy)
-        if (allocated(now%strs%txz))        deallocate(now%strs%txz)
-        if (allocated(now%strs%tyz))        deallocate(now%strs%tyz)
-        if (allocated(now%strs%te))         deallocate(now%strs%te)
         
         if (allocated(now%strs2D%txx))      deallocate(now%strs2D%txx)
         if (allocated(now%strs2D%tyy))      deallocate(now%strs2D%tyy)

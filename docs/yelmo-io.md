@@ -30,9 +30,8 @@ The Yelmo test programs and yelmox use the same file names as CLIMBER-X:
 | `timesteps.nc` | Time steps and solver diagnostics (`yelmo.log_timestep = True`) |
 
 The time-series names are the defaults set by `yelmo_region_init`. The killed,
-metrics and timestep files are named by Yelmo: `yelmo_metrics.nc` is written in
-its output folder (`outfldr` of `yelmo_init`), `yelmo_killed.nc` and
-`timesteps.nc` in the working directory. For the other files, the calling
+metrics and timestep files are named by Yelmo and written in its output folder
+(`outfldr` of `yelmo_init`; the working directory by default). For the other files, the calling
 program chooses the name.
 
 ### yelmo_write_init

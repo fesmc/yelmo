@@ -111,7 +111,6 @@ module yelmo_defs
 
     ! Internal parameters 
     ! real(wp)   :: conv_we_ie            ! Conversion water equiv. => m/a ice equiv. 
-    ! real(wp)   :: conv_mmdwe_maie       ! Conversion mm/d water equiv. => m/a ice equiv.
     ! real(wp)   :: conv_mmawe_maie       ! Conversion mm/a water equiv. => m/a ice equiv. 
     ! real(wp)   :: conv_m3_Gt            ! Conversion m^3 ice to Gt of ice 
     ! real(wp)   :: conv_km3_Gt           ! Conversion km^3 ice to Gt of ice 
@@ -199,21 +198,6 @@ module yelmo_defs
         integer    :: adv_lin_fail              ! Advection solves this step that ended at breakdown or the iteration limit
         logical    :: advanced                  ! Ice thickness advanced this step (not topo_fixed and dt > 0)
 
-    end type
-
-    type rk4_class
-        real(wp), allocatable  :: tau(:,:) 
-        real(wp), allocatable  :: y_np1(:,:) 
-        real(wp), allocatable  :: y_n(:,:) 
-        real(wp), allocatable  :: y_nm1(:,:) 
-        real(wp), allocatable  :: y_nm2(:,:) 
-        real(wp), allocatable  :: f_np1(:,:) 
-        real(wp), allocatable  :: f_n(:,:) 
-        real(wp), allocatable  :: f_nm1(:,:) 
-        real(wp), allocatable  :: f_nm2(:,:) 
-        real(wp) :: dt 
-        real(wp) :: dt_nm1
-        real(wp) :: dt_nm2
     end type
 
     type ytopo_pc_class 
@@ -329,14 +313,6 @@ module yelmo_defs
         real(wp), allocatable   :: dzbdx(:,:)       ! Bedrock elevation slope [m m-1], acx nodes
         real(wp), allocatable   :: dzbdy(:,:)       ! Bedrock elevation slope [m m-1], acy nodes
         
-        ! TESTING
-        real(wp), allocatable   :: dzsdx_aa(:,:)       ! Surface elevation slope [m m-1], acx nodes
-        real(wp), allocatable   :: dzsdy_aa(:,:)       ! Surface elevation slope [m m-1], acy nodes
-        real(wp), allocatable   :: dHidx_aa(:,:)       ! Ice thickness gradient slope [m m-1], acx nodes
-        real(wp), allocatable   :: dHidy_aa(:,:)       ! Ice thickness gradient slope [m m-1], acy nodes
-        real(wp), allocatable   :: dzbdx_aa(:,:)       ! Bedrock elevation slope [m m-1], acx nodes
-        real(wp), allocatable   :: dzbdy_aa(:,:)       ! Bedrock elevation slope [m m-1], acy nodes
-        
 
         real(wp), allocatable   :: H_eff(:,:)       ! Effective ice thickness (margin-corrected) [m]
         real(wp), allocatable   :: H_grnd(:,:)      ! Ice thickness overburden [m]
@@ -382,7 +358,6 @@ module yelmo_defs
         type(ytopo_param_class) :: par          ! Parameters
         type(ytopo_state_class) :: now          ! Variables
         type(ytopo_pc_class)    :: pc           ! pc-related variables
-        type(rk4_class)         :: rk4 
         
     end type
 
@@ -452,7 +427,6 @@ module yelmo_defs
         real(wp)   :: beta_q                ! Friction law exponent
         real(wp)   :: beta_u0               ! [m/a] Friction law velocity threshold 
         integer    :: beta_gl_scale         ! Beta grounding-line scaling method (beta => 0 at gl?)
-        integer    :: beta_gl_sep           ! Beta grounding-line sub-element (subgrid) parameterization
         integer    :: beta_gl_stag          ! Beta grounding-line staggering method 
         real(wp)   :: beta_gl_f             ! Fraction of beta at gl 
         integer    :: taud_gl_method        ! Driving stress grounding line treatment 
@@ -498,7 +472,6 @@ module yelmo_defs
 
         ! Internal parameters 
         character(len=256) :: boundaries 
-        logical    :: use_ssa                   ! Should ssa be used? 
         logical    :: use_bmb                   ! Set to match `use_bmb` in ytopo_param_class 
         integer    :: nx, ny, nz_aa, nz_ac 
         real(wp)   :: dx, dy
@@ -560,8 +533,6 @@ module yelmo_defs
 
         real(wp), allocatable :: duxdz(:,:,:) 
         real(wp), allocatable :: duydz(:,:,:)
-        real(wp), allocatable :: duxdz_bar(:,:) 
-        real(wp), allocatable :: duydz_bar(:,:)
 
         real(wp), allocatable :: taud_acx(:,:) 
         real(wp), allocatable :: taud_acy(:,:) 
@@ -581,7 +552,6 @@ module yelmo_defs
         real(wp), allocatable :: qq_acy(:,:) 
         real(wp), allocatable :: qq(:,:)
         
-        real(wp), allocatable :: de_eff(:,:,:)
         real(wp), allocatable :: visc_eff(:,:,:)
         real(wp), allocatable :: visc_eff_int(:,:)
 
@@ -641,18 +611,8 @@ module yelmo_defs
         
     end type 
 
-    type stress_3D_class 
-        real(wp), allocatable :: txx(:,:,:) 
-        real(wp), allocatable :: tyy(:,:,:) 
-        real(wp), allocatable :: txy(:,:,:) 
-        real(wp), allocatable :: txz(:,:,:) 
-        real(wp), allocatable :: tyz(:,:,:) 
-        real(wp), allocatable :: te(:,:,:) 
-    end type 
-    
     type ymat_param_class
         
-        character(len=56)       :: flow_law
         integer                 :: rf_method 
         real(wp)                :: rf_const
         logical                 :: rf_use_eismint2
@@ -685,7 +645,6 @@ module yelmo_defs
 
         type(strain_3D_class)   :: strn 
         type(strain_2D_class)   :: strn2D
-        type(stress_3D_class)   :: strs 
         type(stress_2D_class)   :: strs2D
         
         real(wp), allocatable :: enh(:,:,:)
@@ -722,7 +681,7 @@ module yelmo_defs
         logical           :: use_tracer         ! Lagrangian particle backend (tracer library)
         logical           :: use_elsa           ! Lagrangian layer backend (elsa library)
         logical           :: elsa_restart       ! On a restart, restore elsa's layers (False: start them fresh)
-        character(len=56) :: t_dep_source       ! "euler"|"tracer"|"elsa": fills authoritative t_dep
+        character(len=56) :: t_dep_source       ! "euler"|"trc"|"elsa": fills authoritative t_dep
 
         ! elsa layer-stack sizing: elsa allocates its isochrone stack once at init
         ! from (time_end - time)/layer_resolution and never grows it, so the run's
@@ -744,10 +703,9 @@ module yelmo_defs
         character(len=512) :: elsa_nml, elsa_group
         character(len=512) :: tracer_nml
 
-        ! Lagrangian-tracer deposition/stats cadence trackers (next trigger time).
-        ! Cadence values (dt_dep, dt_write_stats) live in the tracer namelist.
+        ! Lagrangian-tracer deposition cadence tracker (next trigger time).
+        ! The cadence (dt_dep) lives in the tracer namelist.
         real(dp)   :: time_dep_next
-        real(dp)   :: time_stats_next
 
         ! Internal parameters
         real(dp)   :: time
@@ -799,7 +757,6 @@ module yelmo_defs
         character(len=256)  :: method
         integer             :: qb_method
         character(len=256)  :: dt_method
-        character(len=256)  :: solver_advec
         integer             :: advecxy_order   ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
         real(wp)            :: advecxy_cfl     ! Target Courant number per horizontal-advection sub-step (CFL_safe)
         integer             :: advecxy_nmax    ! Max horizontal-advection sub-steps (safety cap)
@@ -864,7 +821,6 @@ module yelmo_defs
         real(wp), allocatable :: f_pmp(:,:)       ! fraction of cell at pressure melting point
         real(wp), allocatable :: bmb_grnd(:,:)    ! Grounded basal mass balance 
         real(wp), allocatable :: Q_strn(:,:,:)    ! Internal heat production 
-        real(wp), allocatable :: dQsdT(:,:,:)     ! Internal heat production derivative w.r.t. temperature
         real(wp), allocatable :: Q_b(:,:)         ! Basal friction heat production
         real(wp), allocatable :: Q_ice_b(:,:)     ! Basal ice heat flux 
         real(wp), allocatable :: T_prime_b(:,:)   ! Homologous temperature at the base
@@ -919,7 +875,6 @@ module yelmo_defs
 
         ! Internal parameters 
         real(wp)   :: conv_we_ie            ! Conversion water equiv. => m/a ice equiv. 
-        real(wp)   :: conv_mmdwe_maie       ! Conversion mm/d water equiv. => m/a ice equiv.
         real(wp)   :: conv_mmawe_maie       ! Conversion mm/a water equiv. => m/a ice equiv. 
         real(wp)   :: conv_m3_Gt            ! Conversion m^3 ice to Gt of ice 
         real(wp)   :: conv_km3_Gt           ! Conversion km^3 ice to Gt of ice 
@@ -1226,7 +1181,6 @@ module yelmo_defs
         type(yelmo_param_class) :: par      ! General domain parameters
         type(grid_class)        :: grd      ! Grid definition (fesm-utils/coords)
         type(ytime_class)       :: time     ! Timestep and timing variables
-        type(ytime_class)       :: time_amc ! Timestep and timing variables
         type(ytopo_class)       :: tpo      ! Topography variables
         type(ydyn_class)        :: dyn      ! Dynamics variables
         type(ymat_class)        :: mat      ! Material variables
@@ -1238,7 +1192,7 @@ module yelmo_defs
         type(yregions_class)    :: reg      ! Regionally aggregated variables for whole domain 
         type(yregions_class), allocatable :: regs(:)  ! Regionally aggregated variables for whole domain
         type(yelmo_io_tables)   :: io       ! IO variable tables
-        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics)
+        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics, timesteps, killed)
     end type
 
     public   ! All yelmo defs are public
@@ -1313,18 +1267,6 @@ contains
         return
 
     end subroutine yelmo_check_file
-
-    function yelmo_get_precision() result(yelmo_prec)
-
-        implicit none 
-
-        integer :: yelmo_prec 
-
-        yelmo_prec = kind(wp)
-
-        return 
-
-    end function yelmo_get_precision
 
     pure function is_equal(value1, value2, eps) result(equal)
         implicit none
@@ -1412,11 +1354,9 @@ contains
     end subroutine yelmo_load_command_line_args
 
     subroutine yelmo_cpu_time(time,time0,dtime)
-        ! Calculate time intervals using system_clock.
-
-        ! Note: for mulithreading, cpu_time() won't work properly.
-        ! Instead, system_clock() should be used as it is here, 
-        ! unless use_cpu_time=.TRUE. 
+        ! Wall-clock time [s] for timing: omp_get_wtime with OpenMP (cpu_time
+        ! would sum the time of all threads), cpu_time in serial execution.
+        ! With time0 and dtime, also the interval since time0 [s].
 
         !$ use omp_lib
 
@@ -1428,10 +1368,6 @@ contains
 
         ! Local variables
         logical    :: using_omp 
-        integer(4) :: clock 
-        integer(4) :: clock_rate
-        integer(4) :: clock_max 
-        real(8)    :: wtime 
 
         ! Check openmp status - do not use global switch, since it may not have been initialized yet
         using_omp = .FALSE. 

@@ -1703,46 +1703,4 @@ contains
 
     end subroutine calc_beta_gl_flux_weight
 
-    ! ================================================================================
-    ! ================================================================================
-
-
-    function calc_l14_scalar(N_eff,uxy_b,ATT_base,m_drag,m_max,lambda_max) result(f_np)
-        ! Calculate a friction scaling coefficient as a function
-        ! of velocity and effective pressure, following
-        ! Leguy et al. (2014), Eq. 15
-
-        ! Note: input is for a given point, should be on central aa-nodes
-        ! or shifted to ac-nodes before entering this routine 
-
-        ! Note: this routine is untested and so far, not used (ajr, 2019-02-01)
-        
-        implicit none 
-
-        real(wp), intent(IN) :: N_eff 
-        real(wp), intent(IN) :: uxy_b 
-        real(wp), intent(IN) :: ATT_base 
-        real(wp), intent(IN) :: m_drag     
-        real(wp), intent(IN) :: m_max 
-        real(wp), intent(IN) :: lambda_max 
-        real(wp) :: f_np 
-
-        ! Local variables 
-        real(wp) :: kappa 
-
-        ! Calculate the velocity scaling 
-        kappa = m_max / (lambda_max*ATT_base)
-
-        ! Calculate the scaling coeffcient 
-        f_np = (N_eff**m_drag / (kappa*uxy_b + N_eff**m_drag))**1/m_drag 
-
-        if (f_np .lt. 0.0 .or. f_np .gt. 1.0) then 
-            write(*,*) "calc_l14_scalar:: f_np out of bounds: f_np = ", f_np 
-            error stop 1
-        end if 
-
-        return 
-
-    end function calc_l14_scalar
-
 end module basal_dragging

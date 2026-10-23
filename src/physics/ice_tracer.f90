@@ -5,6 +5,7 @@ module ice_tracer
     use yelmo_tools, only : boundary_code, get_periodic_directions, fill_borders_3D
     use solver_tridiagonal, only : solve_tridiag 
     use thermodynamics, only : calc_advec_horizontal_3D
+    use ice_enthalpy, only : calc_dzeta_terms
     
     implicit none
     
@@ -18,7 +19,7 @@ module ice_tracer
 contains
 
 
-    subroutine calc_tracer_3D(X_ice,X_srf,ux,uy,uz,H_ice,bmb,zeta_aa,zeta_ac,solver,impl_kappa,dt,dx,time, &
+    subroutine calc_tracer_3D(X_ice,X_srf,ux,uy,uz,H_ice,bmb,zeta_aa,zeta_ac,solver,impl_kappa,dt,dx, &
                                             advecxy_order,advecxy_cfl,advecxy_nmax,boundaries,mask)
         ! Solver for the age of the ice 
         ! Note zeta=height, k=1 base, k=nz surface 
@@ -42,7 +43,6 @@ contains
         real(prec), intent(IN)    :: impl_kappa     ! [m2 a-1] Artificial diffusivity
         real(prec), intent(IN)    :: dt             ! [a] Time step 
         real(prec), intent(IN)    :: dx             ! [a] Horizontal grid step 
-        real(prec), intent(IN)    :: time           ! [a] Current time 
         integer,    intent(IN)    :: advecxy_order  ! Horizontal advection order: 1=upwind, 2=flux-limited 2nd-order upwind
         real(prec), intent(IN)    :: advecxy_cfl    ! [--] Target Courant number per horizontal-advection sub-step
         integer,    intent(IN)    :: advecxy_nmax   ! [--] Max horizontal-advection sub-steps
@@ -206,12 +206,9 @@ contains
         nz_aa = size(zeta_aa,1)
         nz_ac = size(zeta_ac,1)
 
-        allocate(dzeta_a(nz_aa))
-        allocate(dzeta_b(nz_aa))
-
         allocate(kappa_aa(nz_aa))
 
-        ! Define dzeta terms for this column
+        ! Define dzeta terms for this column (allocates dzeta_a/dzeta_b)
         ! Note: for constant zeta axis, this can be done once outside
         ! instead of for each column. However, it is done here to allow
         ! use of adaptive vertical axis.
@@ -732,39 +729,6 @@ contains
 
     end function interp_linear_pt
 
-    subroutine calc_dzeta_terms(dzeta_a,dzeta_b,zeta_aa,zeta_ac)
-        ! zeta_aa  = depth axis at layer centers (plus base and surface values)
-        ! zeta_ac  = depth axis (1: base, nz: surface), at layer boundaries
-        ! Calculate ak, bk terms as defined in Hoffmann et al (2018)
-        implicit none 
-
-        real(prec), intent(INOUT) :: dzeta_a(:)    ! nz_aa
-        real(prec), intent(INOUT) :: dzeta_b(:)    ! nz_aa
-        real(prec), intent(IN)    :: zeta_aa(:)    ! nz_aa 
-        real(prec), intent(IN)    :: zeta_ac(:)    ! nz_ac == nz_aa+1 
-
-        ! Local variables 
-        integer :: k, nz_layers, nz_aa    
-
-        nz_aa = size(zeta_aa)
-
-        ! Note: zeta_aa is calculated outside in the main program 
-
-        ! Initialize dzeta_a/dzeta_b to zero, first and last indices will not be used (end points)
-        dzeta_a = 0.0 
-        dzeta_b = 0.0 
-        
-        do k = 2, nz_aa-1 
-            dzeta_a(k) = 1.0/ ( (zeta_ac(k+1) - zeta_ac(k)) * (zeta_aa(k) - zeta_aa(k-1)) )
-        enddo
-
-        do k = 2, nz_aa-1
-            dzeta_b(k) = 1.0/ ( (zeta_ac(k+1) - zeta_ac(k)) * (zeta_aa(k+1) - zeta_aa(k)) )
-        end do
-
-        return 
-
-    end subroutine calc_dzeta_terms
 
     subroutine calc_isochrones(depth_iso,dep_time,H_ice,time_iso,zeta,time)
         ! Calculate specific isochronal layers (depth_iso) at specified deposition

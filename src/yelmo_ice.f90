@@ -39,13 +39,12 @@ module yelmo_ice
 
 contains
     
-    subroutine yelmo_update(dom,time,file_diagnostics)
+    subroutine yelmo_update(dom,time)
         ! Advance yelmo by calling yelmo_step n-times until new time is reached,
         ! using the predictor-corrector method (Cheng et al., 2017) 
 
         type(yelmo_class), intent(INOUT) :: dom
         real(dp),          intent(IN)    :: time
-        character(len=*),  intent(IN), optional :: file_diagnostics
 
         ! Local variables 
         type(ytopo_class)  :: tpo_ref                   ! Topography, dynamics and hydrology at the start
@@ -75,12 +74,8 @@ contains
 
         character(len=1012) :: kill_txt
 
-        integer  :: ij(2) 
         real(wp) :: max_dt_used 
         real(wp) :: min_dt_used 
-
-        logical, parameter :: very_verbose      = .FALSE. 
-
 
         ! Safety: check status of model object, 
         ! Has it been initialized?
@@ -320,7 +315,7 @@ contains
 
                 ! Step 1: Perform predictor step for topography
                 ! Get predicted new ice thickness and store it for later use
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"predictor", &
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now,dom%tpo%par%topo_fixed,"predictor", &
                                                                                         filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 2: Calculate dynamics for predicted ice thickness 
@@ -331,7 +326,7 @@ contains
                 ! Get corrected ice thickness and store it for later use
                 
                 ! Call corrector step for topography
-                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"corrector", &
+                call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now,dom%tpo%par%topo_fixed,"corrector", &
                                                                                         filter_vel=dom%par%pc_filter_vel)
 
                 ! Step 4: Determine truncation error for ice thickness
@@ -343,8 +338,7 @@ contains
                     ! (eta is then the eta_tol floor of calc_pc_eta)
                     dom%time%pc_tau = 0.0_wp
 
-                else if (.TRUE.) then 
-                    ! not rk4...
+                else
 
                     select case(trim(dom%par%pc_method))
                         ! No default case necessary, handled earlier 
@@ -373,9 +367,6 @@ contains
 
                     end select 
 
-                else 
-                    ! rk4 
-                    dom%time%pc_tau = dom%tpo%rk4%tau 
                 end if 
 
                 ! Calculate eta for this timestep 
@@ -389,13 +380,6 @@ contains
                 dom%time%pc_tau_masked = dom%time%pc_tau 
                 where( .not. pc_mask) dom%time%pc_tau_masked = 0.0_wp 
 
-                ij = maxloc(abs(dom%time%pc_tau_masked))
-
-                !write(*,"(a,f12.5,f12.5,f12.5,2i4,2f10.2)") &
-                !    "test: ", time_now, dt_now, eta_now, ij(1), ij(2), &
-                !    dom%tpo%now%pred%H_ice(ij(1),ij(2)), &
-                !    dom%tpo%now%corr%H_ice(ij(1),ij(2))
-                
                 ! Check if this timestep should be rejected:
                 ! If the redo iteration is not the last allowed and the timestep is still larger  
                 ! than the minimum, then if eta > tolerance or checkerboard found in tau,
@@ -446,7 +430,7 @@ contains
             ! Update topography accounting for advective changes
             ! and mass balance changes and calving.
 
-            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time_now,dom%tpo%par%topo_fixed,"advance",use_H_pred=dom%par%pc_use_H_pred)
+            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time_now,dom%tpo%par%topo_fixed,"advance",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Update time averaging of instantaneous rates
             call calc_ytopo_rates(dom%tpo,dom%bnd,time_now,dt_now,step="step",check_mb=dom%par%log_mb_check)
@@ -460,22 +444,6 @@ contains
             ! end if 
                 
             ! === Done, Yelmo fields are fully consistent with time=time_now 
-
-            ! Output some diagnostic info if desired
-            if (very_verbose) then 
-
-                write(*,"(a,f13.2,f10.2,G10.3,i5)") &
-                    "yelmo:: times: ", &
-                    time_now, dt_now, eta_now, dom%dyn%par%ssa_iter_now
-
-            end if
-
-            ! Output diagnostic file if desired 
-            if (present(file_diagnostics)) then 
-                ! Write step of continuous restart file 
-                ! (initialized externally)
-                call yelmo_restart_write(dom,file_diagnostics,time_now,init=.FALSE.)
-            end if 
 
             ! Calculate model speed for this iteration
             call yelmo_cpu_time(cpu_time1)
@@ -731,7 +699,7 @@ contains
         character(len=*),  intent(IN), optional :: domain
         character(len=*),  intent(IN), optional :: grid_name
         character(len=*),  intent(IN), optional :: group
-        character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics)
+        character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics, timesteps, killed)
 
         ! Physical constants supplied by the driver. When absent, Yelmo loads its
         ! own from input/yelmo_phys_const.nml as before, which is what the
@@ -764,7 +732,8 @@ contains
             nml_group = "yelmo"         ! Default parameter block name
         end if
 
-        ! Output folder for files yelmo writes internally (regions, metrics).
+        ! Output folder for files yelmo writes internally (regions, metrics,
+        ! timesteps.nc, yelmo_killed.nc).
         ! Defaults to the current working directory; the driver may override it.
         dom%outfldr = ""
         if (present(outfldr)) dom%outfldr = trim(outfldr)
@@ -849,7 +818,7 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps,dom%outfldr)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
@@ -1403,7 +1372,7 @@ contains
         ! Note: thermodynamic state has not been loaded yet, so mask_bed produced here
         ! will not contain regions of temperate ice. masks should be updated again
         ! after loaded remaining fields.
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
@@ -1529,8 +1498,8 @@ contains
         ! Initialize variables
 
         ! Seed fasthydrology's state from current topo / boundary fields.
-        ! Done unconditionally (commit 2 does not wire hyd into the
-        ! restart yet — it always cold-starts from init_method).
+        ! Done unconditionally: on a restart, yelmo_restart_init then
+        ! overwrites the seed with the hydrology state of the restart file.
         call yhyd_init_state(dom%hyd,dom%bnd,dom%tpo,time)
 
         if (dom%par%use_restart) then
@@ -1571,7 +1540,7 @@ contains
             dom%thrm%par%rock_method = "equil" 
 
             ! Run topo and masks to make sure all fields are synchronized (masks, etc)
-            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+            call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
             ! Calculate initial thermodynamic information
             dom%thrm%par%time = time - dom%par%dt_min
@@ -1621,7 +1590,7 @@ contains
         end if 
 
         ! Re-run topo again to make sure all fields are synchronized (masks, etc)
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,dom%dta,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
@@ -1765,7 +1734,7 @@ contains
         end if
 
         ! Enum-string validation
-        call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh")
+        call yelmo_check_enum(group,"zeta_scale",    par%zeta_scale,    "linear|exp|tanh|exp-inv")
         call yelmo_check_enum(group,"pc_method",     par%pc_method,     "FE-SBE|AB-SAM|HEUN")
         call yelmo_check_enum(group,"pc_controller", par%pc_controller, "PI42|H312b|H312PID|H321PID|PID1")
         ! experiment: the values handled in yelmo_init (boundary treatment); "None" gives "zeros"
@@ -1969,9 +1938,9 @@ contains
             write(io_unit_err,"(a16,2g14.4)") "range(T_ice):   ", minval(dom%thrm%now%T_ice),  maxval(dom%thrm%now%T_ice)
             write(io_unit_err,*) 
 
-            call yelmo_restart_write(dom,"yelmo_killed.nc",time=time) 
+            call yelmo_restart_write(dom,trim(dom%outfldr)//"yelmo_killed.nc",time=time) 
 
-            write(io_unit_err,*) "Restart file written: "//"yelmo_killed.nc"
+            write(io_unit_err,*) "Restart file written: "//trim(dom%outfldr)//"yelmo_killed.nc"
             write(io_unit_err,*) 
             write(io_unit_err,"(a,f15.3,a)") "Time =", time, ": stopping model (killed)." 
             write(io_unit_err,*) 

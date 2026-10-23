@@ -32,9 +32,8 @@ contains
         !
         ! c is Yelmo's working-precision mirror of that record. It is kept rather
         ! than replaced so the several hundred bnd%c%<name> uses across the
-        ! physics are untouched, and because Yelmo carries two things that are
-        ! deliberately not shared physical constants: sec_year, which is a
-        ! calendar choice, and conv_mmdwe_maie, which embeds a day count.
+        ! physics are untouched, and because Yelmo carries sec_year, which is a
+        ! calendar choice rather than a shared physical constant.
 
         implicit none
 
@@ -117,10 +116,6 @@ contains
         init_pars = .TRUE.
         call nml_read(filename,group,"sec_year",c%sec_year,init=init_pars)
 
-        ! [mm d-1 w.e.] => [m a-1 i.e.]. Carries a day count, hence local: 365
-        ! here, against smbpal's 360 and the CMIP forcing's 365.2422.
-        c%conv_mmdwe_maie = 1e-3*365*c%conv_we_ie
-
         ! Hand the record back if asked.
         if (present(cnst_out)) cnst_out = cn
 
@@ -130,7 +125,6 @@ contains
             call phys_const_log(cn)
             write(*,*) "  yelmo-specific:"
             write(*,*) "    sec_year           = ", c%sec_year
-            write(*,*) "    conv_mmdwe_maie    = ", c%conv_mmdwe_maie
             write(*,*) ""
         end if
 
@@ -752,8 +746,11 @@ contains
         now%mask_ice    = MASK_ICE_DYNAMIC   ! By default, ice is solved everywhere
         now%tau_relax   = -1.0_wp   ! By default, no relaxation anywhere
 
+        ! No restart relaxation by default (dzbdt_corr = 0); a restart with
+        ! z_bed from the input file sets restart_relax_init to the restart time.
         now%z_bed_corr  = 0.0_wp
         now%dzbdt_corr  = 0.0_wp
+        now%restart_relax_init = 0.0_dp
 
         now%z_bed_n     = 0.0_wp
         now%z_sl_n      = 0.0_wp

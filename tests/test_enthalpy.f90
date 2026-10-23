@@ -344,7 +344,7 @@ contains
                     call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                             col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                            col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                            col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                 case("enth")
                     ! enth solver takes basal fluxes in [mW m-2] and converts internally
@@ -353,7 +353,7 @@ contains
                         ! Freeze-on capacity of the stored basal water [m/a ice equiv.]
                         C_cap = (c%rho_w/c%rho_ice) * col%W_til / dt
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                            col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                            col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                             col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt, &
@@ -361,7 +361,7 @@ contains
                             bmb_star_out=col%bmb_star,bc_b_out=col%bc_b,bmb_clamp_out=col%bmb_clamp)
                     else
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                            col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                            col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                             col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                             col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                             c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt, &
@@ -506,12 +506,12 @@ contains
             call calc_temp_column(cold_t%enth,cold_t%T_ice,cold_t%omega,cold_t%bmb,cold_t%Q_ice_b, &
                     cold_t%H_cts,cold_t%T_pmp,cold_t%cp,cold_t%kt,cold_t%advecxy,cold_t%uz,cold_t%Q_strn, &
                     cold_t%Q_b,cold_t%Q_rock,cold_t%T_srf,cold_t%T_shlf,cold_t%H_ice,cold_t%W_til,cold_t%f_grnd, &
-                    cold_t%zeta_aa,cold_t%zeta_ac,cold_t%dzeta_a,cold_t%dzeta_b,omega_max,c%T0, &
+                    cold_t%zeta_aa,cold_t%zeta_ac,cold_t%dzeta_a,cold_t%dzeta_b,c%T0, &
                     c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
 
             Q_lith = cold_e%Q_rock
             call calc_enth_column(cold_e%enth,cold_e%T_ice,cold_e%omega,cold_e%bmb,cold_e%Q_ice_b, &
-                    cold_e%H_cts,cold_e%T_pmp,cold_e%cp,cold_e%kt,cold_e%advecxy,cold_e%uz,cold_e%Q_strn, &
+                    cold_e%H_cts,cold_e%T_pmp,cold_e%kt,cold_e%advecxy,cold_e%uz,cold_e%Q_strn, &
                     cold_e%Q_b,Q_lith,cold_e%T_srf,cold_e%T_shlf,cold_e%H_ice,cold_e%W_til,cold_e%f_grnd, &
                     cold_e%zeta_aa,cold_e%zeta_ac,cold_e%dzeta_a,cold_e%dzeta_b,1.0_wp,omega_max,c%T0, &
                     c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
@@ -617,12 +617,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=use_int2)
@@ -671,12 +671,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
@@ -862,7 +862,7 @@ contains
             time   = 0.0_wp
             do while (time .lt. time_end - 1e-6_wp)
                 call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                        col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                        col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                         col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                         col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                         c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt,enth_integral=.TRUE.)
@@ -946,12 +946,12 @@ contains
                         call calc_temp_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
                                 col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,col%Q_rock,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
-                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,omega_max,c%T0, &
+                                col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)
                     else
                         Q_lith = col%Q_rock
                         call calc_enth_column(col%enth,col%T_ice,col%omega,col%bmb,col%Q_ice_b, &
-                                col%H_cts,col%T_pmp,col%cp,col%kt,col%advecxy,col%uz,col%Q_strn, &
+                                col%H_cts,col%T_pmp,col%kt,col%advecxy,col%uz,col%Q_strn, &
                                 col%Q_b,Q_lith,col%T_srf,col%T_shlf,col%H_ice,col%W_til,col%f_grnd, &
                                 col%zeta_aa,col%zeta_ac,col%dzeta_a,col%dzeta_b,enth_cr,omega_max,c%T0, &
                                 c%rho_ice,c%rho_w,c%L_ice,c%sec_year,dt)

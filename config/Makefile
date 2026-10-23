@@ -152,13 +152,6 @@ ismiphom : yelmo-static
 		@echo "    yelmo_ismiphom.x is ready."
 		@echo " "
 
-regridding : yelmo-static
-		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/yelmo_test_regridding.x tests/yelmo_test_regridding.f90 \
-			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
-		@echo " "
-		@echo "    yelmo_test_regridding.x is ready."
-		@echo " "
-
 icetemp : yelmo-static
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_icetemp.x tests/test_icetemp.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -257,7 +250,6 @@ usage:
 	@echo " make bench       : yelmo_bench.x       [bench]      benchmark protocol (fixtures from tests/bench)"
 	@echo " make ismiphom    : yelmo_ismiphom.x    [ismiphom]   ISMIP-HOM"
 	@echo " make mask_ice    : yelmo_mask_ice.x    [mask_ice]   MASK_ICE test"
-	@echo " make regridding  : yelmo_test_regridding.x [regridding] placeholder (empty program)"
 	@echo ""
 	@echo " Tests:"
 	@echo " make symmetry          : test_symmetry.x (args: <file.nc> [varname] [axis]) symmetry check of an output file"

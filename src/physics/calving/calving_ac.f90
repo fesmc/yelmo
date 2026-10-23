@@ -209,57 +209,6 @@ contains
 
     end subroutine calc_calving_rate_vonmises_m16
        
-    subroutine calc_calving_rate_eigen_ac(mb_calv,H_ice,f_ice,f_grnd,eps_eff,dx,k2,boundaries)
-        ! Calculate the 'horizontal' calving rate [m/yr] based on the 
-        ! von Mises stress approach, as outlined by Lipscomb et al. (2019)
-        ! Eqs. 73-75.
-        ! L19: kt = 0.0025 m yr-1 Pa-1, w2=25
-
-        implicit none 
-
-        real(wp), intent(OUT) :: mb_calv(:,:)
-        real(wp), intent(IN)  :: H_ice(:,:)
-        real(wp), intent(IN)  :: f_ice(:,:)
-        real(wp), intent(IN)  :: f_grnd(:,:)  
-        real(wp), intent(IN)  :: eps_eff(:,:)
-        real(wp), intent(IN)  :: dx
-        real(wp), intent(IN)  :: k2
-        character(len=*), intent(IN) :: boundaries 
-
-        ! Local variables 
-        integer  :: i, j
-        integer  :: im1, jm1, ip1, jp1
-        integer  :: nx, ny
-        integer  :: n_ocean 
-        logical  :: is_margin 
-        real(wp) :: dy   
-        real(wp) :: calv_ref
-        real(wp) :: calv_now
-        real(wp) :: H_eff 
-
-        real(wp) :: dxx, dyy, dxy 
-        real(wp) :: eps_eig_1_now, eps_eig_2_now
-        real(wp) :: eps_eff_neighb(4)
-        real(wp) :: wt
-        
-        real(wp), parameter :: calv_lim = 2000.0_wp     ! To avoid really high calving values
-
-        nx = size(H_ice,1)
-        ny = size(H_ice,2)
-
-        ! Assume square grid cells 
-        dy = dx 
-
-        mb_calv = 0.0_wp
-
-        ! NOTE: Eigen calving (Levermann et al., 2012) is not fully implemented here.
-        ! The lateral calving rate (calv_ref) is computed but never used, and calv_now
-        ! was previously applied uninitialized. Fail loudly rather than return garbage.
-        error stop "calc_calving_rate_eigen_ac: Eigen calving is not implemented"
-
-        return
-
-    end subroutine calc_calving_rate_eigen_ac
      
     ! ===================================================================
     !
