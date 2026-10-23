@@ -699,7 +699,7 @@ contains
         character(len=*),  intent(IN), optional :: domain
         character(len=*),  intent(IN), optional :: grid_name
         character(len=*),  intent(IN), optional :: group
-        character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics)
+        character(len=*),  intent(IN), optional :: outfldr   ! Output folder for yelmo-internal files (regions, metrics, timesteps, killed)
 
         ! Physical constants supplied by the driver. When absent, Yelmo loads its
         ! own from input/yelmo_phys_const.nml as before, which is what the
@@ -732,7 +732,8 @@ contains
             nml_group = "yelmo"         ! Default parameter block name
         end if
 
-        ! Output folder for files yelmo writes internally (regions, metrics).
+        ! Output folder for files yelmo writes internally (regions, metrics,
+        ! timesteps.nc, yelmo_killed.nc).
         ! Defaults to the current working directory; the driver may override it.
         dom%outfldr = ""
         if (present(outfldr)) dom%outfldr = trim(outfldr)
@@ -817,7 +818,7 @@ contains
                                                     dom%par%zeta_scale,dom%par%zeta_exp)
 
         ! Initialize ytime information here too 
-        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps)
+        call ytime_init(dom%time,dom%grd%G%nx,dom%grd%G%ny,dom%par%dt_min,dom%par%pc_eps,dom%outfldr)
 
         write(*,*) "yelmo_init:: yelmo initialized."
         
@@ -1937,9 +1938,9 @@ contains
             write(io_unit_err,"(a16,2g14.4)") "range(T_ice):   ", minval(dom%thrm%now%T_ice),  maxval(dom%thrm%now%T_ice)
             write(io_unit_err,*) 
 
-            call yelmo_restart_write(dom,"yelmo_killed.nc",time=time) 
+            call yelmo_restart_write(dom,trim(dom%outfldr)//"yelmo_killed.nc",time=time) 
 
-            write(io_unit_err,*) "Restart file written: "//"yelmo_killed.nc"
+            write(io_unit_err,*) "Restart file written: "//trim(dom%outfldr)//"yelmo_killed.nc"
             write(io_unit_err,*) 
             write(io_unit_err,"(a,f15.3,a)") "Time =", time, ": stopping model (killed)." 
             write(io_unit_err,*) 

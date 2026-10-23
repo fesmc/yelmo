@@ -1102,16 +1102,17 @@ contains
 
     end subroutine yelmo_timestep_write
 
-    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps)
+    subroutine ytime_init(ytime,nx,ny,dt_min,pc_eps,outfldr)
 
         type(ytime_class), intent(INOUT) :: ytime
         integer,    intent(IN) :: nx, ny
         real(wp), intent(IN) :: dt_min, pc_eps
+        character(len=*), intent(IN) :: outfldr     ! Output folder of the timestep log
 
         ! Allocate ytime object
         call ytime_alloc(ytime,nx,ny)
 
-        ytime%log_timestep_file = "timesteps.nc" 
+        ytime%log_timestep_file = trim(outfldr)//"timesteps.nc" 
         
         ! Initialize information about previous timesteps to minimum
         ! timestep value and high error (to keep low timesteps initially)

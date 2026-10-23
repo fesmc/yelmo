@@ -1201,7 +1201,7 @@ module yelmo_defs
         type(yregions_class)    :: reg      ! Regionally aggregated variables for whole domain 
         type(yregions_class), allocatable :: regs(:)  ! Regionally aggregated variables for whole domain
         type(yelmo_io_tables)   :: io       ! IO variable tables
-        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics)
+        character(len=512)      :: outfldr  ! Output folder for files written internally by yelmo (regions, metrics, timesteps, killed)
     end type
 
     public   ! All yelmo defs are public
@@ -1363,11 +1363,9 @@ contains
     end subroutine yelmo_load_command_line_args
 
     subroutine yelmo_cpu_time(time,time0,dtime)
-        ! Calculate time intervals using system_clock.
-
-        ! Note: for mulithreading, cpu_time() won't work properly.
-        ! Instead, system_clock() should be used as it is here, 
-        ! unless use_cpu_time=.TRUE. 
+        ! Wall-clock time [s] for timing: omp_get_wtime with OpenMP (cpu_time
+        ! would sum the time of all threads), cpu_time in serial execution.
+        ! With time0 and dtime, also the interval since time0 [s].
 
         !$ use omp_lib
 
@@ -1379,10 +1377,6 @@ contains
 
         ! Local variables
         logical    :: using_omp 
-        integer(4) :: clock 
-        integer(4) :: clock_rate
-        integer(4) :: clock_max 
-        real(8)    :: wtime 
 
         ! Check openmp status - do not use global switch, since it may not have been initialized yet
         using_omp = .FALSE. 

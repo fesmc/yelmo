@@ -111,129 +111,84 @@ contains
         integer,           intent(IN), optional :: jrange(2)
         
         ! Local variables
-        integer :: q
         logical :: found 
-        type(yelmo_io_tables) :: io
-        
-        ! Store yelmo io tables locally for easier access
-        io = ylmo%io 
+        type(var_io_type) :: v
 
-        ! Loop over each list of variables until the variable of interest is found
+        ! Search the io tables (loaded in yelmo_init) one after the other
+        ! until the variable of interest is found
 
         found = .FALSE. 
 
         ! == ytopo variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%tpo,"input/yelmo-variables-ytopo.md")
-            call find_var_io_in_table(io%v,varname,io%tpo)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytopo(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%tpo)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytopo(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ydyn variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%dyn,"input/yelmo-variables-ydyn.md")
-            call find_var_io_in_table(io%v,varname,io%dyn)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ydyn(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%dyn)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ydyn(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ymat variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%mat,"input/yelmo-variables-ymat.md")
-            call find_var_io_in_table(io%v,varname,io%mat)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ymat(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%mat)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ymat(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ytrc variables ===
         if (.not. found) then
-
-            call find_var_io_in_table(io%v,varname,io%trc)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytrc(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%trc)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytrc(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ytherm variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%thrm,"input/yelmo-variables-ytherm.md")
-            call find_var_io_in_table(io%v,varname,io%thrm)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ytherm(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%thrm)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ytherm(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == yhyd variables ===
         if (.not. found) then
-
-            call find_var_io_in_table(io%v,varname,io%hyd)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_yhyd(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%hyd)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_yhyd(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ybound variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%bnd,"input/yelmo-variables-ybound.md")
-            call find_var_io_in_table(io%v,varname,io%bnd)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ybound(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%bnd)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ybound(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
 
         ! == ydata variables ===
         if (.not. found) then
-
-            ! Load io table
-            ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-            !call load_var_io_table(io%dta,"input/yelmo-variables-ydata.md")
-            call find_var_io_in_table(io%v,varname,io%dta)
-
-            if (.not. trim(io%v%varname) .eq. "none") then
-                call yelmo_write_var_io_ydata(filename,io%v,ylmo,n,ncid,irange,jrange)
+            call find_var_io_in_table(v,varname,ylmo%io%dta)
+            if (.not. trim(v%varname) .eq. "none") then
+                call yelmo_write_var_io_ydata(filename,v,ylmo,n,ncid,irange,jrange)
                 found = .TRUE.
             end if
-
         end if
         
         ! Error if still not found
@@ -361,26 +316,12 @@ contains
         integer :: i1, i2, j1, j2
         logical  :: initialize_file
 
-        type(yelmo_io_tables) :: io
-
-        ! Store yelmo io in local object for easier access
-        io = dom%io 
-
         initialize_file = .TRUE. 
         if (present(init)) initialize_file = init
 
         ! Get indices for current domain of interest
         call get_region_indices(i1,i2,j1,j2,dom%grd%G%nx,dom%grd%G%ny,irange,jrange)
         
-        ! Load variable io tables
-        ! ajr: now not needed because the tables are loaded in yelmo_init and stored in ylmo%io
-        ! call load_var_io_table(io%tpo,"input/yelmo-variables-ytopo.md")
-        ! call load_var_io_table(io%dyn,"input/yelmo-variables-ydyn.md")
-        ! call load_var_io_table(io%mat,"input/yelmo-variables-ymat.md")
-        ! call load_var_io_table(io%thrm,"input/yelmo-variables-ytherm.md")
-        ! call load_var_io_table(io%bnd,"input/yelmo-variables-ybound.md")
-        ! call load_var_io_table(io%dta,"input/yelmo-variables-ydata.md")
-
         ! == Initialize netcdf file ==============================================
 
         if (initialize_file) then
@@ -435,38 +376,38 @@ contains
         ! == Table variables (lossless, ignoring the table prec, for exact restarts) ===
 
         ! == ytopo variables ===
-        do q = 1, size(io%tpo)
-            call yelmo_write_var_io_ytopo(filename,io%tpo(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%tpo)
+            call yelmo_write_var_io_ytopo(filename,dom%io%tpo(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ydyn variables ===
-        do q = 1, size(io%dyn)
-            call yelmo_write_var_io_ydyn(filename,io%dyn(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%dyn)
+            call yelmo_write_var_io_ydyn(filename,dom%io%dyn(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ymat variables ===
-        do q = 1, size(io%mat)
-            call yelmo_write_var_io_ymat(filename,io%mat(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%mat)
+            call yelmo_write_var_io_ymat(filename,dom%io%mat(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ytrc variables ===
-        do q = 1, size(io%trc)
-            call yelmo_write_var_io_ytrc(filename,io%trc(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%trc)
+            call yelmo_write_var_io_ytrc(filename,dom%io%trc(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ytherm variables ===
-        do q = 1, size(io%thrm)
-            call yelmo_write_var_io_ytherm(filename,io%thrm(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%thrm)
+            call yelmo_write_var_io_ytherm(filename,dom%io%thrm(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == yhyd variables ===
-        do q = 1, size(io%hyd)
-            call yelmo_write_var_io_yhyd(filename,io%hyd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%hyd)
+            call yelmo_write_var_io_yhyd(filename,dom%io%hyd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ybound variables ===
-        do q = 1, size(io%bnd)
-            call yelmo_write_var_io_ybound(filename,io%bnd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
+        do q = 1, size(dom%io%bnd)
+            call yelmo_write_var_io_ybound(filename,dom%io%bnd(q),dom,n,ncid,irange,jrange,lossless=.TRUE.)
         end do
 
         ! == ydata variables ===

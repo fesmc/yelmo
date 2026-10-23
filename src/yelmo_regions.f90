@@ -232,9 +232,13 @@ contains
         ! Calculate a set of regional variables (averages, totals)
         ! for a given domain defined by `mask` (or by reg%mask if absent).
         ! State variables (means, volumes, areas) are computed over the
-        ! ice-covered points of the region; rates and fluxes (dVidt, fwf, dmb,
-        ! cmb) are integrated over the whole region, so that points that became
-        ! ice free during the timestep still contribute their mass loss.
+        ! ice-covered points of the region; the means are per cell (not
+        ! area-weighted). Rates and fluxes are integrated over ice-covered and
+        ! ice-free points alike, so that points that became ice free during the
+        ! timestep still contribute their mass loss: dVidt and fwf over the
+        ! region, the mass-balance terms (smb, bmb, fmb, dmb, cmb, relaxation,
+        ! residual, clip) over the region without its outflow-border cells, and
+        ! mb_border_tot over those cells (see below).
         ! Areas and volumes use the true grid-cell area grd%area, which
         ! accounts for the map-projection scale factor.
 
@@ -308,7 +312,7 @@ contains
         npts_grnd = real(count(mask_grnd),wp)
         npts_flt  = real(count(mask_flt),wp)
         
-        ! ===== Rates and fluxes (whole region) =====
+        ! ===== Rates and fluxes (all points of the region) =====
 
         reg%dVidt      = sum(tpo%now%dHidt*area,mask=mask_reg)*m3_km3        ! [km^3/yr]
         reg%fwf        = -reg%dVidt*conv_km3a_Sv                            ! [Sv]
@@ -316,8 +320,12 @@ contains
         ! The cells of outflow borders take the thickness of their inner
         ! neighbours: their rates are not counted in the terms below but,
         ! with their reset (mb_border), in mb_border_tot, the mass that leaves
-        ! the region through the domain border. With the transport, which
-        ! sums to zero over the domain, dV/dt = the terms + mb_border_tot.
+        ! the region through the domain border. Over the whole domain, where
+        ! the transport sums to zero, the budget closes as
+        !   1e9*dVidt = smb_tot + bmb_tot + fmb_tot + dmb + cmb
+        !             + mb_relax_tot + mb_resid_tot + mb_clip_tot + mb_border_tot
+        ! with dVidt in [km^3/yr] and the terms in [m^3/yr]. For a subregion,
+        ! the transport across its boundary adds to the right-hand side.
         mask_obd = outflow_border_mask(nx,ny,tpo%par%boundaries) .and. mask_reg
         mask_trm = mask_reg .and. .not. mask_obd
 
