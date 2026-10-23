@@ -1,4 +1,5 @@
 # configme manifest for yelmo.
+# Dev pins; replaced by the v2.4 release tags of each dependency at release.
 package = "yelmo"
 deps = [
     "fesm-utils:dev",
