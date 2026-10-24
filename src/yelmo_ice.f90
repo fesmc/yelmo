@@ -683,7 +683,7 @@ contains
     end subroutine yelmo_update_equil
     
     subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst, &
-                          reg,mask_ice,topo_pd,topo_init)
+                          reg,mask_ice,topo_pd,topo_init,prepared)
         ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
@@ -718,6 +718,13 @@ contains
         integer,  intent(IN), optional :: mask_ice(:,:)
         type(ytopo_input_class), intent(IN), optional :: topo_pd
         type(ytopo_input_class), intent(IN), optional :: topo_init
+
+        ! prepared: the driver's topo_pd and topo_init are already prepared (gaps
+        ! filled, englacial lakes removed, thin ice cleaned, bed gradients limited)
+        ! and are used as given, without Yelmo's own cleaning. Default .FALSE.
+        ! (unchanged behavior). Applies only to the fields supplied by the driver;
+        ! a field read from file is still cleaned.
+        logical, intent(IN), optional :: prepared
 
         ! Local variables
         type(region_mask_class), allocatable :: masks(:)
@@ -1017,14 +1024,14 @@ contains
         ! Load data objects (present-day topography as read: yelmo_init_topo
         ! applies mask_ice to it and sets the reference topography)
         call ydata_load(dom%dta,dom%bnd,filename,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries,group=dom%par%nml_init_topo, &
-                        topo_pd=topo_pd)
+                        topo_pd=topo_pd,prepared=prepared)
 
         write(*,*) "yelmo_init:: data intialized (loaded data if desired)."
         
         ! == topography ==
 
         ! Determine how to manage initial topography (H_ice,z_bed)
-        call yelmo_init_topo(dom,filename,dom%par%nml_init_topo,time,load_topo,topo_init=topo_init)
+        call yelmo_init_topo(dom,filename,dom%par%nml_init_topo,time,load_topo,topo_init=topo_init,prepared=prepared)
 
         write(*,*) "yelmo_init:: topo intialized (loaded data if desired)."
         
@@ -1044,7 +1051,7 @@ contains
 
     end subroutine yelmo_init
 
-    subroutine yelmo_init_topo(dom,filename,group,time,load_topo,topo_init)
+    subroutine yelmo_init_topo(dom,filename,group,time,load_topo,topo_init,prepared)
         ! This subroutine is the first step to intializing 
         ! the state variables. It initializes only the topography
         ! to facilitate calculation of boundary variables (eg, T_srf),
@@ -1060,9 +1067,11 @@ contains
         real(dp),          intent(IN)    :: time 
         logical, optional, intent(IN)    :: load_topo 
         type(ytopo_input_class), optional, intent(IN) :: topo_init  ! Supplied by the driver (replaces init_topo_path)
+        logical,                 optional, intent(IN) :: prepared   ! topo_init is already prepared: use as given, skip the cleaning
 
         ! Local variables 
         logical :: init_topo_load 
+        logical :: skip_clean
         character(len=1028) :: init_topo_path
         character(len=56)   :: init_topo_names(4)
         integer             :: init_topo_state
@@ -1163,40 +1172,54 @@ contains
 
             end if
 
-            ! Fill the gaps of the dataset (e.g. outside its coverage)
-            call ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
+            ! Topography supplied by the driver and flagged as prepared is used
+            ! as given. A field read from file is always cleaned.
+            skip_clean = .FALSE.
+            if (present(prepared)) skip_clean = prepared .and. present(topo_init)
 
-            ! Apply scaling to adjust z_bed depending on standard deviation
-            if (has_sd) z_bed = z_bed + z_bed_f_sd*z_bed_sd
+            if (skip_clean) then
+                write(*,*) "yelmo_init_topo:: prepared topo_init used as given: cleaning skipped."
+            else
+                if (present(prepared)) then
+                    if (prepared) write(*,*) "yelmo_init_topo:: prepared, but topography read from file: cleaning applied."
+                end if
 
-            if (has_srf) then
-                ! Correct for englacial lakes
+                ! Fill the gaps of the dataset (e.g. outside its coverage)
+                call ydata_fill_topo_gaps(H_ice,z_bed,z_srf,z_bed_sd,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
 
-                ! Note: this routine uses z_sl, that is likely still set to zero
-                ! here. This routine is mainly for fixing present-day datasets,
-                ! so this is probably ok.
-                call remove_englacial_lakes(H_ice,z_bed,z_srf,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
+                ! Apply scaling to adjust z_bed depending on standard deviation
+                if (has_sd) z_bed = z_bed + z_bed_f_sd*z_bed_sd
 
-                write(*,*) "yelmo_init_topo:: removed englacial lakes."
+                if (has_srf) then
+                    ! Correct for englacial lakes
+
+                    ! Note: this routine uses z_sl, that is likely still set to zero
+                    ! here. This routine is mainly for fixing present-day datasets,
+                    ! so this is probably ok.
+                    call remove_englacial_lakes(H_ice,z_bed,z_srf,dom%bnd%z_sl,dom%bnd%c%rho_ice,dom%bnd%c%rho_sw)
+
+                    write(*,*) "yelmo_init_topo:: removed englacial lakes."
+
+                end if
+
+                ! Smooth ice thickness field, if desired 
+                if (smooth_H_ice .ge. 1.0_wp) then 
+                    call smooth_gauss_2D(H_ice,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_H_ice)
+                end if 
+
+                ! Clean up ice thickness field 
+                where (H_ice .lt. 0.1_wp) H_ice = 0.0_wp 
+                where (H_ice .ge. 0.1_wp .and. H_ice .lt. 10.0_wp) H_ice = 10.0_wp 
+
+                ! Smooth z_bed field, if desired 
+                if (smooth_z_bed .ge. 1.0_wp) then 
+                    call smooth_gauss_2D(z_bed,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_z_bed)
+                end if 
+
+                ! Adjust bedrock topography and ice thickness for smoothness
+                call adjust_topography_gradients(z_bed,H_ice,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries)
 
             end if
-
-            ! Smooth ice thickness field, if desired 
-            if (smooth_H_ice .ge. 1.0_wp) then 
-                call smooth_gauss_2D(H_ice,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_H_ice)
-            end if 
-
-            ! Clean up ice thickness field 
-            where (H_ice .lt. 0.1_wp) H_ice = 0.0_wp 
-            where (H_ice .ge. 0.1_wp .and. H_ice .lt. 10.0_wp) H_ice = 10.0_wp 
-
-            ! Smooth z_bed field, if desired 
-            if (smooth_z_bed .ge. 1.0_wp) then 
-                call smooth_gauss_2D(z_bed,dx=real(dom%grd%G%dx,wp),f_sigma=smooth_z_bed)
-            end if 
-
-            ! Adjust bedrock topography and ice thickness for smoothness
-            call adjust_topography_gradients(z_bed,H_ice,dom%tpo%par%grad_lim_zb,real(dom%grd%G%dx,wp),dom%tpo%par%boundaries)
 
             ! Additionally modify initial topographic state 
             select case(init_topo_state)

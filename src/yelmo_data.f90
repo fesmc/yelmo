@@ -173,7 +173,7 @@ contains
 
     end subroutine ydata_compare
 
-    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group,topo_pd)
+    subroutine ydata_load(dta,bnd,par_path,grad_lim_zb,dx,boundaries,group,topo_pd,prepared)
 
         implicit none 
 
@@ -185,8 +185,10 @@ contains
         character(len=*),   intent(IN)    :: boundaries 
         character(len=*),  intent(IN), optional :: group
         type(ytopo_input_class), intent(IN), optional :: topo_pd    ! Present-day topography supplied by the driver (replaces pd_topo_path)
+        logical,                 intent(IN), optional :: prepared   ! topo_pd is already prepared: use as given, skip the cleaning
 
         ! Local variables 
+        logical             :: skip_clean
         character(len=1028) :: filename 
         character(len=56)   :: nms(4) 
         logical             :: has_sd
@@ -251,42 +253,56 @@ contains
 
             end if
 
-            ! Fill the gaps of the dataset (e.g. outside its coverage)
-            call ydata_fill_topo_gaps(dta%pd%H_ice,dta%pd%z_bed,dta%pd%z_srf,z_bed_sd, &
-                                      bnd%c%rho_ice,bnd%c%rho_sw)
+            ! Topography supplied by the driver and flagged as prepared is used
+            ! as given. A field read from file is always cleaned.
+            skip_clean = .FALSE.
+            if (present(prepared)) skip_clean = prepared .and. present(topo_pd)
 
-            if (has_sd) then
+            if (skip_clean) then
+                write(*,*) "ydata_load:: prepared topo_pd used as given: cleaning skipped."
+            else
+                if (present(prepared)) then
+                    if (prepared) write(*,*) "ydata_load:: prepared, but PD topography read from file: cleaning applied."
+                end if
 
-                ! Determine scaling factor from yelmo_init_topo parameter choice
-                ! Note: reading from "yelmo_init_topo" section is not optimal,
-                ! but it is important to keep the choice of z_bed_f_sd consistent
-                ! between data loaded for initializing the model, and data loaded
-                ! as the reference present day topography. This ensures that the
-                ! parameter choice is the same for both cases. Perhaps this can
-                ! be improved though.
+                ! Fill the gaps of the dataset (e.g. outside its coverage)
+                call ydata_fill_topo_gaps(dta%pd%H_ice,dta%pd%z_bed,dta%pd%z_srf,z_bed_sd, &
+                                          bnd%c%rho_ice,bnd%c%rho_sw)
 
-                call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd, &
-                        defaults_file="input/yelmo_defaults.nml",defaults_group="yelmo_init_topo")
+                if (has_sd) then
 
-                ! Apply scaling to adjust z_bed depending on standard deviation
-                ! Use scaling suppied as input argument
-                dta%pd%z_bed = dta%pd%z_bed + z_bed_f_sd*z_bed_sd 
+                    ! Determine scaling factor from yelmo_init_topo parameter choice
+                    ! Note: reading from "yelmo_init_topo" section is not optimal,
+                    ! but it is important to keep the choice of z_bed_f_sd consistent
+                    ! between data loaded for initializing the model, and data loaded
+                    ! as the reference present day topography. This ensures that the
+                    ! parameter choice is the same for both cases. Perhaps this can
+                    ! be improved though.
 
-            end if 
+                    call nml_read(par_path,nml_group,"z_bed_f_sd",z_bed_f_sd, &
+                            defaults_file="input/yelmo_defaults.nml",defaults_group="yelmo_init_topo")
+
+                    ! Apply scaling to adjust z_bed depending on standard deviation
+                    ! Use scaling suppied as input argument
+                    dta%pd%z_bed = dta%pd%z_bed + z_bed_f_sd*z_bed_sd 
+
+                end if 
             
-            ! Remove englacial lakes for better comparison with model
-            ! Assume sea level is present day level of 0.
-            call remove_englacial_lakes(dta%pd%H_ice,dta%pd%z_bed, &
-                                        dta%pd%z_srf,dta%pd%z_srf*0.0_wp, &
-                                        bnd%c%rho_ice,bnd%c%rho_sw)
+                ! Remove englacial lakes for better comparison with model
+                ! Assume sea level is present day level of 0.
+                call remove_englacial_lakes(dta%pd%H_ice,dta%pd%z_bed, &
+                                            dta%pd%z_srf,dta%pd%z_srf*0.0_wp, &
+                                            bnd%c%rho_ice,bnd%c%rho_sw)
 
-            write(*,*) "ydata_load:: removed englacial lakes from PD reference ice thickness."
+                write(*,*) "ydata_load:: removed englacial lakes from PD reference ice thickness."
 
-            ! Clean up field 
-            where(dta%pd%H_ice  .lt. 1.0) dta%pd%H_ice = 0.0 
+                ! Clean up field 
+                where(dta%pd%H_ice  .lt. 1.0) dta%pd%H_ice = 0.0 
 
-            ! Adjust bedrock and ice thickness for smoothness
-            call adjust_topography_gradients(dta%pd%z_bed,dta%pd%H_ice,grad_lim_zb,dx,boundaries)
+                ! Adjust bedrock and ice thickness for smoothness
+                call adjust_topography_gradients(dta%pd%z_bed,dta%pd%H_ice,grad_lim_zb,dx,boundaries)
+
+            end if
 
         end if 
 
