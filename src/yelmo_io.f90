@@ -7,6 +7,7 @@ module yelmo_io
     use yelmo_defs
     use yelmo_tools, only : get_region_indices
     use yelmo_tracers, only : ytrc_restart_write
+    use deformation, only : calc_2D_eigen_values
     use yelmo_grid
     
     use variable_io
@@ -889,8 +890,13 @@ contains
         call nc_read_interp(filename,"strn2D_dyz", dom%mat%now%strn2D%dyz,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"strn2D_de",  dom%mat%now%strn2D%de, ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
         call nc_read_interp(filename,"strn2D_div", dom%mat%now%strn2D%div,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
-        call nc_read_interp(filename,"strn2D_f_shear",dom%mat%now%strn2D%f_shear,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp) 
-        
+        call nc_read_interp(filename,"strn2D_f_shear",dom%mat%now%strn2D%f_shear,ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
+
+        ! Principal strain rates are not stored: recompute them from the restored tensor,
+        ! as the strain-rate solvers do (needed by the first calving step, tau_vm)
+        call calc_2D_eigen_values(dom%mat%now%strn2D%eps_eig_1,dom%mat%now%strn2D%eps_eig_2, &
+                                    dom%mat%now%strn2D%dxx,dom%mat%now%strn2D%dyy,dom%mat%now%strn2D%dxy)
+
         call nc_read_interp(filename,"strn_dxx",     dom%mat%now%strn%dxx,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"strn_dyy",     dom%mat%now%strn%dyy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
         call nc_read_interp(filename,"strn_dxy",     dom%mat%now%strn%dxy,ncid=ncid,start=[1,1,1,n],count=[nx,ny,nz,1],map=mp) 
