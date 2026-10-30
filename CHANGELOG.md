@@ -1,5 +1,14 @@
 # Yelmo changelog
 
+## Unreleased
+
+### Fixed
+
+- **Restart**: the running maximum `pc_tau_max` (over the last 50 internal steps) is exact after a restart. The
+  restart file holds the window `pc_taus` (dimension `pc_hist`) and `pc_tau`, `pc_tau_masked`, `pc_tau_max`,
+  which are read back (not on a remapped grid; older restarts without `pc_taus` read as before).
+  `tests/bench/check_restart.sh` checks a restarted run against the continuous one bit for bit.
+
 ## v2.4 (2026-10-23)
 
 Includes the fixes of a whole-source audit (2026-09) and review (2026-10): most

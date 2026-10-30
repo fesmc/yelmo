@@ -327,6 +327,9 @@ contains
 
         if (initialize_file) then
             call yelmo_write_init(dom,filename,time,"years",irange,jrange)
+
+            ! Index of the pc_taus window (restart file only)
+            call nc_write_dim(filename,"pc_hist",x=1,dx=1,nx=size(dom%time%pc_taus,3),units="1")
         end if 
         
         ! == Begin writing data ==============================================
@@ -348,11 +351,14 @@ contains
         end if 
 
         ! == Predictor-corrector (pc) variables ===
-        ! (diagnostics of the last step, e.g. for yelmo_killed.nc; not read back)
+        ! (truncation error of the last step, its masked version and the running maximum pc_tau_max,
+        ! also diagnostics, e.g. for yelmo_killed.nc; pc_taus is the window of the last steps from
+        ! which pc_tau_max is taken: restored with the others for an exact restart)
 
         call nc_write(filename,"pc_tau",       dom%time%pc_tau(i1:i2,j1:j2),        units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_masked",dom%time%pc_tau_masked(i1:i2,j1:j2), units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
         call nc_write(filename,"pc_tau_max",   dom%time%pc_tau_max(i1:i2,j1:j2),    units="m/yr",dim1="xc",dim2="yc",dim3="time",ncid=ncid,start=[1,1,n])
+        call nc_write(filename,"pc_taus",      dom%time%pc_taus(i1:i2,j1:j2,:),     units="m/yr",dim1="xc",dim2="yc",dim3="pc_hist",dim4="time",ncid=ncid,start=[1,1,1,n])
         
         ! == time variables ===
 
@@ -597,11 +603,19 @@ contains
         n = 1 
 
         ! == time variables ===
-        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart;
-        ! pc_tau, pc_tau_masked and pc_tau_max are written as diagnostics only: the first
-        ! step computes them anew)
+        ! (pc_dt and pc_eta hold the timestep controller state, needed for a continuous restart)
         call nc_read(filename,"pc_dt",       tme%pc_dt, start=[1,n],count=[3,1],ncid=ncid)
         call nc_read(filename,"pc_eta",      tme%pc_eta,start=[1,n],count=[3,1],ncid=ncid)
+
+        ! (the truncation error window pc_taus and the fields derived from it: pc_tau_max is its maximum, so
+        ! a restored run continues it exactly. Not on a remapped grid, where the window starts anew;
+        ! restarts written before pc_taus lack it)
+        if (.not. present(mp) .and. nc_exists_var(filename,"pc_taus")) then
+            call nc_read(filename,"pc_tau",       tme%pc_tau,       start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+            call nc_read(filename,"pc_tau_masked",tme%pc_tau_masked,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+            call nc_read(filename,"pc_tau_max",   tme%pc_tau_max,   start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+            call nc_read(filename,"pc_taus",      tme%pc_taus,      start=[1,1,1,n],count=[nx,ny,size(tme%pc_taus,3),1],ncid=ncid)
+        end if
         
         ! == ytopo variables ===
         call nc_read_interp(filename,"H_ice",       tpo%now%H_ice,      ncid=ncid,start=[1,1,n],count=[nx,ny,1],map=mp)
