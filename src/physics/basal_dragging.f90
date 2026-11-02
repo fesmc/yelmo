@@ -27,6 +27,7 @@ module basal_dragging
     private
 
     ! General functions for beta
+    public :: set_cf_ref_ids
     public :: calc_cb_ref 
     public :: calc_c_bed 
     public :: calc_f_slide
@@ -56,9 +57,40 @@ module basal_dragging
 
 contains 
     
+    subroutine set_cf_ref_ids(cf_ref,ids,codes,values)
+        ! Set the reference till value cf_ref [-- or deg] in the cells of given
+        ! ids: cf_ref = values(k) where nint(ids) = codes(k) (exact match),
+        ! other cells are not changed. ids is an id field of the domain, e.g.
+        ! bnd%basins or bnd%regions; where codes repeat, later entries win.
+
+        implicit none
+
+        real(wp), intent(INOUT) :: cf_ref(:,:)
+        real(wp), intent(IN)    :: ids(:,:)
+        integer,  intent(IN)    :: codes(:)
+        real(wp), intent(IN)    :: values(:)
+
+        ! Local variables
+        integer :: k
+
+        if (size(codes) .ne. size(values)) then
+            write(io_unit_err,*) "set_cf_ref_ids:: Error: codes and values must have the same size; got ", &
+                                 size(codes), size(values)
+            error stop 1
+        end if
+
+        do k = 1, size(codes)
+            where (nint(ids) .eq. codes(k)) cf_ref = values(k)
+        end do
+
+        return
+
+    end subroutine set_cf_ref_ids
+
     subroutine calc_cb_ref(cb_ref,z_bed,z_bed_sd,z_sl,H_sed,f_sed,H_sed_min, &
                     H_sed_max,cf_ref,cf_min,z0,z1,n_sd,scale_zb,scale_sed)
-        ! Update cb_ref [--] based on parameter choices
+        ! Update cb_ref [--] based on parameter choices, with the reference
+        ! value cf_ref given per cell (dyn%now%cf_ref, see set_cf_ref_ids)
 
         implicit none
         
@@ -70,7 +102,7 @@ contains
         real(wp), intent(IN)  :: f_sed 
         real(wp), intent(IN)  :: H_sed_min
         real(wp), intent(IN)  :: H_sed_max  
-        real(wp), intent(IN)  :: cf_ref 
+        real(wp), intent(IN)  :: cf_ref(:,:) 
         real(wp), intent(IN)  :: cf_min
         real(wp), intent(IN)  :: z0 
         real(wp), intent(IN)  :: z1
@@ -151,7 +183,7 @@ contains
                                                                                 z_sl(i,j),z0,z1)
 
                         ! Calculate cb_ref 
-                        cb_ref_samples(q) = cf_ref * lambda_bed 
+                        cb_ref_samples(q) = cf_ref(i,j) * lambda_bed 
                         if(cb_ref_samples(q) .lt. cf_min) cb_ref_samples(q) = cf_min 
 
                     end do
@@ -175,7 +207,7 @@ contains
                                                                                 z_sl(i,j),z0,z1)
 
                         ! Calculate cb_ref 
-                        cb_ref_samples(q) = cf_ref * lambda_bed 
+                        cb_ref_samples(q) = cf_ref(i,j) * lambda_bed 
                         if(cb_ref_samples(q) .lt. cf_min) cb_ref_samples(q) = cf_min 
 
                     end do
@@ -219,7 +251,7 @@ contains
                     if (lambda_bed .gt. 1.0) lambda_bed = 1.0 
 
                     ! Convert range 0:1 => cf_min:cf_ref
-                    cb_ref_now = cf_min*lambda_bed + cf_ref*(1.0-lambda_bed)
+                    cb_ref_now = cf_min*lambda_bed + cf_ref(i,j)*(1.0-lambda_bed)
 
                     ! Apply minimum of previous cb_ref and sed scaling, should be limited to cf_min:cf_ref
                     cb_ref(i,j) = min(cb_ref(i,j), cb_ref_now)

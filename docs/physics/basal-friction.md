@@ -125,6 +125,16 @@ linear ramp $\lambda_s$ from 0 at `sed_min` to 1 at `sed_max`:
   $f_\mathrm{sed}$ = `f_sed`, and limited to at least `cf_min`;
 - 3: as 2, without the lower limit.
 
+The reference value `cf_ref` is a field (`dyn%now%cf_ref`), set to
+`ytill.cf_ref` everywhere by `yelmo_init` and `yelmo_restart_init` (it is not
+read from the restart). A driver can give basins or regions their own value
+after both calls with `set_cf_ref_ids(cf_ref, ids, codes, values)`
+(basal_dragging): `cf_ref = values(k)` where `nint(ids) = codes(k)`, with
+`ids` e.g. `bnd%basins` or `bnd%regions`. `cf_min` and the elevation and
+sediment scaling apply unchanged on top. `calc_ydyn_cb_ref` (yelmo_dynamics)
+computes `cb_ref` from the ytill parameters, `bnd` and the `cf_ref` field; a
+driver that sets `cb_ref` itself can call it too.
+
 With `ytill.method = -1`, `cb_ref` is set externally, e.g. by the
 [basal friction optimization](../optimization.md).
 

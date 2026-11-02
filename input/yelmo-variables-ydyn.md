@@ -46,26 +46,27 @@
 | 42 | N_eff             | xc, yc           | Pa          | Effective pressure                            | 1e-4r      |
 | 43 | cb_tgt            | xc, yc           | Pa          | Target basal parameter                        | 1e-4r      |
 | 44 | cb_ref            | xc, yc           | --          | Reference basal parameter                     | 1e-4r      |
-| 45 | c_bed             | xc, yc           | Pa          | Basal drag coefficient                        | 1e-4r      |
-| 46 | f_slide           | xc, yc           | -           | Frozen-bed sliding-speed factor               | 1e-4       |
-| 47 | beta_acx          | xc, yc           | Pa yr m^-1  | Basal stress factor (x)                       | 1e-4r      |
-| 48 | beta_acy          | xc, yc           | Pa yr m^-1  | Basal stress factor (y)                       | 1e-4r      |
-| 49 | beta              | xc, yc           | Pa yr m^-1  | Basal stress factor mag.                      | 1e-4r      |
-| 50 | beta_eff          | xc, yc           | Pa yr m^-1  | Effective basal factor                        | 1e-4r      |
-| 51 | f_vbvs            | xc, yc           | -           | Vertical basal stress                         | 1e-4       |
-| 52 | ssa_mask_acx      | xc, yc           | -           | SSA mask (x-dir)                              | -          |
-| 53 | ssa_mask_acy      | xc, yc           | -           | SSA mask (y-dir)                              | -          |
-| 54 | ssa_err_acx       | xc, yc           | 1           | SSA error (x-dir)                             | 1e-4r      |
-| 55 | ssa_err_acy       | xc, yc           | 1           | SSA error (y-dir)                             | 1e-4r      |
-| 56 | jvel_dxx          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdx             | 1e-4r      |
-| 57 | jvel_dxy          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdy             | 1e-4r      |
-| 58 | jvel_dxz          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdz             | 1e-4r      |
-| 59 | jvel_dyx          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydx             | 1e-4r      |
-| 60 | jvel_dyy          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydy             | 1e-4r      |
-| 61 | jvel_dyz          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydz             | 1e-4r      |
-| 62 | jvel_dzx          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdx             | 1e-4r      |
-| 63 | jvel_dzy          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdy             | 1e-4r      |
-| 64 | jvel_dzz          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdz             | 1e-4r      |
-| 65 | H_ice_solv        | xc, yc           | m           | Ice thickness of the last velocity solution   | 1e-3       |
-| 66 | f_ice_solv        | xc, yc           | 1           | Ice fraction of the last velocity solution    | 1e-4       |
-| 67 | uz_srf_err        | xc, yc           | m/yr        | Surface uz_star + smb (kinematic mismatch)    | 1e-4       |
+| 45 | cf_ref            | xc, yc           | -- or deg   | Reference till value                          | 1e-4r      |
+| 46 | c_bed             | xc, yc           | Pa          | Basal drag coefficient                        | 1e-4r      |
+| 47 | f_slide           | xc, yc           | -           | Frozen-bed sliding-speed factor               | 1e-4       |
+| 48 | beta_acx          | xc, yc           | Pa yr m^-1  | Basal stress factor (x)                       | 1e-4r      |
+| 49 | beta_acy          | xc, yc           | Pa yr m^-1  | Basal stress factor (y)                       | 1e-4r      |
+| 50 | beta              | xc, yc           | Pa yr m^-1  | Basal stress factor mag.                      | 1e-4r      |
+| 51 | beta_eff          | xc, yc           | Pa yr m^-1  | Effective basal factor                        | 1e-4r      |
+| 52 | f_vbvs            | xc, yc           | -           | Vertical basal stress                         | 1e-4       |
+| 53 | ssa_mask_acx      | xc, yc           | -           | SSA mask (x-dir)                              | -          |
+| 54 | ssa_mask_acy      | xc, yc           | -           | SSA mask (y-dir)                              | -          |
+| 55 | ssa_err_acx       | xc, yc           | 1           | SSA error (x-dir)                             | 1e-4r      |
+| 56 | ssa_err_acy       | xc, yc           | 1           | SSA error (y-dir)                             | 1e-4r      |
+| 57 | jvel_dxx          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdx             | 1e-4r      |
+| 58 | jvel_dxy          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdy             | 1e-4r      |
+| 59 | jvel_dxz          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duxdz             | 1e-4r      |
+| 60 | jvel_dyx          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydx             | 1e-4r      |
+| 61 | jvel_dyy          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydy             | 1e-4r      |
+| 62 | jvel_dyz          | xc, yc, zeta     | 1/yr        | Velocity Jacobian component duydz             | 1e-4r      |
+| 63 | jvel_dzx          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdx             | 1e-4r      |
+| 64 | jvel_dzy          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdy             | 1e-4r      |
+| 65 | jvel_dzz          | xc, yc, zeta_ac  | 1/yr        | Velocity Jacobian component duzdz             | 1e-4r      |
+| 66 | H_ice_solv        | xc, yc           | m           | Ice thickness of the last velocity solution   | 1e-3       |
+| 67 | f_ice_solv        | xc, yc           | 1           | Ice fraction of the last velocity solution    | 1e-4       |
+| 68 | uz_srf_err        | xc, yc           | m/yr        | Surface uz_star + smb (kinematic mismatch)    | 1e-4       |

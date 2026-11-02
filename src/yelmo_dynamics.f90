@@ -36,6 +36,8 @@ module yelmo_dynamics
     public :: ydyn_par_load, ydyn_alloc, ydyn_dealloc
     public :: calc_ydyn
     public :: calc_ydyn_neff
+    public :: calc_ydyn_cb_ref
+    public :: ydyn_till_init
     
 contains
 
@@ -124,9 +126,7 @@ contains
         ! Update bed roughness coefficients cb_ref and c_bed (which are independent of velocity)
 
         ! First calculate cb_tgt, to be used for comparision or optimization purposes
-        call calc_cb_ref(dyn%now%cb_tgt,bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%H_sed,dyn%par%till_f_sed, &
-                dyn%par%till_sed_min,dyn%par%till_sed_max,dyn%par%till_cf_ref,dyn%par%till_cf_min, &
-                dyn%par%till_z0,dyn%par%till_z1,dyn%par%till_n_sd,dyn%par%till_scale_zb, dyn%par%till_scale_sed)
+        call calc_ydyn_cb_ref(dyn%now%cb_tgt,dyn%par,bnd,dyn%now%cf_ref)
 
         if (dyn%par%till_method .eq. 1) then
             ! Calculate friction coefficient online, so set current friction equal to cb_tgt
@@ -735,6 +735,43 @@ contains
 
     end subroutine calc_ydyn_neff
 
+    subroutine calc_ydyn_cb_ref(cb_ref,par,bnd,cf_ref)
+        ! Till friction cb_ref [-- or deg] of the bed from the ytill parameters:
+        ! the reference value of each cell cf_ref (dyn%now%cf_ref) scaled with
+        ! the bedrock elevation and the sediment thickness (calc_cb_ref)
+
+        implicit none
+
+        real(wp),               intent(OUT) :: cb_ref(:,:)
+        type(ydyn_param_class), intent(IN)  :: par
+        type(ybound_class),     intent(IN)  :: bnd
+        real(wp),               intent(IN)  :: cf_ref(:,:)
+
+        call calc_cb_ref(cb_ref,bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%H_sed,par%till_f_sed, &
+                par%till_sed_min,par%till_sed_max,cf_ref,par%till_cf_min, &
+                par%till_z0,par%till_z1,par%till_n_sd,par%till_scale_zb,par%till_scale_sed)
+
+        return
+
+    end subroutine calc_ydyn_cb_ref
+
+    subroutine ydyn_till_init(dyn,bnd)
+        ! Static fields of the till friction: cf_ref = ytill.cf_ref everywhere.
+        ! Called at the end of yelmo_init and after a restart is read
+        ! (yelmo_restart_init); cf_ref is not read from the restart, a driver
+        ! with its own cf_ref (e.g. per basin, set_cf_ref_ids) sets it after both.
+
+        implicit none
+
+        type(ydyn_class),   intent(INOUT) :: dyn
+        type(ybound_class), intent(IN)    :: bnd
+
+        dyn%now%cf_ref = dyn%par%till_cf_ref
+
+        return
+
+    end subroutine ydyn_till_init
+
     subroutine ydyn_par_load(par,filename,group_ydyn,group_ytill,zeta_aa,zeta_ac,nx,ny,dx,init)
 
         type(ydyn_param_class), intent(OUT) :: par
@@ -954,6 +991,7 @@ contains
 
         allocate(now%cb_tgt(nx,ny))
         allocate(now%cb_ref(nx,ny))
+        allocate(now%cf_ref(nx,ny))
         allocate(now%c_bed(nx,ny)) 
         allocate(now%f_slide(nx,ny))
         
@@ -1061,6 +1099,7 @@ contains
             
         now%cb_tgt            = 0.0
         now%cb_ref            = 0.0
+        now%cf_ref            = 0.0
         now%c_bed             = 0.0 
         now%f_slide           = 1.0 
         
@@ -1179,6 +1218,7 @@ contains
         
         if (allocated(now%cb_tgt))          deallocate(now%cb_tgt) 
         if (allocated(now%cb_ref))          deallocate(now%cb_ref) 
+        if (allocated(now%cf_ref))          deallocate(now%cf_ref)
         if (allocated(now%c_bed))           deallocate(now%c_bed) 
         if (allocated(now%f_slide))         deallocate(now%f_slide)
         

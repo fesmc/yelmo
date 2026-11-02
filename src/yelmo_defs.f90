@@ -558,6 +558,7 @@ module yelmo_defs
         real(wp), allocatable :: N_eff(:,:)       ! Effective pressure
         real(wp), allocatable :: cb_tgt(:,:)
         real(wp), allocatable :: cb_ref(:,:)
+        real(wp), allocatable :: cf_ref(:,:)       ! [-- or deg] Reference till value per cell (ytill.cf_ref; a driver may set its own)
         real(wp), allocatable :: c_bed(:,:)  
         real(wp), allocatable :: f_slide(:,:)      ! Frozen-bed sliding-speed factor
         real(wp), allocatable :: beta_acx(:,:) 

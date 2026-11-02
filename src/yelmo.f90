@@ -15,7 +15,8 @@ module yelmo
                     yelmo_regions_init, yelmo_regions_update, yelmo_regions_write_init, yelmo_regions_write, &
                     yelmo_region_init
     
-    use basal_dragging, only : calc_cb_ref 
+    use basal_dragging, only : calc_cb_ref, set_cf_ref_ids
+    use yelmo_dynamics, only : calc_ydyn_cb_ref
     
     use topography, only : mask_bed_ocean, mask_bed_land, mask_bed_frozen, &
                     mask_bed_stream, mask_bed_grline, mask_bed_float , mask_bed_island

@@ -1034,6 +1034,9 @@ contains
         call yelmo_init_topo(dom,filename,dom%par%nml_init_topo,time,load_topo,topo_init=topo_init,prepared=prepared)
 
         write(*,*) "yelmo_init:: topo intialized (loaded data if desired)."
+
+        ! Static till fields (cf_ref = ytill.cf_ref; a driver may set its own after yelmo_init)
+        call ydyn_till_init(dom%dyn,dom%bnd)
         
         write(*,*) 
         write(*,*) "yelmo_init:: Initialization complete for domain: "// &
@@ -1637,6 +1640,10 @@ contains
         real(dp),          intent(IN)    :: time
 
         call yelmo_restart_read(dom,trim(filename),time)
+
+        ! Static till fields, not read from the restart (a driver with its own
+        ! cf_ref sets it again after yelmo_restart_init)
+        call ydyn_till_init(dom%dyn,dom%bnd)
 
         dom%time%pc_active = .TRUE.
 
