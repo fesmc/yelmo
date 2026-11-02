@@ -30,7 +30,7 @@ program test_till_regions
     integer,  parameter :: codes(8) = [0, 1, 101, 10101, 10102, 103, 105, 151]
 
     real(wp) :: regions(nx,ny), z_bed(nx,ny), z_bed_sd(nx,ny), z_sl(nx,ny), H_sed(nx,ny)
-    real(wp) :: cf_ref(nx,ny), cf_exp(nx,ny), cb_a(nx,ny), cb_b(nx,ny), cb_c(nx,ny), r(nx,ny)
+    real(wp) :: cf_ref(nx,ny), cf_exp(nx,ny), cb_a(nx,ny), cb_b(nx,ny), cb_c(nx,ny), r(nx,ny), z_bed_reg(nx,ny)
     integer  :: i, j, k, izb, ised, n_fail
     type(ydyn_class)   :: dyn
     type(ybound_class) :: bnd
@@ -59,7 +59,8 @@ program test_till_regions
 
     allocate(dyn%now%cf_ref(nx,ny))
     dyn%now%cf_ref = -1.0_wp
-    dyn%par%till_cf_ref = cf_def
+    dyn%par%till_cf_ref    = cf_def
+    dyn%par%till_scale_reg = 0
     call ydyn_till_init(dyn,bnd)
     call check("ydyn_till_init: cf_ref everywhere", all(dyn%now%cf_ref .eq. cf_def))
 
@@ -132,13 +133,15 @@ program test_till_regions
     dyn%par%till_cf_ref    = cf_def
     dyn%par%till_scale_zb  = 2
     dyn%par%till_scale_sed = 2
+    dyn%par%till_scale_reg = 0
+    z_bed_reg    = -1.0e6_wp        ! not used with scale_reg = 0
     bnd%regions  = regions
     bnd%z_bed    = z_bed
     bnd%z_bed_sd = z_bed_sd
     bnd%z_sl     = z_sl
     bnd%H_sed    = H_sed
 
-    call calc_ydyn_cb_ref(cb_a,dyn%par,bnd,cf_ref)
+    call calc_ydyn_cb_ref(cb_a,dyn%par,bnd,cf_ref,z_bed_reg)
     call calc_cb_ref(cb_b,z_bed,z_bed_sd,z_sl,H_sed,f_sed,sed_min,sed_max, &
                      cf_ref,cf_min,z0,z1,n_sd,2,2)
     call check("calc_ydyn_cb_ref = calc_cb_ref with the cf_ref field", all(cb_a .eq. cb_b))

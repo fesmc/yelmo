@@ -29,6 +29,7 @@ module basal_dragging
     ! General functions for beta
     public :: set_cf_ref_ids
     public :: calc_cb_ref 
+    public :: calc_basin_median
     public :: calc_c_bed 
     public :: calc_f_slide
     public :: calc_beta 
@@ -777,6 +778,114 @@ contains
         return
 
     end subroutine set_beta_min_grounded
+
+    subroutine calc_basin_median(z_med,z,basins,basin_mask)
+        ! Median of z over the cells of each basin: the cells with that basin id
+        ! (nint(basins)) and basin_mask = 1. Every cell of the basin gets it,
+        ! also those outside basin_mask. Cells without basin (id <= 0), and those
+        ! of a basin without cells in basin_mask, keep their own z.
+        ! Even number of cells: the mean of the two middle values.
+
+        implicit none
+
+        real(wp), intent(OUT) :: z_med(:,:)
+        real(wp), intent(IN)  :: z(:,:)
+        real(wp), intent(IN)  :: basins(:,:)
+        real(wp), intent(IN)  :: basin_mask(:,:)
+
+        ! Local variables
+        integer  :: b, n
+        integer,  allocatable :: ids(:,:)
+        logical,  allocatable :: in_basin(:,:)
+        real(wp), allocatable :: v(:)
+
+        allocate(ids(size(z,1),size(z,2)))
+        allocate(in_basin(size(z,1),size(z,2)))
+
+        ids   = nint(basins)
+        z_med = z
+
+        do b = 1, maxval(ids)
+
+            in_basin = (ids .eq. b .and. basin_mask .eq. 1.0_wp)
+            n = count(in_basin)
+            if (n .eq. 0) cycle
+
+            if (allocated(v)) deallocate(v)
+            allocate(v(n))
+            v = pack(z,in_basin)
+            call sort_heap(v)
+
+            if (mod(n,2) .eq. 1) then
+                where (ids .eq. b) z_med = v((n+1)/2)
+            else
+                where (ids .eq. b) z_med = 0.5_wp*(v(n/2) + v(n/2+1))
+            end if
+
+        end do
+
+        return
+
+    end subroutine calc_basin_median
+
+    subroutine sort_heap(v)
+        ! Sort v in ascending order (heapsort)
+
+        implicit none
+
+        real(wp), intent(INOUT) :: v(:)
+
+        ! Local variables
+        integer  :: n, k
+        real(wp) :: tmp
+
+        n = size(v)
+
+        ! Build a max-heap
+        do k = n/2, 1, -1
+            call sift_down(v,k,n)
+        end do
+
+        ! Move the maximum to the end, restore the heap on the rest
+        do k = n, 2, -1
+            tmp  = v(1)
+            v(1) = v(k)
+            v(k) = tmp
+            call sift_down(v,1,k-1)
+        end do
+
+        return
+
+    contains
+
+        subroutine sift_down(v,k0,m)
+
+            implicit none
+
+            real(wp), intent(INOUT) :: v(:)
+            integer,  intent(IN)    :: k0, m
+
+            integer  :: k, c
+            real(wp) :: tmp
+
+            k = k0
+            do while (2*k .le. m)
+                c = 2*k
+                if (c .lt. m) then
+                    if (v(c+1) .gt. v(c)) c = c + 1
+                end if
+                if (v(k) .ge. v(c)) exit
+                tmp  = v(k)
+                v(k) = v(c)
+                v(c) = tmp
+                k = c
+            end do
+
+            return
+
+        end subroutine sift_down
+
+    end subroutine sort_heap
 
     elemental function calc_lambda_bed_lin(z_bed,z_sl,z0,z1) result(lambda)
         ! Calculate scaling function: linear 

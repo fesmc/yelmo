@@ -126,7 +126,7 @@ contains
         ! Update bed roughness coefficients cb_ref and c_bed (which are independent of velocity)
 
         ! First calculate cb_tgt, to be used for comparision or optimization purposes
-        call calc_ydyn_cb_ref(dyn%now%cb_tgt,dyn%par,bnd,dyn%now%cf_ref)
+        call calc_ydyn_cb_ref(dyn%now%cb_tgt,dyn%par,bnd,dyn%now%cf_ref,dyn%now%z_bed_reg)
 
         if (dyn%par%till_method .eq. 1) then
             ! Calculate friction coefficient online, so set current friction equal to cb_tgt
@@ -735,10 +735,15 @@ contains
 
     end subroutine calc_ydyn_neff
 
-    subroutine calc_ydyn_cb_ref(cb_ref,par,bnd,cf_ref)
+    subroutine calc_ydyn_cb_ref(cb_ref,par,bnd,cf_ref,z_bed_reg)
         ! Till friction cb_ref [-- or deg] of the bed from the ytill parameters:
         ! the reference value of each cell cf_ref (dyn%now%cf_ref) scaled with
-        ! the bedrock elevation and the sediment thickness (calc_cb_ref)
+        ! the bedrock elevation and the sediment thickness (calc_cb_ref). The
+        ! elevation fed to the scale_zb law (ytill.scale_reg):
+        !   0: the current bed z_bed, sampled over z_bed_sd with n_sd samples;
+        !   1: z_bed_reg, the median of z_bed_ref over the cell's basin
+        !      (ydyn_till_init), one value per basin: no sub-grid sampling (n_sd = 1).
+        ! The law runs from cf_min to the cell's cf_ref.
 
         implicit none
 
@@ -746,27 +751,76 @@ contains
         type(ydyn_param_class), intent(IN)  :: par
         type(ybound_class),     intent(IN)  :: bnd
         real(wp),               intent(IN)  :: cf_ref(:,:)
+        real(wp),               intent(IN)  :: z_bed_reg(:,:)
 
-        call calc_cb_ref(cb_ref,bnd%z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%H_sed,par%till_f_sed, &
+        ! Local variables
+        real(wp), allocatable :: z_bed(:,:)
+        integer :: n_sd
+
+        allocate(z_bed(size(cb_ref,1),size(cb_ref,2)))
+
+        select case (par%till_scale_reg)
+            case (0)
+                z_bed = bnd%z_bed
+                n_sd  = par%till_n_sd
+            case (1)
+                z_bed = z_bed_reg
+                n_sd  = 1
+            case DEFAULT
+                write(io_unit_err,*) "calc_ydyn_cb_ref:: Error: ytill.scale_reg must be 0 or 1; got ", &
+                                     par%till_scale_reg
+                error stop 1
+        end select
+
+        call calc_cb_ref(cb_ref,z_bed,bnd%z_bed_sd,bnd%z_sl,bnd%H_sed,par%till_f_sed, &
                 par%till_sed_min,par%till_sed_max,cf_ref,par%till_cf_min, &
-                par%till_z0,par%till_z1,par%till_n_sd,par%till_scale_zb,par%till_scale_sed)
+                par%till_z0,par%till_z1,n_sd,par%till_scale_zb,par%till_scale_sed)
 
         return
 
     end subroutine calc_ydyn_cb_ref
 
     subroutine ydyn_till_init(dyn,bnd)
-        ! Static fields of the till friction: cf_ref = ytill.cf_ref everywhere.
-        ! Called at the end of yelmo_init and after a restart is read
-        ! (yelmo_restart_init); cf_ref is not read from the restart, a driver
-        ! with its own cf_ref (e.g. per basin, set_cf_ref_ids) sets it after both.
+        ! Static fields of the till friction: cf_ref = ytill.cf_ref everywhere,
+        ! and with ytill.scale_reg = 1, z_bed_reg, the median of the reference
+        ! bed z_bed_ref over the cells of each basin (calc_basin_median).
+        ! Called once z_bed_ref and the basins are final: at the end of
+        ! yelmo_init and after a restart is read (yelmo_restart_init); cf_ref
+        ! is not read from the restart, a driver with its own cf_ref (e.g. per
+        ! basin, set_cf_ref_ids) sets it after both.
 
         implicit none
 
         type(ydyn_class),   intent(INOUT) :: dyn
         type(ybound_class), intent(IN)    :: bnd
 
+        ! Local variables
+        integer :: b, n
+        integer, allocatable :: ids(:,:)
+
         dyn%now%cf_ref = dyn%par%till_cf_ref
+
+        if (dyn%par%till_scale_reg .ne. 1) return
+
+        call calc_basin_median(dyn%now%z_bed_reg,bnd%z_bed_ref,bnd%basins,bnd%basin_mask)
+
+        ! Log the basin elevations (z_bed_reg is the same in every cell of a basin)
+        allocate(ids(size(bnd%basins,1),size(bnd%basins,2)))
+        ids = nint(bnd%basins)
+        write(*,*) "ydyn_till_init:: ytill.scale_reg = 1: basin median of z_bed_ref [m] (id, cells, median)"
+        do b = 1, maxval(ids)
+            if (.not. any(ids .eq. b)) cycle
+            n = count(ids .eq. b .and. bnd%basin_mask .eq. 1.0_wp)
+            if (n .gt. 0) then
+                write(*,"(a,i6,i8,f10.1)") "ydyn_till_init::", b, n, &
+                                    maxval(dyn%now%z_bed_reg,mask=(ids .eq. b))
+            else
+                write(*,"(a,i6,a)") "ydyn_till_init::", b, &
+                                    ": no cells within basin_mask, cells keep their own z_bed_ref"
+            end if
+        end do
+        n = count(ids .le. 0)
+        if (n .gt. 0) write(*,"(a,i8,a)") "ydyn_till_init:: ", n, " cells without basin keep their own z_bed_ref"
 
         return
 
@@ -830,6 +884,7 @@ contains
 
         call nml_read(filename,group_ytill,"method",            par%till_method,        init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"scale_zb",          par%till_scale_zb,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
+        call nml_read(filename,group_ytill,"scale_reg",         par%till_scale_reg,     init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"scale_sed",         par%till_scale_sed,     init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"is_angle",          par%till_is_angle,      init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
         call nml_read(filename,group_ytill,"n_sd",              par%till_n_sd,          init=init_pars,defaults_file=def_file,defaults_group=def_ytill)
@@ -880,6 +935,18 @@ contains
             write(io_unit_err,*) "ydyn_par_load:: error: ytill.cf_min must be <= ytill.cf_ref; got ", &
                                  par%till_cf_min, par%till_cf_ref
             error stop 1
+        end if
+        if (par%till_scale_reg .ne. 0 .and. par%till_scale_reg .ne. 1) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ytill.scale_reg must be 0 or 1; got ", par%till_scale_reg
+            error stop 1
+        end if
+        if (par%till_scale_reg .eq. 1 .and. par%till_scale_zb .eq. 0) then
+            write(io_unit_err,*) "ydyn_par_load:: error: ytill.scale_reg = 1 needs an elevation law, ytill.scale_zb > 0; got ", &
+                                 par%till_scale_zb
+            error stop 1
+        end if
+        if (par%till_scale_reg .eq. 1 .and. par%till_n_sd .gt. 1) then
+            write(*,*) "ydyn_par_load:: ytill.scale_reg = 1: n_sd is not used (no sub-grid sampling of the basin median)."
         end if
 
         ! === Set internal parameters ======
@@ -992,6 +1059,7 @@ contains
         allocate(now%cb_tgt(nx,ny))
         allocate(now%cb_ref(nx,ny))
         allocate(now%cf_ref(nx,ny))
+        allocate(now%z_bed_reg(nx,ny))
         allocate(now%c_bed(nx,ny)) 
         allocate(now%f_slide(nx,ny))
         
@@ -1100,6 +1168,7 @@ contains
         now%cb_tgt            = 0.0
         now%cb_ref            = 0.0
         now%cf_ref            = 0.0
+        now%z_bed_reg         = 0.0
         now%c_bed             = 0.0 
         now%f_slide           = 1.0 
         
@@ -1219,6 +1288,7 @@ contains
         if (allocated(now%cb_tgt))          deallocate(now%cb_tgt) 
         if (allocated(now%cb_ref))          deallocate(now%cb_ref) 
         if (allocated(now%cf_ref))          deallocate(now%cf_ref)
+        if (allocated(now%z_bed_reg))       deallocate(now%z_bed_reg)
         if (allocated(now%c_bed))           deallocate(now%c_bed) 
         if (allocated(now%f_slide))         deallocate(now%f_slide)
         
