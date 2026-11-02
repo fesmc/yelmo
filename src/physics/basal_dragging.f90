@@ -27,7 +27,9 @@ module basal_dragging
     private
 
     ! General functions for beta
+    public :: set_cf_ref_ids
     public :: calc_cb_ref 
+    public :: calc_basin_median
     public :: calc_c_bed 
     public :: calc_f_slide
     public :: calc_beta 
@@ -56,9 +58,40 @@ module basal_dragging
 
 contains 
     
+    subroutine set_cf_ref_ids(cf_ref,ids,codes,values)
+        ! Set the reference till value cf_ref [-- or deg] in the cells of given
+        ! ids: cf_ref = values(k) where nint(ids) = codes(k) (exact match),
+        ! other cells are not changed. ids is an id field of the domain, e.g.
+        ! bnd%basins or bnd%regions; where codes repeat, later entries win.
+
+        implicit none
+
+        real(wp), intent(INOUT) :: cf_ref(:,:)
+        real(wp), intent(IN)    :: ids(:,:)
+        integer,  intent(IN)    :: codes(:)
+        real(wp), intent(IN)    :: values(:)
+
+        ! Local variables
+        integer :: k
+
+        if (size(codes) .ne. size(values)) then
+            write(io_unit_err,*) "set_cf_ref_ids:: Error: codes and values must have the same size; got ", &
+                                 size(codes), size(values)
+            error stop 1
+        end if
+
+        do k = 1, size(codes)
+            where (nint(ids) .eq. codes(k)) cf_ref = values(k)
+        end do
+
+        return
+
+    end subroutine set_cf_ref_ids
+
     subroutine calc_cb_ref(cb_ref,z_bed,z_bed_sd,z_sl,H_sed,f_sed,H_sed_min, &
                     H_sed_max,cf_ref,cf_min,z0,z1,n_sd,scale_zb,scale_sed)
-        ! Update cb_ref [--] based on parameter choices
+        ! Update cb_ref [--] based on parameter choices, with the reference
+        ! value cf_ref given per cell (dyn%now%cf_ref, see set_cf_ref_ids)
 
         implicit none
         
@@ -70,7 +103,7 @@ contains
         real(wp), intent(IN)  :: f_sed 
         real(wp), intent(IN)  :: H_sed_min
         real(wp), intent(IN)  :: H_sed_max  
-        real(wp), intent(IN)  :: cf_ref 
+        real(wp), intent(IN)  :: cf_ref(:,:) 
         real(wp), intent(IN)  :: cf_min
         real(wp), intent(IN)  :: z0 
         real(wp), intent(IN)  :: z1
@@ -151,7 +184,7 @@ contains
                                                                                 z_sl(i,j),z0,z1)
 
                         ! Calculate cb_ref 
-                        cb_ref_samples(q) = cf_ref * lambda_bed 
+                        cb_ref_samples(q) = cf_ref(i,j) * lambda_bed 
                         if(cb_ref_samples(q) .lt. cf_min) cb_ref_samples(q) = cf_min 
 
                     end do
@@ -175,7 +208,7 @@ contains
                                                                                 z_sl(i,j),z0,z1)
 
                         ! Calculate cb_ref 
-                        cb_ref_samples(q) = cf_ref * lambda_bed 
+                        cb_ref_samples(q) = cf_ref(i,j) * lambda_bed 
                         if(cb_ref_samples(q) .lt. cf_min) cb_ref_samples(q) = cf_min 
 
                     end do
@@ -219,7 +252,7 @@ contains
                     if (lambda_bed .gt. 1.0) lambda_bed = 1.0 
 
                     ! Convert range 0:1 => cf_min:cf_ref
-                    cb_ref_now = cf_min*lambda_bed + cf_ref*(1.0-lambda_bed)
+                    cb_ref_now = cf_min*lambda_bed + cf_ref(i,j)*(1.0-lambda_bed)
 
                     ! Apply minimum of previous cb_ref and sed scaling, should be limited to cf_min:cf_ref
                     cb_ref(i,j) = min(cb_ref(i,j), cb_ref_now)
@@ -745,6 +778,114 @@ contains
         return
 
     end subroutine set_beta_min_grounded
+
+    subroutine calc_basin_median(z_med,z,basins,basin_mask)
+        ! Median of z over the cells of each basin: the cells with that basin id
+        ! (nint(basins)) and basin_mask = 1. Every cell of the basin gets it,
+        ! also those outside basin_mask. Cells without basin (id <= 0), and those
+        ! of a basin without cells in basin_mask, keep their own z.
+        ! Even number of cells: the mean of the two middle values.
+
+        implicit none
+
+        real(wp), intent(OUT) :: z_med(:,:)
+        real(wp), intent(IN)  :: z(:,:)
+        real(wp), intent(IN)  :: basins(:,:)
+        real(wp), intent(IN)  :: basin_mask(:,:)
+
+        ! Local variables
+        integer  :: b, n
+        integer,  allocatable :: ids(:,:)
+        logical,  allocatable :: in_basin(:,:)
+        real(wp), allocatable :: v(:)
+
+        allocate(ids(size(z,1),size(z,2)))
+        allocate(in_basin(size(z,1),size(z,2)))
+
+        ids   = nint(basins)
+        z_med = z
+
+        do b = 1, maxval(ids)
+
+            in_basin = (ids .eq. b .and. basin_mask .eq. 1.0_wp)
+            n = count(in_basin)
+            if (n .eq. 0) cycle
+
+            if (allocated(v)) deallocate(v)
+            allocate(v(n))
+            v = pack(z,in_basin)
+            call sort_heap(v)
+
+            if (mod(n,2) .eq. 1) then
+                where (ids .eq. b) z_med = v((n+1)/2)
+            else
+                where (ids .eq. b) z_med = 0.5_wp*(v(n/2) + v(n/2+1))
+            end if
+
+        end do
+
+        return
+
+    end subroutine calc_basin_median
+
+    subroutine sort_heap(v)
+        ! Sort v in ascending order (heapsort)
+
+        implicit none
+
+        real(wp), intent(INOUT) :: v(:)
+
+        ! Local variables
+        integer  :: n, k
+        real(wp) :: tmp
+
+        n = size(v)
+
+        ! Build a max-heap
+        do k = n/2, 1, -1
+            call sift_down(v,k,n)
+        end do
+
+        ! Move the maximum to the end, restore the heap on the rest
+        do k = n, 2, -1
+            tmp  = v(1)
+            v(1) = v(k)
+            v(k) = tmp
+            call sift_down(v,1,k-1)
+        end do
+
+        return
+
+    contains
+
+        subroutine sift_down(v,k0,m)
+
+            implicit none
+
+            real(wp), intent(INOUT) :: v(:)
+            integer,  intent(IN)    :: k0, m
+
+            integer  :: k, c
+            real(wp) :: tmp
+
+            k = k0
+            do while (2*k .le. m)
+                c = 2*k
+                if (c .lt. m) then
+                    if (v(c+1) .gt. v(c)) c = c + 1
+                end if
+                if (v(k) .ge. v(c)) exit
+                tmp  = v(k)
+                v(k) = v(c)
+                v(c) = tmp
+                k = c
+            end do
+
+            return
+
+        end subroutine sift_down
+
+    end subroutine sort_heap
 
     elemental function calc_lambda_bed_lin(z_bed,z_sl,z0,z1) result(lambda)
         ! Calculate scaling function: linear 

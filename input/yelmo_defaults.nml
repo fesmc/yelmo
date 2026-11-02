@@ -175,6 +175,7 @@
 &ytill
     method          = 1                 ! -1: set externally; 1: calculate cb_ref online  
     scale_zb        = 1                 ! 0: none, 1: lin, 2: exp : scaling with elevation
+    scale_reg       = 0                 ! Elevation of scale_zb: 0: current z_bed; 1: median of z_bed_ref over the cell's basin (needs scale_zb > 0; n_sd not used)
     scale_sed       = 0                 ! 0: none, 1: min(cb_zb,cb_sed), 2: cb_zb*(lambda_sed*f_sed), 3: 2 but no lower limit
     is_angle        = False             ! cf_ref/cf_min are till strength angle?
     n_sd            = 10                ! Number of samples over z_bed_sd field

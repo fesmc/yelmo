@@ -451,6 +451,7 @@ module yelmo_defs
         ! Till-scaling parameters
         integer    :: till_method 
         integer    :: till_scale_zb
+        integer    :: till_scale_reg     ! Elevation of the scale_zb law: 0 current z_bed, 1 basin median of z_bed_ref
         integer    :: till_scale_sed
         logical    :: till_is_angle
         integer    :: till_n_sd
@@ -558,6 +559,8 @@ module yelmo_defs
         real(wp), allocatable :: N_eff(:,:)       ! Effective pressure
         real(wp), allocatable :: cb_tgt(:,:)
         real(wp), allocatable :: cb_ref(:,:)
+        real(wp), allocatable :: cf_ref(:,:)       ! [-- or deg] Reference till value per cell (ytill.cf_ref; a driver may set its own)
+        real(wp), allocatable :: z_bed_reg(:,:)    ! [m] Median of z_bed_ref over the cell's basin (ytill.scale_reg = 1)
         real(wp), allocatable :: c_bed(:,:)  
         real(wp), allocatable :: f_slide(:,:)      ! Frozen-bed sliding-speed factor
         real(wp), allocatable :: beta_acx(:,:) 

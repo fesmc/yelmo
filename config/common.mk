@@ -88,4 +88,6 @@ endif
 # `LFLAGS_EXTRA =` (macOS ld rejects -zmuldefs, so the macbook fragment does).
 LFLAGS_EXTRA ?= -Wl,-zmuldefs
 
-LFLAGS = $(LIB_NC) $(LIB_ELSA) $(LIB_TRACER) $(LIB_FESMUTILS) $(LIB_FASTHYDRO) $(LIB_FFTW) $(LIB_LINEAR) $(LFLAGS_EXTRA)
+# Static archives in dependency order: FastHydrology uses fesm-utils, so it
+# comes before it (GNU ld resolves symbols left to right).
+LFLAGS = $(LIB_NC) $(LIB_ELSA) $(LIB_TRACER) $(LIB_FASTHYDRO) $(LIB_FESMUTILS) $(LIB_FFTW) $(LIB_LINEAR) $(LFLAGS_EXTRA)

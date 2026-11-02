@@ -116,6 +116,18 @@ Here $z_0$, $z_1$ are `ytill.z0`, `ytill.z1` (defaults −300 m, 200 m) and
 scaling is averaged over Gaussian-weighted samples of $z_b \pm \sigma_{z_b}$
 (`z_bed_sd`), to account for sub-grid bed roughness.
 
+The elevation $z_b$ fed to the scaling is selected with `ytill.scale_reg`:
+
+- 0 (default): the current bed `z_bed` of the cell;
+- 1: the median of the reference bed `z_bed_ref` over the cells of the cell's
+  basin (`basins`, the cells with that basin id and `basin_mask = 1`), so
+  the scaling is one value per basin, lower in lower basins, and does not
+  follow the isostatic depression of the bed. Every cell with that basin id gets it,
+  also those outside `basin_mask`; cells without basin (`basins = 0`) use
+  their own `z_bed_ref`. The basin medians are computed once (`z_bed_reg`,
+  logged at initialization), `n_sd` is not used (no sub-grid sampling of a
+  basin value), and `scale_zb` must be 1 or 2.
+
 The sediment thickness can reduce `cb_ref` further (`ytill.scale_sed`), with a
 linear ramp $\lambda_s$ from 0 at `sed_min` to 1 at `sed_max`:
 
@@ -124,6 +136,18 @@ linear ramp $\lambda_s$ from 0 at `sed_min` to 1 at `sed_max`:
 - 2: `cb_ref` multiplied by $1 - (1 - f_\mathrm{sed})\lambda_s$, with
   $f_\mathrm{sed}$ = `f_sed`, and limited to at least `cf_min`;
 - 3: as 2, without the lower limit.
+
+The reference value `cf_ref` is a field (`dyn%now%cf_ref`), set to
+`ytill.cf_ref` everywhere by `yelmo_init` and `yelmo_restart_init` (it is not
+read from the restart). A driver can give basins or regions their own value
+after both calls with `set_cf_ref_ids(cf_ref, ids, codes, values)`
+(basal_dragging): `cf_ref = values(k)` where `nint(ids) = codes(k)`, with
+`ids` e.g. `bnd%basins` or `bnd%regions`. `cf_min` and the elevation and
+sediment scaling apply unchanged on top: the elevation law runs from `cf_min`
+to the cell's `cf_ref`, also with `scale_reg = 1`, where `cf_ref` acts as a
+factor on the basin law. `calc_ydyn_cb_ref` (yelmo_dynamics) computes `cb_ref`
+from the ytill parameters, `bnd`, the `cf_ref` field and the basin elevations
+`dyn%now%z_bed_reg`; a driver that sets `cb_ref` itself can call it too.
 
 With `ytill.method = -1`, `cb_ref` is set externally, e.g. by the
 [basal friction optimization](../optimization.md).

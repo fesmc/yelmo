@@ -1349,6 +1349,8 @@ contains
                 call var_io_write(filename,vw,ylmo%dyn%now%cb_tgt(i1:i2,j1:j2),n,ncid)
             case("cb_ref")
                 call var_io_write(filename,vw,ylmo%dyn%now%cb_ref(i1:i2,j1:j2),n,ncid)
+            case("cf_ref")
+                call var_io_write(filename,vw,ylmo%dyn%now%cf_ref(i1:i2,j1:j2),n,ncid)
             case("c_bed")
                 call var_io_write(filename,vw,ylmo%dyn%now%c_bed(i1:i2,j1:j2),n,ncid)
             case("f_slide")

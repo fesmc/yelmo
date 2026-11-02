@@ -194,6 +194,20 @@ f_grnd : yelmo-static tests/test_f_grnd.f90
 		@echo "    test_f_grnd.x is ready."
 		@echo " "
 
+till_regions : yelmo-static tests/test_till_regions.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_till_regions.x tests/test_till_regions.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_till_regions.x is ready."
+		@echo " "
+
+till_scale_reg : yelmo-static tests/test_till_scale_reg.f90
+		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_till_scale_reg.x tests/test_till_scale_reg.f90 \
+			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
+		@echo " "
+		@echo "    test_till_scale_reg.x is ready."
+		@echo " "
+
 lsf_front : yelmo-static tests/test_lsf_front.f90
 		$(FC) $(DFLAGS) $(FFLAGS) $(INC_FESMUTILS) $(INC_LIS) -o $(bindir)/test_lsf_front.x tests/test_lsf_front.f90 \
 			-L${CURDIR}/libyelmo/include -lyelmo $(LFLAGS)
@@ -262,6 +276,8 @@ usage:
 	@echo " make front_strain      : test_front_strain.x"
 	@echo " make lsf_front         : test_lsf_front.x"
 	@echo " make f_grnd            : test_f_grnd.x"
+	@echo " make till_regions      : test_till_regions.x"
+	@echo " make till_scale_reg    : test_till_scale_reg.x"
 	@echo " make check_sim         : check_sim.x"
 	@echo ""
 	@echo " Libraries: yelmo-static, yelmo-shared, yelmo-c"
