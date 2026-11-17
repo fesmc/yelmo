@@ -2,7 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- `yelmo_init` (and `yelmo_par_load`): optional `restart` argument, in place of `yelmo.restart` of the par
+  file, for a driver that keeps its own restart sets (CLIMBER-X `ctl.ice_restart`). The file has to be
+  known in `yelmo_init`, where `yelmo_init_topo` loads `H_ice` and `z_bed` from it.
+- `yelmo_init`: optional `prepared` flag; the driver's `topo_pd`/`topo_init` are used as given, without
+  Yelmo's topography cleaning (default `.FALSE.`, unchanged).
+- **ytill**: `cf_ref` is a field (`dyn%now%cf_ref`), filled from `ytill.cf_ref` and set per region by a
+  driver with `set_cf_ref_ids`; `calc_ydyn_cb_ref`/`calc_cb_ref` take the field; `cf_ref` in the output.
+- **ytill**: `scale_reg` (default 0, unchanged): with 1, the `scale_zb` elevation is the median of
+  `z_bed_ref` over the cell's basin, and the law runs from `cf_min` to the cell's `cf_ref`.
+
 ### Fixed
+
+- **Restart**: `strn2D%eps_eig_1/2` recomputed from the restored strain-rate tensor, so `vm-m16` calving
+  restarts exactly.
+- **Build**: FastHydrology linked before fesm-utils (unresolved `phys_constants` with GNU ld).
 
 - **Restart**: the running maximum `pc_tau_max` (over the last 50 internal steps) is exact after a restart. The
   restart file holds the window `pc_taus` (dimension `pc_hist`) and `pc_tau`, `pc_tau_masked`, `pc_tau_max`,
