@@ -683,7 +683,7 @@ contains
     end subroutine yelmo_update_equil
     
     subroutine yelmo_init(dom,filename,grid_def,time,load_topo,domain,grid_name,group,outfldr,cnst, &
-                          reg,mask_ice,topo_pd,topo_init,prepared)
+                          reg,mask_ice,topo_pd,topo_init,prepared,restart)
         ! Initialize a yelmo domain, including the grid itself,
         ! and all sub-components (topo,dyn,mat,therm,bound,data)
 
@@ -725,6 +725,10 @@ contains
         ! (unchanged behavior). Applies only to the fields supplied by the driver;
         ! a field read from file is still cleaned.
         logical, intent(IN), optional :: prepared
+
+        ! restart: the restart file, in place of yelmo.restart of the par file (a
+        ! driver that keeps its own restart sets). "None" starts without one.
+        character(len=*), intent(IN), optional :: restart
 
         ! Local variables
         type(region_mask_class), allocatable :: masks(:)
@@ -777,7 +781,7 @@ contains
         ! == yelmo == 
 
         ! Load the default yelmo parameters, then the domain specific parameters
-        call yelmo_par_load(dom%par,filename,nml_group,domain,grid_name)
+        call yelmo_par_load(dom%par,filename,nml_group,domain,grid_name,restart)
         
         ! Define physical constants
         call ybound_define_physical_constants(dom%bnd%c,dom%par%phys_const,domain,grid_name, &
@@ -1656,13 +1660,14 @@ contains
 
     end subroutine yelmo_restart_init
 
-    subroutine yelmo_par_load(par,filename,group,domain,grid_name)
+    subroutine yelmo_par_load(par,filename,group,domain,grid_name,restart)
 
         type(yelmo_param_class), intent(OUT) :: par
         character(len=*),        intent(IN)  :: filename
         character(len=*),        intent(IN)  :: group               ! Usually "yelmo"
         character(len=*),        intent(IN), optional :: domain
         character(len=*),        intent(IN), optional :: grid_name
+        character(len=*),        intent(IN), optional :: restart    ! In place of yelmo.restart
 
         character(len=*), parameter :: def_file  = "input/yelmo_defaults.nml"
         character(len=*), parameter :: def_yelmo = "yelmo"
@@ -1722,6 +1727,7 @@ contains
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)
         if (present(grid_name))  par%grid_name = trim(grid_name)
+        if (present(restart))    par%restart   = trim(restart)
 
         ! The schema in input/yelmo_defaults.nml leaves domain (and grid_name)
         ! as "None" so a user par file that forgets to set them fails loudly
