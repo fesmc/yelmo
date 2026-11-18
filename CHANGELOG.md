@@ -1,5 +1,17 @@
 # Yelmo changelog
 
+## Unreleased
+
+### Fixed
+
+- **Restart**: the initialization syncs keep the `smb`, `bmb`, `fmb` and `dmb` restored from a restart on the same
+  grid (with its `H_ice` and `z_bed`), instead of diagnosing them again from the forcing: `yelmo_init_topo`, right
+  after loading them, did so before the thermodynamic state (`bmb_grnd`) was loaded. New optional `diag_mb`
+  argument of `calc_ytopo_pc` (default `.TRUE.`). A coupled driver that hands the ice fluxes on before the first
+  update (CLIMBER-X: `bmb`, `cmb + dmb` to the ocean for the first year) now sees the rates of the step the
+  restart was written at; in `check_restart.sh` the restarted run's initial state equals the continuous run's.
+  A cold start and other restarts diagnose them as before.
+
 ## v2.4.1 (2026-11-17)
 
 ### Added
