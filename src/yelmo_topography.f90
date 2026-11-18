@@ -41,7 +41,7 @@ module yelmo_topography
     
 contains
     
-    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,time,topo_fixed,pc_step,use_H_pred,filter_vel)
+    subroutine calc_ytopo_pc(tpo,dyn,mat,thrm,bnd,time,topo_fixed,pc_step,use_H_pred,filter_vel,diag_mb)
 
         implicit none 
 
@@ -55,6 +55,7 @@ contains
         character(len=*),   intent(IN)    :: pc_step 
         logical, optional,  intent(IN)    :: use_H_pred
         logical, optional,  intent(IN)    :: filter_vel     ! Advect with mean of current and previous velocity solutions
+        logical, optional,  intent(IN)    :: diag_mb        ! Diagnose smb, bmb, fmb, dmb when the ice is not advanced (default .TRUE.)
 
         ! Local variables 
         integer  :: i, j, nx, ny
@@ -66,6 +67,7 @@ contains
         logical,  allocatable :: mask_obd(:,:)     ! outflow-border cells
         integer  :: lin_iter, lin_status                ! Linear solver iterations and status of the advection
         logical  :: filt
+        logical  :: diag
 
         real(8)  :: cpu_time0, cpu_time1
 
@@ -548,8 +550,12 @@ contains
         ! is applied (mb_net and the other applied rates stay zero). The
         ! initialization sync (pc_step="none") also diagnoses them, but keeps the
         ! other rates as they are (zero at a cold start, the restart's rates on a
-        ! restart, as for a straight run at that time).
-        if (.not. tpo%par%advanced) then
+        ! restart, as for a straight run at that time). diag_mb=.FALSE. keeps
+        ! smb, bmb, fmb and dmb as they are too (the initialization syncs on a
+        ! restart that restored them, see restart_mb_kept in yelmo_ice).
+        diag = .TRUE.
+        if (present(diag_mb)) diag = diag_mb
+        if (.not. tpo%par%advanced .and. diag) then
             call calc_ytopo_mb_diagnostic(tpo,thrm,bnd)
         end if
 

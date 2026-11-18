@@ -1402,8 +1402,9 @@ contains
         ! Run topo and masks to make sure all fields are synchronized (masks, etc)
         ! Note: thermodynamic state has not been loaded yet, so mask_bed produced here
         ! will not contain regions of temperate ice. masks should be updated again
-        ! after loaded remaining fields.
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        ! after loaded remaining fields. A restored mass balance is kept (see restart_mb_kept).
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none", &
+                        use_H_pred=dom%par%pc_use_H_pred,diag_mb=(.not. restart_mb_kept(dom%par)))
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
@@ -1620,8 +1621,10 @@ contains
 
         end if 
 
-        ! Re-run topo again to make sure all fields are synchronized (masks, etc)
-        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none",use_H_pred=dom%par%pc_use_H_pred)
+        ! Re-run topo again to make sure all fields are synchronized (masks, etc),
+        ! keeping a restored mass balance (see restart_mb_kept)
+        call calc_ytopo_pc(dom%tpo,dom%dyn,dom%mat,dom%thrm,dom%bnd,time,topo_fixed=.TRUE.,pc_step="none", &
+                        use_H_pred=dom%par%pc_use_H_pred,diag_mb=(.not. restart_mb_kept(dom%par)))
 
         ! Update regional calculations (for entire domain and subdomains)
         call yelmo_regions_update(dom)
@@ -1659,6 +1662,23 @@ contains
         return
 
     end subroutine yelmo_restart_init
+
+    logical function restart_mb_kept(par)
+        ! Do the initialization syncs keep the mass balance (smb, bmb, fmb, dmb)
+        ! restored from a restart? Yes when the restart state is used as written
+        ! (same grid, its H_ice and z_bed): they are the rates of the step the
+        ! restart was written at, which a coupled driver hands on before the first
+        ! update. Otherwise they are diagnosed from the current forcing.
+
+        implicit none
+
+        type(yelmo_param_class), intent(IN) :: par
+
+        restart_mb_kept = .FALSE.
+        if (par%use_restart) restart_mb_kept = (par%restart_interpolated .eq. 0 .and. &
+                                                par%restart_H_ice .and. par%restart_z_bed)
+
+    end function restart_mb_kept
 
     subroutine yelmo_par_load(par,filename,group,domain,grid_name,restart)
 
