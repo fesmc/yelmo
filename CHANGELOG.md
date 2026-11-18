@@ -1,6 +1,6 @@
 # Yelmo changelog
 
-## Unreleased
+## v2.4.2 (2026-11-18)
 
 ### Fixed
 
